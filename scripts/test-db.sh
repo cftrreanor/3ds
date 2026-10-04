@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DB="event_shell_test_$$"
+DB="fieldcommand_test_$$"
 createdb "$DB"
 trap 'dropdb --if-exists "$DB"' EXIT
 

@@ -1,7 +1,6 @@
-// Single place for the product name. "Event Shell" is a working title from the
-// PRD; see docs/PRD-REVIEW.md before picking the real one.
+// Single place for the product name. Change it here, nowhere else.
 export const brand = {
-  name: "Event Shell",
+  name: "FieldCommand",
   tagline: "Run contest day from one place.",
   supportEmail: "support@example.com",
 } as const;

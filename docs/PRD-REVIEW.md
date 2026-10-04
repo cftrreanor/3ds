@@ -1,6 +1,6 @@
 # PRD review: stakeholder notes
 
-Review of *BandCamp.com 10/4/26 PRD* (the "Event Shell" competition platform).
+Review of *BandCamp.com 10/4/26 PRD* (now named **FieldCommand**).
 It's a strong PRD: the problems are real, the personas are specific, and a few ideas
 are better than what competitors ship. Below: what to keep, what has to change, and
 what's still open.
@@ -27,8 +27,10 @@ what's still open.
 **Bandcamp** is a large, trademarked music platform, and "band camp" is also the
 generic term for summer marching rehearsal. You would face a trademark dispute and
 couldn't win search results. Pick a distinct name before buying a domain, making
-a logo or approaching schools. The code uses the working title "Event Shell", and
-the name lives in one file (`src/lib/brand.ts`), so renaming later is easy.
+a logo or approaching schools.
+
+**Decided (Oct 2026): FieldCommand.** Still to do before launch: check the domain and
+a USPTO trademark search. The name lives in one file (`src/lib/brand.ts`).
 
 ### 2. Roles must be per event, not one global role per user
 The data dictionary gives each user a single `role`. In practice, a booster
@@ -97,5 +99,5 @@ Vercel you don't need a separate job server for v1:
    ensemble) or the Fall 2027 season, which is what I'd recommend.
 2. **Do you have a pilot host lined up?** Building alongside one real booster club
    is the biggest single risk reducer.
-3. **The real product name?** (see Must change #1)
+3. ~~The real product name?~~ FieldCommand.
 4. **Sell beyond Texas from the start?** (affects onboarding wording)

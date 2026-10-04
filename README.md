@@ -1,9 +1,7 @@
-# Event Shell
+# FieldCommand
 
 A web platform for hosting marching band contests and other school competitions:
 volunteer shifts, band registration, live performance order and announcements.
-
-*"Event Shell" is a working title. See [docs/PRD-REVIEW.md](docs/PRD-REVIEW.md).*
 
 ## Docs
 - [Setup guide](docs/SETUP-GUIDE.md): creating the accounts (start here)

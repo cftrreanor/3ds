@@ -25,15 +25,20 @@ I'm saving the code.
 ## 2. Supabase: the database and logins
 1. Go to **supabase.com** → **Start your project** → **Continue with GitHub**.
 2. **New project**:
-   - Name: your product name (or `event-shell` for now)
+   - Name: `fieldcommand`
    - Database password: click **Generate**, then **save it in a password manager**
    - Region: **East US** or **Central US** (closest to Texas)
    - Plan: **Free**
 3. Wait ~2 minutes for it to finish.
 4. Go to **Project Settings → API Keys** and keep the tab open for step 4.
 
-I'll then help you load the database design into it (one command, or I'll walk
-you through the dashboard).
+5. **Load the database design:**
+   - On GitHub, open `supabase/migrations/` and click the `.sql` file inside.
+   - Click the **Copy raw file** button (two overlapping squares, top right of the file).
+   - In Supabase, click **SQL Editor** (left sidebar) → **+ New query** → paste → **Run**.
+   - You should see *"Success. No rows returned."* Under **Table Editor** you'll now
+     see tables like `events`, `shifts` and `volunteers`, each marked as protected by RLS.
+   - If you get an error instead, copy the red message and send it to me.
 
 ## 3. Vercel: puts the website on the internet
 1. Go to **vercel.com** → **Sign Up** → **Continue with GitHub** → choose the
