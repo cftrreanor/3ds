@@ -75,18 +75,20 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | File | What it does | Status |
 |---|---|---|
 | `20261004000000_core_schema.sql` | All tables and privacy rules | ✅ run |
-| `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | run this with Phase 1 |
+| `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | ✅ run |
 
 ## Sign-in emails (Phase 1)
 Supabase sends the sign-in emails for now. Two limits until we add Resend:
 - It only sends to **your own email** (members of your Supabase organization).
 - About **2 emails per hour**.
 
-**Make sign-in links work on any device.** By default, a link only works in the same
-browser where it was requested, so requesting on a laptop and tapping the link on your
-phone fails. Fix it once: Supabase → **Authentication → Emails** (or *Email
-Templates*). For **both** the **Magic Link** and **Confirm signup** templates, replace
-the message body with:
+Until then, **open the sign-in link on the same device and browser where you
+requested it.** A link requested on a laptop and tapped on a phone will fail.
+
+**Make sign-in links work on any device (do this once Resend is set up).** Supabase
+only lets you edit email templates once custom email (SMTP) is connected, which
+Resend gives us for free. Then: Supabase → **Authentication → Emails**. For **both**
+the **Magic Link** and **Confirm signup** templates, replace the message body with:
 
 ```html
 <h2>Sign in to FieldCommand</h2>
