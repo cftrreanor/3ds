@@ -19,7 +19,8 @@ export async function sendLoginLink(_prev: LoginState, formData: FormData): Prom
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data,
-    options: { emailRedirectTo: `${origin}/auth/callback?next=/dashboard` },
+    // No query string: Supabase matches this against its Redirect URLs list.
+    options: { emailRedirectTo: `${origin}/auth/callback` },
   });
 
   if (error) {
