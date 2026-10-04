@@ -60,6 +60,28 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   const byEvent = groupBy(upcoming, (r) => r.event_id);
   const origin = await getOrigin();
 
+  // Events this person volunteers for (or did, before cancelling) that are
+  // still taking signups: offer "Sign up for more shifts".
+  const knownIds = [...new Set(rows.map((r) => r.event_id))];
+  const { data: openEvents } =
+    knownIds.length || pass.e.length
+      ? await (await createClient())
+          .from("events")
+          .select("id, slug, name")
+          .eq("status", "published")
+          .eq("volunteer_signup_open", true)
+          .or(
+            [
+              knownIds.length ? `id.in.(${knownIds.join(",")})` : null,
+              pass.e.length ? `slug.in.(${pass.e.join(",")})` : null,
+            ]
+              .filter(Boolean)
+              .join(","),
+          )
+      : { data: [] };
+  const signupLinks = new Map((openEvents ?? []).map((e) => [e.id, { slug: e.slug as string, name: e.name as string }]));
+  const eventsWithoutShifts = [...signupLinks.entries()].filter(([id]) => !byEvent.has(id));
+
   const mismatch =
     user && signedUpAs && signedUpAs !== user.email.toLowerCase() && !rows.some((r) => r.volunteer_email === signedUpAs)
       ? signedUpAs
@@ -107,7 +129,19 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           </Card>
         )}
 
-        {upcoming.length === 0 && (
+        {eventsWithoutShifts.map(([id, ev]) => (
+          <Card key={id} className="mt-8">
+            <p className="font-medium">{ev.name}</p>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              {byEvent.size === 0 && rows.length === 0
+                ? "You don't have any shifts right now. Volunteer signup is still open."
+                : "Volunteer signup is still open for this event."}
+            </p>
+            <SignUpMoreLink slug={ev.slug} primary />
+          </Card>
+        ))}
+
+        {upcoming.length === 0 && eventsWithoutShifts.length === 0 && (
           <Card className="mt-8">
             <p className="font-medium">
               {rows.length || user || hasPass(pass) ? "No upcoming shifts here" : "Find your shifts"}
@@ -141,6 +175,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
                   </ul>
                 </div>
               ))}
+              {signupLinks.has(eventId) && <SignUpMoreLink slug={signupLinks.get(eventId)!.slug} />}
             </section>
           );
         })}
@@ -225,6 +260,19 @@ function ShiftCard({ row: r, origin }: { row: AgendaRow; origin: string }) {
         {!r.checked_in_at && <CancelShiftButton action={cancelMyShift.bind(null, r.assignment_id)} label={r.station_name} />}
       </div>
     </Card>
+  );
+}
+
+function SignUpMoreLink({ slug, primary = false }: { slug: string; primary?: boolean }) {
+  return (
+    <Link
+      href={`/e/${slug}/volunteer`}
+      className={`mt-4 inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium ${
+        primary ? "bg-brand text-brand-foreground hover:opacity-90" : "border border-brand text-brand hover:bg-accent-soft"
+      }`}
+    >
+      Sign up for more shifts
+    </Link>
   );
 }
 

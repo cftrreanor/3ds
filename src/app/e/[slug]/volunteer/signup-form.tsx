@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { startTransition, useActionState, useState } from "react";
 import { ActionPendingContext } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
@@ -32,6 +33,7 @@ export function SignupForm({
   disabled?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const pathname = usePathname();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [startedAt] = useState(() => Date.now());
 
@@ -72,12 +74,21 @@ export function SignupForm({
           )}{" "}
           This device will remember your signup, so you can come back anytime to view or cancel it. No login needed.
         </p>
-        <Link
-          href={`/my?as=${encodeURIComponent(state.confirmed.email)}`}
-          className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-        >
-          View my shifts
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/my?as=${encodeURIComponent(state.confirmed.email)}`}
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+          >
+            View my shifts
+          </Link>
+          {/* A full reload brings back a fresh form with up-to-date open spots. */}
+          <a
+            href={pathname}
+            className="inline-flex min-h-11 items-center rounded-md border border-brand px-4 text-sm font-medium text-brand hover:bg-accent-soft"
+          >
+            Sign up for more shifts
+          </a>
+        </div>
       </Card>
     );
   }

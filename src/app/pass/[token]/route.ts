@@ -8,9 +8,14 @@ import { addToPass } from "@/lib/volunteer-pass";
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (/^[0-9a-f-]{36}$/i.test(token)) {
-    const { data } = await createAdminClient().from("volunteers").select("id").eq("access_token", token).maybeSingle();
+    const { data } = await createAdminClient()
+      .from("volunteers")
+      .select("id, events(slug)")
+      .eq("access_token", token)
+      .maybeSingle();
     if (data) {
-      await addToPass({ v: [token] });
+      const slug = (data.events as unknown as { slug: string } | null)?.slug;
+      await addToPass({ v: [token], e: slug ? [slug] : [] });
       return NextResponse.redirect(new URL("/my", request.nextUrl.origin));
     }
   }

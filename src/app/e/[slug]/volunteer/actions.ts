@@ -81,7 +81,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   }
 
   const [{ data: event }, { data: assignments }] = await Promise.all([
-    admin.from("events").select("timezone, starts_on, ends_on").eq("id", eventId).single(),
+    admin.from("events").select("slug, timezone, starts_on, ends_on").eq("id", eventId).single(),
     admin
       .from("volunteer_assignments")
       .select("id, shift_id, manage_token")
@@ -92,7 +92,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   const fresh = booked.filter((a) => !alreadyHad.has(a.shift_id));
 
   // Remember this device: it may see and cancel the shifts it just booked.
-  await addToPass({ a: fresh.map((a) => a.manage_token) });
+  await addToPass({ a: fresh.map((a) => a.manage_token), e: event?.slug ? [event.slug] : [] });
 
   const origin = await getOrigin();
   const tz = event?.timezone ?? "America/Chicago";
