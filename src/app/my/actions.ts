@@ -18,6 +18,14 @@ import { forgetPass, hasPass, readPass } from "@/lib/volunteer-pass";
  */
 export async function cancelMyShift(assignmentId: string): Promise<ActionState> {
   const [entry] = await loadCalendarEntries([assignmentId]);
+  const { data: link } = await createAdminClient()
+    .from("volunteer_assignments")
+    .select("volunteers(events(slug, status, volunteer_signup_open))")
+    .eq("id", assignmentId)
+    .maybeSingle();
+  const ev = (link?.volunteers as unknown as { events: { slug: string; status: string; volunteer_signup_open: boolean } } | null)
+    ?.events;
+  const signupPath = ev && ev.status === "published" && ev.volunteer_signup_open ? `/e/${ev.slug}/volunteer` : null;
   const pass = await readPass();
   let cancelled = false;
 
@@ -40,7 +48,7 @@ export async function cancelMyShift(assignmentId: string): Promise<ActionState> 
 
   if (entry) {
     const origin = await getOrigin();
-    after(() => sendCancellation(entry, entry.timezone, origin));
+    after(() => sendCancellation(entry, entry.timezone, origin, signupPath ? `${origin}${signupPath}` : null));
   }
   revalidatePath("/my");
   return { ok: true };

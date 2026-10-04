@@ -142,14 +142,18 @@ export async function sendShiftUpdates(entries: CalendarEntry[], tz: string, ori
 }
 
 /** Confirm a cancellation and remove the event from their calendar. */
-export async function sendCancellation(e: CalendarEntry, tz: string, origin: string) {
+export async function sendCancellation(e: CalendarEntry, tz: string, origin: string, signupUrl: string | null = null) {
   const { html, text } = emailLayout({
     heading: "Your shift was cancelled",
     paragraphs: [
       `Hi ${e.volunteer_name.split(" ")[0]}, you're no longer signed up for ${e.station_name} (${formatTimeRange(e.starts_at, e.ends_at, tz)}) at ${e.event_name}. It's been removed from your calendar.`,
-      "Changed your mind? You can sign up again from the event's volunteer page if spots are still open.",
+      signupUrl
+        ? "Changed your mind, or want a different time? Signup is still open."
+        : "Thanks for letting the organizers know.",
     ],
-    button: { label: "View my other shifts", url: manageUrl(origin, e) },
+    button: signupUrl
+      ? { label: "Sign up for more shifts", url: signupUrl }
+      : { label: "View my other shifts", url: manageUrl(origin, e) },
   });
   return sendEmail({
     to: e.volunteer_email,
