@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getMyOrganization } from "@/lib/data";
@@ -44,6 +45,9 @@ export default async function DashboardPage() {
   }
 
   if (!org) {
+    // People who only volunteer belong on their shifts page, not host setup.
+    const { count } = await supabase.from("volunteers").select("id", { count: "exact", head: true });
+    if (count) redirect("/my");
     return (
       <div className="mx-auto max-w-lg">
         <h1 className="text-2xl font-semibold tracking-tight">Welcome! Let&apos;s set up your organization</h1>

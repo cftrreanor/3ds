@@ -217,7 +217,7 @@ export function InviteForm({
 }
 
 /** Copies an invitation link, falling back to selecting it for manual copy. */
-export function CopyLinkButton({ url }: { url: string }) {
+export function CopyLinkButton({ url, label = "Copy invite link" }: { url: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -234,7 +234,7 @@ export function CopyLinkButton({ url }: { url: string }) {
         }
       }}
     >
-      {copied ? "Copied!" : "Copy invite link"}
+      {copied ? "Copied!" : label}
     </Button>
   );
 }
@@ -244,6 +244,29 @@ export function RemoveButton({ action, label, confirmMessage }: { action: Action
     <ActionForm action={action} confirmMessage={confirmMessage} className="contents">
       <SubmitButton variant="ghost" pendingText="Removing…" className="min-h-9 px-2 text-xs" aria-label={label}>
         Remove
+      </SubmitButton>
+    </ActionForm>
+  );
+}
+
+/** A single button that runs a server action, showing any error above it. */
+export function ActionButton({
+  action,
+  children,
+  variant = "primary",
+  confirmMessage,
+  pendingText = "Saving…",
+}: {
+  action: Action;
+  children: React.ReactNode;
+  variant?: "primary" | "secondary";
+  confirmMessage?: string;
+  pendingText?: string;
+}) {
+  return (
+    <ActionForm action={action} confirmMessage={confirmMessage} className="space-y-2" resetOnSuccess={false}>
+      <SubmitButton variant={variant} pendingText={pendingText}>
+        {children}
       </SubmitButton>
     </ActionForm>
   );
