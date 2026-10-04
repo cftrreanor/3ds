@@ -165,6 +165,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
 function ShiftCard({ row: r, origin }: { row: AgendaRow; origin: string }) {
   const tz = r.timezone;
   const google = googleCalendarUrl({
+    timezone: tz,
     start: new Date(r.starts_at),
     end: new Date(r.ends_at),
     summary: `Volunteer: ${r.station_name} (${r.event_name})`,

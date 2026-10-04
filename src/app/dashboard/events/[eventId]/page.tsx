@@ -10,10 +10,10 @@ import {
   eachDate,
   formatDate,
   formatDateRange,
-  formatTime,
   formatTimeRange,
   utcToZonedDate,
   utcToZonedTime,
+  zoneName,
 } from "@/lib/time";
 import QRCode from "qrcode";
 import {
@@ -117,7 +117,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
   const multiDay = days.length > 1;
-  const windowLabel = `${formatTime(event.window_start, tz)} – ${formatTime(event.window_end, tz)}`;
+  const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
   const origin = await getOrigin();
 
   const signupUrl = `${origin}/e/${event.slug}/volunteer`;
@@ -177,6 +177,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           <p className="mt-1 text-muted">
             {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
           </p>
+          <p className="mt-1 text-sm text-muted">All times are {zoneName(tz)}.</p>
           <p className="mt-1 text-sm text-muted">
             {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
             {" · "}

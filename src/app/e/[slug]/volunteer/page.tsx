@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/ui";
 import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 import { signUpVolunteer } from "./actions";
 import { SignupForm, type PublicStation } from "./signup-form";
 
@@ -79,7 +79,9 @@ export default async function VolunteerSignupPage({ params }: Params) {
       <header className="mt-6">
         <p className="text-sm font-medium text-muted">Volunteer signup</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">{event.name}</h1>
-        <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
+        <p className="mt-2 text-muted">
+          {formatDateRange(event.starts_on, event.ends_on)} · All times {zoneName(tz)}
+        </p>
         <p className="mt-1 text-muted">
           {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
           <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">

@@ -4,7 +4,7 @@ import { emailLayout, pause, sendEmail, type EmailAttachment } from "@/lib/email
 import { buildIcs, googleCalendarUrl, type IcsEvent, type IcsMethod } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/server";
-import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { formatDate, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 
 /** One signup, with everything needed for its email and calendar invite. */
 export type CalendarEntry = {
@@ -50,6 +50,7 @@ export function toIcsEvent(e: CalendarEntry, origin: string): IcsEvent {
   const lead = e.lead_name ? `Lead: ${e.lead_name}${e.lead_phone ? `, ${formatPhone(e.lead_phone)}` : ""}` : null;
   return {
     uid: `${e.assignment_id}@fieldcommandevents.com`,
+    timezone: e.timezone,
     sequence: e.calendar_sequence,
     start: new Date(e.starts_at),
     end: new Date(e.ends_at),
@@ -57,6 +58,7 @@ export function toIcsEvent(e: CalendarEntry, origin: string): IcsEvent {
     location: [e.venue_name, e.venue_address].filter(Boolean).join(", "),
     description: [
       `${e.station_name}: ${e.shift_title}`,
+      `When: ${formatDate(utcToZonedDate(e.starts_at, e.timezone))}, ${formatTimeRange(e.starts_at, e.ends_at, e.timezone)} (${zoneName(e.timezone)})`,
       e.station_location ? `Report to: ${e.station_location}` : null,
       e.shift_description,
       e.instructions,
