@@ -1,5 +1,7 @@
 export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-export const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+// The Vercel ↔ Supabase integration sets the older ANON_KEY name; accept either.
+export const supabasePublishableKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /** False until the Supabase keys are added (see docs/SETUP-GUIDE.md). */
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);

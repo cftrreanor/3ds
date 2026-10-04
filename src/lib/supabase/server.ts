@@ -36,7 +36,7 @@ export async function createClient() {
  */
 export function createAdminClient() {
   const { url } = requireSupabaseEnv();
-  const secret = process.env.SUPABASE_SECRET_KEY;
+  const secret = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret) throw new Error("SUPABASE_SECRET_KEY is not set");
   return createPlainClient(url, secret, { auth: { persistSession: false } });
 }
