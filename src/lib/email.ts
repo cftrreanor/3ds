@@ -1,4 +1,5 @@
 import "server-only";
+import nodemailer from "nodemailer";
 import { brand } from "@/lib/brand";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
@@ -8,6 +9,64 @@ const FROM = process.env.EMAIL_FROM ?? `${brand.name} <no-reply@fieldcommandeven
 
 export type EmailAttachment = { filename: string; content: string; contentType: string };
 
+/**
+ * A calendar invitation (iCalendar text). It's embedded the way Google and
+ * Outlook send their own invites: as a text/calendar part of the message
+ * itself, plus an .ics attachment. Gmail only applies updates and
+ * cancellations reliably in that form.
+ */
+export type CalendarInvite = { method: "REQUEST" | "CANCEL"; content: string };
+
+/** The exact message we send for an invite (also used by tests). */
+export function inviteMessage({
+  to,
+  subject,
+  html,
+  text,
+  invite,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  invite: CalendarInvite;
+}) {
+  return {
+    from: FROM,
+    to,
+    subject,
+    html,
+    text,
+    icalEvent: {
+      method: invite.method,
+      filename: invite.method === "CANCEL" ? "cancel.ics" : "invite.ics",
+      content: invite.content,
+    },
+  };
+}
+
+/** Invites go through Resend's SMTP service (same API key), which lets us shape the message. */
+async function sendInvite(message: Parameters<typeof inviteMessage>[0]): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    console.warn("RESEND_API_KEY not set; skipped email:", message.subject);
+    return false;
+  }
+  try {
+    const transport = nodemailer.createTransport({
+      host: "smtp.resend.com",
+      port: 465,
+      secure: true,
+      auth: { user: "resend", pass: key },
+    });
+    await transport.sendMail(inviteMessage(message));
+    return true;
+  } catch (err) {
+    console.error("Invite email failed", err);
+    return false;
+  }
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -15,6 +74,7 @@ export async function sendEmail({
   text,
   replyTo,
   attachments,
+  invite,
 }: {
   to: string;
   subject: string;
@@ -22,7 +82,9 @@ export async function sendEmail({
   text: string;
   replyTo?: string;
   attachments?: EmailAttachment[];
+  invite?: CalendarInvite;
 }): Promise<boolean> {
+  if (invite) return sendInvite({ to, subject, html, text, invite });
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn("RESEND_API_KEY not set; skipped email:", subject);

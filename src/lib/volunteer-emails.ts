@@ -1,7 +1,7 @@
 import "server-only";
 import { brand } from "@/lib/brand";
-import { emailLayout, pause, sendEmail, type EmailAttachment } from "@/lib/email";
-import { buildIcs, googleCalendarUrl, type IcsEvent, type IcsMethod } from "@/lib/ics";
+import { emailLayout, pause, sendEmail, type CalendarInvite } from "@/lib/email";
+import { buildIcs, googleCalendarUrl, type IcsEvent } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
@@ -72,13 +72,12 @@ export function toIcsEvent(e: CalendarEntry, origin: string): IcsEvent {
   };
 }
 
-function invite(method: IcsMethod, e: CalendarEntry, origin: string, index = 0): EmailAttachment {
-  return {
-    filename: index ? `shift-${index + 1}.ics` : "shift.ics",
-    content: buildIcs(method, toIcsEvent(e, origin)),
-    contentType: `text/calendar; charset=utf-8; method=${method}`,
-  };
+function invite(method: "REQUEST" | "CANCEL", e: CalendarEntry, origin: string): CalendarInvite {
+  return { method, content: buildIcs(method, toIcsEvent(e, origin)) };
 }
+
+const CALENDAR_TIP =
+  "Use the calendar invite in this email (\u201cAdd to calendar\u201d, or \u201cYes\u201d in Gmail) and we'll keep that calendar entry up to date if anything changes. Copies added with the buttons below won't update on their own.";
 
 function shiftRow(e: CalendarEntry, tz: string, origin: string, multiDay: boolean) {
   return {
@@ -97,26 +96,53 @@ function shiftRow(e: CalendarEntry, tz: string, origin: string, multiDay: boolea
   };
 }
 
-/** The signup confirmation, with a calendar invite for each shift. */
+/**
+ * The signup confirmation. Each email can carry one calendar invite, so a
+ * single shift rides in the confirmation itself; with several shifts, the
+ * confirmation lists them and each shift gets its own short invite email.
+ */
 export async function sendSignupConfirmation(entries: CalendarEntry[], tz: string, origin: string, multiDay: boolean) {
   if (entries.length === 0) return false;
   const first = entries[0];
+  const single = entries.length === 1;
   const { html, text } = emailLayout({
     heading: `You're signed up for ${first.event_name}`,
     paragraphs: [
-      `Thanks, ${first.volunteer_name.split(" ")[0]}! Here ${entries.length === 1 ? "is your shift" : "are your shifts"}${first.venue_name ? ` at ${first.venue_name}` : ""}. Add ${entries.length === 1 ? "it" : "them"} to your calendar below; if anything changes, we'll update your calendar automatically.`,
+      `Thanks, ${first.volunteer_name.split(" ")[0]}! Here ${single ? "is your shift" : "are your shifts"}${first.venue_name ? ` at ${first.venue_name}` : ""}.`,
+      single
+        ? CALENDAR_TIP
+        : `We're sending a separate calendar invite for each shift. ${CALENDAR_TIP}`,
     ],
     rows: entries.map((e) => shiftRow(e, tz, origin, multiDay)),
     button: { label: "View or cancel my shifts", url: manageUrl(origin, first) },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}. This link is just for you; anyone you forward it to can view and cancel your shifts.`,
   });
-  return sendEmail({
+  const sent = await sendEmail({
     to: first.volunteer_email,
     subject: `You're signed up: ${first.event_name}`,
     html,
     text,
-    attachments: entries.map((e, i) => invite("REQUEST", e, origin, i)),
+    ...(single ? { invite: invite("REQUEST", first, origin) } : {}),
   });
+  if (!single) {
+    for (const e of entries) {
+      await pause();
+      const when = `${formatDate(utcToZonedDate(e.starts_at, tz), { year: undefined })}, ${formatTimeRange(e.starts_at, e.ends_at, tz)}`;
+      const msg = emailLayout({
+        heading: `Calendar invite: ${e.station_name}`,
+        paragraphs: [`${e.event_name} · ${when}`, CALENDAR_TIP],
+        button: { label: "View or cancel my shifts", url: manageUrl(origin, e) },
+      });
+      await sendEmail({
+        to: e.volunteer_email,
+        subject: `Calendar invite: ${e.station_name}, ${when}`,
+        html: msg.html,
+        text: msg.text,
+        invite: invite("REQUEST", e, origin),
+      });
+    }
+  }
+  return sent;
 }
 
 /** Tell each volunteer their shift changed and update their calendar. */
@@ -125,7 +151,8 @@ export async function sendShiftUpdates(entries: CalendarEntry[], tz: string, ori
     const { html, text } = emailLayout({
       heading: "Your volunteer shift changed",
       paragraphs: [
-        `Hi ${e.volunteer_name.split(" ")[0]}, the organizers of ${e.event_name} updated your shift. Here are the new details. Your calendar invite has been updated too.`,
+        `Hi ${e.volunteer_name.split(" ")[0]}, the organizers of ${e.event_name} updated your shift. Here are the new details.`,
+        "If you added our calendar invite, it updates automatically. If you added the shift with a button or download, please update that calendar entry yourself.",
       ],
       rows: [shiftRow(e, tz, origin, false)],
       button: { label: "View or cancel my shifts", url: manageUrl(origin, e) },
@@ -135,7 +162,7 @@ export async function sendShiftUpdates(entries: CalendarEntry[], tz: string, ori
       subject: `Updated: your shift at ${e.event_name}`,
       html,
       text,
-      attachments: [invite("REQUEST", e, origin)],
+      invite: invite("REQUEST", e, origin),
     });
     await pause();
   }
@@ -146,7 +173,8 @@ export async function sendCancellation(e: CalendarEntry, tz: string, origin: str
   const { html, text } = emailLayout({
     heading: "Your shift was cancelled",
     paragraphs: [
-      `Hi ${e.volunteer_name.split(" ")[0]}, you're no longer signed up for ${e.station_name} (${formatTimeRange(e.starts_at, e.ends_at, tz)}) at ${e.event_name}. It's been removed from your calendar.`,
+      `Hi ${e.volunteer_name.split(" ")[0]}, you're no longer signed up for ${e.station_name} (${formatTimeRange(e.starts_at, e.ends_at, tz)}) at ${e.event_name}.`,
+      "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first). If you added the shift with a button or download, please delete it from your calendar.",
       signupUrl
         ? "Changed your mind, or want a different time? Signup is still open."
         : "Thanks for letting the organizers know.",
@@ -160,6 +188,6 @@ export async function sendCancellation(e: CalendarEntry, tz: string, origin: str
     subject: `Cancelled: your shift at ${e.event_name}`,
     html,
     text,
-    attachments: [invite("CANCEL", { ...e, calendar_sequence: e.calendar_sequence + 1 }, origin)],
+    invite: invite("CANCEL", { ...e, calendar_sequence: e.calendar_sequence + 1 }, origin),
   });
 }
