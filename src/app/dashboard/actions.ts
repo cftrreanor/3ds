@@ -144,6 +144,44 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
   redirect(`/dashboard/events/${data.id}`);
 }
 
+export async function updateEvent(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = eventSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const v = parsed.data;
+
+  const supabase = await createClient();
+  const details = await supabase
+    .from("events")
+    .update({
+      name: v.name,
+      venue_name: v.venueName,
+      venue_address: v.venueAddress,
+      venue_place_id: v.venuePlaceId ?? null,
+      venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
+      venue_lng: v.venuePlaceId ? (v.venueLng ?? null) : null,
+    })
+    .eq("id", eventId)
+    .select("id");
+  if (details.error) return { error: friendlyDbError(details.error) };
+  if (!details.data?.length) return { error: "Only the event's host can change its details." };
+
+  // Dates, hours and time zone go through one database call that also moves
+  // existing shifts so they keep their times on the new day.
+  const { error } = await supabase.rpc("reschedule_event", {
+    p_event_id: eventId,
+    p_starts_on: v.startsOn,
+    p_ends_on: v.endsOn,
+    p_window_start: zonedToUtc(v.startsOn, v.startTime, v.timezone).toISOString(),
+    p_window_end: zonedToUtc(v.endsOn, v.endTime, v.timezone).toISOString(),
+    p_timezone: v.timezone,
+  });
+  if (error) return { error: friendlyDbError(error) };
+
+  revalidatePath(`/dashboard/events/${eventId}`);
+  redirect(`/dashboard/events/${eventId}`);
+}
+
 // ---------------------------------------------------------------------------
 // Stations
 // ---------------------------------------------------------------------------
@@ -172,6 +210,36 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
 
   revalidatePath(`/dashboard/events/${eventId}`);
   return { ok: true, message: `Added “${v.name}”.` };
+}
+
+export async function updateStation(
+  eventId: string,
+  stationId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser();
+  const parsed = stationSchema
+    .extend({ leadUserId: z.string().uuid().or(z.literal("")).optional() })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const v = parsed.data;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("stations")
+    .update({
+      name: v.name,
+      station_type: v.stationType,
+      location: v.location,
+      instructions: v.instructions,
+      ...(v.leadUserId !== undefined ? { lead_user_id: v.leadUserId || null } : {}),
+    })
+    .eq("id", stationId);
+  if (error) return { error: friendlyDbError(error) };
+
+  revalidatePath(`/dashboard/events/${eventId}`);
+  return { ok: true, message: "Station saved." };
 }
 
 export async function deleteStation(eventId: string, stationId: string): Promise<ActionState> {
@@ -305,6 +373,37 @@ export async function generateShifts(
 function shiftTitle(start: Date, tz: string) {
   const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hourCycle: "h23" }).format(start));
   return hour < 12 ? "Morning shift" : hour < 17 ? "Afternoon shift" : "Evening shift";
+}
+
+export async function updateShift(
+  eventId: string,
+  shiftId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser();
+  const parsed = shiftSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const v = parsed.data;
+
+  const event = await loadEventTiming(eventId);
+  if (!event) return { error: "Event not found." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("shifts")
+    .update({
+      title: v.title,
+      description: v.description,
+      starts_at: zonedToUtc(v.day, v.startTime, event.timezone).toISOString(),
+      ends_at: zonedToUtc(v.day, v.endTime, event.timezone).toISOString(),
+      max_capacity: v.capacity,
+    })
+    .eq("id", shiftId);
+  if (error) return { error: friendlyDbError(error) };
+
+  revalidatePath(`/dashboard/events/${eventId}`);
+  return { ok: true, message: "Shift saved." };
 }
 
 export async function deleteShift(eventId: string, shiftId: string): Promise<ActionState> {

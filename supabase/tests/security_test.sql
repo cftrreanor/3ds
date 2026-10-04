@@ -14,10 +14,11 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-000000000003', 'lead@example.com',     '{"full_name":"Lee Lead","phone":"+15125550103"}'),
   ('00000000-0000-0000-0000-000000000004', 'vol1@example.com',     '{"full_name":"Val One"}'),
   ('00000000-0000-0000-0000-000000000005', 'band@example.com',     '{"full_name":"Bo Band"}'),
-  ('00000000-0000-0000-0000-000000000006', 'stranger@example.com', '{"full_name":"Sam Stranger"}');
+  ('00000000-0000-0000-0000-000000000006', 'stranger@example.com', '{"full_name":"Sam Stranger"}'),
+  ('00000000-0000-0000-0000-000000000007', 'newlead@example.com',  '{"full_name":"Nia Newlead"}');
 
 do $$ begin
-  assert (select count(*) from public.profiles) = 6, 'profiles are created from auth.users';
+  assert (select count(*) from public.profiles) = 7, 'profiles are created from auth.users';
 end $$;
 
 -- Organization without a plan, created through the RPC as the host.
@@ -304,6 +305,114 @@ do $$ begin
   assert (select count(*) from public.performance_slots) = 1, 'public sees the published order';
   assert (select count(*) from public.volunteers) = 0, 'public sees no volunteers';
   assert (select count(*) from public.bands) = 0, 'public sees no band registration details';
+end $$;
+reset role;
+
+
+-- ---------------------------------------------------------------------------
+-- Team invitations
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.invitations (event_id, email, role, station_id, invited_by)
+values ('10000000-0000-0000-0000-00000000000a', 'NewLead@example.com', 'section_lead',
+        '20000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001');
+select token from public.invitations where email = 'newlead@example.com' \gset inv_
+
+do $$ begin
+  begin
+    insert into public.invitations (event_id, email, role, station_id, invited_by)
+    values ('10000000-0000-0000-0000-00000000000a', 'x@example.com', 'section_lead',
+            '20000000-0000-0000-0000-00000000000b', auth.uid());
+    raise exception 'FAIL: invited a lead to another event''s station';
+  exception when check_violation then null;
+  end;
+  begin
+    update public.stations set lead_user_id = '00000000-0000-0000-0000-000000000006'
+     where id = '20000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: made a non-team member a station lead';
+  exception when check_violation then null;
+  end;
+end $$;
+
+-- A Volunteer Director can invite leads but not other directors.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  insert into public.invitations (event_id, email, role, invited_by)
+  values ('10000000-0000-0000-0000-00000000000a', 'lead2@example.com', 'section_lead', auth.uid());
+  begin
+    insert into public.invitations (event_id, email, role, invited_by)
+    values ('10000000-0000-0000-0000-00000000000a', 'boss@example.com', 'volunteer_director', auth.uid());
+    raise exception 'FAIL: director invited another director';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+-- Strangers can't list invitations, but anyone with the link can read it.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.invitations) = 0, 'stranger cannot list invitations';
+end $$;
+reset role;
+set role anon;
+set request.jwt.claims = '';
+select set_config('test.token', :'inv_token', false) \g /dev/null
+do $$ declare r record; begin
+  select * into r from public.get_invitation(current_setting('test.token')::uuid);
+  assert r.station_name = 'Parking' and r.event_name = 'Future Classic', 'invite page shows the details';
+end $$;
+reset role;
+
+-- The wrong person can't accept it; the right one can, and becomes the lead.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.accept_invitation(current_setting('test.token')::uuid);
+    raise exception 'FAIL: accepted someone else''s invitation';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000007","email":"newlead@example.com"}';
+select public.accept_invitation(current_setting('test.token')::uuid) \g /dev/null
+do $$ begin
+  assert exists (select 1 from public.event_staff where user_id = auth.uid() and role = 'section_lead'),
+         'accepting adds the person to the team';
+  assert (select lead_user_id from public.stations where id = '20000000-0000-0000-0000-00000000000a') = auth.uid(),
+         'accepting makes them lead of the invited station';
+end $$;
+
+-- The host sees the new lead's name; removing them clears their station.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select full_name from public.profiles where id = '00000000-0000-0000-0000-000000000007') = 'Nia Newlead',
+         'host can see their team''s names';
+  delete from public.event_staff where user_id = '00000000-0000-0000-0000-000000000007';
+  assert (select lead_user_id from public.stations where id = '20000000-0000-0000-0000-00000000000a') is null,
+         'removing a lead clears their station';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Rescheduling moves shifts with the event
+-- ---------------------------------------------------------------------------
+do $$ declare before_start timestamptz; after_start timestamptz; begin
+  select starts_at into before_start from public.shifts where id = '30000000-0000-0000-0000-000000000002';
+  perform public.reschedule_event('10000000-0000-0000-0000-00000000000a',
+    current_date + 12, current_date + 12, now() + interval '12 days', now() + interval '12 days 15 hours',
+    'America/Chicago');
+  select starts_at into after_start from public.shifts where id = '30000000-0000-0000-0000-000000000002';
+  assert after_start - before_start between interval '47 hours' and interval '49 hours',
+         format('shift moved two days with the event (%s -> %s)', before_start, after_start);
+end $$;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  begin
+    perform public.reschedule_event('10000000-0000-0000-0000-00000000000a',
+      current_date, current_date, now(), now() + interval '1 hour', 'America/Chicago');
+    raise exception 'FAIL: section lead rescheduled the event';
+  exception when insufficient_privilege then null;
+  end;
 end $$;
 reset role;
 

@@ -76,7 +76,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 |---|---|---|
 | `20261004000000_core_schema.sql` | All tables and privacy rules | ✅ run |
 | `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | ✅ run |
-| `20261004020000_event_fixes_and_venue_location.sql` | Fixes "no permission" when creating an event; stores map location | run this next |
+| `20261004020000_event_fixes_and_venue_location.sql` | Fixes "no permission" when creating an event; stores map location | ✅ run |
+| `20261004030000_team_invitations_and_editing.sql` | Team invitations, station leads, moving shifts when the date changes | run this next |
 
 ## Sign-in emails (Phase 1)
 Supabase sends the sign-in emails for now. Two limits until we add Resend:

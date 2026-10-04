@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
+import { requireUser } from "@/lib/auth";
 import { getMyOrganization } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateRange } from "@/lib/time";
@@ -8,8 +9,39 @@ import { OnboardingForm } from "./onboarding-form";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
+type StaffEvent = {
+  role: "volunteer_director" | "section_lead";
+  events: { id: string; name: string; status: string; starts_on: string; ends_on: string; venue_name: string | null; venue_address: string } | null;
+};
+
 export default async function DashboardPage() {
-  const org = await getMyOrganization();
+  const user = await requireUser();
+  const supabase = await createClient();
+  const [org, { data: staffRows }] = await Promise.all([
+    getMyOrganization(),
+    supabase
+      .from("event_staff")
+      .select("role, events(id, name, status, starts_on, ends_on, venue_name, venue_address)")
+      .eq("user_id", user.id),
+  ]);
+  const helping = ((staffRows ?? []) as unknown as StaffEvent[]).filter(
+    (r): r is StaffEvent & { events: NonNullable<StaffEvent["events"]> } => r.events !== null,
+  );
+
+  if (!org && helping.length > 0) {
+    return (
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Events you&apos;re helping run</h1>
+        <HelpingList rows={helping} />
+        <p className="mt-10 text-sm text-muted">
+          Hosting your own contest?{" "}
+          <Link href="/dashboard/setup" className="font-medium text-brand underline-offset-4 hover:underline">
+            Set up your organization
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   if (!org) {
     return (
@@ -25,7 +57,6 @@ export default async function DashboardPage() {
     );
   }
 
-  const supabase = await createClient();
   const { data: events } = await supabase
     .from("events")
     .select("id, name, status, starts_on, ends_on, venue_name, venue_address")
@@ -81,6 +112,36 @@ export default async function DashboardPage() {
           </Link>
         </Card>
       )}
+
+      {helping.length > 0 && (
+        <section className="mt-12">
+          <h2 className="text-lg font-semibold">Events you&apos;re helping run</h2>
+          <HelpingList rows={helping} />
+        </section>
+      )}
     </div>
+  );
+}
+
+const ROLE_LABEL = { volunteer_director: "Volunteer Director", section_lead: "Section Lead" } as const;
+
+function HelpingList({ rows }: { rows: (StaffEvent & { events: NonNullable<StaffEvent["events"]> })[] }) {
+  return (
+    <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+      {rows.map((r) => (
+        <li key={`${r.events.id}-${r.role}`}>
+          <Link href={`/dashboard/events/${r.events.id}`} className="block h-full">
+            <Card className="h-full transition hover:border-brand">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-semibold">{r.events.name}</h3>
+                <Badge tone="accent">{ROLE_LABEL[r.role]}</Badge>
+              </div>
+              <p className="mt-2 text-sm text-muted">{formatDateRange(r.events.starts_on, r.events.ends_on)}</p>
+              <p className="mt-1 text-sm text-muted">{r.events.venue_name ?? r.events.venue_address}</p>
+            </Card>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

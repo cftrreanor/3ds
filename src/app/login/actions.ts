@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,6 +26,11 @@ export async function sendLoginLink(_prev: LoginState, formData: FormData): Prom
   if (error) {
     console.error("signInWithOtp failed", { status: error.status, code: error.code, message: error.message });
     return { error: loginErrorMessage(error), email: parsed.data };
+  }
+  const next = String(formData.get("next") ?? "");
+  if (next.startsWith("/") && !next.startsWith("//")) {
+    // The callback reads this, since the email link itself can't carry it.
+    (await cookies()).set("fc_next", next, { httpOnly: true, sameSite: "lax", secure: true, maxAge: 60 * 60, path: "/" });
   }
   return { sentTo: parsed.data };
 }

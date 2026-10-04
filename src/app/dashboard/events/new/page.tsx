@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
 import { getMyOrganization } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
-import { EventForm } from "./event-form";
+import { createEvent } from "../../actions";
+import { EventForm } from "../_components/event-form";
 
 export const metadata: Metadata = { title: "New event" };
 
@@ -22,7 +23,13 @@ export default async function NewEventPage() {
         Just the basics for now. You&apos;ll add stations and volunteer shifts next.
       </p>
       <Card className="mt-8">
-        <EventForm organizationId={org.id} defaultTimezone={org.default_timezone} venueSearchEnabled={isPlacesConfigured} />
+        <EventForm
+          action={createEvent}
+          organizationId={org.id}
+          initial={{ timezone: org.default_timezone }}
+          venueSearchEnabled={isPlacesConfigured}
+          submitLabel="Create event"
+        />
       </Card>
     </div>
   );
