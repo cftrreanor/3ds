@@ -59,7 +59,11 @@ export function EventForm({
         <Field label="Everything wraps up">
           <Input name="endTime" type="time" defaultValue={initial.endTime ?? "22:00"} required />
         </Field>
-        <Field label="Time zone" className="sm:col-span-2">
+        <Field
+          label="Event time zone"
+          hint="Where the event happens. Every time on volunteer pages, emails and calendar invites uses this zone, whatever someone's phone is set to."
+          className="sm:col-span-2"
+        >
           <Select name="timezone" defaultValue={initial.timezone}>
             {US_TIMEZONES.map((tz) => (
               <option key={tz.value} value={tz.value}>

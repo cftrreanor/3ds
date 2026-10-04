@@ -2,14 +2,35 @@
 // the viewer's, so every conversion takes the event's IANA zone explicitly.
 
 export const US_TIMEZONES = [
-  { value: "America/New_York", label: "Eastern" },
-  { value: "America/Chicago", label: "Central" },
-  { value: "America/Denver", label: "Mountain" },
-  { value: "America/Phoenix", label: "Arizona" },
-  { value: "America/Los_Angeles", label: "Pacific" },
-  { value: "America/Anchorage", label: "Alaska" },
-  { value: "Pacific/Honolulu", label: "Hawaii" },
+  { value: "America/New_York", label: "Eastern Time (New York, Atlanta)" },
+  { value: "America/Chicago", label: "Central Time (Chicago, Dallas, Houston)" },
+  { value: "America/Denver", label: "Mountain Time (Denver, El Paso)" },
+  { value: "America/Phoenix", label: "Arizona (no daylight saving)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (Los Angeles, Seattle)" },
+  { value: "America/Anchorage", label: "Alaska Time" },
+  { value: "Pacific/Honolulu", label: "Hawaii Time" },
 ] as const;
+
+/** "CDT" / "CST" / "MST"…: the zone's abbreviation on that date (daylight saving aware). */
+export function zoneAbbreviation(iso: string, tz: string) {
+  return (
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" })
+      .formatToParts(new Date(iso))
+      .find((p) => p.type === "timeZoneName")?.value ?? ""
+  );
+}
+
+/** "Central Time" etc., for headings. */
+export function zoneName(tz: string) {
+  return US_TIMEZONES.find((t) => t.value === tz)?.label.replace(/ \(.*\)$/, "") ?? tz;
+}
+
+/** UTC instant → "20261024T070000", the wall-clock time in the zone (for calendar files). */
+export function zonedStamp(iso: string | Date, tz: string) {
+  const p = zonedParts(new Date(iso), tz);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${p.year}${two(p.month)}${two(p.day)}T${two(p.hour)}${two(p.minute)}${two(p.second)}`;
+}
 
 export function isValidTimezone(tz: string) {
   return US_TIMEZONES.some((t) => t.value === tz);
@@ -72,8 +93,10 @@ export function formatTime(iso: string, tz: string) {
   );
 }
 
-export function formatTimeRange(startIso: string, endIso: string, tz: string) {
-  return `${formatTime(startIso, tz)} – ${formatTime(endIso, tz)}`;
+/** "7:00 AM – 10:00 AM CDT": always in the event's zone, labelled, whatever the viewer's device is set to. */
+export function formatTimeRange(startIso: string, endIso: string, tz: string, { zone = true } = {}) {
+  const range = `${formatTime(startIso, tz)} – ${formatTime(endIso, tz)}`;
+  return zone ? `${range} ${zoneAbbreviation(startIso, tz)}` : range;
 }
 
 /** "2026-10-24" → "Sat, Oct 24, 2026" (a calendar date, no zone shifting). */
