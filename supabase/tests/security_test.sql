@@ -511,4 +511,65 @@ do $$ begin
 end $$;
 reset role;
 
+
+-- ---------------------------------------------------------------------------
+-- Bands: registration window, running order, public schedule
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ declare n int; begin
+  update public.bands set student_count = 118 where id = '40000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  assert n = 1, 'director edits their band while registration is open';
+end $$;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set band_registration_open = false where id = '10000000-0000-0000-0000-00000000000a';
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ declare n int; begin
+  update public.bands set student_count = 5 where id = '40000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  assert n = 0, 'director cannot edit after registration closes';
+  begin
+    perform public.save_performance_order('10000000-0000-0000-0000-00000000000a',
+      '[{"band_id":"40000000-0000-0000-0000-000000000001"}]'::jsonb);
+    raise exception 'FAIL: a band director set the performance order';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+-- Host saves the order with times.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-00000000000a',
+        '00000000-0000-0000-0000-000000000005', 'North HS', 'Northern Lights', '6A', 'addr',
+        'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 200, 20);
+select public.save_performance_order('10000000-0000-0000-0000-00000000000a', jsonb_build_array(
+  jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000002', 'perform_at', now() + interval '10 days 2 hours'),
+  jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000001', 'perform_at', now() + interval '10 days 3 hours')
+)) \g /dev/null
+do $$ begin
+  assert (select performance_order from public.performance_slots where band_id = '40000000-0000-0000-0000-000000000001') = 2,
+         'order follows the list';
+  begin
+    perform public.save_performance_order('10000000-0000-0000-0000-00000000000b',
+      '[{"band_id":"40000000-0000-0000-0000-000000000001"}]'::jsonb);
+    raise exception 'FAIL: scheduled a band at an event it did not register for';
+  exception when check_violation then null;
+  end;
+end $$;
+reset role;
+
+set role anon;
+set request.jwt.claims = '';
+do $$ declare r record; begin
+  select * into r from public.public_schedule('future') limit 1;
+  assert r.band_name = 'Northern Lights' and r.performance_order = 1, 'public sees the published running order';
+  assert (select count(*) from public.public_schedule('draft')) = 0, 'unpublished events show no schedule';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
