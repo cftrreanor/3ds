@@ -25,7 +25,9 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, status, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address")
+    .select(
+      "id, name, status, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+    )
     .eq("id", eventId)
     .maybeSingle();
   if (!event) notFound();
@@ -68,6 +70,15 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           </p>
           <p className="mt-1 text-sm text-muted">
             {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
+            {" · "}
+            <a
+              href={mapsUrl(event.venue_address, event.venue_place_id)}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-brand underline-offset-4 hover:underline"
+            >
+              Map
+            </a>
           </p>
         </div>
         <Badge tone={event.status === "published" ? "brand" : "neutral"}>
@@ -170,4 +181,10 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       </section>
     </div>
   );
+}
+
+function mapsUrl(address: string, placeId: string | null) {
+  const params = new URLSearchParams({ api: "1", query: address });
+  if (placeId) params.set("query_place_id", placeId);
+  return `https://www.google.com/maps/search/?${params}`;
 }

@@ -76,6 +76,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 |---|---|---|
 | `20261004000000_core_schema.sql` | All tables and privacy rules | ✅ run |
 | `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | ✅ run |
+| `20261004020000_event_fixes_and_venue_location.sql` | Fixes "no permission" when creating an event; stores map location | run this next |
 
 ## Sign-in emails (Phase 1)
 Supabase sends the sign-in emails for now. Two limits until we add Resend:
@@ -101,6 +102,29 @@ Set the **Subject** to `Your FieldCommand sign-in link` and click **Save** on ea
 
 **Allow preview links to sign in.** Supabase → **Authentication → URL Configuration
 → Redirect URLs → Add URL**: `https://fieldcommand-*.vercel.app/**`
+
+## Google Maps venue search
+Lets hosts type "Panther Stadium" and pick the right place. Without this key the
+form simply shows plain venue name and address boxes.
+
+1. Go to **console.cloud.google.com** and sign in with a Google account (ideally the
+   business one).
+2. At the top, click the project picker → **New project** → name it `FieldCommand` →
+   **Create**, then make sure it's selected.
+3. **Billing:** Google requires a card on file, even though our usage fits
+   comfortably in the free monthly allowance. Left menu → **Billing** → link or
+   create a billing account.
+4. **Turn on the API:** search the top bar for **Places API (New)** → **Enable**.
+   (Pick the one that says *New*.)
+5. **Create the key:** left menu → **APIs & Services → Credentials → + Create
+   credentials → API key**. Copy it.
+6. **Lock the key down:** click the new key → under **API restrictions** choose
+   **Restrict key** → tick **Places API (New)** only → **Save**. Leave
+   *Application restrictions* as **None**; our server makes the calls, not browsers.
+7. **Safety net:** **Billing → Budgets & alerts → Create budget** of **$5** with
+   email alerts, so you're told long before any real cost.
+8. In **Vercel → Settings → Environment Variables**, add `GOOGLE_MAPS_API_KEY` with
+   the key (turn on **Sensitive**), then **Deployments → ⋯ → Redeploy**.
 
 ---
 

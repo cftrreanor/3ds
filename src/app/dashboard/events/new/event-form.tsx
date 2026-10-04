@@ -3,10 +3,19 @@
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Select } from "@/components/ui";
+import { VenuePicker } from "@/components/venue-picker";
 import { US_TIMEZONES } from "@/lib/time";
 import { createEvent } from "../../actions";
 
-export function EventForm({ organizationId, defaultTimezone }: { organizationId: string; defaultTimezone: string }) {
+export function EventForm({
+  organizationId,
+  defaultTimezone,
+  venueSearchEnabled,
+}: {
+  organizationId: string;
+  defaultTimezone: string;
+  venueSearchEnabled: boolean;
+}) {
   return (
     <ActionForm action={createEvent} className="space-y-6" resetOnSuccess={false}>
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -41,12 +50,7 @@ export function EventForm({ organizationId, defaultTimezone }: { organizationId:
 
       <fieldset className="grid gap-4">
         <legend className="mb-3 text-sm font-medium">Where</legend>
-        <Field label="Venue name" hint="Optional.">
-          <Input name="venueName" placeholder="e.g. Panther Stadium" />
-        </Field>
-        <Field label="Venue address">
-          <Input name="venueAddress" required autoComplete="street-address" />
-        </Field>
+        <VenuePicker searchEnabled={venueSearchEnabled} />
       </fieldset>
 
       <SubmitButton pendingText="Creating…">Create event</SubmitButton>
