@@ -75,7 +75,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | File | What it does | Status |
 |---|---|---|
 | `20261004000000_core_schema.sql` | All tables and privacy rules | ✅ run |
-| `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | run this with Phase 1 |
+| `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | ✅ run |
 
 ## Sign-in emails (Phase 1)
 Supabase sends the sign-in emails for now. Two limits until we add Resend:
