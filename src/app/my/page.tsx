@@ -255,6 +255,9 @@ function ShiftCard({ row: r, origin }: { row: AgendaRow; origin: string }) {
           Apple / Outlook calendar
         </a>
       </p>
+      <p className="mt-1 text-xs text-muted">
+        Tip: the invite in your confirmation email stays up to date automatically; copies added here don&apos;t.
+      </p>
       <div className="mt-2 flex items-center justify-between">
         <span className="text-sm text-muted">{r.checked_in_at ? "✓ Checked in" : ""}</span>
         {!r.checked_in_at && <CancelShiftButton action={cancelMyShift.bind(null, r.assignment_id)} label={r.station_name} />}
