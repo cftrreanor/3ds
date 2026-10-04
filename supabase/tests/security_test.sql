@@ -25,10 +25,13 @@ set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 select id from public.create_organization('Pflugerville Band Boosters', 'pf-boosters') \gset org_
 
-do $$ begin
-  -- Drafts are free...
+do $$ declare new_event_id uuid; begin
+  -- Drafts are free, and the host can read the new row back (the app uses
+  -- INSERT ... RETURNING, which also has to pass the SELECT policies).
   insert into public.events (organization_id, name, slug, starts_on, ends_on, window_start, window_end, venue_address)
-  values ((select id from public.organizations limit 1), 'X', 'xx', current_date, current_date, now(), now() + interval '1 hour', 'addr');
+  values ((select id from public.organizations limit 1), 'X', 'xx', current_date, current_date, now(), now() + interval '1 hour', 'addr')
+  returning id into new_event_id;
+  assert new_event_id is not null, 'host reads back the event they created';
   -- ...but publishing needs a plan, whether on insert or by update.
   begin
     insert into public.events (organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)

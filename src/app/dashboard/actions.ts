@@ -23,6 +23,12 @@ const optionalText = (max: number) =>
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date");
 const time = z.string().regex(/^\d{2}:\d{2}$/, "Pick a time");
 const timezone = z.string().refine(isValidTimezone, "Pick a time zone");
+/** An optional latitude/longitude; blank or invalid becomes undefined. */
+const coordinate = (limit: number) =>
+  z.preprocess(
+    (v) => (v === "" || v == null ? undefined : Number(v)),
+    z.number().min(-limit).max(limit).optional().catch(undefined),
+  );
 
 function firstIssue(error: z.ZodError) {
   const issue = error.issues[0];
@@ -39,7 +45,7 @@ function labelFor(field: string) {
     endsOn: "End date",
     startTime: "Start time",
     endTime: "End time",
-    venueAddress: "Venue address",
+    venueAddress: "Venue",
     capacity: "Volunteers needed",
     blockHours: "Shift length",
     title: "Title",
@@ -95,6 +101,9 @@ const eventSchema = z
     timezone,
     venueName: optionalText(120),
     venueAddress: text(300),
+    venuePlaceId: optionalText(300).optional(),
+    venueLat: coordinate(90),
+    venueLng: coordinate(180),
   })
   .refine((v) => v.endsOn >= v.startsOn, { message: "End date can't be before the start date", path: ["endsOn"] })
   .refine((v) => v.endsOn > v.startsOn || v.endTime > v.startTime, {
@@ -122,6 +131,9 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
       window_end: zonedToUtc(v.endsOn, v.endTime, v.timezone).toISOString(),
       venue_name: v.venueName,
       venue_address: v.venueAddress,
+      venue_place_id: v.venuePlaceId ?? null,
+      venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
+      venue_lng: v.venuePlaceId ? (v.venueLng ?? null) : null,
       created_by: user.id,
     })
     .select("id")
