@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { brand } from "@/lib/brand";
 
 const roles = [
@@ -50,6 +51,9 @@ export default function Home() {
             <a href="#pricing" className="hidden rounded-md px-3 py-2 text-muted hover:text-foreground sm:block">
               Pricing
             </a>
+            <Link href="/login" className="rounded-md px-3 py-2 text-muted hover:text-foreground">
+              Sign in
+            </Link>
             <a
               href={`mailto:${brand.supportEmail}?subject=Pilot%20program`}
               className="rounded-md bg-brand px-4 py-2 font-medium text-brand-foreground hover:opacity-90"

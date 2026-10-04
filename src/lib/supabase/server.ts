@@ -9,8 +9,10 @@ import { requireSupabaseEnv } from "./env";
  * Acts as the signed-in user, so Row Level Security applies.
  */
 export async function createClient() {
-  const { url, key } = requireSupabaseEnv();
+  // Read cookies first: it marks the page as per-request, so it is never
+  // pre-rendered at build time (when the keys may not be available).
   const cookieStore = await cookies();
+  const { url, key } = requireSupabaseEnv();
 
   return createServerClient(url, key, {
     cookies: {
