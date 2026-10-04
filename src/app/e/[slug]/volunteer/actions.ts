@@ -2,15 +2,21 @@
 
 import { z } from "zod";
 import type { ActionState } from "@/lib/action-state";
-import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
-import { emailLayout, sendEmail } from "@/lib/email";
+import { googleCalendarUrl } from "@/lib/ics";
 import { normalizePhone } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { icsDownloadUrl, loadCalendarEntries, sendSignupConfirmation, toIcsEvent } from "@/lib/volunteer-emails";
+import { addToPass } from "@/lib/volunteer-pass";
 
 export type SignupState = ActionState & {
-  confirmed?: { email: string; emailSent: boolean; shifts: { title: string; detail: string }[] };
+  confirmed?: {
+    email: string;
+    emailSent: boolean;
+    shifts: { title: string; detail: string; googleUrl: string; icsUrl: string }[];
+    alreadySignedUp: number;
+  };
   values?: { fullName: string; email: string; phone: string; shiftIds: string[] };
 };
 
@@ -48,7 +54,20 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   if (shiftIds.length > 12) return { error: "That's a lot of shifts! Please pick 12 or fewer.", values };
 
   const admin = createAdminClient();
-  const { error } = await admin.rpc("register_volunteer", {
+
+  // Shifts this email already had: the confirmation screen must not hand this
+  // browser control over signups someone else may have made.
+  const { data: before } = await admin
+    .from("volunteers")
+    .select("volunteer_assignments(shift_id)")
+    .eq("event_id", eventId)
+    .eq("email", parsed.data.email)
+    .maybeSingle();
+  const alreadyHad = new Set(
+    ((before?.volunteer_assignments ?? []) as { shift_id: string }[]).map((a) => a.shift_id),
+  );
+
+  const { data: volunteerId, error } = await admin.rpc("register_volunteer", {
     p_event_id: eventId,
     p_full_name: parsed.data.fullName,
     p_email: parsed.data.email,
@@ -61,49 +80,53 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
     return { error: "We couldn't save your signup. Please try again.", values };
   }
 
-  // Details for the confirmation screen and email.
-  const [{ data: event }, { data: shifts }] = await Promise.all([
-    admin.from("events").select("name, timezone, venue_name, venue_address, starts_on, ends_on").eq("id", eventId).single(),
+  const [{ data: event }, { data: assignments }] = await Promise.all([
+    admin.from("events").select("timezone, starts_on, ends_on").eq("id", eventId).single(),
     admin
-      .from("shifts")
-      .select("title, starts_at, ends_at, stations(name, location)")
-      .in("id", shiftIds)
-      .order("starts_at"),
+      .from("volunteer_assignments")
+      .select("id, shift_id, manage_token")
+      .eq("volunteer_id", volunteerId as string)
+      .in("shift_id", shiftIds),
   ]);
-  const multiDay = event && event.starts_on !== event.ends_on;
-  const rows = ((shifts ?? []) as unknown as {
-    title: string;
-    starts_at: string;
-    ends_at: string;
-    stations: { name: string; location: string | null } | null;
-  }[]).map((s) => ({
-    title: `${s.stations?.name ?? "Station"}: ${s.title}`,
-    detail: [
-      multiDay ? formatDate(utcToZonedDate(s.starts_at, event!.timezone), { year: undefined }) : null,
-      formatTimeRange(s.starts_at, s.ends_at, event!.timezone),
-      s.stations?.location,
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  }));
+  const booked = (assignments ?? []) as { id: string; shift_id: string; manage_token: string }[];
+  const fresh = booked.filter((a) => !alreadyHad.has(a.shift_id));
+
+  // Remember this device: it may see and cancel the shifts it just booked.
+  await addToPass({ a: fresh.map((a) => a.manage_token) });
 
   const origin = await getOrigin();
-  const { html, text } = emailLayout({
-    heading: `You're signed up for ${event?.name ?? "the event"}`,
-    paragraphs: [
-      `Thanks, ${parsed.data.fullName.split(" ")[0]}! Here are your shifts${event?.venue_name ? ` at ${event.venue_name}` : ""}.`,
-      "Your agenda page has every shift, where to report, and your section lead's contact details. You'll confirm your email when you open it.",
-    ],
-    rows,
-    button: { label: "View my shifts", url: `${origin}/my?as=${encodeURIComponent(parsed.data.email)}` },
-    footer: `You're receiving this because you signed up to volunteer through ${brand.name}. Need to cancel? Open your shifts page.`,
-  });
-  const emailSent = await sendEmail({
-    to: parsed.data.email,
-    subject: `You're signed up: ${event?.name ?? "volunteer shifts"}`,
-    html,
-    text,
-  });
+  const tz = event?.timezone ?? "America/Chicago";
+  const multiDay = Boolean(event && event.starts_on !== event.ends_on);
+  const entries = await loadCalendarEntries(booked.map((a) => a.id));
+  // The email goes to the inbox owner, so it covers every selected shift.
+  const emailSent = await sendSignupConfirmation(entries, tz, origin, multiDay);
 
-  return { ok: true, confirmed: { email: parsed.data.email, emailSent, shifts: rows } };
+  const freshIds = new Set(fresh.map((a) => a.id));
+  const rows = entries
+    .filter((e) => freshIds.has(e.assignment_id))
+    .map((e) => {
+      const ics = toIcsEvent(e, origin);
+      return {
+        title: `${e.station_name}: ${e.shift_title}`,
+        detail: [
+          multiDay ? formatDate(utcToZonedDate(e.starts_at, tz), { year: undefined }) : null,
+          formatTimeRange(e.starts_at, e.ends_at, tz),
+          e.station_location,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        googleUrl: googleCalendarUrl(ics),
+        icsUrl: icsDownloadUrl(origin, e.manage_token),
+      };
+    });
+
+  return {
+    ok: true,
+    confirmed: {
+      email: parsed.data.email,
+      emailSent,
+      shifts: rows,
+      alreadySignedUp: booked.length - fresh.length,
+    },
+  };
 }

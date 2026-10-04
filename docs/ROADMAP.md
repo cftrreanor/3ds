@@ -25,6 +25,10 @@ Each phase ends with something you can show a real booster club.
 - ✅ "My shifts" agenda with lead contacts; volunteers can cancel
 - ✅ Check-in console (phone-friendly, big tap targets)
 - ✅ Section Lead roster on their station (contacts unlock on event day)
+- ✅ No login needed: the signup device is remembered; a private link in the email
+  works on any device; "Email me my link" for everything else
+- ✅ Calendar invites in the confirmation email (+ Google / Apple / Outlook buttons);
+  calendars update automatically when a shift moves and remove cancelled shifts
 - ⏭ Reminder emails the day before; live updates without refreshing
 
 ## Phase 3: Bands & public view

@@ -1,21 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { brand } from "@/lib/brand";
+import { getOrigin } from "@/lib/data";
+import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { icsDownloadUrl } from "@/lib/volunteer-emails";
+import { hasPass, readPass } from "@/lib/volunteer-pass";
 import { cancelMyShift } from "./actions";
-import { CancelShiftButton } from "./cancel-button";
+import { CancelShiftButton, EmailMyLinkForm, ForgetDeviceButton } from "./forms";
 
 export const metadata: Metadata = { title: "My shifts" };
 
 type AgendaRow = {
   assignment_id: string;
+  manage_token: string;
   event_id: string;
   event_name: string;
+  timezone: string;
+  venue_name: string | null;
   venue_address: string;
   station_name: string;
   station_location: string | null;
@@ -28,29 +34,37 @@ type AgendaRow = {
   lead_phone: string | null;
   lead_email: string | null;
   checked_in_at: string | null;
+  volunteer_email: string;
 };
 
 export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
-  const { as } = await searchParams;
-  // "as" is the email someone just signed up with (from the confirmation screen or email).
-  const signedUpAs = typeof as === "string" && as.includes("@") ? as.trim().toLowerCase() : null;
-  const user = await getUser();
-  if (!user) redirect(`/login?next=/my${signedUpAs ? `&email=${encodeURIComponent(signedUpAs)}` : ""}`);
-  const mismatch = signedUpAs && signedUpAs !== user.email.toLowerCase() ? signedUpAs : null;
+  const { as, link } = await searchParams;
+  // "as" is the email someone just signed up with (from the confirmation screen).
+  const signedUpAs = typeof as === "string" && as.includes("@") ? as.trim().toLowerCase() : undefined;
+  const [user, pass] = await Promise.all([getUser(), readPass()]);
 
-  const supabase = await createClient();
-  const [{ data }, { data: tzRows }] = await Promise.all([
-    supabase.rpc("my_agenda"),
-    supabase.from("volunteers").select("events(id, timezone)"),
+  // Shifts come from two places: this device's pass (no login needed) and,
+  // for anyone signed in, their account's email. Duplicates are merged.
+  const [fromPass, fromAccount] = await Promise.all([
+    hasPass(pass)
+      ? createAdminClient().rpc("pass_agenda", { p_volunteer_tokens: pass.v, p_assignment_tokens: pass.a })
+      : Promise.resolve({ data: [] }),
+    user ? (await createClient()).rpc("my_agenda") : Promise.resolve({ data: [] }),
   ]);
-  const rows = (data ?? []) as AgendaRow[];
-  const tzByEvent = new Map<string, string>();
-  for (const r of (tzRows ?? []) as unknown as { events: { id: string; timezone: string } | null }[]) {
-    if (r.events) tzByEvent.set(r.events.id, r.events.timezone);
+  const byId = new Map<string, AgendaRow>();
+  for (const r of [...((fromPass.data ?? []) as AgendaRow[]), ...((fromAccount.data ?? []) as AgendaRow[])]) {
+    byId.set(r.assignment_id, r);
   }
-
+  const rows = [...byId.values()].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const { upcoming, past } = splitByTime(rows);
   const byEvent = groupBy(upcoming, (r) => r.event_id);
+  const origin = await getOrigin();
+
+  const mismatch =
+    user && signedUpAs && signedUpAs !== user.email.toLowerCase() && !rows.some((r) => r.volunteer_email === signedUpAs)
+      ? signedUpAs
+      : null;
+  const emails = [...new Set(rows.map((r) => r.volunteer_email))];
 
   return (
     <div className="flex flex-1 flex-col">
@@ -60,96 +74,68 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
             <span aria-hidden className="inline-block h-3 w-3 rounded-full bg-accent" />
             {brand.name}
           </Link>
-          <form action="/auth/signout" method="post">
-            <button className="min-h-11 rounded-md px-3 text-sm text-muted hover:text-foreground">Sign out</button>
-          </form>
+          {user ? (
+            <form action="/auth/signout" method="post">
+              <button className="min-h-11 rounded-md px-3 text-sm text-muted hover:text-foreground">Sign out</button>
+            </form>
+          ) : (
+            <Link href="/login" className="min-h-11 content-center rounded-md px-3 text-sm text-muted hover:text-foreground">
+              Organizer sign in
+            </Link>
+          )}
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <h1 className="text-2xl font-semibold tracking-tight">My shifts</h1>
-        <p className="mt-1 text-sm text-muted">{user.email}</p>
+        {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
+
+        {link === "invalid" && (
+          <Card className="mt-6 bg-accent-soft">
+            <p className="text-sm">That link isn&apos;t valid anymore. Enter your email below and we&apos;ll send a fresh one.</p>
+          </Card>
+        )}
 
         {mismatch && (
           <Card className="mt-6 bg-accent-soft">
             <p className="font-medium">You signed up as {mismatch}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
-              This device is signed in as {user.email}, so it&apos;s showing that account&apos;s shifts. Switch
-              accounts to see the shifts for {mismatch}.
+              This device is signed in as {user!.email}. Open the confirmation email we sent to {mismatch} and tap
+              “View or cancel my shifts”, or switch accounts.
             </p>
             <SwitchAccountButton email={mismatch} label={`Sign in as ${mismatch}`} />
           </Card>
         )}
 
-        {upcoming.length === 0 && !mismatch && (
+        {upcoming.length === 0 && (
           <Card className="mt-8">
-            <p className="font-medium">No upcoming shifts for {user.email}</p>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              Shifts show up here for the email address you used when you signed up. Used a different one?
+            <p className="font-medium">
+              {rows.length || user || hasPass(pass) ? "No upcoming shifts here" : "Find your shifts"}
             </p>
-            <SwitchAccountButton label="Sign in with a different email" />
+            <p className="mt-1 mb-4 text-sm leading-6 text-muted">
+              Enter the email you signed up with and we&apos;ll send you a private link. Tap it on this device and
+              we&apos;ll remember you here. No password needed.
+            </p>
+            <EmailMyLinkForm email={signedUpAs} />
           </Card>
         )}
 
         {[...byEvent.entries()].map(([eventId, items]) => {
-          const tz = tzByEvent.get(eventId) ?? "America/Chicago";
+          const tz = items[0].timezone;
           const days = groupBy(items, (r) => utcToZonedDate(r.starts_at, tz));
           return (
             <section key={eventId} className="mt-8">
               <h2 className="text-lg font-semibold">{items[0].event_name}</h2>
-              <p className="text-sm text-muted">{items[0].venue_address}</p>
+              <p className="text-sm text-muted">
+                {[items[0].venue_name, items[0].venue_address].filter(Boolean).join(" · ")}
+              </p>
               {[...days.entries()].map(([day, shifts]) => (
                 <div key={day} className="mt-4">
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">{formatDate(day)}</h3>
                   <ul className="mt-2 space-y-3">
                     {shifts.map((r) => (
                       <li key={r.assignment_id}>
-                        <Card className="p-4 sm:p-5">
-                          <p className="text-lg font-semibold">{formatTimeRange(r.starts_at, r.ends_at, tz)}</p>
-                          <p className="mt-0.5 font-medium">
-                            {r.station_name} · {r.shift_title}
-                          </p>
-                          {r.station_location && (
-                            <p className="mt-2 text-sm">
-                              <span className="font-medium">Report to:</span> {r.station_location}
-                            </p>
-                          )}
-                          {(r.instructions || r.shift_description) && (
-                            <p className="mt-2 text-sm leading-6 text-muted">
-                              {[r.shift_description, r.instructions].filter(Boolean).join(" ")}
-                            </p>
-                          )}
-                          {r.lead_name && (
-                            <div className="mt-3 rounded-lg bg-background px-3 py-2 text-sm">
-                              <p>
-                                <span className="font-medium">Your lead:</span> {r.lead_name}
-                              </p>
-                              <p className="mt-0.5 flex flex-wrap gap-x-4">
-                                {r.lead_phone && (
-                                  <a href={`tel:${r.lead_phone}`} className="font-medium text-brand underline-offset-4 hover:underline">
-                                    Call {formatPhone(r.lead_phone)}
-                                  </a>
-                                )}
-                                {r.lead_phone && (
-                                  <a href={`sms:${r.lead_phone}`} className="font-medium text-brand underline-offset-4 hover:underline">
-                                    Text
-                                  </a>
-                                )}
-                                {r.lead_email && (
-                                  <a href={`mailto:${r.lead_email}`} className="font-medium text-brand underline-offset-4 hover:underline">
-                                    Email
-                                  </a>
-                                )}
-                              </p>
-                            </div>
-                          )}
-                          <div className="mt-2 flex items-center justify-between">
-                            <span className="text-sm text-muted">{r.checked_in_at ? "✓ Checked in" : ""}</span>
-                            {!r.checked_in_at && (
-                              <CancelShiftButton action={cancelMyShift.bind(null, r.assignment_id)} label={r.station_name} />
-                            )}
-                          </div>
-                        </Card>
+                        <ShiftCard row={r} origin={origin} />
                       </li>
                     ))}
                   </ul>
@@ -164,22 +150,81 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
             Plus {past.length} past shift{past.length === 1 ? "" : "s"}. Thank you for helping!
           </p>
         )}
+
+        {hasPass(pass) && rows.length > 0 && (
+          <div className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 text-sm text-muted">
+            <span>This device remembers your shifts.</span>
+            <ForgetDeviceButton />
+          </div>
+        )}
       </main>
     </div>
   );
 }
 
-function groupBy<T>(items: T[], key: (item: T) => string) {
-  const map = new Map<string, T[]>();
-  for (const item of items) map.set(key(item), [...(map.get(key(item)) ?? []), item]);
-  return map;
-}
-
-/** Shifts that haven't ended yet vs. ones that have. */
-function splitByTime(rows: AgendaRow[]) {
-  const now = Date.now();
-  const ended = (r: AgendaRow) => new Date(r.ends_at).getTime() < now;
-  return { upcoming: rows.filter((r) => !ended(r)), past: rows.filter(ended) };
+function ShiftCard({ row: r, origin }: { row: AgendaRow; origin: string }) {
+  const tz = r.timezone;
+  const google = googleCalendarUrl({
+    start: new Date(r.starts_at),
+    end: new Date(r.ends_at),
+    summary: `Volunteer: ${r.station_name} (${r.event_name})`,
+    location: [r.venue_name, r.venue_address].filter(Boolean).join(", "),
+    description: [r.station_location && `Report to: ${r.station_location}`, r.instructions].filter(Boolean).join("\n"),
+  });
+  return (
+    <Card className="p-4 sm:p-5">
+      <p className="text-lg font-semibold">{formatTimeRange(r.starts_at, r.ends_at, tz)}</p>
+      <p className="mt-0.5 font-medium">
+        {r.station_name} · {r.shift_title}
+      </p>
+      {r.station_location && (
+        <p className="mt-2 text-sm">
+          <span className="font-medium">Report to:</span> {r.station_location}
+        </p>
+      )}
+      {(r.instructions || r.shift_description) && (
+        <p className="mt-2 text-sm leading-6 text-muted">
+          {[r.shift_description, r.instructions].filter(Boolean).join(" ")}
+        </p>
+      )}
+      {r.lead_name && (
+        <div className="mt-3 rounded-lg bg-background px-3 py-2 text-sm">
+          <p>
+            <span className="font-medium">Your lead:</span> {r.lead_name}
+          </p>
+          <p className="mt-0.5 flex flex-wrap gap-x-4">
+            {r.lead_phone && (
+              <a href={`tel:${r.lead_phone}`} className="font-medium text-brand underline-offset-4 hover:underline">
+                Call {formatPhone(r.lead_phone)}
+              </a>
+            )}
+            {r.lead_phone && (
+              <a href={`sms:${r.lead_phone}`} className="font-medium text-brand underline-offset-4 hover:underline">
+                Text
+              </a>
+            )}
+            {r.lead_email && (
+              <a href={`mailto:${r.lead_email}`} className="font-medium text-brand underline-offset-4 hover:underline">
+                Email
+              </a>
+            )}
+          </p>
+        </div>
+      )}
+      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <a href={google} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
+          Add to Google Calendar
+        </a>
+        <a href={icsDownloadUrl(origin, r.manage_token)} className="font-medium text-brand underline-offset-4 hover:underline">
+          Apple / Outlook calendar
+        </a>
+      </p>
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-sm text-muted">{r.checked_in_at ? "✓ Checked in" : ""}</span>
+        {!r.checked_in_at && <CancelShiftButton action={cancelMyShift.bind(null, r.assignment_id)} label={r.station_name} />}
+      </div>
+    </Card>
+  );
 }
 
 /** Signs out, then opens sign-in (pre-filled when we know the email) and returns here. */
@@ -193,4 +238,17 @@ function SwitchAccountButton({ email, label }: { email?: string; label: string }
       </button>
     </form>
   );
+}
+
+/** Shifts that haven't ended yet vs. ones that have. */
+function splitByTime(rows: AgendaRow[]) {
+  const now = Date.now();
+  const ended = (r: AgendaRow) => new Date(r.ends_at).getTime() < now;
+  return { upcoming: rows.filter((r) => !ended(r)), past: rows.filter(ended) };
+}
+
+function groupBy<T>(items: T[], key: (item: T) => string) {
+  const map = new Map<string, T[]>();
+  for (const item of items) map.set(key(item), [...(map.get(key(item)) ?? []), item]);
+  return map;
 }
