@@ -22,7 +22,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
             {brand.name}
           </Link>
           <div className="flex items-center gap-3 text-sm">
-            <span className="hidden text-muted sm:inline">{user.email}</span>
+            <Link href="/dashboard/account" className="min-h-11 content-center rounded-md px-3 text-muted hover:text-foreground">
+              <span className="hidden sm:inline">{user.email}</span>
+              <span className="sm:hidden">Account</span>
+            </Link>
             <form action="/auth/signout" method="post">
               <button className="min-h-11 rounded-md px-3 text-muted hover:text-foreground">Sign out</button>
             </form>
