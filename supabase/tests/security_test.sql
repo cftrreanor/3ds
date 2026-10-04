@@ -26,12 +26,27 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":
 select id from public.create_organization('Pflugerville Band Boosters', 'pf-boosters') \gset org_
 
 do $$ begin
+  -- Drafts are free...
+  insert into public.events (organization_id, name, slug, starts_on, ends_on, window_start, window_end, venue_address)
+  values ((select id from public.organizations limit 1), 'X', 'xx', current_date, current_date, now(), now() + interval '1 hour', 'addr');
+  -- ...but publishing needs a plan, whether on insert or by update.
   begin
-    insert into public.events (organization_id, name, slug, starts_on, ends_on, window_start, window_end, venue_address)
-    values ((select id from public.organizations limit 1), 'X', 'x', current_date, current_date, now(), now() + interval '1 hour', 'addr');
-    raise exception 'FAIL: event created without an active plan';
+    insert into public.events (organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+    values ((select id from public.organizations limit 1), 'Y', 'yy', 'published', current_date, current_date, now(), now() + interval '1 hour', 'addr');
+    raise exception 'FAIL: published an event without an active plan';
   exception when insufficient_privilege then null; -- RLS rejection
   end;
+  begin
+    update public.events set status = 'published' where slug = 'xx';
+    raise exception 'FAIL: published a draft without an active plan';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.profiles set email = 'hijack@example.com' where id = auth.uid();
+    raise exception 'FAIL: user changed their own login email in profiles';
+  exception when insufficient_privilege then null;
+  end;
+  update public.profiles set full_name = 'Hana Host', phone = '+15125550101' where id = auth.uid();
   begin
     update public.organizations set subscription_status = 'active';
     raise exception 'FAIL: host changed their own billing status';
@@ -40,6 +55,7 @@ do $$ begin
 end $$;
 reset role;
 
+delete from public.events where slug = 'xx';
 update public.organizations set subscription_status = 'comped';
 
 -- Two events: one 10 days out (contacts locked) and one today (unlocked).

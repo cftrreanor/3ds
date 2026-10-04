@@ -8,12 +8,13 @@ Each phase ends with something you can show a real booster club.
 - Automated tests proving: no overbooking, contacts locked until event day,
   directors can't see the performance order early, the public sees only public info
 
-## Phase 1: Accounts & event setup
-*Needs: Supabase and Vercel accounts connected (docs/SETUP-GUIDE.md, steps 1–4).*
-- Sign in with emailed magic link
-- Create an organization → create an event → stations → shifts
-  (with a "split 7 AM–10 PM into 3-hour blocks" generator)
-- Invite a Volunteer Director and Section Leads by email
+## Phase 1: Accounts & event setup 🚧 (in review)
+- ✅ Sign in with emailed link (no passwords)
+- ✅ Create an organization → create an event → stations → shifts
+- ✅ "Fill the day" shift generator (e.g. 7 AM–10 PM in 3-hour blocks)
+- ✅ Draft events are free; publishing will require a plan
+- ⏭ Invite a Volunteer Director and Section Leads by email (next)
+- ⏭ Edit event details and stations after creating them
 
 ## Phase 2: Volunteers
 - Public signup page (with bot protection)

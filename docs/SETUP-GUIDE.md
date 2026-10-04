@@ -67,6 +67,39 @@ Finally, in Supabase → **Authentication → URL Configuration**, set **Site UR
 to your Vercel link and add `https://YOUR-LINK.vercel.app/auth/callback` under
 **Redirect URLs**.
 
+## Applying database updates
+When a change adds a new file to `supabase/migrations/`, run **only that new file** in
+Supabase's **SQL Editor**, exactly like step 2.5. Files run in name order, oldest
+first, and each runs once. Running an old one again will error (harmless, but confusing).
+
+| File | What it does | Status |
+|---|---|---|
+| `20261004000000_core_schema.sql` | All tables and privacy rules | ✅ run |
+| `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | run this with Phase 1 |
+
+## Sign-in emails (Phase 1)
+Supabase sends the sign-in emails for now. Two limits until we add Resend:
+- It only sends to **your own email** (members of your Supabase organization).
+- About **2 emails per hour**.
+
+**Make sign-in links work on any device.** By default, a link only works in the same
+browser where it was requested, so requesting on a laptop and tapping the link on your
+phone fails. Fix it once: Supabase → **Authentication → Emails** (or *Email
+Templates*). For **both** the **Magic Link** and **Confirm signup** templates, replace
+the message body with:
+
+```html
+<h2>Sign in to FieldCommand</h2>
+<p>Tap the button below to sign in. The link works once and expires in 1 hour.</p>
+<p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">Sign in</a></p>
+<p>If you didn't ask for this, you can ignore this email.</p>
+```
+
+Set the **Subject** to `Your FieldCommand sign-in link` and click **Save** on each.
+
+**Allow preview links to sign in.** Supabase → **Authentication → URL Configuration
+→ Redirect URLs → Add URL**: `https://fieldcommand-*.vercel.app/**`
+
 ---
 
 ## Later: set up when we reach that phase
