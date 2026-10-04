@@ -77,32 +77,39 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261004000000_core_schema.sql` | All tables and privacy rules | ✅ run |
 | `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | ✅ run |
 | `20261004020000_event_fixes_and_venue_location.sql` | Fixes "no permission" when creating an event; stores map location | ✅ run |
-| `20261004030000_team_invitations_and_editing.sql` | Team invitations, station leads, moving shifts when the date changes | run this next |
+| `20261004030000_team_invitations_and_editing.sql` | Team invitations, station leads, moving shifts when the date changes | ✅ run |
 
-## Sign-in emails (Phase 1)
-Supabase sends the sign-in emails for now. Two limits until we add Resend:
-- It only sends to **your own email** (members of your Supabase organization).
-- About **2 emails per hour**.
+## Email (Resend) ✅
+Sign-in emails are sent by **Resend** from `no-reply@fieldcommandevents.com`.
 
-Until then, **open the sign-in link on the same device and browser where you
-requested it.** A link requested on a laptop and tapped on a phone will fail.
+- Domain `fieldcommandevents.com` (bought in Vercel) is verified in Resend, with
+  DNS records added in Vercel, including `_dmarc` TXT `v=DMARC1; p=none;`.
+- Supabase → Authentication → **SMTP Settings**: custom SMTP on, host
+  `smtp.resend.com`, port `465`, username `resend`, password = a Resend API key with
+  *Sending access* to the domain.
+- Supabase → Authentication → **Rate Limits**: emails per hour raised to 100.
 
-**Make sign-in links work on any device (do this once Resend is set up).** Supabase
-only lets you edit email templates once custom email (SMTP) is connected, which
-Resend gives us for free. Then: Supabase → **Authentication → Emails**. For **both**
-the **Magic Link** and **Confirm signup** templates, replace the message body with:
+**Sign-in links that work on any device.** Supabase → Authentication → **Emails** →
+for both **Magic Link** and **Confirm signup**, the body is:
 
 ```html
-<h2>Sign in to FieldCommand</h2>
-<p>Tap the button below to sign in. The link works once and expires in 1 hour.</p>
-<p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">Sign in</a></p>
-<p>If you didn't ask for this, you can ignore this email.</p>
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#14213d">
+  <p style="font-size:18px;font-weight:bold;margin:0 0 16px">FieldCommand</p>
+  <p style="font-size:16px;line-height:24px;margin:0 0 24px">Tap the button below to sign in. The link works once and expires in 1 hour.</p>
+  <p style="margin:0 0 24px">
+    <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email"
+       style="background:#1d3a6e;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:bold;display:inline-block">Sign in</a>
+  </p>
+  <p style="font-size:13px;line-height:20px;color:#5b6478;margin:0">If you didn't ask for this, you can ignore this email.</p>
+</div>
 ```
 
-Set the **Subject** to `Your FieldCommand sign-in link` and click **Save** on each.
+Subject: `Your FieldCommand sign-in link`.
 
-**Allow preview links to sign in.** Supabase → **Authentication → URL Configuration
-→ Redirect URLs → Add URL**: `https://fieldcommand-*.vercel.app/**`
+**Web addresses.** Supabase → Authentication → **URL Configuration**:
+- Site URL: `https://fieldcommandevents.com`
+- Redirect URLs: `https://fieldcommandevents.com/**`, `https://www.fieldcommandevents.com/**`,
+  `https://fieldcommand-xi.vercel.app/**`, `https://fieldcommand-*.vercel.app/**`
 
 ## Google Maps venue search
 Lets hosts type "Panther Stadium" and pick the right place. Without this key the
@@ -131,9 +138,6 @@ form simply shows plain venue name and address boxes.
 
 ## Later: set up when we reach that phase
 
-### 5. Resend: sends emails (Phase 2)
-resend.com → sign up. You'll need a domain for good email delivery, so buy the
-domain once you've picked a name (step 9).
 
 ### 6. Sentry: tells us when something breaks (Phase 5)
 sentry.io → sign up with GitHub → create a **Next.js** project. Free tier.
