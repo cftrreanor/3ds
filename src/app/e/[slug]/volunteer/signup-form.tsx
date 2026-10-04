@@ -58,7 +58,7 @@ export function SignupForm({
           Your shifts page shows everything in one place, including where to report and who your lead is.
         </p>
         <Link
-          href="/my"
+          href={`/my?as=${encodeURIComponent(state.confirmed.email)}`}
           className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
         >
           View my shifts

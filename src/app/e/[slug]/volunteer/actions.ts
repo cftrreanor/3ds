@@ -95,7 +95,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
       "Your agenda page has every shift, where to report, and your section lead's contact details. You'll confirm your email when you open it.",
     ],
     rows,
-    button: { label: "View my shifts", url: `${origin}/my` },
+    button: { label: "View my shifts", url: `${origin}/my?as=${encodeURIComponent(parsed.data.email)}` },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}. Need to cancel? Open your shifts page.`,
   });
   const emailSent = await sendEmail({

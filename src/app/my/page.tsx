@@ -30,9 +30,13 @@ type AgendaRow = {
   checked_in_at: string | null;
 };
 
-export default async function MyShiftsPage() {
+export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
+  const { as } = await searchParams;
+  // "as" is the email someone just signed up with (from the confirmation screen or email).
+  const signedUpAs = typeof as === "string" && as.includes("@") ? as.trim().toLowerCase() : null;
   const user = await getUser();
-  if (!user) redirect("/login?next=/my");
+  if (!user) redirect(`/login?next=/my${signedUpAs ? `&email=${encodeURIComponent(signedUpAs)}` : ""}`);
+  const mismatch = signedUpAs && signedUpAs !== user.email.toLowerCase() ? signedUpAs : null;
 
   const supabase = await createClient();
   const [{ data }, { data: tzRows }] = await Promise.all([
@@ -66,12 +70,24 @@ export default async function MyShiftsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">My shifts</h1>
         <p className="mt-1 text-sm text-muted">{user.email}</p>
 
-        {upcoming.length === 0 && (
-          <Card className="mt-8">
-            <p className="font-medium">No upcoming shifts</p>
+        {mismatch && (
+          <Card className="mt-6 bg-accent-soft">
+            <p className="font-medium">You signed up as {mismatch}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
-              If you signed up with a different email address, sign out and sign in with that one.
+              This device is signed in as {user.email}, so it&apos;s showing that account&apos;s shifts. Switch
+              accounts to see the shifts for {mismatch}.
             </p>
+            <SwitchAccountButton email={mismatch} label={`Sign in as ${mismatch}`} />
+          </Card>
+        )}
+
+        {upcoming.length === 0 && !mismatch && (
+          <Card className="mt-8">
+            <p className="font-medium">No upcoming shifts for {user.email}</p>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Shifts show up here for the email address you used when you signed up. Used a different one?
+            </p>
+            <SwitchAccountButton label="Sign in with a different email" />
           </Card>
         )}
 
@@ -164,4 +180,17 @@ function splitByTime(rows: AgendaRow[]) {
   const now = Date.now();
   const ended = (r: AgendaRow) => new Date(r.ends_at).getTime() < now;
   return { upcoming: rows.filter((r) => !ended(r)), past: rows.filter(ended) };
+}
+
+/** Signs out, then opens sign-in (pre-filled when we know the email) and returns here. */
+function SwitchAccountButton({ email, label }: { email?: string; label: string }) {
+  const next = `/login?next=/my${email ? `&email=${encodeURIComponent(email)}` : ""}`;
+  return (
+    <form action="/auth/signout" method="post" className="mt-3">
+      <input type="hidden" name="next" value={next} />
+      <button className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90">
+        {label}
+      </button>
+    </form>
+  );
 }
