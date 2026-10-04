@@ -18,7 +18,7 @@ Each phase ends with something you can show a real booster club.
   Volunteer Director; invite Section Leads and assign them to stations
   (invite links are copied and sent by the host until automatic email is set up)
 
-## Phase 2: Volunteers 🚧 (in review)
+## Phase 2: Volunteers ✅
 - ✅ Publish, open/close signup, share link + QR code
 - ✅ Public signup page (bot traps; full shifts lock automatically)
 - ✅ Confirmation email (Resend)
@@ -31,11 +31,13 @@ Each phase ends with something you can show a real booster club.
   calendars update automatically when a shift moves and remove cancelled shifts
 - ⏭ Reminder emails the day before; live updates without refreshing
 
-## Phase 3: Bands & public view
-- Band Director registration portal
-- Host performance-order builder (drag to reorder, set times) + publish
-- Public schedule page with live performance order and alert banner
-- Active checkpoint queue (warm-up check-in/out)
+## Phase 3: Bands & public view 🚧
+- ✅ Band Director registration portal (editable until registration closes; withdraw)
+- ✅ Bands page: registration controls, settings, logistics totals, full details
+- ✅ Performance-order builder (up/down ordering, auto-fill times) + publish with
+  director emails
+- ✅ Public event page: links, announcements, live schedule (now / up next)
+- ⏭ Active checkpoint queue (warm-up check-in/out)
 
 ## Phase 4: Broadcasts
 - Announcement composer (audience multi-select, priority)

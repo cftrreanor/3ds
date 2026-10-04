@@ -296,6 +296,25 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       )}
 
       {access.canManage && (
+        <section className="mt-10" aria-labelledby="bands-heading">
+          <h2 id="bands-heading" className="text-lg font-semibold">
+            Bands
+          </h2>
+          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm leading-6 text-muted">
+              Band registration, logistics totals, and the performance order.
+            </p>
+            <Link
+              href={`/dashboard/events/${eventId}/bands`}
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+            >
+              Manage bands
+            </Link>
+          </Card>
+        </section>
+      )}
+
+      {access.canManage && (
         <section className="mt-10" aria-labelledby="team-heading">
           <h2 id="team-heading" className="text-lg font-semibold">
             Team

@@ -10,6 +10,13 @@ import { OnboardingForm } from "./onboarding-form";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
+type MyBand = {
+  id: string;
+  band_name: string;
+  school_name: string;
+  events: { name: string; starts_on: string; ends_on: string } | null;
+};
+
 type StaffEvent = {
   role: "volunteer_director" | "section_lead";
   events: { id: string; name: string; status: string; starts_on: string; ends_on: string; venue_name: string | null; venue_address: string } | null;
@@ -18,22 +25,38 @@ type StaffEvent = {
 export default async function DashboardPage() {
   const user = await requireUser();
   const supabase = await createClient();
-  const [org, { data: staffRows }] = await Promise.all([
+  const [org, { data: staffRows }, { data: bandRows }] = await Promise.all([
     getMyOrganization(),
     supabase
       .from("event_staff")
       .select("role, events(id, name, status, starts_on, ends_on, venue_name, venue_address)")
       .eq("user_id", user.id),
+    supabase
+      .from("bands")
+      .select("id, band_name, school_name, events(name, starts_on, ends_on)")
+      .eq("director_user_id", user.id)
+      .order("created_at"),
   ]);
+  const myBands = (bandRows ?? []) as unknown as MyBand[];
   const helping = ((staffRows ?? []) as unknown as StaffEvent[]).filter(
     (r): r is StaffEvent & { events: NonNullable<StaffEvent["events"]> } => r.events !== null,
   );
 
-  if (!org && helping.length > 0) {
+  if (!org && (helping.length > 0 || myBands.length > 0)) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Events you&apos;re helping run</h1>
-        <HelpingList rows={helping} />
+        {myBands.length > 0 && (
+          <section>
+            <h1 className="text-2xl font-semibold tracking-tight">Your bands</h1>
+            <BandList bands={myBands} />
+          </section>
+        )}
+        {helping.length > 0 && (
+          <section className={myBands.length ? "mt-12" : ""}>
+            <h2 className="text-2xl font-semibold tracking-tight">Events you&apos;re helping run</h2>
+            <HelpingList rows={helping} />
+          </section>
+        )}
         <p className="mt-10 text-sm text-muted">
           Hosting your own contest?{" "}
           <Link href="/dashboard/setup" className="font-medium text-brand underline-offset-4 hover:underline">
@@ -117,6 +140,13 @@ export default async function DashboardPage() {
         </Card>
       )}
 
+      {myBands.length > 0 && (
+        <section className="mt-12">
+          <h2 className="text-lg font-semibold">Your bands</h2>
+          <BandList bands={myBands} />
+        </section>
+      )}
+
       {helping.length > 0 && (
         <section className="mt-12">
           <h2 className="text-lg font-semibold">Events you&apos;re helping run</h2>
@@ -142,6 +172,31 @@ function HelpingList({ rows }: { rows: (StaffEvent & { events: NonNullable<Staff
               </div>
               <p className="mt-2 text-sm text-muted">{formatDateRange(r.events.starts_on, r.events.ends_on)}</p>
               <p className="mt-1 text-sm text-muted">{r.events.venue_name ?? r.events.venue_address}</p>
+            </Card>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BandList({ bands }: { bands: MyBand[] }) {
+  return (
+    <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+      {bands.map((b) => (
+        <li key={b.id}>
+          <Link href={`/dashboard/bands/${b.id}`} className="block h-full">
+            <Card className="h-full transition hover:border-brand">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-semibold">{b.band_name}</h3>
+                <Badge tone="accent">Band director</Badge>
+              </div>
+              <p className="mt-2 text-sm text-muted">{b.school_name}</p>
+              {b.events && (
+                <p className="mt-1 text-sm text-muted">
+                  {b.events.name} · {formatDateRange(b.events.starts_on, b.events.ends_on)}
+                </p>
+              )}
             </Card>
           </Link>
         </li>
