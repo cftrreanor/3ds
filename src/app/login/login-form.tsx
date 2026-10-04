@@ -5,7 +5,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Field, FormMessage, Input } from "@/components/ui";
 import { sendLoginLink, type LoginState } from "./actions";
 
-export function LoginForm({ linkError }: { linkError?: boolean }) {
+export function LoginForm({ linkError, next, email }: { linkError?: boolean; next?: string; email?: string }) {
   const [state, action] = useActionState<LoginState, FormData>(sendLoginLink, {});
 
   if (state.sentTo) {
@@ -22,6 +22,7 @@ export function LoginForm({ linkError }: { linkError?: boolean }) {
 
   return (
     <form action={action} className="space-y-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <FormMessage
         error={
           state.error ??
@@ -34,7 +35,7 @@ export function LoginForm({ linkError }: { linkError?: boolean }) {
           type="email"
           autoComplete="email"
           inputMode="email"
-          defaultValue={state.email}
+          defaultValue={state.email ?? email}
           required
           autoFocus
         />

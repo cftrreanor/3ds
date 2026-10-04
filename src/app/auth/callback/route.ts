@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 //   ?token_hash=…&type=email   (our custom email template; works on any device)
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
-  const next = safeNext(url.searchParams.get("next"));
+  // Where to go afterwards: ?next=, or the page remembered when the link was requested.
+  const next = safeNext(url.searchParams.get("next") ?? request.cookies.get("fc_next")?.value ?? null);
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;
@@ -20,7 +21,9 @@ export async function GET(request: NextRequest) {
     ok = !(await supabase.auth.exchangeCodeForSession(code)).error;
   }
 
-  return NextResponse.redirect(new URL(ok ? next : "/login?error=link", url.origin));
+  const response = NextResponse.redirect(new URL(ok ? next : "/login?error=link", url.origin));
+  if (ok) response.cookies.delete("fc_next");
+  return response;
 }
 
 /** Only allow redirects within this site. */

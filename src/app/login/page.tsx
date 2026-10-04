@@ -10,8 +10,9 @@ import { LoginForm } from "./login-form";
 export const metadata: Metadata = { title: "Sign in" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  if (isSupabaseConfigured && (await getUser())) redirect("/dashboard");
-  const { error } = await searchParams;
+  const { error, next, email } = await searchParams;
+  const safeNext = typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
+  if (isSupabaseConfigured && (await getUser())) redirect(safeNext ?? "/dashboard");
 
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
@@ -23,7 +24,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <Card>
           <h1 className="mb-6 text-xl font-semibold">Sign in</h1>
           {isSupabaseConfigured ? (
-            <LoginForm linkError={error === "link"} />
+            <LoginForm
+              linkError={error === "link"}
+              next={safeNext}
+              email={typeof email === "string" ? email : undefined}
+            />
           ) : (
             <p className="text-muted">Sign-in isn&apos;t available yet: the database connection is not set up.</p>
           )}
