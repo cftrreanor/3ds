@@ -78,6 +78,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261004010000_drafts_without_plan.sql` | Draft events are free; publishing needs a plan | ✅ run |
 | `20261004020000_event_fixes_and_venue_location.sql` | Fixes "no permission" when creating an event; stores map location | ✅ run |
 | `20261004030000_team_invitations_and_editing.sql` | Team invitations, station leads, moving shifts when the date changes | ✅ run |
+| `20261004040000_volunteer_signup.sql` | Unique public links for events | run this next |
 
 ## Email (Resend) ✅
 Sign-in emails are sent by **Resend** from `no-reply@fieldcommandevents.com`.
@@ -105,6 +106,10 @@ for both **Magic Link** and **Confirm signup**, the body is:
 ```
 
 Subject: `Your FieldCommand sign-in link`.
+
+**App emails (volunteer confirmations).** Resend → API Keys → a second key named
+`FieldCommand app` with *Sending access* to the domain. Vercel → Environment
+Variables → `RESEND_API_KEY` (Sensitive) → Redeploy.
 
 **Web addresses.** Supabase → Authentication → **URL Configuration**:
 - Site URL: `https://fieldcommandevents.com`

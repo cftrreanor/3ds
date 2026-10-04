@@ -15,17 +15,21 @@ import {
   utcToZonedDate,
   utcToZonedTime,
 } from "@/lib/time";
+import QRCode from "qrcode";
 import {
   createShift,
   createStation,
   deleteShift,
   deleteStation,
   generateShifts,
+  setEventPublished,
+  setVolunteerSignupOpen,
   updateShift,
   updateStation,
 } from "../../actions";
 import { cancelInvitation, inviteMember, removeMember } from "../../team-actions";
 import {
+  ActionButton,
   CopyLinkButton,
   DeleteButton,
   GenerateShiftsForm,
@@ -49,6 +53,16 @@ type Shift = {
   registered_count: number;
 };
 
+type RosterEntry = {
+  assignment_id: string;
+  shift_id: string;
+  volunteer_name: string;
+  email: string | null;
+  phone: string | null;
+  checked_in_at: string | null;
+  contact_locked: boolean;
+};
+
 type Person = { full_name: string; email: string; phone: string | null } | null;
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: Person };
 type Invitation = {
@@ -70,7 +84,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, name, status, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, slug, name, status, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -105,6 +119,27 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const multiDay = days.length > 1;
   const windowLabel = `${formatTime(event.window_start, tz)} – ${formatTime(event.window_end, tz)}`;
   const origin = await getOrigin();
+
+  const signupUrl = `${origin}/e/${event.slug}/volunteer`;
+  const [qrSvg, qrPng] = access.canManage
+    ? await Promise.all([
+        QRCode.toString(signupUrl, { type: "svg", margin: 1, width: 160 }),
+        QRCode.toDataURL(signupUrl, { margin: 2, width: 1024 }),
+      ])
+    : ["", ""];
+  const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
+
+  // Section Leads see their own station's roster; contact details are
+  // released by the database only on event day.
+  const myStations = (stations ?? []).filter((s) => s.lead_user_id === user.id);
+  const rosters = new Map<string, RosterEntry[]>(
+    await Promise.all(
+      myStations.map(async (s) => {
+        const { data } = await supabase.rpc("station_roster", { p_station_id: s.id });
+        return [s.id, (data ?? []) as RosterEntry[]] as const;
+      }),
+    ),
+  );
 
   const shiftsByStation = new Map<string, Shift[]>();
   for (const s of (shifts ?? []) as Shift[]) {
@@ -169,6 +204,95 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           )}
         </div>
       </div>
+
+      {access.canManage && (
+        <section className="mt-10" aria-labelledby="share-heading">
+          <h2 id="share-heading" className="text-lg font-semibold">
+            Volunteer signup
+          </h2>
+          <Card className="mt-4">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1 space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={event.status === "published" && event.volunteer_signup_open ? "brand" : "neutral"}>
+                    {event.status !== "published"
+                      ? "Not published"
+                      : event.volunteer_signup_open
+                        ? "Signup open"
+                        : "Signup closed"}
+                  </Badge>
+                  <span className="text-sm text-muted">
+                    {signedUp} of {totalSlots} spots filled
+                  </span>
+                </div>
+
+                {access.isHost && (
+                  <div className="flex flex-wrap gap-2">
+                    {event.status !== "published" ? (
+                      <ActionButton action={setEventPublished.bind(null, eventId, true)} pendingText="Publishing…">
+                        Publish event
+                      </ActionButton>
+                    ) : (
+                      <>
+                        <ActionButton
+                          action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
+                          variant={event.volunteer_signup_open ? "secondary" : "primary"}
+                        >
+                          {event.volunteer_signup_open ? "Close volunteer signup" : "Open volunteer signup"}
+                        </ActionButton>
+                        <ActionButton
+                          action={setEventPublished.bind(null, eventId, false)}
+                          variant="secondary"
+                          confirmMessage="Unpublish? The public pages will be hidden and signup will close."
+                        >
+                          Unpublish
+                        </ActionButton>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm font-medium">Signup link</p>
+                  <p className="mt-1 break-all text-sm text-muted">{signupUrl}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <CopyLinkButton url={signupUrl} label="Copy link" />
+                    <a
+                      href={`/e/${event.slug}/volunteer`}
+                      target="_blank"
+                      className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                    >
+                      Preview page
+                    </a>
+                    <Link
+                      href={`/dashboard/events/${eventId}/volunteers`}
+                      className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                    >
+                      Volunteers &amp; check-in
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-2 self-center sm:self-start">
+                <div
+                  className="rounded-lg border border-border bg-white p-2"
+                  aria-label="QR code for the signup link"
+                  role="img"
+                  dangerouslySetInnerHTML={{ __html: qrSvg }}
+                />
+                <a
+                  href={qrPng}
+                  download={`${event.slug}-volunteer-qr.png`}
+                  className="text-xs font-medium text-brand underline-offset-4 hover:underline"
+                >
+                  Download QR code
+                </a>
+              </div>
+            </div>
+          </Card>
+        </section>
+      )}
 
       {access.canManage && (
         <section className="mt-10" aria-labelledby="team-heading">
@@ -388,6 +512,49 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                   </ul>
                 ) : (
                   <p className="mt-4 text-sm text-muted">No shifts yet.</p>
+                )}
+
+                {rosters.has(station.id) && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-semibold">Your volunteers</h4>
+                    {rosters.get(station.id)!.length === 0 ? (
+                      <p className="mt-1 text-sm text-muted">No one has signed up yet.</p>
+                    ) : (
+                      <>
+                        {rosters.get(station.id)![0].contact_locked && (
+                          <p className="mt-1 text-sm text-muted">
+                            Phone numbers and emails unlock on event day ({formatDateRange(event.starts_on, event.ends_on)}).
+                          </p>
+                        )}
+                        <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+                          {rosters.get(station.id)!.map((v) => {
+                            const shift = stationShifts.find((s) => s.id === v.shift_id);
+                            return (
+                              <li key={v.assignment_id} className="flex items-center justify-between gap-3 px-3 py-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium">{v.volunteer_name}</p>
+                                  <p className="truncate text-sm text-muted">
+                                    {shift ? formatTimeRange(shift.starts_at, shift.ends_at, tz) : ""}
+                                    {v.phone && (
+                                      <>
+                                        {" · "}
+                                        <a href={`tel:${v.phone}`} className="font-medium text-brand hover:underline">
+                                          {formatPhone(v.phone)}
+                                        </a>
+                                      </>
+                                    )}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 text-sm">
+                                  {v.checked_in_at ? "✓ Arrived" : <span className="text-muted">Not yet</span>}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    )}
+                  </div>
                 )}
 
                 {access.canManage && (

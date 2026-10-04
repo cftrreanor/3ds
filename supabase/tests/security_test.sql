@@ -416,4 +416,19 @@ do $$ begin
 end $$;
 reset role;
 
+
+-- ---------------------------------------------------------------------------
+-- Public links: event slugs are unique across organizations
+-- ---------------------------------------------------------------------------
+do $$ begin
+  begin
+    insert into public.organizations (name, slug, subscription_status) values ('Other Boosters', 'other-boosters', 'comped');
+    insert into public.events (organization_id, name, slug, starts_on, ends_on, window_start, window_end, venue_address)
+    values ((select id from public.organizations where slug = 'other-boosters'), 'Copy', 'future',
+            current_date, current_date, now(), now() + interval '1 hour', 'addr');
+    raise exception 'FAIL: two events share a public link';
+  exception when unique_violation then null;
+  end;
+end $$;
+
 \echo 'All database security tests passed.'

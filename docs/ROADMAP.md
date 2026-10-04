@@ -18,12 +18,14 @@ Each phase ends with something you can show a real booster club.
   Volunteer Director; invite Section Leads and assign them to stations
   (invite links are copied and sent by the host until automatic email is set up)
 
-## Phase 2: Volunteers
-- Public signup page (with bot protection)
-- Volunteer "My Agenda" dashboard
-- Volunteer Director check-in console (phone-friendly, big tap targets)
-- Section Lead station view (time-gated contacts)
-- Confirmation + reminder emails (Resend)
+## Phase 2: Volunteers 🚧 (in review)
+- ✅ Publish, open/close signup, share link + QR code
+- ✅ Public signup page (bot traps; full shifts lock automatically)
+- ✅ Confirmation email (Resend)
+- ✅ "My shifts" agenda with lead contacts; volunteers can cancel
+- ✅ Check-in console (phone-friendly, big tap targets)
+- ✅ Section Lead roster on their station (contacts unlock on event day)
+- ⏭ Reminder emails the day before; live updates without refreshing
 
 ## Phase 3: Bands & public view
 - Band Director registration portal

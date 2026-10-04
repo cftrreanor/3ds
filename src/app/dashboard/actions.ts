@@ -182,6 +182,42 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   redirect(`/dashboard/events/${eventId}`);
 }
 
+export async function setEventPublished(eventId: string, publish: boolean): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update(publish ? { status: "published" } : { status: "draft", volunteer_signup_open: false })
+    .eq("id", eventId)
+    .select("id");
+  if (error) {
+    if (error.code === "42501") {
+      return {
+        error:
+          "Publishing needs an active FieldCommand plan for your organization. During the pilot, ask us to activate it.",
+      };
+    }
+    return { error: friendlyDbError(error) };
+  }
+  if (!data?.length) return { error: "Only the event's host can publish it." };
+  revalidatePath(`/dashboard/events/${eventId}`);
+  return { ok: true };
+}
+
+export async function setVolunteerSignupOpen(eventId: string, open: boolean): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ volunteer_signup_open: open })
+    .eq("id", eventId)
+    .select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's host can open or close signups." };
+  revalidatePath(`/dashboard/events/${eventId}`);
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Stations
 // ---------------------------------------------------------------------------
