@@ -303,8 +303,12 @@ do $$ begin
   assert (select count(*) from public.events) = 2, 'public sees published events only';
   assert (select count(*) from public.announcements) = 1, 'public sees public announcements only';
   assert (select count(*) from public.performance_slots) = 1, 'public sees the published order';
-  assert (select count(*) from public.volunteers) = 0, 'public sees no volunteers';
   assert (select count(*) from public.bands) = 0, 'public sees no band registration details';
+  begin
+    perform 1 from public.volunteers;
+    raise exception 'FAIL: the public read the volunteers table';
+  exception when insufficient_privilege then null; -- no access at all
+  end;
 end $$;
 reset role;
 
@@ -430,5 +434,81 @@ do $$ begin
   exception when unique_violation then null;
   end;
 end $$;
+
+
+-- ---------------------------------------------------------------------------
+-- Volunteer passes (no login): a device sees only what it booked
+-- ---------------------------------------------------------------------------
+set role service_role;
+-- Val signs up for another shift at today's event, from "Val's phone".
+insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity)
+values ('30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-00000000000b', 'Late Crew',
+        now() + interval '5 hours', now() + interval '8 hours', 5);
+select public.register_volunteer('10000000-0000-0000-0000-00000000000b', 'Val One', 'vol1@example.com', '+15125550104',
+       array['30000000-0000-0000-0000-000000000004']::uuid[]) \g /dev/null
+
+do $$ declare
+  device_token uuid;      -- what Val's phone keeps after booking "Late Crew"
+  email_token uuid;       -- what's in Val's confirmation email
+  other_assignment uuid;  -- Val's earlier "Warm-Up Crew" signup
+begin
+  select va.manage_token into device_token from public.volunteer_assignments va
+   where va.shift_id = '30000000-0000-0000-0000-000000000004';
+  select v.access_token into email_token from public.volunteers v
+   where v.email = 'vol1@example.com' and v.event_id = '10000000-0000-0000-0000-00000000000b';
+  select va.id into other_assignment from public.volunteer_assignments va
+   where va.shift_id = '30000000-0000-0000-0000-000000000003';
+
+  assert (select count(*) from public.pass_agenda('{}', array[device_token])) = 1,
+         'a device pass shows only the shift that device booked';
+  assert (select count(*) from public.pass_agenda(array[email_token], '{}')) = 2,
+         'the emailed link shows all of that volunteer''s shifts at the event';
+  assert (select count(*) from public.pass_agenda(array[gen_random_uuid()], array[gen_random_uuid()])) = 0,
+         'made-up tokens show nothing';
+
+  assert not public.cancel_with_pass(other_assignment, '{}', array[device_token]),
+         'a device pass cannot cancel a shift it did not book';
+  assert exists (select 1 from public.volunteer_assignments where id = other_assignment), 'shift still booked';
+  assert public.cancel_with_pass(
+           (select id from public.volunteer_assignments where manage_token = device_token), '{}', array[device_token]),
+         'a device pass cancels the shift it booked';
+  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-000000000004') = 0,
+         'cancelling with a pass frees the spot';
+
+  assert (select calendar_sequence from public.calendar_entries(array[other_assignment], true)) = 1,
+         'calendar updates bump the sequence';
+end $$;
+
+-- Someone typing Val's email on the public form can't change her phone number.
+select public.register_volunteer('10000000-0000-0000-0000-00000000000b', 'Imposter', 'vol1@example.com', '+19995550000',
+       array['30000000-0000-0000-0000-000000000004']::uuid[]) \g /dev/null
+do $$ begin
+  assert (select phone from public.volunteers where email = 'vol1@example.com'
+           and event_id = '10000000-0000-0000-0000-00000000000b') = '+15125550104',
+         'public signup does not overwrite an existing volunteer''s details';
+end $$;
+reset role;
+
+-- Browsers can't read the tokens or call the pass functions.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform access_token from public.volunteers limit 1;
+    raise exception 'FAIL: a signed-in user read volunteer access tokens';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.pass_agenda(array[gen_random_uuid()], '{}');
+    raise exception 'FAIL: a browser called pass_agenda';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select count(*) from public.volunteers) >= 1, 'host still reads volunteer names and contacts';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000004","email":"vol1@example.com"}';
+do $$ begin
+  assert (select count(*) from public.my_agenda()) >= 1, 'signed-in volunteers still see their agenda';
+end $$;
+reset role;
 
 \echo 'All database security tests passed.'

@@ -1,14 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
+import { getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
 import { slugify } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 import { eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
+import { loadCalendarEntries, sendShiftUpdates } from "@/lib/volunteer-emails";
 
 // Every action re-checks who is signed in; the database's Row Level Security
 // then decides what they're allowed to change.
@@ -51,6 +54,23 @@ function labelFor(field: string) {
     title: "Title",
   };
   return labels[field] ?? field;
+}
+
+/**
+ * After a schedule change, email each affected volunteer an updated calendar
+ * invite. Runs after the response is sent, so the host isn't kept waiting.
+ */
+async function notifyVolunteersOfChanges(shiftIds: string[]) {
+  if (shiftIds.length === 0) return;
+  const supabase = await createClient();
+  const { data } = await supabase.from("volunteer_assignments").select("id").in("shift_id", shiftIds);
+  const ids = (data ?? []).map((a) => a.id);
+  if (ids.length === 0) return;
+  const origin = await getOrigin();
+  after(async () => {
+    const entries = await loadCalendarEntries(ids, true);
+    await sendShiftUpdates(entries, entries[0]?.timezone ?? "America/Chicago", origin);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +171,11 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   const v = parsed.data;
 
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("events")
+    .select("timezone, starts_on, window_start, venue_name, venue_address, name")
+    .eq("id", eventId)
+    .maybeSingle();
   const details = await supabase
     .from("events")
     .update({
@@ -177,6 +202,19 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
     p_timezone: v.timezone,
   });
   if (error) return { error: friendlyDbError(error) };
+
+  // Volunteers' calendars need updating if the day, time zone, venue or name changed.
+  const changed =
+    before &&
+    (before.starts_on !== v.startsOn ||
+      before.timezone !== v.timezone ||
+      before.venue_address !== v.venueAddress ||
+      (before.venue_name ?? null) !== v.venueName ||
+      before.name !== v.name);
+  if (changed) {
+    const { data: shiftRows } = await supabase.from("shifts").select("id").eq("event_id", eventId);
+    await notifyVolunteersOfChanges((shiftRows ?? []).map((r) => r.id));
+  }
 
   revalidatePath(`/dashboard/events/${eventId}`);
   redirect(`/dashboard/events/${eventId}`);
@@ -426,17 +464,31 @@ export async function updateShift(
   if (!event) return { error: "Event not found." };
 
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("shifts")
+    .select("title, starts_at, ends_at")
+    .eq("id", shiftId)
+    .maybeSingle();
+  const startsAt = zonedToUtc(v.day, v.startTime, event.timezone).toISOString();
+  const endsAt = zonedToUtc(v.day, v.endTime, event.timezone).toISOString();
   const { error } = await supabase
     .from("shifts")
     .update({
       title: v.title,
       description: v.description,
-      starts_at: zonedToUtc(v.day, v.startTime, event.timezone).toISOString(),
-      ends_at: zonedToUtc(v.day, v.endTime, event.timezone).toISOString(),
+      starts_at: startsAt,
+      ends_at: endsAt,
       max_capacity: v.capacity,
     })
     .eq("id", shiftId);
   if (error) return { error: friendlyDbError(error) };
+
+  const moved =
+    before &&
+    (new Date(before.starts_at).getTime() !== new Date(startsAt).getTime() ||
+      new Date(before.ends_at).getTime() !== new Date(endsAt).getTime() ||
+      before.title !== v.title);
+  if (moved) await notifyVolunteersOfChanges([shiftId]);
 
   revalidatePath(`/dashboard/events/${eventId}`);
   return { ok: true, message: "Shift saved." };

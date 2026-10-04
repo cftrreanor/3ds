@@ -44,21 +44,36 @@ export function SignupForm({
             <li key={s.title + s.detail} className="px-4 py-3">
               <p className="font-medium">{s.title}</p>
               <p className="text-sm text-muted">{s.detail}</p>
+              <p className="mt-1 flex flex-wrap gap-x-4 text-sm">
+                <a href={s.googleUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
+                  Add to Google Calendar
+                </a>
+                <a href={s.icsUrl} className="font-medium text-brand underline-offset-4 hover:underline">
+                  Apple / Outlook calendar
+                </a>
+              </p>
             </li>
           ))}
         </ul>
+        {state.confirmed.alreadySignedUp > 0 && (
+          <p className="text-sm text-muted">
+            {state.confirmed.alreadySignedUp === 1 ? "One shift was" : `${state.confirmed.alreadySignedUp} shifts were`}{" "}
+            already booked under this email, so we left {state.confirmed.alreadySignedUp === 1 ? "it" : "them"} as is.
+          </p>
+        )}
         <p className="leading-7 text-muted">
           {state.confirmed.emailSent ? (
             <>
-              We emailed a confirmation to <strong className="text-foreground">{state.confirmed.email}</strong>.
+              We emailed a confirmation with calendar invites to{" "}
+              <strong className="text-foreground">{state.confirmed.email}</strong>.
             </>
           ) : (
             <>Save this page or take a screenshot so you have your times.</>
           )}{" "}
-          Your shifts page shows everything in one place, including where to report and who your lead is.
+          This device will remember your signup, so you can come back anytime to view or cancel it. No login needed.
         </p>
         <Link
-          href="/my"
+          href={`/my?as=${encodeURIComponent(state.confirmed.email)}`}
           className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
         >
           View my shifts
