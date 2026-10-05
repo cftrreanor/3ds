@@ -260,13 +260,14 @@ export function ActionButton({
 }: {
   action: Action;
   children: React.ReactNode;
-  variant?: "primary" | "secondary";
+  /** "go" (green) and "stop" (red outline) for switching something on or off. */
+  variant?: "primary" | "secondary" | "go" | "stop";
   confirmMessage?: string;
   pendingText?: string;
 }) {
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="space-y-2" resetOnSuccess={false}>
-      <SubmitButton variant={variant} pendingText={pendingText}>
+      <SubmitButton variant={variant === "stop" ? "danger" : variant} pendingText={pendingText}>
         {children}
       </SubmitButton>
     </ActionForm>

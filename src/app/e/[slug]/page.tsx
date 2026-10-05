@@ -189,6 +189,7 @@ export default async function EventPublicPage({ params }: Params) {
                 )}
               </div>
             )}
+            {schedule.length > 0 && finals.length > 0 && <h3 className="mt-8 text-lg font-semibold">Preliminaries</h3>}
             {schedule.length > 0 && (
               <ScheduleList lines={schedule} breaks={breaks} currentKey={isEventDay ? current?.key : undefined} at={at} />
             )}
