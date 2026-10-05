@@ -15,7 +15,7 @@ import {
   zoneName,
 } from "@/lib/time";
 import { setEventPublished } from "../../actions";
-import { cancelInvitation, inviteMember, removeMember } from "../../team-actions";
+import { cancelInvitation, inviteMember, removeCoHost, removeMember } from "../../team-actions";
 import { ActionButton, CopyLinkButton, DeleteButton, InviteForm, RemoveButton, type LeadOption } from "./forms";
 import { StationPanel, type RosterEntry, type Shift } from "./station-panel";
 
@@ -23,16 +23,19 @@ export const metadata: Metadata = { title: "Event setup" };
 
 type Person = { full_name: string; email: string; phone: string | null } | null;
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: Person };
+type HostRow = { user_id: string; role: "owner" | "admin"; profiles: Person };
 type Invitation = {
   id: string;
   email: string;
-  role: "volunteer_director" | "section_lead";
+  role: "volunteer_director" | "section_lead" | null;
+  as_host: boolean;
   station_id: string | null;
   token: string;
   expires_at: string;
 };
 
 const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
+const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 
 export default async function EventPage({ params }: PageProps<"/dashboard/events/[eventId]">) {
   const { eventId } = await params;
@@ -42,15 +45,22 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, slug, name, status, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, organization_id, slug, name, status, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
     )
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
 
   const access = await getEventAccess(eventId);
-  const [{ data: stationData }, { data: shifts }, { data: staff }, { data: invitations }, { data: bandData }, { data: leadRows }] =
-    await Promise.all([
+  const [
+    { data: stationData },
+    { data: shifts },
+    { data: staff },
+    { data: invitations },
+    { data: bandData },
+    { data: leadRows },
+    { data: hostData },
+  ] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, station_type, location, instructions, lead_user_id")
@@ -66,7 +76,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     access.canManage
       ? supabase
           .from("invitations")
-          .select("id, email, role, station_id, token, expires_at")
+          .select("id, email, role, as_host, station_id, token, expires_at")
           .eq("event_id", eventId)
           .is("accepted_at", null)
           .order("created_at")
@@ -78,6 +88,14 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           .eq("event_id", eventId)
       : Promise.resolve({ data: [] }),
     supabase.from("station_leads").select("station_id, user_id").eq("event_id", eventId).order("created_at"),
+    // Only hosts can read the organization's members.
+    access.isHost
+      ? supabase
+          .from("organization_members")
+          .select("user_id, role, profiles(full_name, email, phone)")
+          .eq("organization_id", event.organization_id)
+          .order("created_at")
+      : Promise.resolve({ data: [] }),
   ]);
   // Each station with everyone leading it (first-added first).
   const stations = (stationData ?? []).map((st) => ({
@@ -112,17 +130,21 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   }
   const totalSlots = (shifts ?? []).reduce((n, s) => n + s.max_capacity, 0);
   const staffRows = (staff ?? []) as unknown as StaffRow[];
+  const hosts = ((hostData ?? []) as unknown as HostRow[]).sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
   const directors = staffRows.filter((s) => s.role === "volunteer_director");
   const leads = staffRows.filter((s) => s.role === "section_lead");
   const nameOf = (userId: string | null) => {
     if (!userId) return null;
     if (userId === user.id) return "You";
-    const p = staffRows.find((s) => s.user_id === userId)?.profiles;
+    const p = [...staffRows, ...hosts].find((s) => s.user_id === userId)?.profiles;
     return p?.full_name || p?.email || "Team member";
   };
   const leadOptions: LeadOption[] = [
     ...(access.isHost ? [{ id: user.id, label: "Me" }] : []),
-    ...[...new Map(staffRows.filter((s) => s.user_id !== user.id).map((s) => [s.user_id, s])).values()].map((s) => ({
+    ...hosts
+      .filter((h) => h.user_id !== user.id)
+      .map((h) => ({ id: h.user_id, label: `${h.profiles?.full_name || h.profiles?.email || "Team member"} (${HOST_LABEL[h.role]})` })),
+    ...[...new Map(staffRows.filter((s) => s.user_id !== user.id && !hosts.some((h) => h.user_id === s.user_id)).map((s) => [s.user_id, s])).values()].map((s) => ({
       id: s.user_id,
       label: `${s.profiles?.full_name || s.profiles?.email || "Team member"} (${ROLE_LABEL[s.role]})`,
     })),
@@ -215,6 +237,33 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             Team
           </h2>
           <Card className="mt-4 space-y-6">
+            {access.isHost && (
+              <div>
+                <h3 className="text-sm font-semibold">Hosts</h3>
+                <p className="mt-0.5 text-sm text-muted">Full access to all of your organization&apos;s events.</p>
+                <ul className="mt-2 space-y-2">
+                  {hosts.map((h) => (
+                    <PersonRow key={h.user_id} person={h.profiles} isYou={h.user_id === user.id} detail={HOST_LABEL[h.role]}>
+                      {h.role === "admin" && (
+                        <RemoveButton
+                          action={removeCoHost.bind(null, eventId, h.user_id)}
+                          label={h.user_id === user.id ? "Stop being a co-host" : "Remove co-host"}
+                          confirmMessage={
+                            h.user_id === user.id
+                              ? "Stop being a co-host? You'll lose access to all of this organization's events."
+                              : "Remove this co-host? They'll lose access to all of your organization's events."
+                          }
+                        />
+                      )}
+                    </PersonRow>
+                  ))}
+                </ul>
+                {hosts.length < 2 && (
+                  <p className="mt-2 text-sm text-muted">Running it with someone? Invite them as a co-host below.</p>
+                )}
+              </div>
+            )}
+
             <div>
               <h3 className="text-sm font-semibold">Volunteer Leads</h3>
               <p className="mt-0.5 text-sm text-muted">They run volunteers with you: stations, shifts, signups and check-in.</p>
@@ -282,7 +331,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{inv.email}</p>
                         <p className="text-sm text-muted">
-                          {ROLE_LABEL[inv.role]}
+                          {inv.as_host || !inv.role ? "Co-host" : ROLE_LABEL[inv.role]}
                           {inv.station_id && stationName(inv.station_id) ? ` · ${stationName(inv.station_id)}` : ""}
                           {new Date(inv.expires_at) < new Date() ? " · Expired" : ""}
                         </p>
@@ -318,6 +367,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                       ? [
                           { value: "section_lead", label: "Section Lead" },
                           { value: "volunteer_director", label: "Volunteer Lead" },
+                          { value: "host", label: "Co-host" },
                         ]
                       : [{ value: "section_lead", label: "Section Lead" }]
                   }

@@ -188,7 +188,7 @@ export function InviteForm({
   stations,
 }: {
   action: Action;
-  roles: { value: "volunteer_director" | "section_lead"; label: string }[];
+  roles: { value: "volunteer_director" | "section_lead" | "host"; label: string }[];
   stations: { id: string; name: string }[];
 }) {
   const [role, setRole] = useState(roles[0].value);
@@ -209,6 +209,12 @@ export function InviteForm({
         </Field>
       ) : (
         <input type="hidden" name="role" value={roles[0].value} />
+      )}
+      {role === "host" && (
+        <p className="text-sm leading-6 text-muted sm:col-span-2">
+          A co-host has the same access you do, on all of your organization&apos;s events: publishing, bands, the
+          schedule, volunteers and the team.
+        </p>
       )}
       {role === "section_lead" && stations.length > 0 && (
         <Field label="Station they'll lead" hint="Optional. You can also choose later.">

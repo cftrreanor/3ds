@@ -896,4 +896,53 @@ reset role;
 delete from public.station_leads where user_id = '00000000-0000-0000-0000-000000000008';
 delete from public.event_staff where user_id = '00000000-0000-0000-0000-000000000008';
 
+-- ---------------------------------------------------------------------------
+-- Co-hosts
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-000000000009', 'cohost@example.com', '{"full_name":"Cory Cohost"}');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  insert into public.invitations (event_id, email, as_host, invited_by)
+  values ('10000000-0000-0000-0000-00000000000a', 'cohost@example.com', true, auth.uid());
+  raise exception 'FAIL: a Volunteer Lead invited a co-host';
+exception when insufficient_privilege then null;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.invitations (event_id, email, as_host, invited_by)
+values ('10000000-0000-0000-0000-00000000000a', 'cohost@example.com', true, '00000000-0000-0000-0000-000000000001');
+select set_config('test.host_token', (select token::text from public.invitations where email = 'cohost@example.com'), false) \g /dev/null
+reset role;
+set role anon;
+do $$ declare r record; begin
+  select * into r from public.get_invitation(current_setting('test.host_token')::uuid);
+  assert r.as_host and r.role is null, 'the invite page knows it is a co-host invitation';
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000009","email":"cohost@example.com"}';
+select public.accept_invitation(current_setting('test.host_token')::uuid) \g /dev/null
+do $$ begin
+  assert public.is_event_admin('10000000-0000-0000-0000-00000000000a'), 'a co-host can run the organization''s events';
+  assert not exists (select 1 from public.event_staff where user_id = auth.uid()), 'a co-host is not event staff';
+  begin
+    delete from public.organization_members where role = 'owner';
+    if found then raise exception 'FAIL: a co-host removed the owner'; end if;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  delete from public.organization_members where user_id = '00000000-0000-0000-0000-000000000009';
+  if found then raise exception 'FAIL: a Volunteer Lead removed a co-host'; end if;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select full_name from public.profiles where id = '00000000-0000-0000-0000-000000000009') = 'Cory Cohost',
+         'the host sees their co-host''s name';
+  delete from public.organization_members where user_id = '00000000-0000-0000-0000-000000000009';
+  assert found, 'the host can remove a co-host';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

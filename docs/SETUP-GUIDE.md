@@ -90,6 +90,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261009000000_finalists_revealed.sql` | Finals in three stages: schedule, saved finalists, revealed | ✅ run |
 | `20261010000000_schedule_updated_at.sql` | "The schedule has been updated" banner | ✅ run |
 | `20261011000000_station_leads.sql` | More than one Section Lead per station | run this next |
+| `20261012000000_co_hosts.sql` | Co-hosts: invite someone to run events with you | run this next (after the one above) |
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:

@@ -28,7 +28,8 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
   const { data } = valid ? await supabase.rpc("get_invitation", { p_token: token }).maybeSingle() : { data: null };
   const invite = data as {
     email: string;
-    role: keyof typeof ROLE;
+    role: keyof typeof ROLE | null;
+    as_host: boolean | null;
     event_name: string;
     starts_on: string;
     ends_on: string;
@@ -38,6 +39,13 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
     accepted: boolean;
   } | null;
   const user = await getUser();
+  const role =
+    invite && (invite.as_host || !invite.role)
+      ? {
+          label: "a co-host",
+          blurb: `You'll have the same access as the host on all of their events, starting with this one: bands, the schedule, volunteers and the team.`,
+        }
+      : invite && ROLE[invite.role!];
 
   return (
     <>
@@ -56,13 +64,13 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
             <>
               <p className="text-sm font-medium text-muted">{invite.organization} invited you</p>
               <h1 className="mt-1 text-xl font-semibold">
-                Join {invite.event_name} as {ROLE[invite.role].label}
+                Join {invite.event_name} as {role?.label}
               </h1>
               <p className="mt-1 text-sm text-muted">
                 {formatDateRange(invite.starts_on, invite.ends_on)}
                 {invite.station_name && ` · ${invite.station_name}`}
               </p>
-              <p className="mt-4 leading-7 text-muted">{ROLE[invite.role].blurb}</p>
+              <p className="mt-4 leading-7 text-muted">{role?.blurb}</p>
 
               <div className="mt-6">
                 {invite.accepted ? (
