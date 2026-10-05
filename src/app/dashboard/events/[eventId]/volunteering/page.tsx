@@ -38,7 +38,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const [{ data: stationData }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, station_type, location, instructions, lead_user_id")
+      .select("id, name, station_type, duties, location, instructions, lead_user_id")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),

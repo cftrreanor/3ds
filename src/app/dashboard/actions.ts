@@ -261,10 +261,15 @@ export async function setVolunteerSignupOpen(eventId: string, open: boolean): Pr
 // ---------------------------------------------------------------------------
 const stationSchema = z.object({
   name: text(80),
-  stationType: z.enum(["passive", "active_checkpoint"]),
   location: optionalText(200),
   instructions: optionalText(2000),
 });
+/** Contest-day steps the station handles; any makes it a band checkpoint. */
+function stationDuties(formData: FormData) {
+  const duties = z.array(z.enum(["parking", "check_in", "warm_up", "gate"])).safeParse(formData.getAll("duties"));
+  const list = duties.success ? [...new Set(duties.data)] : [];
+  return { duties: list, station_type: list.length ? "active_checkpoint" : "passive" };
+}
 
 export async function createStation(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
@@ -278,7 +283,7 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
     .insert({
       event_id: eventId,
       name: v.name,
-      station_type: v.stationType,
+      ...stationDuties(formData),
       location: v.location,
       instructions: v.instructions,
     })
@@ -307,7 +312,7 @@ export async function updateStation(
   const supabase = await createClient();
   const { error } = await supabase
     .from("stations")
-    .update({ name: v.name, station_type: v.stationType, location: v.location, instructions: v.instructions })
+    .update({ name: v.name, ...stationDuties(formData), location: v.location, instructions: v.instructions })
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
 

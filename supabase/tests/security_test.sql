@@ -246,13 +246,13 @@ values ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000
 
 do $$ begin
   begin
-    update public.bands set status = 'performed';
-    raise exception 'FAIL: director changed their checkpoint status';
+    update public.bands set checked_in_at = now();
+    raise exception 'FAIL: director changed their contest-day status';
   exception when insufficient_privilege then null;
   end;
   begin
-    perform public.set_band_status('40000000-0000-0000-0000-000000000001', 'checked_in');
-    raise exception 'FAIL: director used set_band_status';
+    perform public.band_action('40000000-0000-0000-0000-000000000001', 'checked_in');
+    raise exception 'FAIL: director checked their own band in';
   exception when insufficient_privilege then null;
   end;
 end $$;
@@ -271,15 +271,15 @@ end $$;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
 do $$ begin
   begin
-    perform public.set_band_status('40000000-0000-0000-0000-000000000001', 'checked_in');
-    raise exception 'FAIL: lead of a passive station at event A changed band status';
+    perform public.band_action('40000000-0000-0000-0000-000000000001', 'checked_in');
+    raise exception 'FAIL: lead of a station with no band duties checked a band in';
   exception when insufficient_privilege then null;
   end;
 end $$;
 
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 update public.events set performance_order_published = true where id = '10000000-0000-0000-0000-00000000000a';
-select public.set_band_status('40000000-0000-0000-0000-000000000001', 'checked_in');
+select public.band_action('40000000-0000-0000-0000-000000000001', 'checked_in');
 
 -- ---------------------------------------------------------------------------
 -- Announcements and the public view
@@ -963,8 +963,10 @@ do $$ declare r record; begin
   assert (select count(*) from public.bands) = 0, 'a Section Lead can''t read band registrations';
   select * into r from public.event_bands('10000000-0000-0000-0000-00000000000a')
    where id = '40000000-0000-0000-0000-000000000001';
-  assert r.band_name = 'Mighty Marching' and r.status = 'checked_in', 'a Section Lead sees band names and status';
-  assert r.student_count is null and r.bus_count is null, 'a Section Lead doesn''t get headcounts';
+  assert r.band_name = 'Mighty Marching' and r.checked_in_at is not null, 'a Section Lead sees band names and status';
+  assert r.student_count is null, 'a Section Lead doesn''t get headcounts';
+  assert r.bus_count = 3, 'a Section Lead sees vehicles (for parking)';
+  assert r.special_needs is null, 'accessibility needs stay with hosts';
   assert (select count(*) from public.performance_slots where event_id = '10000000-0000-0000-0000-00000000000a') > 0,
          'a Section Lead sees the published performance order';
   assert (select count(*) from public.finals_slots) = 0, 'a Section Lead can''t see finalists before the reveal';
@@ -1017,6 +1019,133 @@ set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
 do $$ begin
   assert (select count(*) from public.finals_slots) > 0, 'a Section Lead sees finals once revealed';
+end $$;
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Contest day: one-tap steps by station duty, parking spots, undo, notes
+-- ---------------------------------------------------------------------------
+update public.stations set duties = '{parking}' where id = '20000000-0000-0000-0000-00000000000a';
+update public.bands set special_needs = 'Ramp for the pit' where id = '40000000-0000-0000-0000-000000000001';
+insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('40000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-00000000000a',
+        '00000000-0000-0000-0000-000000000005', 'West HS', 'West Winds', '5A', 'addr',
+        'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 50, 5);
+set role authenticated;
+
+-- The parking lead (lead@, Parking station at event A)
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  perform public.band_action('40000000-0000-0000-0000-000000000002', 'buses_here');
+  perform public.band_action('40000000-0000-0000-0000-000000000002', 'equipment_here');
+  perform public.band_action('40000000-0000-0000-0000-000000000002', 'equipment_here'); -- a double tap changes nothing
+  assert (select equipment_spot from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000002') = 1, 'first equipment in gets spot 1';
+  assert (select count(*) from public.band_activity where band_id = '40000000-0000-0000-0000-000000000002') = 2,
+         'each tap is logged once';
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'equipment_here');
+  assert (select equipment_spot from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000001') = 2, 'spots follow arrival order, not performance order';
+  -- Away keeps the spot; left for the day frees it for the next band.
+  perform public.band_action('40000000-0000-0000-0000-000000000002', 'away');
+  assert (select equipment_spot from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000002') = 1, 'a band away for lunch keeps its spot';
+  perform public.band_action('40000000-0000-0000-0000-000000000002', 'back');
+  perform public.band_action('40000000-0000-0000-0000-000000000002', 'left');
+  perform public.band_action('40000000-0000-0000-0000-000000000009', 'equipment_here');
+  assert (select equipment_spot from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000009') = 1, 'a freed spot goes to the next band';
+  begin
+    perform public.undo_band_action('40000000-0000-0000-0000-000000000002');
+    raise exception 'FAIL: undo gave a spot back to two bands';
+  exception when raise_exception then null;
+  end;
+  -- Undo the latest tap on a band.
+  perform public.undo_band_action('40000000-0000-0000-0000-000000000009');
+  assert (select equipment_spot from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000009') is null, 'undo takes the spot back';
+  -- Steps outside the station's duties
+  begin
+    perform public.band_action('40000000-0000-0000-0000-000000000009', 'checked_in');
+    raise exception 'FAIL: a parking lead checked a band in';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.band_action('40000000-0000-0000-0000-000000000009', 'warming_up', 'prelims');
+    raise exception 'FAIL: a parking lead started a warm-up';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.band_action('40000000-0000-0000-0000-000000000009', 'scratched');
+    raise exception 'FAIL: a Section Lead scratched a band';
+  exception when insufficient_privilege then null;
+  end;
+  -- Notes
+  insert into public.band_notes (band_id, body) values ('40000000-0000-0000-0000-000000000002', 'Lunch off campus, back 1:00');
+  assert (select event_id from public.band_notes where body like 'Lunch%') = '10000000-0000-0000-0000-00000000000a',
+         'a note takes its band''s event';
+  assert (select author_name from public.band_notes where body like 'Lunch%') = 'Lee Lead', 'a note shows who wrote it';
+  assert (select actor_name from public.band_activity order by id desc limit 1) = 'Lee Lead', 'a tap shows who made it';
+  assert (select special_needs from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000001') is null, 'accessibility needs stay with hosts';
+end $$;
+
+-- The Volunteer Lead can do every step and scratch; a lead can't undo their taps.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  begin
+    perform public.band_action('40000000-0000-0000-0000-000000000009', 'warming_up');
+    raise exception 'FAIL: a round step without a round';
+  exception when raise_exception then null;
+  end;
+  perform public.band_action('40000000-0000-0000-0000-000000000009', 'warming_up', 'prelims');
+  perform public.band_action('40000000-0000-0000-0000-000000000009', 'on_field', 'finals');
+  assert (select prelims_step = 'warming_up' and finals_step = 'on_field'
+            from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000009'), 'prelims and finals are tracked apart';
+  perform public.band_action('40000000-0000-0000-0000-000000000009', 'scratched');
+  insert into public.band_notes (band_id, body) values ('40000000-0000-0000-0000-000000000009', 'Director called: running late');
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  begin
+    perform public.undo_band_action('40000000-0000-0000-0000-000000000009');
+    raise exception 'FAIL: a Section Lead undid someone else''s tap';
+  exception when insufficient_privilege then null;
+  end;
+  delete from public.band_notes where body like 'Director called%';
+  if found then raise exception 'FAIL: a Section Lead deleted someone else''s note'; end if;
+  delete from public.band_notes where body like 'Lunch%';
+  assert found, 'a lead deletes their own note';
+end $$;
+
+-- Directors and outsiders see none of it.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert (select count(*) from public.band_notes) = 0, 'directors don''t see the team''s notes';
+  assert (select count(*) from public.band_activity) = 0, 'directors don''t see the activity log';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.band_action('40000000-0000-0000-0000-000000000001', 'buses_here');
+    raise exception 'FAIL: an outsider tapped a band in';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.band_notes (band_id, body) values ('40000000-0000-0000-0000-000000000001', 'hi');
+    raise exception 'FAIL: an outsider left a note';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+-- The host sees accessibility needs.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select special_needs from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000001') = 'Ramp for the pit', 'the host sees accessibility needs';
 end $$;
 reset role;
 

@@ -1,4 +1,5 @@
 import { Badge, Card } from "@/components/ui";
+import { dutyLabel, type Duty } from "@/lib/contest-day";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
@@ -19,6 +20,7 @@ export type Station = {
   id: string;
   name: string;
   station_type: string;
+  duties: Duty[];
   location: string | null;
   instructions: string | null;
   lead_user_id: string | null;
@@ -75,7 +77,7 @@ export function StationPanel({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{station.name}</h3>
-            {station.station_type === "active_checkpoint" && <Badge tone="accent">Band checkpoint</Badge>}
+            {station.duties.length > 0 && <Badge tone="accent">Bands: {station.duties.map(dutyLabel).join(", ")}</Badge>}
             {station.lead_ids.includes(userId) && <Badge tone="brand">You lead this</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">

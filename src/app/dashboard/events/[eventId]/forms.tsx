@@ -6,13 +6,14 @@ import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { DUTIES, type Duty } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 type StationValues = {
   name: string;
-  station_type: string;
+  duties: Duty[];
   location: string | null;
   instructions: string | null;
   /** Everyone leading this station, first-added first. */
@@ -36,12 +37,30 @@ export function StationForm({
       <Field label="Station name" hint="e.g. Spectator Parking, Concessions, Warm-Up Area A">
         <Input name="name" required defaultValue={initial?.name} />
       </Field>
-      <Field label="Type">
-        <Select name="stationType" defaultValue={initial?.station_type ?? "passive"}>
-          <option value="passive">Regular station (parking, concessions, hospitality…)</option>
-          <option value="active_checkpoint">Band checkpoint (warm-up, inspection, gate)</option>
-        </Select>
-      </Field>
+      <fieldset className="sm:col-span-2">
+        <legend className="text-sm font-medium">Contest-day band steps</legend>
+        <p className="mt-1 text-sm text-muted">
+          Optional. Tick the steps this station&apos;s Section Leads tap bands through on the day. Leave all unticked for
+          stations like concessions.
+        </p>
+        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+          {DUTIES.map((d) => (
+            <label key={d.value} className="flex min-h-10 items-start gap-3 rounded-lg border border-border px-3 py-2 text-sm hover:border-brand">
+              <input
+                type="checkbox"
+                name="duties"
+                value={d.value}
+                defaultChecked={initial?.duties.includes(d.value)}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+              />
+              <span>
+                <span className="font-medium">{d.label}</span>
+                <span className="block text-muted">{d.hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <Field label="Location" hint="Optional. Where volunteers should report." className="sm:col-span-2">
         <Input name="location" defaultValue={initial?.location ?? ""} placeholder="e.g. North lot, by the ticket booth" />
       </Field>

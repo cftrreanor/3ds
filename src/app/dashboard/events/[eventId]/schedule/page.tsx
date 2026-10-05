@@ -6,25 +6,20 @@ import { Badge, Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
+import { whereIs, type BandDay, type Round, type Tone } from "@/lib/contest-day";
 import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Band schedule" };
 
 /** What leads may know about a band (event_bands): no contact details. Counts are for Volunteer Leads only. */
-export type LeadBand = {
+export type LeadBand = BandDay & {
   id: string;
   band_name: string;
   school_name: string;
   classification: string;
-  status: BandStatus;
   student_count: number | null;
   chaperone_count: number | null;
-  bus_count: number | null;
-  box_truck_count: number | null;
-  truck_trailer_count: number | null;
-  semi_truck_count: number | null;
 };
-type BandStatus = "pending" | "checked_in" | "warm_up_active" | "departed_to_gate" | "performed";
 type Slot = {
   band_id: string | null;
   number: string;
@@ -35,13 +30,12 @@ type Slot = {
 };
 type BreakRow = { starts_at: string; minutes: number; label: string };
 
-const STATUS: Record<BandStatus, { label: string; tone: "neutral" | "accent" | "brand" }> = {
-  pending: { label: "Not here yet", tone: "neutral" },
-  checked_in: { label: "Checked in", tone: "accent" },
-  warm_up_active: { label: "Warming up", tone: "accent" },
-  departed_to_gate: { label: "At the gate", tone: "brand" },
-  performed: { label: "Performed", tone: "neutral" },
-};
+const BADGE_TONE: Record<Tone, "neutral" | "accent" | "brand"> = { red: "neutral", gold: "accent", green: "brand", neutral: "neutral" };
+
+function Status({ band, round }: { band: LeadBand; round: Round }) {
+  const w = whereIs(band, round);
+  return <Badge tone={BADGE_TONE[w.tone]}>{w.label}</Badge>;
+}
 
 /** Read-only schedule and band status for Volunteer Leads and Section Leads. */
 export default async function LeadSchedulePage({ params }: PageProps<"/dashboard/events/[eventId]/schedule">) {
@@ -112,18 +106,21 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
 
       {bands.length > 0 && (
         <p className="mt-4 text-sm">
-          {(["checked_in", "warm_up_active", "departed_to_gate", "performed"] as const)
-            .map((st) => ({ st, n: bands.filter((b) => b.status === st).length }))
-            .filter((x) => x.n > 0)
-            .map((x) => `${x.n} ${STATUS[x.st].label.toLowerCase()}`)
-            .join(" · ") || `${bands.length} band${bands.length === 1 ? "" : "s"} registered`}
+          {Object.entries(
+            bands.reduce<Record<string, number>>((acc, b) => {
+              const label = whereIs(b).label;
+              return { ...acc, [label]: (acc[label] ?? 0) + 1 };
+            }, {}),
+          )
+            .map(([label, n]) => `${n} ${label.toLowerCase()}`)
+            .join(" · ")}
         </p>
       )}
 
       <section className="mt-6">
         <h2 className="text-lg font-semibold">Preliminaries</h2>
         {prelims.length > 0 ? (
-          <ScheduleRows slots={prelims} byId={byId} breaks={breaks} at={at} />
+          <ScheduleRows slots={prelims} byId={byId} breaks={breaks} at={at} round="prelims" />
         ) : (
           <Card className="mt-3">
             <p className="text-sm text-muted">The host hasn&apos;t published the performance order yet.</p>
@@ -135,7 +132,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
         <section className="mt-10">
           <h2 className="text-lg font-semibold">🏆 Finals</h2>
           {!event.finalists_revealed && <p className="mt-1 text-sm text-muted">Finalists are announced by the host.</p>}
-          <ScheduleRows slots={finals} byId={byId} breaks={breaks} at={at} />
+          <ScheduleRows slots={finals} byId={byId} breaks={breaks} at={at} round="finals" />
         </section>
       )}
 
@@ -146,7 +143,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
             {unscheduled.map((b) => (
               <li key={b.id} className="flex items-start gap-3 px-4 py-3">
                 <BandLines band={b} />
-                <Badge tone={STATUS[b.status].tone}>{STATUS[b.status].label}</Badge>
+                <Status band={b} round="prelims" />
               </li>
             ))}
           </ul>
@@ -161,11 +158,13 @@ function ScheduleRows({
   byId,
   breaks,
   at,
+  round,
 }: {
   slots: Slot[];
   byId: Map<string, LeadBand>;
   breaks: BreakRow[];
   at: (iso: string) => string;
+  round: Round;
 }) {
   return (
     <ol className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">
@@ -189,7 +188,7 @@ function ScheduleRows({
               {band ? <BandLines band={band} slot={s} at={at} /> : <p className="min-w-0 flex-1 font-medium text-muted">To be announced</p>}
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <p className="font-medium tabular-nums">{s.perform_at ? at(s.perform_at) : "TBA"}</p>
-                {band && <Badge tone={STATUS[band.status].tone}>{STATUS[band.status].label}</Badge>}
+                {band && <Status band={band} round={round} />}
               </div>
             </li>
           </Fragment>
