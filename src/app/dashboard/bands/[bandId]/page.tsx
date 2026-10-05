@@ -78,7 +78,28 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             Full schedule
           </Link>
         </p>
-        <p className="mt-3">
+        {hasContact && (
+          <p className="mt-1 flex flex-wrap gap-x-3 text-muted">
+            <span>Questions? {contact.name || "Contact the host"}</span>
+            {contact.phone && (
+              <>
+                <a href={`tel:${contact.phone}`} className={linkClass}>
+                  Call {formatPhone(contact.phone)}
+                </a>
+                <a href={`sms:${contact.phone}`} className={linkClass}>
+                  Text
+                </a>
+              </>
+            )}
+            {contact.email && (
+              <a href={`mailto:${contact.email}`} className={linkClass}>
+                Email
+              </a>
+            )}
+          </p>
+        )}
+        {event.director_info && <p className="mt-3 whitespace-pre-line text-sm leading-6">{event.director_info}</p>}
+        <p className="mt-4">
           <span aria-hidden="true">🎺</span> <span className="font-semibold">{band.band_name}</span>{" "}
           <span className="text-muted">· {band.school_name}</span>
         </p>
@@ -111,85 +132,70 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         </Card>
       )}
 
-      {(event.director_info || hasContact) && (
-        <Card className="mt-6 space-y-4">
-          <h2 className="font-semibold">Contest information</h2>
-          {event.director_info && <p className="whitespace-pre-line leading-7">{event.director_info}</p>}
-          {hasContact && (
-            <div className="rounded-lg bg-background px-3 py-2 text-sm">
-              <p>
-                <span className="font-medium">Questions?</span> {contact.name || "Contact the host"}
-              </p>
-              <p className="mt-0.5 flex flex-wrap gap-x-4">
-                {contact.phone && (
-                  <>
-                    <a href={`tel:${contact.phone}`} className={linkClass}>
-                      Call {formatPhone(contact.phone)}
-                    </a>
-                    <a href={`sms:${contact.phone}`} className={linkClass}>
-                      Text
-                    </a>
-                  </>
-                )}
-                {contact.email && (
-                  <a href={`mailto:${contact.email}`} className={linkClass}>
-                    Email
-                  </a>
-                )}
-              </p>
+      <details className="group mt-6 rounded-xl border border-border bg-surface">
+        <summary className="flex cursor-pointer list-none items-center gap-3 p-5 sm:p-6 [&::-webkit-details-marker]:hidden">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-semibold">Your registration</h2>
+              <Badge tone={open ? "accent" : "neutral"}>
+                {open
+                  ? event.band_registration_deadline
+                    ? `Editable until ${formatDate(event.band_registration_deadline, { year: undefined })}`
+                    : "Editable while registration is open"
+                  : "Registration closed"}
+              </Badge>
             </div>
+            <p className="mt-1 text-sm text-muted">
+              {band.classification} · {band.student_count} students · {band.chaperone_count} chaperones
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-medium text-brand">
+            <span className="group-open:hidden">{open ? "View or edit" : "View"}</span>
+            <span className="hidden group-open:inline">Hide</span>
+          </span>
+          <span aria-hidden="true" className="shrink-0 text-muted transition group-open:rotate-180">
+            ▾
+          </span>
+        </summary>
+        <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
+          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <Item label="Classification">{band.classification}</Item>
+            <Item label="People">
+              {band.student_count} students · {band.chaperone_count} chaperones
+            </Item>
+            <Item label="Vehicles">
+              {[
+                [band.bus_count, "bus", "buses"],
+                [band.box_truck_count, "box truck", "box trucks"],
+                [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
+                [band.semi_truck_count, "semi", "semis"],
+              ]
+                .filter(([n]) => Number(n) > 0)
+                .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+                .join(" · ") || "None listed"}
+            </Item>
+            <Item label="Head director">
+              {band.head_director_name} · {formatPhone(band.head_director_phone)}
+            </Item>
+            {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
+            <Item label="Band contact email">{band.contact_email}</Item>
+            <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
+            <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
+          </dl>
+          {open ? (
+            <Link
+              href={`/dashboard/bands/${bandId}/edit`}
+              className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
+            >
+              Edit registration
+            </Link>
+          ) : (
+            <p className="mt-5 text-sm text-muted">
+              Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
+            </p>
           )}
-        </Card>
-      )}
-
-      <Card className="mt-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">Your registration</h2>
-          <Badge tone={open ? "accent" : "neutral"}>
-            {open
-              ? event.band_registration_deadline
-                ? `Editable until ${formatDate(event.band_registration_deadline, { year: undefined })}`
-                : "Editable while registration is open"
-              : "Registration closed"}
-          </Badge>
         </div>
-        <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-          <Item label="Classification">{band.classification}</Item>
-          <Item label="People">
-            {band.student_count} students · {band.chaperone_count} chaperones
-          </Item>
-          <Item label="Vehicles">
-            {[
-              [band.bus_count, "bus", "buses"],
-              [band.box_truck_count, "box truck", "box trucks"],
-              [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
-              [band.semi_truck_count, "semi", "semis"],
-            ]
-              .filter(([n]) => Number(n) > 0)
-              .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
-              .join(" · ") || "None listed"}
-          </Item>
-          <Item label="Head director">
-            {band.head_director_name} · {formatPhone(band.head_director_phone)}
-          </Item>
-          {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
-          <Item label="Band contact email">{band.contact_email}</Item>
-          <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
-          <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
-        </dl>
-        {open ? (
-          <Link
-            href={`/dashboard/bands/${bandId}/edit`}
-            className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
-          >
-            Edit registration
-          </Link>
-        ) : (
-          <p className="mt-5 text-sm text-muted">
-            Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
-          </p>
-        )}
-      </Card>
+      </details>
     </div>
   );
 }
