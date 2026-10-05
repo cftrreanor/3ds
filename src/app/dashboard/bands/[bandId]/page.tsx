@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { Badge, Card } from "@/components/ui";
 import { bandCalendarEvent, type BandTimes } from "@/lib/band-calendar";
 import { BAND_COLUMNS, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } from "@/lib/bands";
@@ -10,6 +10,7 @@ import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { CONTEST_INFO_COOKIE } from "@/lib/preferences";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { CollapsibleInfo } from "./collapsible-info";
@@ -25,13 +26,13 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const supabase = await createClient();
   const { data } = await supabase.from("bands").select(BAND_COLUMNS).eq("id", bandId).maybeSingle();
   const band = data as BandRow | null;
-  if (!band) notFound();
+  if (!band) missing();
 
   const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }, { data: phone }, cookieStore] = await Promise.all([
     supabase
       .from("events")
       .select(
-        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed",
+        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed, schedule_updated_at",
       )
       .eq("id", band.event_id)
       .single(),
@@ -41,7 +42,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase.rpc("director_contact_phone", { ev: band.event_id }),
     cookies(),
   ]);
-  if (!event) notFound();
+  if (!event) missing();
   const open = registrationIsOpen(event);
   const origin = await getOrigin();
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
@@ -63,6 +64,11 @@ export default async function BandContestPage({ params, searchParams }: PageProp
 
   return (
     <div className="mx-auto max-w-2xl">
+      {event.status === "published" && (
+        <div className="-mx-4 -mt-8 mb-4 sm:-mt-10">
+          <ScheduleUpdateBanner slug={event.slug} version={event.schedule_updated_at} />
+        </div>
+      )}
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
         ← Dashboard
       </Link>

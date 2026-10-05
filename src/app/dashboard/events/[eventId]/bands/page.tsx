@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import {
   emailFinalists,
   emailTimeChanges,
@@ -16,6 +16,7 @@ import { requireUser } from "@/lib/auth";
 import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { eachDate, formatDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
@@ -44,7 +45,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed")
     .eq("id", eventId)
     .maybeSingle();
-  if (!event) notFound();
+  if (!event) missing();
 
   const user = await requireUser();
   const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: contact }, { data: contactPhone }, { data: profile }] = await Promise.all([

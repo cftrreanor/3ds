@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { updateBand, withdrawBand } from "@/app/dashboard/band-actions";
 import { BandForm } from "@/components/band-form";
 import { BAND_COLUMNS, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { DeleteButton } from "../../../events/[eventId]/forms";
 
@@ -15,13 +16,13 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
   const supabase = await createClient();
   const { data } = await supabase.from("bands").select(BAND_COLUMNS).eq("id", bandId).maybeSingle();
   const band = data as BandRow | null;
-  if (!band) notFound();
+  if (!band) missing();
   const { data: event } = await supabase
     .from("events")
     .select("name, status, timezone, band_registration_open, band_registration_deadline, chaperone_limit, classifications")
     .eq("id", band.event_id)
     .single();
-  if (!event) notFound();
+  if (!event) missing();
   // Only while registration is open; after that, changes go through the host.
   if (!registrationIsOpen(event)) redirect(`/dashboard/bands/${bandId}`);
 

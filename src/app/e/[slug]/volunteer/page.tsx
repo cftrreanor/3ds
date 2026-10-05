@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Card } from "@/components/ui";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 import { signUpVolunteer } from "./actions";
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function VolunteerSignupPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
-  if (!event) notFound();
+  if (!event) missing();
 
   const supabase = await createClient();
   const [{ data: stations }, { data: shifts }] = await Promise.all([

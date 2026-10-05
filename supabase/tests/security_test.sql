@@ -826,4 +826,24 @@ exception when insufficient_privilege then null;
 end $$;
 reset role;
 
+-- Saving or publishing bumps the schedule version that open pages poll.
+create temp table v as select public.schedule_version('future') as before;
+grant select on v to authenticated, anon;
+select pg_sleep(0.01);
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+-- (a new transaction, so now() moves on)
+select public.save_schedule('10000000-0000-0000-0000-00000000000a', 6, 10,
+  (select coalesce(jsonb_agg(jsonb_build_object('band_id', band_id, 'perform_at', perform_at) order by performance_order), '[]')
+     from public.performance_slots where event_id = '10000000-0000-0000-0000-00000000000a'),
+  '[]', '[]') \g /dev/null
+reset role;
+set role anon;
+do $$ begin
+  assert public.schedule_version('future') > (select before from v), 'saving the schedule bumps its version';
+  assert public.schedule_version('draft') is null, 'unpublished events have no public version';
+end $$;
+reset role;
+drop table v;
+
 \echo 'All database security tests passed.'

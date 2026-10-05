@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { registerBand } from "@/app/dashboard/band-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange } from "@/lib/time";
 import { RegisterForm, type PreviousBand } from "./register-form";
@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function BandRegistrationPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
-  if (!event) notFound();
+  if (!event) missing();
   const user = await getUser();
   const supabase = await createClient();
 

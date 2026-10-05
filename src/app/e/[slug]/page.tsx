@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { Fragment } from "react";
-import { notFound } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
+import { getUser } from "@/lib/auth";
 import { registrationIsOpen } from "@/lib/bands";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
+import { readPass } from "@/lib/volunteer-pass";
+import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { AutoRefresh } from "./auto-refresh";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -34,7 +37,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published")
+    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -58,7 +61,12 @@ function nowAndNext(rows: Line[]) {
 export default async function EventPublicPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
-  if (!event) notFound();
+  if (!event) missing();
+
+  // Volunteering isn't advertised to the public: hosts share the volunteer link
+  // directly. People who already signed up (on this device, or with the
+  // account they're signed in with) get a shortcut to their shifts.
+  const isVolunteer = await volunteersHere(slug, event.id);
 
   const supabase = await createClient();
   const [{ data: scheduleData }, { data: finalsData }, { data: breakData }, { data: announcements }] = await Promise.all([
@@ -105,6 +113,7 @@ export default async function EventPublicPage({ params }: Params) {
   return (
     <>
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
+    {event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {isEventDay && published && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
@@ -139,13 +148,15 @@ export default async function EventPublicPage({ params }: Params) {
         </Card>
       ))}
 
-      {(event.volunteer_signup_open || bandsOpen) && event.status === "published" && (
+      {(isVolunteer || bandsOpen) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          {event.volunteer_signup_open && (
-            <Link href={`/e/${slug}/volunteer`} className="block">
+          {isVolunteer && (
+            <Link href="/my" className="block">
               <Card className="h-full transition hover:border-brand">
-                <p className="font-semibold">Volunteer</p>
-                <p className="mt-1 text-sm text-muted">Pick a shift and help make the day happen.</p>
+                <p className="font-semibold">Your volunteer shifts</p>
+                <p className="mt-1 text-sm text-muted">
+                  {event.volunteer_signup_open ? "See your shifts, or sign up for more." : "See your shifts and who to report to."}
+                </p>
               </Card>
             </Link>
           )}
@@ -253,4 +264,17 @@ function ScheduleList({
       })}
     </ol>
   );
+}
+
+/** Has this visitor volunteered for this event, from this device or with their account? */
+async function volunteersHere(slug: string, eventId: string) {
+  if ((await readPass()).e.includes(slug)) return true;
+  const user = await getUser();
+  if (!user?.email) return false;
+  const { count } = await (await createClient())
+    .from("volunteers")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .eq("email", user.email);
+  return Boolean(count);
 }
