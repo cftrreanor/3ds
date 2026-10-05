@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { updateBand, withdrawBand } from "@/app/dashboard/band-actions";
 import { BandForm } from "@/components/band-form";
 import { Badge, Card } from "@/components/ui";
-import { BAND_COLUMNS, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, READY_MINUTES_BEFORE, readyAt, warmUpEndAt, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
@@ -26,10 +26,12 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
       .select("name, slug, timezone, starts_on, ends_on, venue_name, venue_address, band_registration_open, performance_order_published, chaperone_limit, classifications")
       .eq("id", band.event_id)
       .single(),
-    supabase.from("performance_slots").select("performance_order, warm_up_at, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
+    supabase.from("performance_slots").select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
   ]);
   if (!event) notFound();
   const tz = event.timezone;
+  const warmEnd = slot ? warmUpEndAt(slot.warm_up_at, slot.warm_up_minutes) : null;
+  const ready = slot ? readyAt(slot.perform_at) : null;
   const at = (iso: string | null) =>
     iso ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}` : "To be announced";
 
@@ -52,7 +54,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
       <Card className="mt-6">
         <h2 className="font-semibold">Your times</h2>
         {event.performance_order_published && slot ? (
-          <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+          <dl className="mt-3 grid gap-4 sm:grid-cols-2">
             <div>
               <dt className="text-sm text-muted">Order</dt>
               <dd className="text-2xl font-semibold">#{slot.performance_order}</dd>
@@ -60,7 +62,17 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
             <div>
               <dt className="text-sm text-muted">Warm-up</dt>
               <dd className="font-medium">{at(slot.warm_up_at)}</dd>
+              {warmEnd && (
+                <dd className="text-sm text-muted">
+                  Until {formatTime(warmEnd, tz)} ({slot.warm_up_minutes} min)
+                </dd>
+              )}
               {slot.warm_up_location && <dd className="text-sm text-muted">{slot.warm_up_location}</dd>}
+            </div>
+            <div>
+              <dt className="text-sm text-muted">Ready position</dt>
+              <dd className="font-medium">{at(ready)}</dd>
+              <dd className="text-sm text-muted">{READY_MINUTES_BEFORE} minutes before your performance</dd>
             </div>
             <div>
               <dt className="text-sm text-muted">Performance</dt>

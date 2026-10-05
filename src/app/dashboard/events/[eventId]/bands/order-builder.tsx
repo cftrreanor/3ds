@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { READY_MINUTES_BEFORE } from "@/lib/bands";
 import { formatDate } from "@/lib/time";
 
 export type OrderBand = {
@@ -13,9 +14,25 @@ export type OrderBand = {
   conflicts: string | null;
   day: string;
   warmUp: string;
+  /** Warm-up length in minutes (15-minute steps), or 0 if not set. */
+  warmUpMinutes: number;
   perform: string;
   location: string;
 };
+
+const DURATIONS = Array.from({ length: 16 }, (_, i) => (i + 1) * 15); // 15 min … 4 hours
+
+function formatDuration(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return [h ? `${h} hr` : "", m ? `${m} min` : ""].filter(Boolean).join(" ");
+}
+
+/** "13:30" → "1:30 PM" */
+function display(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
 
 const toMinutes = (t: string) => {
   const [h, m] = t.split(":").map(Number);
@@ -42,7 +59,7 @@ export function OrderBuilder({
   const [result, setResult] = useState<ActionState>({});
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [auto, setAuto] = useState({ day: days[0], first: "09:00", slot: 15, warmUp: 60, location: "" });
+  const [auto, setAuto] = useState({ day: days[0], first: "09:00", slot: 15, warmUp: 60, duration: 45, location: "" });
 
   const update = (next: OrderBand[]) => {
     setBands(next);
@@ -66,6 +83,7 @@ export function OrderBuilder({
           day: auto.day,
           perform: toTime(perform),
           warmUp: toTime(perform - auto.warmUp),
+          warmUpMinutes: auto.duration,
           location: auto.location || b.location,
         };
       }),
@@ -95,8 +113,24 @@ export function OrderBuilder({
           <Field label="Minutes between bands">
             <Input type="number" min={1} max={120} value={auto.slot} onChange={(e) => setAuto({ ...auto, slot: Number(e.target.value) || 15 })} />
           </Field>
-          <Field label="Warm-up starts (minutes before)">
-            <Input type="number" min={0} max={240} value={auto.warmUp} onChange={(e) => setAuto({ ...auto, warmUp: Number(e.target.value) || 0 })} />
+          <Field label="Warm-up starts (minutes before performing)">
+            <Input type="number" min={0} max={300} step={5} value={auto.warmUp} onChange={(e) => setAuto({ ...auto, warmUp: Number(e.target.value) || 0 })} />
+          </Field>
+          <Field
+            label="Warm-up duration"
+            hint={
+              auto.duration > auto.warmUp - READY_MINUTES_BEFORE
+                ? `⚠️ That runs past the ready position (${READY_MINUTES_BEFORE} min before performing).`
+                : `Leaves ${auto.warmUp - auto.duration - READY_MINUTES_BEFORE} min to reach the ready position.`
+            }
+          >
+            <Select value={auto.duration} onChange={(e) => setAuto({ ...auto, duration: Number(e.target.value) })}>
+              {DURATIONS.map((d) => (
+                <option key={d} value={d}>
+                  {formatDuration(d)}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label="Warm-up location" hint="Optional. Leave blank to keep each band's.">
             <Input value={auto.location} onChange={(e) => setAuto({ ...auto, location: e.target.value })} placeholder="e.g. Practice field B" />
@@ -142,16 +176,27 @@ export function OrderBuilder({
                   </Select>
                 </Field>
               )}
-              <Field label="Warm-up">
+              <Field label="Warm-up starts">
                 <Input type="time" value={b.warmUp} onChange={(e) => edit(i, { warmUp: e.target.value })} />
+              </Field>
+              <Field label="Warm-up length">
+                <Select value={b.warmUpMinutes || ""} onChange={(e) => edit(i, { warmUpMinutes: Number(e.target.value) || 0 })}>
+                  <option value="">Not set</option>
+                  {DURATIONS.map((d) => (
+                    <option key={d} value={d}>
+                      {formatDuration(d)}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field label="Performs">
                 <Input type="time" value={b.perform} onChange={(e) => edit(i, { perform: e.target.value })} />
               </Field>
-              <Field label="Warm-up location" className={days.length > 1 ? "" : "col-span-2"}>
+              <Field label="Warm-up location" className={days.length > 1 ? "col-span-2 sm:col-span-4" : "col-span-2 sm:col-span-4"}>
                 <Input value={b.location} onChange={(e) => edit(i, { location: e.target.value })} />
               </Field>
             </div>
+            <Timeline band={b} />
           </li>
         ))}
       </ol>
@@ -165,7 +210,14 @@ export function OrderBuilder({
             startTransition(async () => {
               const r = await save(
                 JSON.stringify(
-                  bands.map((b) => ({ band_id: b.id, day: b.day, warmUp: b.warmUp, perform: b.perform, location: b.location })),
+                  bands.map((b) => ({
+                    band_id: b.id,
+                    day: b.day,
+                    warmUp: b.warmUp,
+                    warmUpMinutes: b.warmUpMinutes,
+                    perform: b.perform,
+                    location: b.location,
+                  })),
                 ),
               );
               setResult(r);
@@ -176,6 +228,33 @@ export function OrderBuilder({
           {pending ? "Saving…" : dirty ? "Save order & times" : "Saved"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Warm-up → ends → ready → performs, worked out from the band's times. */
+function Timeline({ band: b }: { band: OrderBand }) {
+  const warmEnd = b.warmUp && b.warmUpMinutes ? toTime(toMinutes(b.warmUp) + b.warmUpMinutes) : null;
+  const ready = b.perform ? toTime(toMinutes(b.perform) - READY_MINUTES_BEFORE) : null;
+  if (!b.warmUp && !b.perform) return null;
+  const overlap = warmEnd && ready && toMinutes(warmEnd) > toMinutes(ready);
+  const steps = [
+    b.warmUp && ["Warm-up", display(b.warmUp)],
+    warmEnd && ["Warm-up ends", display(warmEnd)],
+    ready && ["Ready position", display(ready)],
+    b.perform && ["Performs", display(b.perform)],
+  ].filter(Boolean) as [string, string][];
+  return (
+    <div className="mt-3 rounded-lg bg-background px-3 py-2 text-sm">
+      <p className="flex flex-wrap gap-x-2 gap-y-1">
+        {steps.map(([label, time], k) => (
+          <span key={label} className="whitespace-nowrap">
+            {k > 0 && <span className="mr-2 text-muted">→</span>}
+            <span className="text-muted">{label}</span> <span className="font-medium">{time}</span>
+          </span>
+        ))}
+      </p>
+      {overlap && <p className="mt-1 text-danger">⚠️ Warm-up runs past the ready position.</p>}
     </div>
   );
 }

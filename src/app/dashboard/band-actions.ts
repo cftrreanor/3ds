@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
-import { bandColumns, parseBand } from "@/lib/bands";
+import { bandColumns, parseBand, READY_MINUTES_BEFORE, readyAt, warmUpEndAt } from "@/lib/bands";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
@@ -124,6 +124,7 @@ const slotSchema = z.array(
     band_id: z.string().uuid(),
     day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     warmUp: z.string().regex(/^(\d{2}:\d{2})?$/),
+    warmUpMinutes: z.number().int().min(0).max(240).refine((m) => m % 15 === 0, "Warm-up length must be in 15-minute steps"),
     perform: z.string().regex(/^(\d{2}:\d{2})?$/),
     location: z.string().trim().max(120),
   }),
@@ -148,6 +149,7 @@ export async function saveRunningOrder(eventId: string, slotsJson: string): Prom
   const slots = parsed.data.map((s) => ({
     band_id: s.band_id,
     warm_up_at: toUtc(s.day, s.warmUp),
+    warm_up_minutes: s.warmUpMinutes || null,
     perform_at: toUtc(s.day, s.perform),
     warm_up_location: s.location || null,
   }));
@@ -167,7 +169,7 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
     supabase.from("events").select("name, slug, timezone, venue_name, venue_address").eq("id", eventId).single(),
     supabase
       .from("performance_slots")
-      .select("performance_order, warm_up_at, perform_at, warm_up_location, bands(band_name, school_name, contact_email, head_director_email)")
+      .select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location, bands(band_name, school_name, contact_email, head_director_email)")
       .eq("event_id", eventId)
       .order("performance_order"),
   ]);
@@ -175,6 +177,7 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
   type Slot = {
     performance_order: number;
     warm_up_at: string | null;
+    warm_up_minutes: number | null;
     perform_at: string | null;
     warm_up_location: string | null;
     bands: { band_name: string; school_name: string; contact_email: string; head_director_email: string } | null;
@@ -190,7 +193,19 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
         paragraphs: [`The performance order for ${event.name} is posted. Here are the times for ${s.bands.band_name}.`],
         rows: [
           { title: "Performance order", detail: `#${s.performance_order}` },
-          { title: "Warm-up", detail: `${at(s.warm_up_at)}${s.warm_up_location ? ` · ${s.warm_up_location}` : ""}` },
+          {
+            title: "Warm-up",
+            detail: [
+              at(s.warm_up_at),
+              warmUpEndAt(s.warm_up_at, s.warm_up_minutes)
+                ? `until ${formatTime(warmUpEndAt(s.warm_up_at, s.warm_up_minutes)!, tz)} (${s.warm_up_minutes} min)`
+                : null,
+              s.warm_up_location,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          },
+          { title: "Ready position", detail: `${at(readyAt(s.perform_at))} (${READY_MINUTES_BEFORE} min before performing)` },
           { title: "Performance", detail: at(s.perform_at) },
           { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },
         ],

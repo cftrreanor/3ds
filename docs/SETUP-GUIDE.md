@@ -80,7 +80,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261004030000_team_invitations_and_editing.sql` | Team invitations, station leads, moving shifts when the date changes | ✅ run |
 | `20261004040000_volunteer_signup.sql` | Unique public links for events | ✅ run |
 | `20261004050000_volunteer_passes_and_calendar.sql` | No-login volunteer access, calendar invites | ✅ run |
-| `20261004060000_bands.sql` | Band registration window, performance order, public schedule | run this next |
+| `20261004060000_bands.sql` | Band registration window, performance order, public schedule | ✅ run |
+| `20261005000000_warm_up_duration.sql` | Warm-up length per band (15-minute steps) | run this next |
 
 ## Email (Resend) ✅
 Sign-in emails are sent by **Resend** from `no-reply@fieldcommandevents.com`.
