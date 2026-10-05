@@ -38,6 +38,7 @@ const MAX_FINALISTS = 30;
 
 let nextKey = 0;
 const toDraft = (b: ScheduleBreak): BreakDraft => ({ ...b, minutes: String(b.minutes), key: nextKey++ });
+const pickTimes = ({ day, warmUp, warmUpMinutes, perform, location }: Times): Times => ({ day, warmUp, warmUpMinutes, perform, location });
 const blankTimes = (day: string): Times => ({ day, warmUp: "", warmUpMinutes: 0, perform: "", location: "" });
 
 /** Breaks on one day, as minute spans, skipping any that aren't filled in yet. */
@@ -101,13 +102,30 @@ export function ScheduleBuilder({
     changed();
   };
 
+  // Moving a band carries its times with it. The slot times from before the
+  // first move are kept so "Update schedule" can give each position its time
+  // and warm-up location back, in the new order. null = nothing to update.
+  const [before, setBefore] = useState<{ ids: string[]; slots: Times[] } | null>(null);
   const move = (i: number, by: number) => {
     const j = i + by;
     if (j < 0 || j >= bands.length) return;
     const next = [...bands];
     [next[i], next[j]] = [next[j], next[i]];
+    const base = before ?? { ids: bands.map((b) => b.id), slots: bands.map(pickTimes) };
+    // Moved back to where it started: nothing left to update.
+    setBefore(next.every((b, k) => b.id === base.ids[k]) ? null : base);
     updateBands(next);
   };
+  const updateSchedule = () => {
+    if (!before) return;
+    updateBands(bands.map((b, i) => ({ ...b, ...before.slots[i] })));
+    setBefore(null);
+  };
+  const updateButton = (
+    <Button type="button" variant={before ? "accent" : "secondary"} disabled={!before} onClick={updateSchedule}>
+      Update schedule
+    </Button>
+  );
   const editBand = (i: number, patch: Partial<OrderBand>) => updateBands(bands.map((b, k) => (k === i ? { ...b, ...patch } : b)));
   const editFinal = (i: number, patch: Partial<FinalsSlot>) => updateFinals(finals.map((f, k) => (k === i ? { ...f, ...patch } : f)));
 
@@ -158,7 +176,11 @@ export function ScheduleBuilder({
           breaks={breaks}
           readyText={readyText}
           onReadyText={onReadyText}
-          onFill={(times) => updateBands(bands.map((b, i) => ({ ...b, ...times[i] })))}
+          onFill={(times) => {
+            updateBands(bands.map((b, i) => ({ ...b, ...times[i] })));
+            setBefore(null);
+          }}
+          extraAction={updateButton}
         />
         <ol className="space-y-3">
           {bands.map((b, i) => (
@@ -205,10 +227,16 @@ export function ScheduleBuilder({
       />
 
       <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+        {before && (
+          <p className="text-sm">You moved bands. Their times moved with them. Update the schedule to re-time the new order.</p>
+        )}
         <FormMessage error={result.error} success={result.ok ? result.message : null} />
-        <Button type="button" disabled={pending || !dirty} onClick={onSave}>
-          {pending ? "Saving…" : dirty ? "Save schedule" : "Saved"}
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          {updateButton}
+          <Button type="button" disabled={pending || !dirty} onClick={onSave}>
+            {pending ? "Saving…" : dirty ? "Save schedule" : "Saved"}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -291,6 +319,7 @@ function AutoFill({
   readyText,
   onReadyText,
   onFill,
+  extraAction,
 }: {
   title: string;
   /** What's being filled, e.g. "bands" or "finals slots". */
@@ -304,6 +333,8 @@ function AutoFill({
   readyText: string;
   onReadyText: (v: string) => void;
   onFill: (times: Partial<Times>[]) => void;
+  /** Another button shown next to "Fill in times". */
+  extraAction?: ReactNode;
 }) {
   const [auto, setAuto] = useState({ day: defaultDay, first: defaultFirst, slot: "15", warmUp: "60", duration: 45, location: "" });
   const slot = Number(auto.slot) || 15;
@@ -388,9 +419,12 @@ function AutoFill({
           />
         </Field>
       </div>
-      <Button type="button" variant="secondary" className="mt-4" onClick={fill}>
-        Fill in times for all {count} {noun}
-      </Button>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Button type="button" variant="secondary" onClick={fill}>
+          Fill in times for all {count} {noun}
+        </Button>
+        {extraAction}
+      </div>
     </details>
   );
 }
