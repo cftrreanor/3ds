@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { updateBand, withdrawBand } from "@/app/dashboard/band-actions";
 import { BandForm } from "@/components/band-form";
 import { Badge, Card } from "@/components/ui";
-import { BAND_COLUMNS, READY_MINUTES_BEFORE, readyAt, warmUpEndAt, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, readyAt, warmUpEndAt, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
@@ -23,7 +23,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
   const [{ data: event }, { data: slot }] = await Promise.all([
     supabase
       .from("events")
-      .select("name, slug, timezone, starts_on, ends_on, venue_name, venue_address, band_registration_open, performance_order_published, chaperone_limit, classifications")
+      .select("name, slug, timezone, starts_on, ends_on, venue_name, venue_address, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before")
       .eq("id", band.event_id)
       .single(),
     supabase.from("performance_slots").select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
@@ -31,7 +31,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
   if (!event) notFound();
   const tz = event.timezone;
   const warmEnd = slot ? warmUpEndAt(slot.warm_up_at, slot.warm_up_minutes) : null;
-  const ready = slot ? readyAt(slot.perform_at) : null;
+  const ready = slot ? readyAt(slot.perform_at, event.ready_minutes_before) : null;
   const at = (iso: string | null) =>
     iso ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}` : "To be announced";
 
@@ -72,7 +72,7 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
             <div>
               <dt className="text-sm text-muted">Ready position</dt>
               <dd className="font-medium">{at(ready)}</dd>
-              <dd className="text-sm text-muted">{READY_MINUTES_BEFORE} minutes before your performance</dd>
+              <dd className="text-sm text-muted">{event.ready_minutes_before} minutes before your performance</dd>
             </div>
             <div>
               <dt className="text-sm text-muted">Performance</dt>

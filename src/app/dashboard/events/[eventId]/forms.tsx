@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { NumberInput } from "@/components/number-input";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
@@ -86,7 +87,7 @@ export function GenerateShiftsForm({ action, windowLabel }: { action: Action; wi
           </Select>
         </Field>
         <Field label="Volunteers per shift">
-          <Input name="capacity" type="number" min={1} max={500} defaultValue={4} required />
+          <NumberInput name="capacity" defaultValue={4} required />
         </Field>
       </div>
       <SubmitButton pendingText="Creating…">Create shifts</SubmitButton>
@@ -137,7 +138,7 @@ export function ShiftForm({
         label="Volunteers needed"
         hint={registered > 0 ? `${registered} already signed up, so it can't go lower than that.` : undefined}
       >
-        <Input name="capacity" type="number" min={Math.max(1, registered)} max={500} defaultValue={initial?.capacity ?? 4} required />
+        <NumberInput name="capacity" defaultValue={initial?.capacity ?? 4} required />
       </Field>
       <Field label="Duties" hint="Optional." className="sm:col-span-2">
         <Textarea name="description" defaultValue={initial?.description ?? ""} />

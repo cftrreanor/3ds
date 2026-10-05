@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { NumberInput } from "@/components/number-input";
 import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { READY_MINUTES_BEFORE } from "@/lib/bands";
 import { formatDate } from "@/lib/time";
 
 export type OrderBand = {
@@ -49,17 +49,24 @@ export function OrderBuilder({
   days,
   save,
   zoneLabel,
+  initialReadyMinutes,
 }: {
   initial: OrderBand[];
   days: string[];
-  save: (slotsJson: string) => Promise<ActionState>;
+  save: (slotsJson: string, readyMinutes: string) => Promise<ActionState>;
   zoneLabel: string;
+  initialReadyMinutes: number;
 }) {
   const [bands, setBands] = useState(initial);
   const [result, setResult] = useState<ActionState>({});
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [auto, setAuto] = useState({ day: days[0], first: "09:00", slot: 15, warmUp: 60, duration: 45, location: "" });
+  // Typed number boxes keep their text so they can be cleared while typing.
+  const [readyText, setReadyText] = useState(String(initialReadyMinutes));
+  const readyMinutes = Number(readyText) || 0;
+  const [auto, setAuto] = useState({ day: days[0], first: "09:00", slot: "15", warmUp: "60", duration: 45, location: "" });
+  const autoSlot = Number(auto.slot) || 15;
+  const autoWarmUp = Number(auto.warmUp) || 0;
 
   const update = (next: OrderBand[]) => {
     setBands(next);
@@ -77,12 +84,12 @@ export function OrderBuilder({
   const autofill = () =>
     update(
       bands.map((b, i) => {
-        const perform = toMinutes(auto.first) + i * auto.slot;
+        const perform = toMinutes(auto.first) + i * autoSlot;
         return {
           ...b,
           day: auto.day,
           perform: toTime(perform),
-          warmUp: toTime(perform - auto.warmUp),
+          warmUp: toTime(perform - autoWarmUp),
           warmUpMinutes: auto.duration,
           location: auto.location || b.location,
         };
@@ -93,6 +100,22 @@ export function OrderBuilder({
 
   return (
     <div className="space-y-6">
+      <Field
+        label="Ready position (minutes before performing)"
+        hint="When each band must be lined up and waiting. Applies to every band; 0 to 60."
+        className="max-w-xs"
+      >
+        <NumberInput
+          maxLength={2}
+          value={readyText}
+          onChange={(e) => {
+            setReadyText(e.target.value);
+            setDirty(true);
+            setResult({});
+          }}
+        />
+      </Field>
+
       <details className="rounded-lg border border-border bg-surface px-4 py-3">
         <summary className="cursor-pointer text-sm font-medium">Fill in times automatically</summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -111,17 +134,17 @@ export function OrderBuilder({
             <Input type="time" value={auto.first} onChange={(e) => setAuto({ ...auto, first: e.target.value })} />
           </Field>
           <Field label="Minutes between bands">
-            <Input type="number" min={1} max={120} value={auto.slot} onChange={(e) => setAuto({ ...auto, slot: Number(e.target.value) || 15 })} />
+            <NumberInput maxLength={3} value={auto.slot} onChange={(e) => setAuto({ ...auto, slot: e.target.value })} />
           </Field>
           <Field label="Warm-up starts (minutes before performing)">
-            <Input type="number" min={0} max={300} step={5} value={auto.warmUp} onChange={(e) => setAuto({ ...auto, warmUp: Number(e.target.value) || 0 })} />
+            <NumberInput maxLength={3} value={auto.warmUp} onChange={(e) => setAuto({ ...auto, warmUp: e.target.value })} />
           </Field>
           <Field
             label="Warm-up duration"
             hint={
-              auto.duration > auto.warmUp - READY_MINUTES_BEFORE
-                ? `⚠️ That runs past the ready position (${READY_MINUTES_BEFORE} min before performing).`
-                : `Leaves ${auto.warmUp - auto.duration - READY_MINUTES_BEFORE} min to reach the ready position.`
+              auto.duration > autoWarmUp - readyMinutes
+                ? `⚠️ That runs past the ready position (${readyMinutes} min before performing).`
+                : `Leaves ${autoWarmUp - auto.duration - readyMinutes} min to reach the ready position.`
             }
           >
             <Select value={auto.duration} onChange={(e) => setAuto({ ...auto, duration: Number(e.target.value) })}>
@@ -196,7 +219,7 @@ export function OrderBuilder({
                 <Input value={b.location} onChange={(e) => edit(i, { location: e.target.value })} />
               </Field>
             </div>
-            <Timeline band={b} />
+            <Timeline band={b} readyMinutes={readyMinutes} />
           </li>
         ))}
       </ol>
@@ -219,6 +242,7 @@ export function OrderBuilder({
                     location: b.location,
                   })),
                 ),
+                readyText,
               );
               setResult(r);
               if (r.ok) setDirty(false);
@@ -233,9 +257,9 @@ export function OrderBuilder({
 }
 
 /** Warm-up → ends → ready → performs, worked out from the band's times. */
-function Timeline({ band: b }: { band: OrderBand }) {
+function Timeline({ band: b, readyMinutes }: { band: OrderBand; readyMinutes: number }) {
   const warmEnd = b.warmUp && b.warmUpMinutes ? toTime(toMinutes(b.warmUp) + b.warmUpMinutes) : null;
-  const ready = b.perform ? toTime(toMinutes(b.perform) - READY_MINUTES_BEFORE) : null;
+  const ready = b.perform ? toTime(toMinutes(b.perform) - readyMinutes) : null;
   if (!b.warmUp && !b.perform) return null;
   const overlap = warmEnd && ready && toMinutes(warmEnd) > toMinutes(ready);
   const steps = [

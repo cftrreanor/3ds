@@ -1,6 +1,7 @@
 "use client";
 
 import { ActionForm } from "@/components/action-form";
+import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
@@ -17,7 +18,7 @@ export function BandSettingsForm({
   return (
     <ActionForm action={action} className="grid gap-4 sm:grid-cols-2" resetOnSuccess={false}>
       <Field label="Chaperone limit per band">
-        <Input name="chaperoneLimit" type="number" min={0} max={500} defaultValue={chaperoneLimit} required />
+        <NumberInput name="chaperoneLimit" defaultValue={chaperoneLimit} required />
       </Field>
       <Field label="Classifications" hint="Separate with commas, e.g. 1A, 2A, 3A, 4A, 5A, 6A">
         <Input name="classifications" defaultValue={classifications.join(", ")} required />

@@ -563,6 +563,14 @@ do $$ begin
     raise exception 'FAIL: saved a warm-up length that is not in 15-minute steps';
   exception when check_violation then null;
   end;
+  update public.events set ready_minutes_before = 10 where id = '10000000-0000-0000-0000-00000000000a';
+  assert (select ready_minutes_before from public.events where id = '10000000-0000-0000-0000-00000000000a') = 10,
+         'host sets the ready position';
+  begin
+    update public.events set ready_minutes_before = 90 where id = '10000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: saved a ready position over 60 minutes';
+  exception when check_violation then null;
+  end;
   begin
     perform public.save_performance_order('10000000-0000-0000-0000-00000000000b',
       '[{"band_id":"40000000-0000-0000-0000-000000000001"}]'::jsonb);
