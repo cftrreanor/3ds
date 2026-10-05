@@ -78,27 +78,37 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             Full schedule
           </Link>
         </p>
-        {hasContact && (
-          <p className="mt-1 flex flex-wrap gap-x-3 text-muted">
-            <span>Questions? {contact.name || "Contact the host"}</span>
-            {contact.phone && (
-              <>
-                <a href={`tel:${contact.phone}`} className={linkClass}>
-                  Call {formatPhone(contact.phone)}
-                </a>
-                <a href={`sms:${contact.phone}`} className={linkClass}>
-                  Text
-                </a>
-              </>
+        {(hasContact || event.director_info) && (
+          <details open className="group mt-3">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-brand [&::-webkit-details-marker]:hidden">
+              Contest info &amp; contact
+              <span aria-hidden="true" className="text-muted transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
+            {hasContact && (
+              <p className="mt-2 flex flex-wrap gap-x-3 text-muted">
+                <span>Questions? {contact.name || "Contact the host"}</span>
+                {contact.phone && (
+                  <>
+                    <a href={`tel:${contact.phone}`} className={linkClass}>
+                      Call {formatPhone(contact.phone)}
+                    </a>
+                    <a href={`sms:${contact.phone}`} className={linkClass}>
+                      Text
+                    </a>
+                  </>
+                )}
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className={linkClass}>
+                    Email
+                  </a>
+                )}
+              </p>
             )}
-            {contact.email && (
-              <a href={`mailto:${contact.email}`} className={linkClass}>
-                Email
-              </a>
-            )}
-          </p>
+            {event.director_info && <p className="mt-2 whitespace-pre-line text-sm leading-6">{event.director_info}</p>}
+          </details>
         )}
-        {event.director_info && <p className="mt-3 whitespace-pre-line text-sm leading-6">{event.director_info}</p>}
         <p className="mt-4">
           <span aria-hidden="true">🎺</span> <span className="font-semibold">{band.band_name}</span>{" "}
           <span className="text-muted">· {band.school_name}</span>
@@ -157,44 +167,44 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             ▾
           </span>
         </summary>
-        <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-            <Item label="Classification">{band.classification}</Item>
-            <Item label="People">
-              {band.student_count} students · {band.chaperone_count} chaperones
-            </Item>
-            <Item label="Vehicles">
-              {[
-                [band.bus_count, "bus", "buses"],
-                [band.box_truck_count, "box truck", "box trucks"],
-                [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
-                [band.semi_truck_count, "semi", "semis"],
-              ]
-                .filter(([n]) => Number(n) > 0)
-                .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
-                .join(" · ") || "None listed"}
-            </Item>
-            <Item label="Head director">
-              {band.head_director_name} · {formatPhone(band.head_director_phone)}
-            </Item>
-            {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
-            <Item label="Band contact email">{band.contact_email}</Item>
-            <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
-            <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
-          </dl>
-          {open ? (
-            <Link
-              href={`/dashboard/bands/${bandId}/edit`}
-              className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
-            >
-              Edit registration
-            </Link>
-          ) : (
-            <p className="mt-5 text-sm text-muted">
-              Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
-            </p>
-          )}
-        </div>
+          <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
+            <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+              <Item label="Classification">{band.classification}</Item>
+              <Item label="People">
+                {band.student_count} students · {band.chaperone_count} chaperones
+              </Item>
+              <Item label="Vehicles">
+                {[
+                  [band.bus_count, "bus", "buses"],
+                  [band.box_truck_count, "box truck", "box trucks"],
+                  [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
+                  [band.semi_truck_count, "semi", "semis"],
+                ]
+                  .filter(([n]) => Number(n) > 0)
+                  .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+                  .join(" · ") || "None listed"}
+              </Item>
+              <Item label="Head director">
+                {band.head_director_name} · {formatPhone(band.head_director_phone)}
+              </Item>
+              {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
+              <Item label="Band contact email">{band.contact_email}</Item>
+              <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
+              <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
+            </dl>
+            {open ? (
+              <Link
+                href={`/dashboard/bands/${bandId}/edit`}
+                className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
+              >
+                Edit registration
+              </Link>
+            ) : (
+              <p className="mt-5 text-sm text-muted">
+                Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
+              </p>
+            )}
+          </div>
       </details>
     </div>
   );
