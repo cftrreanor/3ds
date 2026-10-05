@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
+import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { Badge, Card } from "@/components/ui";
 import { bandCalendarEvent, type BandTimes } from "@/lib/band-calendar";
 import { BAND_COLUMNS, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } from "@/lib/bands";
@@ -31,7 +32,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase
       .from("events")
       .select(
-        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed",
+        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed, schedule_updated_at",
       )
       .eq("id", band.event_id)
       .single(),
@@ -63,6 +64,11 @@ export default async function BandContestPage({ params, searchParams }: PageProp
 
   return (
     <div className="mx-auto max-w-2xl">
+      {event.status === "published" && (
+        <div className="-mx-4 -mt-8 mb-4 sm:-mt-10">
+          <ScheduleUpdateBanner slug={event.slug} version={event.schedule_updated_at} />
+        </div>
+      )}
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
         ← Dashboard
       </Link>

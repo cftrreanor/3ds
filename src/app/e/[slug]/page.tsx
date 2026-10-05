@@ -9,6 +9,7 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { readPass } from "@/lib/volunteer-pass";
+import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { AutoRefresh } from "./auto-refresh";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -36,7 +37,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published")
+    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -112,6 +113,7 @@ export default async function EventPublicPage({ params }: Params) {
   return (
     <>
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
+    {event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {isEventDay && published && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
