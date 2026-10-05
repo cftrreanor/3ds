@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import type { ChangedBands, ScheduleSaveState } from "@/app/dashboard/band-actions";
 import { NumberInput } from "@/components/number-input";
-import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
+import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { formatDuration, performTimes, toMinutes, toTime } from "@/lib/schedule";
 import { formatDate } from "@/lib/time";
@@ -15,6 +16,8 @@ import {
   type FinalsSlot,
   type OrderBand,
   type ScheduleBreak,
+  Accordion,
+  RoundHeading,
   type Times,
 } from "./schedule-parts";
 import { ScheduleView, type RowEdit } from "./schedule-view";
@@ -43,6 +46,7 @@ export function ScheduleBuilder({
   orderPublished,
   finalsPublished,
   save,
+  emailChanges,
 }: {
   initialBands: OrderBand[];
   initialBreaks: ScheduleBreak[];
@@ -52,7 +56,8 @@ export function ScheduleBuilder({
   zoneLabel: string;
   orderPublished: boolean;
   finalsPublished: boolean;
-  save: (scheduleJson: string) => Promise<ActionState>;
+  save: (scheduleJson: string) => Promise<ScheduleSaveState>;
+  emailChanges: (bands: ChangedBands) => Promise<ActionState>;
 }) {
   const [bands, setBands] = useState(initialBands);
   const [breaks, setBreaks] = useState(() => initialBreaks.map(toDraft));
@@ -63,6 +68,8 @@ export function ScheduleBuilder({
   const [result, setResult] = useState<ActionState>({});
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Published bands whose times changed since the host last emailed them.
+  const [changes, setChanges] = useState<ChangedBands | null>(null);
   // Once anything is published, start on the read-only view; the full builder
   // is one tap away. Before that, the builder is the page.
   const published = orderPublished || finalsPublished;
@@ -143,11 +150,18 @@ export function ScheduleBuilder({
   const persist = (x: Snapshot) =>
     new Promise<boolean>((resolve) =>
       startTransition(async () => {
-        const r = await save(toJson(x));
+        const { changed, ...r } = await save(toJson(x));
         setResult(r);
         if (r.ok) {
           setSaved(x);
           setDirty(false);
+        }
+        if (changed) {
+          // Keep collecting across saves until the host sends or dismisses.
+          setChanges((c) => ({
+            order: [...new Set([...(c?.order ?? []), ...changed.order])],
+            finals: [...new Set([...(c?.finals ?? []), ...changed.finals])],
+          }));
         }
         resolve(Boolean(r.ok));
       }),
@@ -193,6 +207,18 @@ export function ScheduleBuilder({
     setMode("view");
   };
 
+  const changeNotice = changes && (
+    <ChangeNotice
+      names={[...new Set([...changes.order, ...changes.finals])].map((id) => bands.find((b) => b.id === id)?.name ?? "A band")}
+      onSend={async () => {
+        const r = await emailChanges(changes);
+        setResult(r);
+        if (r.ok) setChanges(null);
+      }}
+      onDismiss={() => setChanges(null)}
+    />
+  );
+
   if (bands.length === 0) return <p className="text-muted">No bands have registered yet.</p>;
 
   if (mode === "view") {
@@ -214,6 +240,11 @@ export function ScheduleBuilder({
           }}
           onSaveRow={saveRow}
         />
+        {changeNotice && (
+          <div className="sticky bottom-0 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+            {changeNotice}
+          </div>
+        )}
       </div>
     );
   }
@@ -231,7 +262,7 @@ export function ScheduleBuilder({
       <BreaksEditor breaks={breaks} days={days} zoneLabel={zoneLabel} onChange={updateBreaks} />
 
       <div className="space-y-6">
-        <h3 className="text-base font-semibold">Running order</h3>
+        <RoundHeading>Preliminaries</RoundHeading>
         <AutoFill
           title="Fill in times automatically"
           noun={bands.length === 1 ? "band" : "bands"}
@@ -297,6 +328,7 @@ export function ScheduleBuilder({
         {before && (
           <p className="text-sm">You moved bands. Their times moved with them. Update the schedule to re-time the new order.</p>
         )}
+        {changeNotice}
         <FormMessage error={result.error} success={result.ok ? result.message : null} />
         <div className="flex flex-wrap gap-3">
           {updateButton}
@@ -327,49 +359,52 @@ function BreaksEditor({
       { key: nextKey++, day: breaks.at(-1)?.day ?? days[0], start: "12:00", minutes: "30", label: breaks.length ? "Break" : "Lunch" },
     ]);
   return (
-    <Card className="space-y-4">
-      <div>
-        <h3 className="font-semibold">Breaks</h3>
-        <p className="mt-1 text-sm text-muted">
+    <Accordion
+      title="Breaks"
+      meta={breaks.length ? breaks.map((b) => b.label || "Break").join(", ") : "None yet"}
+      defaultOpen={breaks.length === 0}
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-muted">
           Lunch, judges&apos; breaks, awards. Filling in times automatically skips over them, and they show on the public
           schedule between bands.
         </p>
-      </div>
-      {breaks.length > 0 && (
-        <ul className="space-y-3">
-          {breaks.map((b) => (
-            <li key={b.key} className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border p-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
-              {days.length > 1 && (
-                <Field label="Day">
-                  <Select value={b.day} onChange={(e) => edit(b.key, { day: e.target.value })}>
-                    {days.map((d) => (
-                      <option key={d} value={d}>
-                        {formatDate(d, { year: undefined })}
-                      </option>
-                    ))}
-                  </Select>
+        {breaks.length > 0 && (
+          <ul className="space-y-3">
+            {breaks.map((b) => (
+              <li key={b.key} className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border p-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+                {days.length > 1 && (
+                  <Field label="Day">
+                    <Select value={b.day} onChange={(e) => edit(b.key, { day: e.target.value })}>
+                      {days.map((d) => (
+                        <option key={d} value={d}>
+                          {formatDate(d, { year: undefined })}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
+                <Field label={`Starts (${zoneLabel})`}>
+                  <Input type="time" required value={b.start} onChange={(e) => edit(b.key, { start: e.target.value })} />
                 </Field>
-              )}
-              <Field label={`Starts (${zoneLabel})`}>
-                <Input type="time" required value={b.start} onChange={(e) => edit(b.key, { start: e.target.value })} />
-              </Field>
-              <Field label="Minutes">
-                <NumberInput maxLength={3} value={b.minutes} onChange={(e) => edit(b.key, { minutes: e.target.value })} />
-              </Field>
-              <Field label="Name" className={days.length > 1 ? "" : "sm:col-span-2"}>
-                <Input value={b.label} maxLength={80} onChange={(e) => edit(b.key, { label: e.target.value })} placeholder="e.g. Lunch" />
-              </Field>
-              <Button type="button" variant="danger" onClick={() => onChange(breaks.filter((x) => x.key !== b.key))} aria-label={`Remove ${b.label || "break"}`}>
-                Remove
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <Button type="button" variant="secondary" onClick={add}>
-        + Add a break
-      </Button>
-    </Card>
+                <Field label="Minutes">
+                  <NumberInput maxLength={3} value={b.minutes} onChange={(e) => edit(b.key, { minutes: e.target.value })} />
+                </Field>
+                <Field label="Name" className={days.length > 1 ? "" : "sm:col-span-2"}>
+                  <Input value={b.label} maxLength={80} onChange={(e) => edit(b.key, { label: e.target.value })} placeholder="e.g. Lunch" />
+                </Field>
+                <Button type="button" variant="danger" onClick={() => onChange(breaks.filter((x) => x.key !== b.key))} aria-label={`Remove ${b.label || "break"}`}>
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Button type="button" variant="secondary" onClick={add}>
+          + Add a break
+        </Button>
+      </div>
+    </Accordion>
   );
 }
 
@@ -426,9 +461,8 @@ function AutoFill({
     );
 
   return (
-    <details open className="rounded-lg border border-border bg-surface px-4 py-3">
-      <summary className="cursor-pointer text-sm font-medium">{title}</summary>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+    <Accordion title={title} defaultOpen>
+      <div className="grid gap-4 sm:grid-cols-2">
         {days.length > 1 && (
           <Field label="Day">
             <Select value={auto.day} onChange={(e) => setAuto({ ...auto, day: e.target.value })}>
@@ -492,7 +526,7 @@ function AutoFill({
         </Button>
         {extraAction}
       </div>
-    </details>
+    </Accordion>
   );
 }
 
@@ -540,8 +574,8 @@ function FinalsEditor({
     const validCount = Number(countText) >= 1 && Number(countText) <= MAX_FINALISTS;
     const addRound = () => onChange(Array.from({ length: Number(countText) }, () => ({ ...blankTimes(lastDay), bandId: "" })));
     return (
-      <Card className="space-y-3">
-        <h3 className="font-semibold">Finals</h3>
+      <div className="space-y-3">
+        <RoundHeading>Finals</RoundHeading>
         <p className="text-sm text-muted">
           Does this contest have a finals round? Choose how many bands advance, then set the slot times. Pick the finalist bands
           once they&apos;re announced.
@@ -565,7 +599,7 @@ function FinalsEditor({
             + Add a finals round
           </Button>
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -574,10 +608,10 @@ function FinalsEditor({
 
   return (
     <div className="space-y-6">
+      <RoundHeading>Finals</RoundHeading>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold">Finals</h3>
-          <p className="mt-1 text-sm text-muted">
+          <p className="text-sm text-muted">
             {named === 0
               ? "Finalists show as “to be announced” until you pick them."
               : `${named} of ${finals.length} finalists picked.`}
@@ -647,6 +681,37 @@ function FinalsEditor({
           </BreakDividers>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/** After saving changes to published times: offer to email the affected directors. */
+function ChangeNotice({ names, onSend, onDismiss }: { names: string[]; onSend: () => Promise<void>; onDismiss: () => void }) {
+  const [sending, setSending] = useState(false);
+  const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more` : names.join(", ");
+  return (
+    <div className="rounded-lg border border-accent bg-accent-soft px-4 py-3" role="status">
+      <p className="text-sm font-medium">
+        Times changed for {names.length} {names.length === 1 ? "band" : "bands"}: {list}.
+      </p>
+      <p className="mt-0.5 text-sm text-muted">Their directors haven&apos;t been told yet.</p>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <Button
+          type="button"
+          variant="accent"
+          disabled={sending}
+          onClick={async () => {
+            setSending(true);
+            await onSend();
+            setSending(false);
+          }}
+        >
+          {sending ? "Sending…" : `Email ${names.length === 1 ? "their director" : "their directors"}`}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onDismiss}>
+          Not now
+        </Button>
+      </div>
     </div>
   );
 }

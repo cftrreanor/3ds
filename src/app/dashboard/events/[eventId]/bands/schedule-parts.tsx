@@ -160,3 +160,40 @@ export function BreakDividers({
     </>
   );
 }
+
+/** A collapsible panel in the schedule (Breaks, Fill in times…), all with the same header style. */
+export function Accordion({
+  title,
+  meta,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  /** Short summary shown next to the title, e.g. "2 breaks". */
+  meta?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details open={defaultOpen} className="group rounded-xl border border-border bg-surface">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
+        <span className="font-semibold">{title}</span>
+        {meta && <span className="min-w-0 truncate text-sm text-muted">{meta}</span>}
+        <span aria-hidden="true" className="ml-auto shrink-0 text-muted transition group-open:rotate-180">
+          ▾
+        </span>
+      </summary>
+      <div className="border-t border-border px-4 py-4 sm:px-5">{children}</div>
+    </details>
+  );
+}
+
+/** "Preliminaries" / "Finals": the big dividers of the schedule. */
+export function RoundHeading({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b-2 border-brand pb-2">
+      <h3 className="text-lg font-bold tracking-tight sm:text-xl">{children}</h3>
+      {aside}
+    </div>
+  );
+}

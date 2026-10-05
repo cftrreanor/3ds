@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Badge, Button, Field, Select } from "@/components/ui";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 import { formatDate } from "@/lib/time";
-import { BreakDividers, TimesEditor, type BreakDraft, type FinalsSlot, type OrderBand, type Times } from "./schedule-parts";
+import { BreakDividers, RoundHeading, TimesEditor, type BreakDraft, type FinalsSlot, type OrderBand, type Times } from "./schedule-parts";
 
 /** One row of the published schedule: a band in the order, or a finals slot. */
 type Row = { key: string; number: string; title: string; subtitle: string; conflicts: string | null; times: Times; bandId?: string };
@@ -71,22 +71,26 @@ export function ScheduleView({
       </div>
 
       <section>
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-base font-semibold">Running order</h3>
-          <Badge tone={orderPublished ? "brand" : "neutral"}>{orderPublished ? "Published" : "Not published"}</Badge>
-        </div>
+        <RoundHeading aside={<Badge tone={orderPublished ? "brand" : "neutral"}>{orderPublished ? "Published" : "Not published"}</Badge>}>
+          Preliminaries
+        </RoundHeading>
         <Rows rows={orderRows} round="order" breaks={breaks} readyMinutes={readyMinutes} days={days} pending={pending} onSaveRow={onSaveRow} />
       </section>
 
       {finals.length > 0 && (
         <section>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold">🏆 Finals</h3>
-            <Badge tone={finalsPublished ? "brand" : "neutral"}>{finalsPublished ? "Published" : "Not published"}</Badge>
-            <span className="text-sm text-muted">
-              {picked} of {finals.length} finalists picked
-            </span>
-          </div>
+          <RoundHeading
+            aside={
+              <>
+                <Badge tone={finalsPublished ? "brand" : "neutral"}>{finalsPublished ? "Published" : "Not published"}</Badge>
+                <span className="text-sm text-muted">
+                  {picked} of {finals.length} finalists picked
+                </span>
+              </>
+            }
+          >
+            🏆 Finals
+          </RoundHeading>
           <Rows
             rows={finalsRows}
             round="finals"

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   emailFinalists,
+  emailTimeChanges,
   publishFinals,
   publishRunningOrder,
   saveSchedule,
@@ -20,7 +21,7 @@ import { ActionButton, CopyLinkButton } from "../forms";
 import { ScheduleBuilder, type FinalsSlot, type OrderBand, type ScheduleBreak } from "./schedule-builder";
 import { BandSettingsForm } from "./settings-form";
 
-export const metadata: Metadata = { title: "Bands" };
+export const metadata: Metadata = { title: "Band Registration" };
 
 type Slot = {
   band_id: string;
@@ -111,7 +112,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Bands</h1>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Band Registration</h1>
 
       <section className="mt-6">
         <Card className="space-y-4">
@@ -129,14 +130,6 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               {bands.length} band{bands.length === 1 ? "" : "s"} registered
             </span>
           </div>
-          {access.isHost && event.status === "published" && (
-            <ActionButton
-              action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
-              variant={event.band_registration_open ? "secondary" : "primary"}
-            >
-              {event.band_registration_open ? "Close band registration" : "Open band registration"}
-            </ActionButton>
-          )}
           {event.status !== "published" && (
             <p className="text-sm text-muted">Publish the event from its main page first, then open registration here.</p>
           )}
@@ -173,6 +166,15 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                 />
               </div>
             </details>
+          )}
+          {access.isHost && event.status === "published" && (
+            <ActionButton
+              action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
+              variant={event.band_registration_open ? "stop" : "go"}
+              confirmMessage={event.band_registration_open ? "Close band registration? Directors won't be able to register or make changes." : undefined}
+            >
+              {event.band_registration_open ? "Close band registration" : "Open band registration"}
+            </ActionButton>
           )}
         </Card>
       </section>
@@ -224,20 +226,21 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             orderPublished={event.performance_order_published}
             finalsPublished={event.finals_published}
             save={saveSchedule.bind(null, eventId)}
+            emailChanges={emailTimeChanges.bind(null, eventId)}
           />
           {bands.length > 0 && (
             <Card className="mt-6 space-y-5">
               <h3 className="font-semibold">Publishing</h3>
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium">Running order</span>
+                  <span className="text-sm font-medium">Preliminaries</span>
                   <Badge tone={event.performance_order_published ? "brand" : "neutral"}>
                     {event.performance_order_published ? "Published" : "Not published"}
                   </Badge>
                 </div>
                 {event.performance_order_published ? (
                   <ActionButton action={publishRunningOrder.bind(null, eventId, false)} variant="secondary">
-                    Unpublish order
+                    Unpublish preliminaries
                   </ActionButton>
                 ) : (
                   <ActionButton
@@ -249,7 +252,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                     }
                     pendingText="Publishing…"
                   >
-                    Publish order &amp; email directors
+                    Publish preliminaries &amp; email directors
                   </ActionButton>
                 )}
               </div>
