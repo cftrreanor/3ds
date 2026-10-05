@@ -33,7 +33,6 @@ export type ScheduleBreak = { day: string; start: string; minutes: number; label
 type BreakDraft = { key: number; day: string; start: string; minutes: string; label: string };
 
 const DURATIONS = Array.from({ length: 16 }, (_, i) => (i + 1) * 15); // 15 min … 4 hours
-const DEFAULT_FINALISTS = 6;
 const MAX_FINALISTS = 30;
 
 let nextKey = 0;
@@ -452,7 +451,7 @@ function FinalsEditor({
   onChange: (next: FinalsSlot[]) => void;
   onEdit: (i: number, patch: Partial<FinalsSlot>) => void;
 }) {
-  const [countText, setCountText] = useState(String(finals.length || DEFAULT_FINALISTS));
+  const [countText, setCountText] = useState(finals.length ? String(finals.length) : "");
   const lastDay = days.at(-1)!;
   const blank = (): FinalsSlot => ({ ...blankTimes(finals.at(-1)?.day ?? lastDay), bandId: "" });
 
@@ -470,23 +469,34 @@ function FinalsEditor({
   };
 
   if (finals.length === 0) {
+    const validCount = Number(countText) >= 1 && Number(countText) <= MAX_FINALISTS;
+    const addRound = () => onChange(Array.from({ length: Number(countText) }, () => ({ ...blankTimes(lastDay), bandId: "" })));
     return (
       <Card className="space-y-3">
         <h3 className="font-semibold">Finals</h3>
         <p className="text-sm text-muted">
-          Does this contest have a finals round? Add placeholder slots now and set their times. Pick the finalist bands
+          Does this contest have a finals round? Choose how many bands advance, then set the slot times. Pick the finalist bands
           once they&apos;re announced.
         </p>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            setCountText(String(DEFAULT_FINALISTS));
-            onChange(Array.from({ length: DEFAULT_FINALISTS }, () => ({ ...blankTimes(lastDay), bandId: "" })));
-          }}
-        >
-          + Add a finals round
-        </Button>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label={`Number of finalists (1–${MAX_FINALISTS})`} className="w-56">
+            <NumberInput
+              maxLength={2}
+              value={countText}
+              onChange={(e) => setCountText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (validCount) addRound();
+                }
+              }}
+              placeholder="e.g. 6"
+            />
+          </Field>
+          <Button type="button" variant="secondary" disabled={!validCount} onClick={addRound}>
+            + Add a finals round
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -509,7 +519,10 @@ function FinalsEditor({
           type="button"
           variant="danger"
           onClick={() => {
-            if (window.confirm("Remove the finals round and its times?")) onChange([]);
+            if (window.confirm("Remove the finals round and its times?")) {
+              setCountText("");
+              onChange([]);
+            }
           }}
         >
           Remove finals
