@@ -945,4 +945,79 @@ do $$ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- What leads see: bands without contact details, the published schedule,
+-- and (for Section Leads) volunteer announcements only.
+-- ---------------------------------------------------------------------------
+update public.events set finalists_revealed = false where id = '10000000-0000-0000-0000-00000000000a';
+delete from public.finals_slots where event_id = '10000000-0000-0000-0000-00000000000a';
+insert into public.finals_slots (event_id, slot_number, band_id)
+values ('10000000-0000-0000-0000-00000000000a', 1, '40000000-0000-0000-0000-000000000001');
+insert into public.announcements (event_id, sender_id, audiences, body) values
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001', '{band_directors}', 'Directors: unload at Lot C');
+set role authenticated;
+
+-- Section Lead
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ declare r record; begin
+  assert (select count(*) from public.bands) = 0, 'a Section Lead can''t read band registrations';
+  select * into r from public.event_bands('10000000-0000-0000-0000-00000000000a')
+   where id = '40000000-0000-0000-0000-000000000001';
+  assert r.band_name = 'Mighty Marching' and r.status = 'checked_in', 'a Section Lead sees band names and status';
+  assert r.student_count is null and r.bus_count is null, 'a Section Lead doesn''t get headcounts';
+  assert (select count(*) from public.performance_slots where event_id = '10000000-0000-0000-0000-00000000000a') > 0,
+         'a Section Lead sees the published performance order';
+  assert (select count(*) from public.finals_slots) = 0, 'a Section Lead can''t see finalists before the reveal';
+  assert exists (select 1 from public.announcements where body = 'Lunch is ready'), 'a Section Lead reads volunteer announcements';
+  assert not exists (select 1 from public.announcements where body = 'Directors: unload at Lot C'),
+         'a Section Lead doesn''t read band-director announcements';
+  begin
+    insert into public.announcements (event_id, sender_id, audiences, body)
+    values ('10000000-0000-0000-0000-00000000000a', auth.uid(), '{volunteers}', 'Hi team');
+    raise exception 'FAIL: a Section Lead sent an announcement';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+-- Volunteer Lead
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ declare r record; begin
+  assert (select count(*) from public.bands) = 0, 'a Volunteer Lead can''t read band contact details';
+  select * into r from public.event_bands('10000000-0000-0000-0000-00000000000a')
+   where id = '40000000-0000-0000-0000-000000000001';
+  assert r.student_count is not null and r.bus_count = 3, 'a Volunteer Lead sees headcounts and vehicles';
+  update public.bands set band_name = 'Hacked' where event_id = '10000000-0000-0000-0000-00000000000a';
+  if found then raise exception 'FAIL: a Volunteer Lead edited a band'; end if;
+  assert (select count(*) from public.finals_slots) = 0, 'a Volunteer Lead can''t see finalists before the reveal';
+  assert exists (select 1 from public.announcements where body = 'Directors: unload at Lot C'),
+         'a Volunteer Lead reads every announcement';
+  insert into public.announcements (event_id, sender_id, audiences, body)
+  values ('10000000-0000-0000-0000-00000000000a', auth.uid(), '{volunteers}', 'Shirts at the gate');
+end $$;
+
+-- Someone outside the event
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.event_bands('10000000-0000-0000-0000-00000000000a')) = 0,
+         'outsiders get nothing from event_bands';
+end $$;
+
+-- Host still sees everything, including finals before the reveal.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select count(*) from public.bands where event_id = '10000000-0000-0000-0000-00000000000a') > 0, 'the host reads band registrations';
+  assert (select count(*) from public.finals_slots where event_id = '10000000-0000-0000-0000-00000000000a') > 0,
+         'the host sees finals before the reveal';
+end $$;
+reset role;
+
+-- After the reveal, leads see the finals like everyone else.
+update public.events set finalists_revealed = true where id = '10000000-0000-0000-0000-00000000000a';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.finals_slots) > 0, 'a Section Lead sees finals once revealed';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
