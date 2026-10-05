@@ -100,22 +100,6 @@ export function OrderBuilder({
 
   return (
     <div className="space-y-6">
-      <Field
-        label="Ready position (minutes before performing)"
-        hint="When each band must be lined up and waiting. Applies to every band; 0 to 60."
-        className="max-w-xs"
-      >
-        <NumberInput
-          maxLength={2}
-          value={readyText}
-          onChange={(e) => {
-            setReadyText(e.target.value);
-            setDirty(true);
-            setResult({});
-          }}
-        />
-      </Field>
-
       <details className="rounded-lg border border-border bg-surface px-4 py-3">
         <summary className="cursor-pointer text-sm font-medium">Fill in times automatically</summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -154,6 +138,17 @@ export function OrderBuilder({
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field label="Ready position (minutes before performing)" hint="Applies to every band, 0 to 60. Saved with the order.">
+            <NumberInput
+              maxLength={2}
+              value={readyText}
+              onChange={(e) => {
+                setReadyText(e.target.value);
+                setDirty(true);
+                setResult({});
+              }}
+            />
           </Field>
           <Field label="Warm-up location" hint="Optional. Leave blank to keep each band's.">
             <Input value={auto.location} onChange={(e) => setAuto({ ...auto, location: e.target.value })} placeholder="e.g. Practice field B" />
