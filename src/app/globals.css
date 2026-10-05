@@ -13,6 +13,7 @@
   --accent: #c99a2e;
   --accent-soft: #f6ecd3;
   --danger: #b42318;
+  --danger-foreground: #ffffff;
   --success: #1e7b3c;
   --success-foreground: #ffffff;
   /* Header bar: always dark, so the white logo reads in light and dark mode. */
@@ -32,6 +33,7 @@
     --accent: #e3b852;
     --accent-soft: #2c2716;
     --danger: #f97066;
+    --danger-foreground: #0d1424;
     --success: #4cc27a;
     --success-foreground: #0d1424;
     --header: #0a1122;
@@ -49,6 +51,7 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-header: var(--header);

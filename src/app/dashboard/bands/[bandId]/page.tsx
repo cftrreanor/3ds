@@ -31,7 +31,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase
       .from("events")
       .select(
-        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finals_published",
+        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed",
       )
       .eq("id", band.event_id)
       .single(),
@@ -123,7 +123,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         </p>
       </header>
 
-      {event.finals_published && finalsSlot && (
+      {event.finalists_revealed && finalsSlot && (
         <TimesCard
           title={`🏆 Finals · #${finalsSlot.slot_number}`}
           times={finalsSlot}

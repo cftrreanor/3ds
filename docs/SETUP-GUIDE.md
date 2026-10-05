@@ -86,7 +86,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261005020000_breaks_and_finals.sql` | Schedule breaks and a finals round | ✅ run |
 | `20261006000000_director_contest_info.sql` | Registration deadline, info and host contact for band directors | ✅ run |
 | `20261007000000_director_contact_phone.sql` | Host phone unlocks for directors only the day before and on contest day | ✅ run |
-| `20261008000000_finals_ready_position.sql` | Separate ready position for finals | run this next |
+| `20261008000000_finals_ready_position.sql` | Separate ready position for finals | ✅ run |
+| `20261009000000_finalists_revealed.sql` | Finals in three stages: schedule, saved finalists, revealed | run this next |
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:

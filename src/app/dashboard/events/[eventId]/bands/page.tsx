@@ -5,6 +5,7 @@ import {
   emailFinalists,
   emailTimeChanges,
   publishFinals,
+  revealFinalists,
   publishRunningOrder,
   saveSchedule,
   setBandRegistrationOpen,
@@ -40,7 +41,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_ready_minutes_before, finals_published")
+    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) notFound();
@@ -224,6 +225,8 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             zoneLabel={zoneName(tz)}
             orderPublished={event.performance_order_published}
             finalsPublished={event.finals_published}
+            finalistsRevealed={event.finalists_revealed}
+            revealFinalists={revealFinalists.bind(null, eventId)}
             save={saveSchedule.bind(null, eventId)}
             emailChanges={emailTimeChanges.bind(null, eventId)}
             publishOrder={publishRunningOrder.bind(null, eventId)}

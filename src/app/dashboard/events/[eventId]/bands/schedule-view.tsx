@@ -142,6 +142,7 @@ export function RowEditor({
   onChange,
   onBandChange,
   onShiftLater,
+  note,
 }: {
   draft: Times;
   original: Times;
@@ -158,10 +159,13 @@ export function RowEditor({
   onChange: (patch: Partial<Times>) => void;
   onBandChange?: (bandId: string) => void;
   onShiftLater: (on: boolean) => void;
+  /** Shown above the finalist picker, e.g. when names go public. */
+  note?: ReactNode;
 }) {
   const delta = original.perform && draft.perform && draft.day === original.day ? toMinutes(draft.perform) - toMinutes(original.perform) : 0;
   return (
     <div className="space-y-4">
+      {note}
       {bandOptions && onBandChange && (
         <Field label="Finalist">
           <Select value={bandId ?? ""} onChange={(e) => onBandChange(e.target.value)}>
