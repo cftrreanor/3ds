@@ -742,4 +742,33 @@ exception when insufficient_privilege then null;
 end $$;
 reset role;
 
+-- The host's phone reaches directors only the day before and on contest day.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.event_director_contacts (event_id, name, phone, email)
+values ('10000000-0000-0000-0000-00000000000b', 'Hana Host', '+15125550101', 'host@example.com');
+do $$ begin
+  assert public.director_contact_phone('10000000-0000-0000-0000-00000000000a') = '+15125550101',
+         'the host always sees their own contact phone';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert public.director_contact_phone('10000000-0000-0000-0000-00000000000a') is null,
+         'directors do not get the phone ten days out';
+  assert (select has_phone from public.event_director_contacts where event_id = '10000000-0000-0000-0000-00000000000a'),
+         'directors can tell a phone number exists';
+  assert public.director_contact_phone('10000000-0000-0000-0000-00000000000b') = '+15125550101',
+         'directors get the phone on contest day';
+  begin
+    perform phone from public.event_director_contacts;
+    raise exception 'FAIL: a director read the phone column directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert public.director_contact_phone('10000000-0000-0000-0000-00000000000b') is null, 'strangers never get the phone';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

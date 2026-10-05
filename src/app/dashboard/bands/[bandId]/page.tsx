@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Badge, Card } from "@/components/ui";
@@ -8,8 +9,10 @@ import { BAND_COLUMNS, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } 
 import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
+import { CONTEST_INFO_COOKIE } from "@/lib/preferences";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
+import { CollapsibleInfo } from "./collapsible-info";
 
 export const metadata: Metadata = { title: "Contest" };
 
@@ -24,7 +27,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const band = data as BandRow | null;
   if (!band) notFound();
 
-  const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }] = await Promise.all([
+  const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }, { data: phone }, cookieStore] = await Promise.all([
     supabase
       .from("events")
       .select(
@@ -34,7 +37,9 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       .single(),
     supabase.from("performance_slots").select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
     supabase.from("finals_slots").select("slot_number, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
-    supabase.from("event_director_contacts").select("name, phone, email").eq("event_id", band.event_id).maybeSingle(),
+    supabase.from("event_director_contacts").select("name, email, has_phone").eq("event_id", band.event_id).maybeSingle(),
+    supabase.rpc("director_contact_phone", { ev: band.event_id }),
+    cookies(),
   ]);
   if (!event) notFound();
   const open = registrationIsOpen(event);
@@ -46,7 +51,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   })}`;
   const calendar = (round: "order" | "finals", times: BandTimes) =>
     bandCalendarEvent({ bandId, bandName: band.band_name, round, times, event, url: `${origin}/dashboard/bands/${bandId}` });
-  const hasContact = contact && (contact.name || contact.phone || contact.email);
+  const hasContact = contact && (contact.name || contact.has_phone || contact.email);
+  const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -79,35 +85,32 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           </Link>
         </p>
         {(hasContact || event.director_info) && (
-          <details open className="group mt-3">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-brand [&::-webkit-details-marker]:hidden">
-              Contest info &amp; contact
-              <span aria-hidden="true" className="text-muted transition group-open:rotate-180">
-                ▾
-              </span>
-            </summary>
+          <CollapsibleInfo initialOpen={infoOpen}>
             {hasContact && (
               <p className="mt-2 flex flex-wrap gap-x-3 text-muted">
-                <span>Questions? {contact.name || "Contact the host"}</span>
-                {contact.phone && (
-                  <>
-                    <a href={`tel:${contact.phone}`} className={linkClass}>
-                      Call {formatPhone(contact.phone)}
-                    </a>
-                    <a href={`sms:${contact.phone}`} className={linkClass}>
-                      Text
-                    </a>
-                  </>
-                )}
+                <span>{contact.name || "Host contact"}</span>
                 {contact.email && (
                   <a href={`mailto:${contact.email}`} className={linkClass}>
                     Email
                   </a>
                 )}
+                {/* No digits on screen; the number itself only unlocks around contest day. */}
+                {phone ? (
+                  <>
+                    <a href={`tel:${phone}`} className={linkClass}>
+                      Call
+                    </a>
+                    <a href={`sms:${phone}`} className={linkClass}>
+                      Text
+                    </a>
+                  </>
+                ) : (
+                  contact.has_phone && <span className="text-sm">Call or text from the day before the contest</span>
+                )}
               </p>
             )}
             {event.director_info && <p className="mt-2 whitespace-pre-line text-sm leading-6">{event.director_info}</p>}
-          </details>
+          </CollapsibleInfo>
         )}
         <p className="mt-4">
           <span aria-hidden="true">🎺</span> <span className="font-semibold">{band.band_name}</span>{" "}
