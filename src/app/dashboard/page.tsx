@@ -47,8 +47,10 @@ function isPast(e: { ends_on: string; timezone: string }) {
 export default async function DashboardPage() {
   const user = await requireUser();
   const supabase = await createClient();
-  const [org, { data: staffRows }, { data: bandRows }] = await Promise.all([
+  const [org, { data: orgRows }, { data: staffRows }, { data: bandRows }] = await Promise.all([
     getMyOrganization(),
+    // Every organization you host or co-host (RLS shows only your own).
+    supabase.from("organizations").select("id, name").order("created_at"),
     supabase.from("event_staff").select(`role, events(${EVENT_COLUMNS})`).eq("user_id", user.id),
     supabase
       .from("bands")
@@ -66,9 +68,14 @@ export default async function DashboardPage() {
     .filter((r): r is StaffEvent & { events: EventSummary } => r.events != null)
     .sort((a, b) => a.events.starts_on.localeCompare(b.events.starts_on));
 
-  const hosted = org
+  const orgs = orgRows ?? [];
+  const hosted = orgs.length
     ? ((
-        await supabase.from("events").select(EVENT_COLUMNS).eq("organization_id", org.id).order("starts_on", { ascending: true })
+        await supabase
+          .from("events")
+          .select(EVENT_COLUMNS)
+          .in("organization_id", orgs.map((o) => o.id))
+          .order("starts_on", { ascending: true })
       ).data ?? []) as EventSummary[]
     : [];
 
@@ -98,7 +105,7 @@ export default async function DashboardPage() {
         <Section
           icon="🏟️"
           title="Hosting"
-          description={`Contests ${org.name} is putting on.`}
+          description={`Contests ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`}
           action={
             <Link
               href="/dashboard/events/new"
@@ -259,7 +266,7 @@ function BandCard({ band: b }: { band: MyBand & { events: NonNullable<MyBand["ev
   );
 }
 
-const ROLE_LABEL = { volunteer_director: "Volunteer Director", section_lead: "Section Lead" } as const;
+const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
 
 function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } }) {
   return (

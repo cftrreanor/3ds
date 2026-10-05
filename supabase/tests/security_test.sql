@@ -83,11 +83,13 @@ insert into public.event_staff (event_id, user_id, role) values
   ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000003', 'section_lead'),
   ('10000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-000000000003', 'section_lead');
 
-insert into public.stations (id, event_id, name, station_type, lead_user_id) values
-  ('20000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', 'Parking', 'passive',
-   '00000000-0000-0000-0000-000000000003'),
-  ('20000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-00000000000b', 'Warm-Up A', 'active_checkpoint',
-   '00000000-0000-0000-0000-000000000003');
+insert into public.stations (id, event_id, name, station_type) values
+  ('20000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', 'Parking', 'passive'),
+  ('20000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-00000000000b', 'Warm-Up A', 'active_checkpoint');
+
+insert into public.station_leads (station_id, user_id, event_id) values
+  ('20000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-00000000000a'),
+  ('20000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-00000000000b');
 
 insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
   ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'Morning Parking',
@@ -332,8 +334,8 @@ do $$ begin
   exception when check_violation then null;
   end;
   begin
-    update public.stations set lead_user_id = '00000000-0000-0000-0000-000000000006'
-     where id = '20000000-0000-0000-0000-00000000000a';
+    insert into public.station_leads (station_id, user_id, event_id)
+    values ('20000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-00000000000a');
     raise exception 'FAIL: made a non-team member a station lead';
   exception when check_violation then null;
   end;
@@ -382,8 +384,13 @@ select public.accept_invitation(current_setting('test.token')::uuid) \g /dev/nul
 do $$ begin
   assert exists (select 1 from public.event_staff where user_id = auth.uid() and role = 'section_lead'),
          'accepting adds the person to the team';
-  assert (select lead_user_id from public.stations where id = '20000000-0000-0000-0000-00000000000a') = auth.uid(),
-         'accepting makes them lead of the invited station';
+  assert exists (select 1 from public.station_leads where station_id = '20000000-0000-0000-0000-00000000000a' and user_id = auth.uid()),
+         'accepting makes them a lead of the invited station';
+  assert (select count(*) from public.station_leads where station_id = '20000000-0000-0000-0000-00000000000a') = 2,
+         'a station can have more than one lead';
+  assert (select lead_user_id from public.stations where id = '20000000-0000-0000-0000-00000000000a') = '00000000-0000-0000-0000-000000000003',
+         'the first lead stays the volunteers'' contact';
+  assert public.leads_station('20000000-0000-0000-0000-00000000000a'), 'a second lead gets lead access';
 end $$;
 
 -- The host sees the new lead's name; removing them clears their station.
@@ -392,8 +399,17 @@ do $$ begin
   assert (select full_name from public.profiles where id = '00000000-0000-0000-0000-000000000007') = 'Nia Newlead',
          'host can see their team''s names';
   delete from public.event_staff where user_id = '00000000-0000-0000-0000-000000000007';
+  assert not exists (select 1 from public.station_leads where user_id = '00000000-0000-0000-0000-000000000007'),
+         'removing a lead from the team takes them off their stations';
+  -- Removing the first lead hands the volunteers' contact to the next one.
+  delete from public.station_leads where station_id = '20000000-0000-0000-0000-00000000000a'
+     and user_id = '00000000-0000-0000-0000-000000000003';
   assert (select lead_user_id from public.stations where id = '20000000-0000-0000-0000-00000000000a') is null,
-         'removing a lead clears their station';
+         'with no leads left, the station has no contact';
+  insert into public.station_leads (station_id, user_id, event_id)
+  values ('20000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-00000000000a');
+  assert (select lead_user_id from public.stations where id = '20000000-0000-0000-0000-00000000000a') = '00000000-0000-0000-0000-000000000003',
+         'adding a lead back makes them the contact';
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -845,5 +861,88 @@ do $$ begin
 end $$;
 reset role;
 drop table v;
+
+-- ---------------------------------------------------------------------------
+-- Several Volunteer Leads; several Section Leads per station
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-000000000008', 'second@example.com', '{"full_name":"Val Second"}');
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000008', 'volunteer_director');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000008","email":"second@example.com"}';
+do $$ begin
+  assert public.can_manage_volunteers('10000000-0000-0000-0000-00000000000a'), 'a second Volunteer Lead can manage volunteers';
+  insert into public.station_leads (station_id, user_id, event_id)
+  values ('20000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-00000000000a');
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.station_leads where station_id = '20000000-0000-0000-0000-00000000000a') = 2,
+         'leads see their station''s other leads';
+  begin
+    insert into public.station_leads (station_id, user_id, event_id)
+    values ('20000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-00000000000a');
+    raise exception 'FAIL: a Section Lead added a lead';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.stations set lead_user_id = null where id = '20000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: set the derived lead column directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.station_leads where user_id = '00000000-0000-0000-0000-000000000008';
+delete from public.event_staff where user_id = '00000000-0000-0000-0000-000000000008';
+
+-- ---------------------------------------------------------------------------
+-- Co-hosts
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-000000000009', 'cohost@example.com', '{"full_name":"Cory Cohost"}');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  insert into public.invitations (event_id, email, as_host, invited_by)
+  values ('10000000-0000-0000-0000-00000000000a', 'cohost@example.com', true, auth.uid());
+  raise exception 'FAIL: a Volunteer Lead invited a co-host';
+exception when insufficient_privilege then null;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.invitations (event_id, email, as_host, invited_by)
+values ('10000000-0000-0000-0000-00000000000a', 'cohost@example.com', true, '00000000-0000-0000-0000-000000000001');
+select set_config('test.host_token', (select token::text from public.invitations where email = 'cohost@example.com'), false) \g /dev/null
+reset role;
+set role anon;
+do $$ declare r record; begin
+  select * into r from public.get_invitation(current_setting('test.host_token')::uuid);
+  assert r.as_host and r.role is null, 'the invite page knows it is a co-host invitation';
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000009","email":"cohost@example.com"}';
+select public.accept_invitation(current_setting('test.host_token')::uuid) \g /dev/null
+do $$ begin
+  assert public.is_event_admin('10000000-0000-0000-0000-00000000000a'), 'a co-host can run the organization''s events';
+  assert not exists (select 1 from public.event_staff where user_id = auth.uid()), 'a co-host is not event staff';
+  begin
+    delete from public.organization_members where role = 'owner';
+    if found then raise exception 'FAIL: a co-host removed the owner'; end if;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  delete from public.organization_members where user_id = '00000000-0000-0000-0000-000000000009';
+  if found then raise exception 'FAIL: a Volunteer Lead removed a co-host'; end if;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select full_name from public.profiles where id = '00000000-0000-0000-0000-000000000009') = 'Cory Cohost',
+         'the host sees their co-host''s name';
+  delete from public.organization_members where user_id = '00000000-0000-0000-0000-000000000009';
+  assert found, 'the host can remove a co-host';
+end $$;
+reset role;
 
 \echo 'All database security tests passed.'

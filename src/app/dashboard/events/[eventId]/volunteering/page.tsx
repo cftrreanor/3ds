@@ -14,8 +14,10 @@ import { StationPanel, type RosterEntry, type Shift, type Station } from "../sta
 
 export const metadata: Metadata = { title: "Volunteer Registration" };
 
+type HostRow = { user_id: string; role: "owner" | "admin"; profiles: { full_name: string; email: string } | null };
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: { full_name: string; email: string } | null };
-const ROLE_LABEL = { volunteer_director: "Volunteer Director", section_lead: "Section Lead" } as const;
+const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
+const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 
 /** Volunteer signup and one tab per station (section) with its own shift schedule. */
 export default async function VolunteeringPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/volunteering">) {
@@ -28,12 +30,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end")
+    .select("id, organization_id, slug, name, status, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
 
-  const [{ data: stationData }, { data: shiftData }, { data: staff }] = await Promise.all([
+  const [{ data: stationData }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, station_type, location, instructions, lead_user_id")
@@ -46,19 +48,29 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       .eq("event_id", eventId)
       .order("starts_at"),
     supabase.from("event_staff").select("user_id, role, profiles(full_name, email)").eq("event_id", eventId),
+    supabase.from("station_leads").select("station_id, user_id").eq("event_id", eventId).order("created_at"),
+    // Only hosts can read the organization's members (co-hosts can lead stations too).
+    access.isHost
+      ? supabase
+          .from("organization_members")
+          .select("user_id, role, profiles(full_name, email)")
+          .eq("organization_id", event.organization_id)
+          .order("created_at")
+      : Promise.resolve({ data: [] }),
   ]);
   // Check-in (band checkpoint) stations first, matching the volunteer signup page.
-  const stations = [...((stationData ?? []) as Station[])].sort(
-    (a, b) => Number(b.station_type === "active_checkpoint") - Number(a.station_type === "active_checkpoint"),
-  );
+  const stations = ((stationData ?? []) as Omit<Station, "lead_ids">[])
+    .map((st) => ({ ...st, lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id) }))
+    .sort((a, b) => Number(b.station_type === "active_checkpoint") - Number(a.station_type === "active_checkpoint"));
   const shifts = (shiftData ?? []) as Shift[];
   const staffRows = (staff ?? []) as unknown as StaffRow[];
+  const hosts = (hostData ?? []) as unknown as HostRow[];
 
   // The open tab: ?station=<id>, "new" to add one, or the first station.
   const current = tab === "new" || stations.length === 0 ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
   const roster =
-    current && current.lead_user_id === user.id
+    current && current.lead_ids.includes(user.id)
       ? (((await supabase.rpc("station_roster", { p_station_id: current.id })).data ?? []) as RosterEntry[])
       : undefined;
 
@@ -77,12 +89,15 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const nameOf = (userId: string | null) => {
     if (!userId) return null;
     if (userId === user.id) return "You";
-    const p = staffRows.find((s) => s.user_id === userId)?.profiles;
+    const p = [...staffRows, ...hosts].find((s) => s.user_id === userId)?.profiles;
     return p?.full_name || p?.email || "Team member";
   };
   const leadOptions: LeadOption[] = [
     ...(access.isHost ? [{ id: user.id, label: "Me" }] : []),
-    ...[...new Map(staffRows.filter((s) => s.user_id !== user.id).map((s) => [s.user_id, s])).values()].map((s) => ({
+    ...hosts
+      .filter((h) => h.user_id !== user.id)
+      .map((h) => ({ id: h.user_id, label: `${h.profiles?.full_name || h.profiles?.email || "Team member"} (${HOST_LABEL[h.role]})` })),
+    ...[...new Map(staffRows.filter((s) => s.user_id !== user.id && !hosts.some((h) => h.user_id === s.user_id)).map((s) => [s.user_id, s])).values()].map((s) => ({
       id: s.user_id,
       label: `${s.profiles?.full_name || s.profiles?.email || "Team member"} (${ROLE_LABEL[s.role]})`,
     })),
@@ -210,7 +225,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               windowLabel={windowLabel}
               userId={user.id}
               canManage
-              leadName={nameOf(current.lead_user_id)}
+              leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
               leadOptions={leadOptions}
               roster={roster}
             />
