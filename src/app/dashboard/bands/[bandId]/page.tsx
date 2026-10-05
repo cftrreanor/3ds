@@ -94,8 +94,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
                     Email
                   </a>
                 )}
-                {/* No digits on screen; the number itself only unlocks around contest day. */}
-                {phone ? (
+                {/* No digits on screen; the number only unlocks the day before and on contest day. */}
+                {phone && (
                   <>
                     <a href={`tel:${phone}`} className={linkClass}>
                       Call
@@ -104,8 +104,6 @@ export default async function BandContestPage({ params, searchParams }: PageProp
                       Text
                     </a>
                   </>
-                ) : (
-                  contact.has_phone && <span className="text-sm">Call or text from the day before the contest</span>
                 )}
               </p>
             )}

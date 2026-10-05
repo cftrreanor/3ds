@@ -45,9 +45,8 @@ export function BandSettingsForm({
       <fieldset className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
         <legend className="mb-1 text-sm font-medium">Contact for band directors</legend>
         <p className="-mt-2 text-sm text-muted sm:col-span-3">
-          Only directors registered for this contest (and your team) can see this. Directors only see the phone number
-          the day before and on contest day, as Call and Text buttons. Tip: a free Google Voice number keeps a personal
-          cell private.
+          Only directors registered for this contest (and your team) can see this. Call and Text buttons appear for
+          directors the day before and on contest day.
           {!contactSaved && " We've filled in your details; change them if someone else handles bands."}
         </p>
         <Field label="Name">
