@@ -1,6 +1,7 @@
 "use client";
 
 import { ActionForm } from "@/components/action-form";
+import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Card, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
@@ -97,14 +98,11 @@ export function BandForm({
           <h2 className="font-semibold">Who&apos;s coming</h2>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Student performers">
-              <Input name="studentCount" type="number" min={0} max={1000} required defaultValue={num(initial.student_count)} />
+              <NumberInput name="studentCount" required defaultValue={num(initial.student_count)} />
             </Field>
             <Field label="Chaperones" hint={`Up to ${chaperoneLimit} for this event.`}>
-              <Input
+              <NumberInput
                 name="chaperoneCount"
-                type="number"
-                min={0}
-                max={chaperoneLimit}
                 required
                 defaultValue={num(initial.chaperone_count)}
               />
@@ -119,16 +117,16 @@ export function BandForm({
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Field label="Buses">
-              <Input name="busCount" type="number" min={0} max={50} defaultValue={num(initial.bus_count ?? 0)} />
+              <NumberInput name="busCount" defaultValue={num(initial.bus_count ?? 0)} />
             </Field>
             <Field label="Box trucks">
-              <Input name="boxTruckCount" type="number" min={0} max={20} defaultValue={num(initial.box_truck_count ?? 0)} />
+              <NumberInput name="boxTruckCount" defaultValue={num(initial.box_truck_count ?? 0)} />
             </Field>
             <Field label="Truck + trailer">
-              <Input name="truckTrailerCount" type="number" min={0} max={20} defaultValue={num(initial.truck_trailer_count ?? 0)} />
+              <NumberInput name="truckTrailerCount" defaultValue={num(initial.truck_trailer_count ?? 0)} />
             </Field>
             <Field label="Semi trucks (18-wheelers)">
-              <Input name="semiTruckCount" type="number" min={0} max={20} defaultValue={num(initial.semi_truck_count ?? 0)} />
+              <NumberInput name="semiTruckCount" defaultValue={num(initial.semi_truck_count ?? 0)} />
             </Field>
           </div>
         </Card>

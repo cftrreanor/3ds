@@ -117,8 +117,8 @@ export type BandRow = {
 export const BAND_COLUMNS =
   "id, event_id, director_user_id, school_name, band_name, classification, school_address, contact_email, head_director_name, head_director_email, head_director_phone, assistant_directors, student_count, chaperone_count, bus_count, box_truck_count, truck_trailer_count, semi_truck_count, contest_day_conflicts, special_needs, status, created_at";
 
-/** Ready position: lined up and waiting this many minutes before performing. */
-export const READY_MINUTES_BEFORE = 5;
+/** Ready position default: lined up this many minutes before performing. Hosts can change it per event. */
+export const DEFAULT_READY_MINUTES = 5;
 
 const addMinutes = (iso: string, minutes: number) => new Date(new Date(iso).getTime() + minutes * 60_000).toISOString();
 
@@ -127,4 +127,5 @@ export const warmUpEndAt = (warmUpAt: string | null, minutes: number | null) =>
   warmUpAt && minutes ? addMinutes(warmUpAt, minutes) : null;
 
 /** When the band must be in the ready position. */
-export const readyAt = (performAt: string | null) => (performAt ? addMinutes(performAt, -READY_MINUTES_BEFORE) : null);
+export const readyAt = (performAt: string | null, minutesBefore: number) =>
+  performAt ? addMinutes(performAt, -minutesBefore) : null;

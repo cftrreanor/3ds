@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
-import { bandColumns, parseBand, READY_MINUTES_BEFORE, readyAt, warmUpEndAt } from "@/lib/bands";
+import { bandColumns, parseBand, readyAt, warmUpEndAt } from "@/lib/bands";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
@@ -131,7 +131,7 @@ const slotSchema = z.array(
 );
 
 /** Save the running order. Times arrive as the event's local wall-clock times. */
-export async function saveRunningOrder(eventId: string, slotsJson: string): Promise<ActionState> {
+export async function saveRunningOrder(eventId: string, slotsJson: string, readyMinutes: string): Promise<ActionState> {
   await requireUser();
   let raw: unknown;
   try {
@@ -141,7 +141,11 @@ export async function saveRunningOrder(eventId: string, slotsJson: string): Prom
   }
   const parsed = slotSchema.safeParse(raw);
   if (!parsed.success) return { error: "Something about the order wasn't valid. Please try again." };
+  const ready = z.string().regex(/^\d{1,2}$/).transform(Number).pipe(z.number().max(60)).safeParse(readyMinutes);
+  if (!ready.success) return { error: "Ready position: enter a number of minutes from 0 to 60." };
 
+  const saved = await updateEventRow(eventId, { ready_minutes_before: ready.data });
+  if (saved.error) return saved;
   const supabase = await createClient();
   const { data: event } = await supabase.from("events").select("timezone").eq("id", eventId).single();
   if (!event) return { error: "Event not found." };
@@ -166,7 +170,7 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
 
   const supabase = await createClient();
   const [{ data: event }, { data: slots }] = await Promise.all([
-    supabase.from("events").select("name, slug, timezone, venue_name, venue_address").eq("id", eventId).single(),
+    supabase.from("events").select("name, slug, timezone, venue_name, venue_address, ready_minutes_before").eq("id", eventId).single(),
     supabase
       .from("performance_slots")
       .select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location, bands(band_name, school_name, contact_email, head_director_email)")
@@ -205,7 +209,7 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
               .filter(Boolean)
               .join(" · "),
           },
-          { title: "Ready position", detail: `${at(readyAt(s.perform_at))} (${READY_MINUTES_BEFORE} min before performing)` },
+          { title: "Ready position", detail: `${at(readyAt(s.perform_at, event.ready_minutes_before))} (${event.ready_minutes_before} min before performing)` },
           { title: "Performance", detail: at(s.perform_at) },
           { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },
         ],

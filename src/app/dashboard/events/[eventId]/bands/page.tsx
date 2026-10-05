@@ -8,7 +8,7 @@ import {
   updateBandSettings,
 } from "@/app/dashboard/band-actions";
 import { Badge, Card } from "@/components/ui";
-import { BAND_COLUMNS, READY_MINUTES_BEFORE, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
@@ -36,7 +36,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, performance_order_published, chaperone_limit, classifications")
+    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) notFound();
@@ -172,11 +172,16 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             </Badge>
           </div>
           <p className="mt-1 mb-4 text-sm text-muted">
-            Put bands in order and set their times ({zoneName(tz)}). The ready position is {READY_MINUTES_BEFORE}{" "}
-            minutes before each performance. Directors and the public only see the order once you publish. Conflicts
-            directors reported are shown with ⚠️.
+            Put bands in order and set their times ({zoneName(tz)}). Directors and the public only see the order once
+            you publish. Conflicts directors reported are shown with ⚠️.
           </p>
-          <OrderBuilder initial={builderBands} days={days} save={saveRunningOrder.bind(null, eventId)} zoneLabel={zoneName(tz)} />
+          <OrderBuilder
+            initial={builderBands}
+            days={days}
+            save={saveRunningOrder.bind(null, eventId)}
+            zoneLabel={zoneName(tz)}
+            initialReadyMinutes={event.ready_minutes_before}
+          />
           {bands.length > 0 && (
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {event.performance_order_published ? (
