@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { getEventAccess, getOrigin } from "@/lib/data";
-import { formatPhone } from "@/lib/phone";
+import { getEventAccess } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -15,15 +14,14 @@ import {
   zoneName,
 } from "@/lib/time";
 import { setEventPublished } from "../../actions";
-import { cancelInvitation, inviteMember, removeCoHost, removeMember } from "../../team-actions";
-import { ActionButton, CopyLinkButton, DeleteButton, InviteForm, RemoveButton, type LeadOption } from "./forms";
+import { ActionButton, type LeadOption } from "./forms";
 import { StationPanel, type RosterEntry, type Shift } from "./station-panel";
 
 export const metadata: Metadata = { title: "Event setup" };
 
 type Person = { full_name: string; email: string; phone: string | null } | null;
-type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: Person };
-type HostRow = { user_id: string; role: "owner" | "admin"; profiles: Person };
+type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; created_at: string; profiles: Person };
+type HostRow = { user_id: string; role: "owner" | "admin"; created_at: string; profiles: Person };
 type Invitation = {
   id: string;
   email: string;
@@ -72,7 +70,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       .select("id, station_id, title, description, starts_at, ends_at, max_capacity, registered_count")
       .eq("event_id", eventId)
       .order("starts_at"),
-    supabase.from("event_staff").select("user_id, role, profiles(full_name, email, phone)").eq("event_id", eventId),
+    supabase.from("event_staff").select("user_id, role, created_at, profiles(full_name, email, phone)").eq("event_id", eventId),
     access.canManage
       ? supabase
           .from("invitations")
@@ -92,7 +90,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     access.isHost
       ? supabase
           .from("organization_members")
-          .select("user_id, role, profiles(full_name, email, phone)")
+          .select("user_id, role, created_at, profiles(full_name, email, phone)")
           .eq("organization_id", event.organization_id)
           .order("created_at")
       : Promise.resolve({ data: [] }),
@@ -108,7 +106,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const days = eachDate(event.starts_on, event.ends_on);
   const multiDay = days.length > 1;
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
-  const origin = await getOrigin();
 
   const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
 
@@ -150,6 +147,45 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     })),
   ];
   const stationName = (id: string | null) => stations.find((s) => s.id === id)?.name;
+
+  // Team card: what needs doing, then who joined this past week.
+  const openInvites = (invitations ?? []) as Invitation[];
+  const expiredInvites = openInvites.filter((inv) => new Date(inv.expires_at) < new Date());
+  const unled = stations.filter((s) => s.lead_ids.length === 0);
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const joined = [
+    ...hosts.filter((h) => h.role === "admin").map((h) => ({ ...h, label: "co-host" })),
+    ...staffRows.map((s) => ({ ...s, label: ROLE_LABEL[s.role] })),
+  ]
+    .filter((j) => new Date(j.created_at) >= weekAgo && j.user_id !== user.id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 3);
+  const teamUpdates: TeamUpdate[] = [
+    ...(unled.length
+      ? [
+          {
+            tone: "warn" as const,
+            text: `${unled.length === 1 ? "1 station needs" : `${unled.length} stations need`} a Section Lead: ${unled.map((s) => s.name).join(", ")}`,
+            tab: "section-leads",
+          },
+        ]
+      : []),
+    ...(expiredInvites.length
+      ? [
+          {
+            tone: "warn" as const,
+            text: `${expiredInvites.length === 1 ? "1 invitation has" : `${expiredInvites.length} invitations have`} expired. Cancel and send a new one.`,
+            tab: expiredInvites[0].as_host ? "hosts" : expiredInvites[0].role === "volunteer_director" ? "volunteer-leads" : "section-leads",
+          },
+        ]
+      : []),
+    ...joined.map((j) => ({
+      tone: "good" as const,
+      text: `${j.profiles?.full_name || j.profiles?.email || "Someone"} joined as ${j.label === "co-host" ? "a co-host" : `a ${j.label}`} · ${formatDate(utcToZonedDate(j.created_at, tz), { year: undefined })}`,
+      tab: null,
+    })),
+  ];
   const today = utcToZonedDate(new Date().toISOString(), tz);
   const isEventDay = today >= event.starts_on && today <= event.ends_on;
   const [{ count: volunteerCount }, { data: checkins }] = access.canManage
@@ -236,145 +272,26 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           <h2 id="team-heading" className="text-lg font-semibold">
             Team
           </h2>
-          <Card className="mt-4 space-y-6">
-            {access.isHost && (
-              <div>
-                <h3 className="text-sm font-semibold">Hosts</h3>
-                <p className="mt-0.5 text-sm text-muted">Full access to all of your organization&apos;s events.</p>
-                <ul className="mt-2 space-y-2">
-                  {hosts.map((h) => (
-                    <PersonRow key={h.user_id} person={h.profiles} isYou={h.user_id === user.id} detail={HOST_LABEL[h.role]}>
-                      {h.role === "admin" && (
-                        <RemoveButton
-                          action={removeCoHost.bind(null, eventId, h.user_id)}
-                          label={h.user_id === user.id ? "Stop being a co-host" : "Remove co-host"}
-                          confirmMessage={
-                            h.user_id === user.id
-                              ? "Stop being a co-host? You'll lose access to all of this organization's events."
-                              : "Remove this co-host? They'll lose access to all of your organization's events."
-                          }
-                        />
-                      )}
-                    </PersonRow>
-                  ))}
-                </ul>
-                {hosts.length < 2 && (
-                  <p className="mt-2 text-sm text-muted">Running it with someone? Invite them as a co-host below.</p>
-                )}
-              </div>
-            )}
-
-            <div>
-              <h3 className="text-sm font-semibold">Volunteer Leads</h3>
-              <p className="mt-0.5 text-sm text-muted">They run volunteers with you: stations, shifts, signups and check-in.</p>
-              {directors.length > 0 ? (
-                <ul className="mt-2 space-y-2">
-                  {directors.map((d) => (
-                    <PersonRow key={d.user_id} person={d.profiles} isYou={d.user_id === user.id}>
-                      {access.isHost && (
-                        <RemoveButton
-                          action={removeMember.bind(null, eventId, d.user_id, d.role)}
-                          label="Remove Volunteer Lead"
-                          confirmMessage="Remove this Volunteer Lead from the event?"
-                        />
-                      )}
-                    </PersonRow>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-1 text-sm leading-6 text-muted">
-                  {access.isHost
-                    ? "You're running volunteers yourself as the host. Invite one or more Volunteer Leads below to share the work."
-                    : "The host is running volunteers."}
-                </p>
-              )}
+          <Card className="mt-4 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads and Section Leads, and their invitations.</p>
+              <Link
+                href={`/dashboard/events/${eventId}/team`}
+                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+              >
+                Manage team
+              </Link>
             </div>
-
-            <div>
-              <h3 className="text-sm font-semibold">Section Leads</h3>
-              {leads.length > 0 ? (
-                <ul className="mt-2 space-y-2">
-                  {leads.map((l) => {
-                    const led = stations.filter((s) => s.lead_ids.includes(l.user_id)).map((s) => s.name);
-                    return (
-                      <PersonRow
-                        key={l.user_id}
-                        person={l.profiles}
-                        isYou={l.user_id === user.id}
-                        detail={led.length ? `Leads ${led.join(", ")}` : "No station yet"}
-                      >
-                        <RemoveButton
-                          action={removeMember.bind(null, eventId, l.user_id, l.role)}
-                          label="Remove Section Lead"
-                          confirmMessage="Remove this Section Lead from the event? They'll be taken off their stations."
-                        />
-                      </PersonRow>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="mt-1 text-sm text-muted">
-                  None yet. Section Leads run a station on the day, like the Parking lead.
-                </p>
-              )}
-            </div>
-
-            {(invitations ?? []).length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold">Waiting to accept</h3>
-                <ul className="mt-2 space-y-2">
-                  {(invitations as Invitation[]).map((inv) => (
-                    <li
-                      key={inv.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{inv.email}</p>
-                        <p className="text-sm text-muted">
-                          {inv.as_host || !inv.role ? "Co-host" : ROLE_LABEL[inv.role]}
-                          {inv.station_id && stationName(inv.station_id) ? ` · ${stationName(inv.station_id)}` : ""}
-                          {new Date(inv.expires_at) < new Date() ? " · Expired" : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <CopyLinkButton url={`${origin}/invite/${inv.token}`} />
-                        {(access.isHost || inv.role === "section_lead") && (
-                          <DeleteButton
-                            action={cancelInvitation.bind(null, eventId, inv.id)}
-                            label={`Cancel invitation for ${inv.email}`}
-                            confirmMessage={`Cancel the invitation for ${inv.email}?`}
-                            text="Cancel"
-                          />
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <details className="rounded-lg border border-border px-4 py-3">
-              <summary className="cursor-pointer text-sm font-medium">Invite someone</summary>
-              <div className="mt-4 space-y-4">
-                <p className="text-sm leading-6 text-muted">
-                  We&apos;ll create a private link. Send it to them by text or email; they sign in with the
-                  email you enter here to join.
-                </p>
-                <InviteForm
-                  action={inviteMember.bind(null, eventId)}
-                  roles={
-                    access.isHost
-                      ? [
-                          { value: "section_lead", label: "Section Lead" },
-                          { value: "volunteer_director", label: "Volunteer Lead" },
-                          { value: "host", label: "Co-host" },
-                        ]
-                      : [{ value: "section_lead", label: "Section Lead" }]
-                  }
-                  stations={stations.map((s) => ({ id: s.id, name: s.name }))}
-                />
-              </div>
-            </details>
+            <TeamStats
+              eventId={eventId}
+              counts={[
+                ...(access.isHost ? [{ label: "Hosts", value: hosts.length, tab: "hosts" }] : []),
+                { label: "Volunteer Leads", value: directors.length, tab: "volunteer-leads" },
+                { label: "Section Leads", value: leads.length, tab: "section-leads" },
+                { label: "Waiting to accept", value: openInvites.length, tab: null },
+              ]}
+              updates={teamUpdates}
+            />
           </Card>
         </section>
       )}
@@ -473,30 +390,49 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   );
 }
 
-function PersonRow({
-  person,
-  isYou,
-  detail,
-  children,
+type TeamUpdate = { tone: "warn" | "good"; text: string; tab: string | null };
+
+/** The Team card's numbers and what's new or needs attention. */
+function TeamStats({
+  eventId,
+  counts,
+  updates,
 }: {
-  person: Person;
-  isYou: boolean;
-  detail?: string;
-  children?: React.ReactNode;
+  eventId: string;
+  counts: { label: string; value: number; tab: string | null }[];
+  updates: TeamUpdate[];
 }) {
+  const href = (tab: string | null) => `/dashboard/events/${eventId}/team${tab ? `?tab=${tab}` : ""}`;
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">
-          {person?.full_name || person?.email || "Team member"}
-          {isYou && <span className="font-normal text-muted"> (you)</span>}
-        </p>
-        <p className="text-sm text-muted">
-          {[person?.email, formatPhone(person?.phone), detail].filter(Boolean).join(" · ")}
-        </p>
+    <div className="space-y-4 border-t border-border pt-4">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {counts.map((c) => (
+          <Link key={c.label} href={href(c.tab)} className="rounded-lg bg-background px-3 py-2 hover:ring-1 hover:ring-border">
+            <dt className="text-xs text-muted">{c.label}</dt>
+            <dd className="text-xl font-semibold tabular-nums">{c.value}</dd>
+          </Link>
+        ))}
+      </dl>
+      <div>
+        <h3 className="text-sm font-semibold">Updates</h3>
+        {updates.length > 0 ? (
+          <ul className="mt-2 space-y-1.5">
+            {updates.map((u) => (
+              <li key={u.text} className="flex gap-2 text-sm leading-6">
+                <span aria-hidden className={u.tone === "warn" ? "text-danger" : "text-success"}>
+                  {u.tone === "warn" ? "●" : "✓"}
+                </span>
+                <Link href={href(u.tab)} className="hover:underline underline-offset-4">
+                  {u.text}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-sm text-muted">Nothing new. Every station has a lead and no invitations have expired.</p>
+        )}
       </div>
-      {children}
-    </li>
+    </div>
   );
 }
 
