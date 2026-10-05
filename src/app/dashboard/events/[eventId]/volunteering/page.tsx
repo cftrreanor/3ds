@@ -47,7 +47,10 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       .order("starts_at"),
     supabase.from("event_staff").select("user_id, role, profiles(full_name, email)").eq("event_id", eventId),
   ]);
-  const stations = (stationData ?? []) as Station[];
+  // Check-in (band checkpoint) stations first, matching the volunteer signup page.
+  const stations = [...((stationData ?? []) as Station[])].sort(
+    (a, b) => Number(b.station_type === "active_checkpoint") - Number(a.station_type === "active_checkpoint"),
+  );
   const shifts = (shiftData ?? []) as Shift[];
   const staffRows = (staff ?? []) as unknown as StaffRow[];
 

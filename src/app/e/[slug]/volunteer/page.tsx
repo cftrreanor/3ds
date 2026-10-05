@@ -34,7 +34,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
   const [{ data: stations }, { data: shifts }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, location, instructions")
+      .select("id, name, station_type, location, instructions")
       .eq("event_id", event.id)
       .order("sort_order")
       .order("created_at"),
@@ -48,7 +48,9 @@ export default async function VolunteerSignupPage({ params }: Params) {
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
-  const publicStations: PublicStation[] = (stations ?? [])
+  // Check-in (band checkpoint) stations first: they matter most on the day.
+  const publicStations: PublicStation[] = [...(stations ?? [])]
+    .sort((a, b) => Number(b.station_type === "active_checkpoint") - Number(a.station_type === "active_checkpoint"))
     .map((st) => ({
       ...st,
       shifts: (shifts ?? [])
