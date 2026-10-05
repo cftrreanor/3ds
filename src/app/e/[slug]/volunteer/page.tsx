@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
+import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/ui";
-import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 import { signUpVolunteer } from "./actions";
@@ -71,11 +71,9 @@ export default async function VolunteerSignupPage({ params }: Params) {
   })}`;
 
   return (
+    <>
+    <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      <p className="flex items-center gap-2 text-sm font-semibold">
-        <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />
-        {brand.name}
-      </p>
       <header className="mt-6">
         <p className="text-sm font-medium text-muted">Volunteer signup</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">{event.name}</h1>
@@ -121,5 +119,6 @@ export default async function VolunteerSignupPage({ params }: Params) {
         </Link>
       </p>
     </main>
+    </>
   );
 }

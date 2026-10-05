@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
+import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
-import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { AutoRefresh } from "./auto-refresh";
@@ -73,13 +73,10 @@ export default async function EventPublicPage({ params }: Params) {
     `${multiDay ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ` : ""}${formatTime(iso, tz)}`;
 
   return (
+    <>
+    <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {isEventDay && event.performance_order_published && <AutoRefresh seconds={30} />}
-      <p className="flex items-center gap-2 text-sm font-semibold">
-        <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />
-        {brand.name}
-      </p>
-
       {event.status !== "published" && (
         <Card className="mt-6 bg-accent-soft">
           <p className="text-sm">Preview: this page isn&apos;t public yet. Only your team can see it.</p>
@@ -185,5 +182,6 @@ export default async function EventPublicPage({ params }: Params) {
         )}
       </section>
     </main>
+    </>
   );
 }

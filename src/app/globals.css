@@ -13,6 +13,9 @@
   --accent: #c99a2e;
   --accent-soft: #f6ecd3;
   --danger: #b42318;
+  /* Header bar: always dark, so the white logo reads in light and dark mode. */
+  --header: #14213d;
+  --header-foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,6 +30,7 @@
     --accent: #e3b852;
     --accent-soft: #2c2716;
     --danger: #f97066;
+    --header: #0a1122;
   }
 }
 
@@ -41,6 +45,8 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
+  --color-header: var(--header);
+  --color-header-foreground: var(--header-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

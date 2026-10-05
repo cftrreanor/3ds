@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { brand } from "@/lib/brand";
 
 const roles = [
@@ -38,31 +39,23 @@ const steps = [
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <span aria-hidden className="inline-block h-3 w-3 rounded-full bg-accent" />
-            {brand.name}
-          </span>
-          <nav className="flex items-center gap-2 text-sm">
-            <a href="#how" className="hidden rounded-md px-3 py-2 text-muted hover:text-foreground sm:block">
-              How it works
-            </a>
-            <a href="#pricing" className="hidden rounded-md px-3 py-2 text-muted hover:text-foreground sm:block">
-              Pricing
-            </a>
-            <Link href="/login" className="rounded-md px-3 py-2 text-muted hover:text-foreground">
-              Sign in
-            </Link>
-            <a
-              href={`mailto:${brand.supportEmail}?subject=Pilot%20program`}
-              className="rounded-md bg-brand px-4 py-2 font-medium text-brand-foreground hover:opacity-90"
-            >
-              Join the pilot
-            </a>
-          </nav>
-        </div>
-      </header>
+      <HeaderBar maxWidth="max-w-6xl">
+        <a href="#how" className={`hidden sm:block ${headerLinkClass}`}>
+          How it works
+        </a>
+        <a href="#pricing" className={`hidden sm:block ${headerLinkClass}`}>
+          Pricing
+        </a>
+        <Link href="/login" className={headerLinkClass}>
+          Sign in
+        </Link>
+        <a
+          href={`mailto:${brand.supportEmail}?subject=Pilot%20program`}
+          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md bg-accent px-4 font-semibold text-[#14213d] hover:opacity-90"
+        >
+          Join the pilot
+        </a>
+      </HeaderBar>
 
       <main className="flex-1">
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-16 sm:px-6 sm:pt-24">

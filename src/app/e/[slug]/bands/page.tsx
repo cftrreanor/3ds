@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { registerBand } from "@/app/dashboard/band-actions";
 import { BandForm } from "@/components/band-form";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
-import { brand } from "@/lib/brand";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateRange } from "@/lib/time";
@@ -45,11 +45,9 @@ export default async function BandRegistrationPage({ params }: Params) {
   const here = `/e/${slug}/bands`;
 
   return (
+    <>
+    <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      <Link href={`/e/${slug}`} className="flex items-center gap-2 text-sm font-semibold">
-        <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full bg-accent" />
-        {brand.name}
-      </Link>
       <header className="mt-6">
         <p className="text-sm font-medium text-muted">Band registration</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">{event.name}</h1>
@@ -115,5 +113,6 @@ export default async function BandRegistrationPage({ params }: Params) {
         )}
       </div>
     </main>
+    </>
   );
 }
