@@ -81,6 +81,11 @@ export function OrderBuilder({
     update(next);
   };
   const edit = (i: number, patch: Partial<OrderBand>) => update(bands.map((b, k) => (k === i ? { ...b, ...patch } : b)));
+  // "Field A, Field B" alternates between the listed locations, band by band.
+  const autoLocations = auto.location
+    .split(",")
+    .map((l) => l.trim())
+    .filter(Boolean);
   const autofill = () =>
     update(
       bands.map((b, i) => {
@@ -91,7 +96,7 @@ export function OrderBuilder({
           perform: toTime(perform),
           warmUp: toTime(perform - autoWarmUp),
           warmUpMinutes: auto.duration,
-          location: auto.location || b.location,
+          location: autoLocations.length ? autoLocations[i % autoLocations.length] : b.location,
         };
       }),
     );
@@ -100,7 +105,7 @@ export function OrderBuilder({
 
   return (
     <div className="space-y-6">
-      <details className="rounded-lg border border-border bg-surface px-4 py-3">
+      <details open className="rounded-lg border border-border bg-surface px-4 py-3">
         <summary className="cursor-pointer text-sm font-medium">Fill in times automatically</summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {days.length > 1 && (
@@ -150,8 +155,19 @@ export function OrderBuilder({
               }}
             />
           </Field>
-          <Field label="Warm-up location" hint="Optional. Leave blank to keep each band's.">
-            <Input value={auto.location} onChange={(e) => setAuto({ ...auto, location: e.target.value })} placeholder="e.g. Practice field B" />
+          <Field
+            label="Warm-up location"
+            hint={
+              autoLocations.length > 1
+                ? `Bands alternate: ${autoLocations.join(" → ")} → ${autoLocations[0]}…`
+                : "Optional. Separate several with commas to alternate bands between them. Leave blank to keep each band's."
+            }
+          >
+            <Input
+              value={auto.location}
+              onChange={(e) => setAuto({ ...auto, location: e.target.value })}
+              placeholder="e.g. Practice Field A, Practice Field B"
+            />
           </Field>
         </div>
         <Button type="button" variant="secondary" className="mt-4" onClick={autofill}>
