@@ -25,7 +25,7 @@ export async function getMyOrganization(): Promise<Organization | null> {
 export type EventAccess = {
   /** Account Host for the event's organization: can do everything. */
   isHost: boolean;
-  /** Host or Volunteer Director: stations, shifts, volunteers, lead invites. */
+  /** Host or Volunteer Lead: stations, shifts, volunteers, lead invites. */
   canManage: boolean;
 };
 

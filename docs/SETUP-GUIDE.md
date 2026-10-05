@@ -88,7 +88,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261007000000_director_contact_phone.sql` | Host phone unlocks for directors only the day before and on contest day | ✅ run |
 | `20261008000000_finals_ready_position.sql` | Separate ready position for finals | ✅ run |
 | `20261009000000_finalists_revealed.sql` | Finals in three stages: schedule, saved finalists, revealed | ✅ run |
-| `20261010000000_schedule_updated_at.sql` | "The schedule has been updated" banner | run this next |
+| `20261010000000_schedule_updated_at.sql` | "The schedule has been updated" banner | ✅ run |
+| `20261011000000_station_leads.sql` | More than one Section Lead per station | run this next |
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:

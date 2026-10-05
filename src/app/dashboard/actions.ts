@@ -298,24 +298,34 @@ export async function updateStation(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = stationSchema
-    .extend({ leadUserId: z.string().uuid().or(z.literal("")).optional() })
-    .safeParse(Object.fromEntries(formData));
+  const parsed = stationSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
+  const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
+  if (!leadIds.success) return { error: "Something went wrong with the Section Leads. Please try again." };
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("stations")
-    .update({
-      name: v.name,
-      station_type: v.stationType,
-      location: v.location,
-      instructions: v.instructions,
-      ...(v.leadUserId !== undefined ? { lead_user_id: v.leadUserId || null } : {}),
-    })
+    .update({ name: v.name, station_type: v.stationType, location: v.location, instructions: v.instructions })
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
+
+  // Section Leads: add the newly ticked ones (in the order shown), remove the unticked.
+  if (formData.has("leadsField")) {
+    const { data: current } = await supabase.from("station_leads").select("user_id").eq("station_id", stationId);
+    const had = new Set((current ?? []).map((r) => r.user_id));
+    const want = new Set(leadIds.data);
+    const removed = [...had].filter((id) => !want.has(id));
+    if (removed.length) {
+      const { error: delError } = await supabase.from("station_leads").delete().eq("station_id", stationId).in("user_id", removed);
+      if (delError) return { error: friendlyDbError(delError) };
+    }
+    for (const userId of leadIds.data.filter((id) => !had.has(id))) {
+      const { error: addError } = await supabase.from("station_leads").insert({ station_id: stationId, user_id: userId, event_id: eventId });
+      if (addError) return { error: friendlyDbError(addError) };
+    }
+  }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: "Station saved." };

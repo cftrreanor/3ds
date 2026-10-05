@@ -259,7 +259,7 @@ function BandCard({ band: b }: { band: MyBand & { events: NonNullable<MyBand["ev
   );
 }
 
-const ROLE_LABEL = { volunteer_director: "Volunteer Director", section_lead: "Section Lead" } as const;
+const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
 
 function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } }) {
   return (

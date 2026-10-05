@@ -15,7 +15,8 @@ type StationValues = {
   station_type: string;
   location: string | null;
   instructions: string | null;
-  lead_user_id?: string | null;
+  /** Everyone leading this station, first-added first. */
+  lead_ids?: string[];
 };
 export type LeadOption = { id: string; label: string };
 
@@ -48,20 +49,31 @@ export function StationForm({
         <Textarea name="instructions" defaultValue={initial?.instructions ?? ""} />
       </Field>
       {leads && (
-        <Field
-          label="Section Lead"
-          hint={leads.length ? "Their contact details go to this station's volunteers." : "Invite Section Leads in the Team section above."}
-          className="sm:col-span-2"
-        >
-          <Select name="leadUserId" defaultValue={initial?.lead_user_id ?? ""} disabled={!leads.length}>
-            <option value="">No lead yet</option>
-            {leads.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <fieldset className="sm:col-span-2">
+          <legend className="text-sm font-medium">Section Leads</legend>
+          <input type="hidden" name="leadsField" value="1" />
+          <p className="mt-1 text-sm text-muted">
+            {leads.length
+              ? "Pick one or more, so there's a backup if someone can't make it. Every lead sees this station's volunteers; volunteers contact the first lead you added."
+              : "Invite Section Leads in the Team card on the event page."}
+          </p>
+          {leads.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {leads.map((l) => (
+                <label key={l.id} className="flex min-h-10 items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm hover:border-brand">
+                  <input
+                    type="checkbox"
+                    name="leadIds"
+                    value={l.id}
+                    defaultChecked={initial?.lead_ids?.includes(l.id)}
+                    className="h-5 w-5 shrink-0 accent-[var(--brand)]"
+                  />
+                  {l.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </fieldset>
       )}
       <div className="sm:col-span-2">
         <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>

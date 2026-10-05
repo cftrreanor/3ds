@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "You're invited" };
 
 const ROLE = {
   volunteer_director: {
-    label: "Volunteer Director",
+    label: "Volunteer Lead",
     blurb: "You'll set up shifts, see every volunteer's contact details, and check people in on the day.",
   },
   section_lead: {

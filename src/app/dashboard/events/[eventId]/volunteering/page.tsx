@@ -15,7 +15,7 @@ import { StationPanel, type RosterEntry, type Shift, type Station } from "../sta
 export const metadata: Metadata = { title: "Volunteer Registration" };
 
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: { full_name: string; email: string } | null };
-const ROLE_LABEL = { volunteer_director: "Volunteer Director", section_lead: "Section Lead" } as const;
+const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
 
 /** Volunteer signup and one tab per station (section) with its own shift schedule. */
 export default async function VolunteeringPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/volunteering">) {
@@ -33,7 +33,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     .maybeSingle();
   if (!event) missing();
 
-  const [{ data: stationData }, { data: shiftData }, { data: staff }] = await Promise.all([
+  const [{ data: stationData }, { data: shiftData }, { data: staff }, { data: leadRows }] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, station_type, location, instructions, lead_user_id")
@@ -46,11 +46,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       .eq("event_id", eventId)
       .order("starts_at"),
     supabase.from("event_staff").select("user_id, role, profiles(full_name, email)").eq("event_id", eventId),
+    supabase.from("station_leads").select("station_id, user_id").eq("event_id", eventId).order("created_at"),
   ]);
   // Check-in (band checkpoint) stations first, matching the volunteer signup page.
-  const stations = [...((stationData ?? []) as Station[])].sort(
-    (a, b) => Number(b.station_type === "active_checkpoint") - Number(a.station_type === "active_checkpoint"),
-  );
+  const stations = ((stationData ?? []) as Omit<Station, "lead_ids">[])
+    .map((st) => ({ ...st, lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id) }))
+    .sort((a, b) => Number(b.station_type === "active_checkpoint") - Number(a.station_type === "active_checkpoint"));
   const shifts = (shiftData ?? []) as Shift[];
   const staffRows = (staff ?? []) as unknown as StaffRow[];
 
@@ -58,7 +59,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const current = tab === "new" || stations.length === 0 ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
   const roster =
-    current && current.lead_user_id === user.id
+    current && current.lead_ids.includes(user.id)
       ? (((await supabase.rpc("station_roster", { p_station_id: current.id })).data ?? []) as RosterEntry[])
       : undefined;
 
@@ -210,7 +211,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               windowLabel={windowLabel}
               userId={user.id}
               canManage
-              leadName={nameOf(current.lead_user_id)}
+              leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
               leadOptions={leadOptions}
               roster={roster}
             />

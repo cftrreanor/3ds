@@ -22,6 +22,8 @@ export type Station = {
   location: string | null;
   instructions: string | null;
   lead_user_id: string | null;
+  /** Everyone leading this station, first-added first. */
+  lead_ids: string[];
 };
 
 export type RosterEntry = {
@@ -48,7 +50,7 @@ export function StationPanel({
   windowLabel,
   userId,
   canManage,
-  leadName,
+  leadNames,
   leadOptions,
   roster,
 }: {
@@ -60,7 +62,7 @@ export function StationPanel({
   windowLabel: string;
   userId: string;
   canManage: boolean;
-  leadName: string | null;
+  leadNames: string[];
   leadOptions: LeadOption[];
   /** Only for the station's lead: who has signed up. */
   roster?: RosterEntry[];
@@ -74,10 +76,10 @@ export function StationPanel({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{station.name}</h3>
             {station.station_type === "active_checkpoint" && <Badge tone="accent">Band checkpoint</Badge>}
-            {station.lead_user_id === userId && <Badge tone="brand">You lead this</Badge>}
+            {station.lead_ids.includes(userId) && <Badge tone="brand">You lead this</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">
-            {[station.location, leadName ? `Lead: ${leadName}` : canManage ? "No lead yet" : null]
+            {[station.location, leadNames.length ? `${leadNames.length > 1 ? "Leads" : "Lead"}: ${leadNames.join(", ")}` : canManage ? "No lead yet" : null]
               .filter(Boolean)
               .join(" · ")}
           </p>
@@ -94,7 +96,7 @@ export function StationPanel({
       {canManage && (
         <div className="mt-4 flex flex-col gap-3">
           <details className="rounded-lg border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">Section Lead &amp; station details</summary>
+            <summary className="cursor-pointer text-sm font-medium">Section Leads &amp; station details</summary>
             <div className="mt-4">
               <StationForm
                 action={updateStation.bind(null, eventId, station.id)}
