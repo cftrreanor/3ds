@@ -589,4 +589,99 @@ do $$ declare r record; begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Breaks and finals
+-- ---------------------------------------------------------------------------
+-- A band at another event, to try sneaking into these finals.
+insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('40000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-00000000000b',
+        '00000000-0000-0000-0000-000000000005', 'South HS', 'Southern Sound', '6A', 'addr',
+        'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 100, 10);
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  perform public.save_schedule('10000000-0000-0000-0000-00000000000a', 5, '[]', '[]', '[]');
+  raise exception 'FAIL: a band director saved the schedule';
+exception when insufficient_privilege then null;
+end $$;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set finals_published = false where id = '10000000-0000-0000-0000-00000000000a';
+select public.save_schedule('10000000-0000-0000-0000-00000000000a', 7,
+  jsonb_build_array(
+    jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000002', 'perform_at', now() + interval '10 days 2 hours'),
+    jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000001', 'perform_at', now() + interval '10 days 3 hours')),
+  jsonb_build_array(jsonb_build_object('starts_at', now() + interval '10 days 4 hours', 'minutes', 45, 'label', 'Lunch')),
+  jsonb_build_array(
+    jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000002', 'perform_at', now() + interval '10 days 8 hours',
+                       'warm_up_minutes', 30),
+    jsonb_build_object('band_id', null, 'perform_at', now() + interval '10 days 9 hours'),
+    jsonb_build_object('perform_at', now() + interval '10 days 10 hours'))
+) \g /dev/null
+do $$ begin
+  assert (select ready_minutes_before from public.events where id = '10000000-0000-0000-0000-00000000000a') = 7,
+         'schedule save sets the ready position';
+  assert (select count(*) from public.performance_slots where event_id = '10000000-0000-0000-0000-00000000000a') = 2,
+         'schedule save keeps the running order';
+  assert (select count(*) from public.schedule_breaks where event_id = '10000000-0000-0000-0000-00000000000a') = 1,
+         'host adds a break';
+  assert (select count(*) from public.finals_slots where event_id = '10000000-0000-0000-0000-00000000000a' and band_id is null) = 2,
+         'finals can hold placeholders';
+  begin
+    perform public.save_schedule('10000000-0000-0000-0000-00000000000a', 5, '[]', '[]',
+      '[{"band_id":"40000000-0000-0000-0000-000000000002"},{"band_id":"40000000-0000-0000-0000-000000000002"}]');
+    raise exception 'FAIL: the same band took two finals slots';
+  exception when unique_violation then null;
+  end;
+  begin
+    perform public.save_schedule('10000000-0000-0000-0000-00000000000a', 5, '[]', '[]',
+      '[{"band_id":"40000000-0000-0000-0000-000000000003"}]');
+    raise exception 'FAIL: a band from another event made the finals';
+  exception when check_violation then null;
+  end;
+  begin
+    perform public.save_schedule('10000000-0000-0000-0000-00000000000a', 5, '[]',
+      '[{"starts_at":"2030-01-01T12:00:00Z","minutes":1,"label":"Too short"}]', '[]');
+    raise exception 'FAIL: saved a 1-minute break';
+  exception when check_violation then null;
+  end;
+  assert (select count(*) from public.finals_slots where event_id = '10000000-0000-0000-0000-00000000000a') = 3,
+         'a rejected save changes nothing';
+end $$;
+reset role;
+
+-- Spectators: breaks show with the published order; finals only once published.
+set role anon;
+set request.jwt.claims = '';
+do $$ begin
+  assert (select count(*) from public.public_breaks('future')) = 1, 'public sees breaks once the order is published';
+  assert (select count(*) from public.public_finals('future')) = 0, 'unpublished finals are hidden';
+  assert (select count(*) from public.finals_slots) = 0, 'unpublished finals slots are hidden';
+  begin
+    perform public.save_schedule('10000000-0000-0000-0000-00000000000a', 5, '[]', '[]', '[]');
+    raise exception 'FAIL: anon saved a schedule';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set finals_published = true where id = '10000000-0000-0000-0000-00000000000a';
+reset role;
+
+set role anon;
+set request.jwt.claims = '';
+do $$ declare r record; begin
+  assert (select count(*) from public.public_finals('future')) = 3, 'published finals show every slot';
+  select * into r from public.public_finals('future') where slot_number = 1;
+  assert r.band_name = 'Northern Lights', 'finalist names show once published';
+  select * into r from public.public_finals('future') where slot_number = 2;
+  assert r.band_name is null and r.perform_at is not null, 'placeholders show their time without a band';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
