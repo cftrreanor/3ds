@@ -221,6 +221,8 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             initialReadyMinutes={event.ready_minutes_before}
             days={days}
             zoneLabel={zoneName(tz)}
+            orderPublished={event.performance_order_published}
+            finalsPublished={event.finals_published}
             save={saveSchedule.bind(null, eventId)}
           />
           {bands.length > 0 && (

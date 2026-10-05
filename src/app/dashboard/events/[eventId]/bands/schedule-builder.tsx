@@ -4,49 +4,29 @@ import { useState, useTransition, type ReactNode } from "react";
 import { NumberInput } from "@/components/number-input";
 import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { displayTime, formatDuration, performTimes, toMinutes, toTime, type Span } from "@/lib/schedule";
+import { formatDuration, performTimes, toMinutes, toTime } from "@/lib/schedule";
 import { formatDate } from "@/lib/time";
+import {
+  BreakDividers,
+  breakSpans,
+  DURATIONS,
+  TimesEditor,
+  type BreakDraft,
+  type FinalsSlot,
+  type OrderBand,
+  type ScheduleBreak,
+  type Times,
+} from "./schedule-parts";
+import { ScheduleView, type RowEdit } from "./schedule-view";
 
-/** A band's (or finals slot's) times, as wall-clock times on the event's days. */
-type Times = {
-  day: string;
-  warmUp: string;
-  /** Warm-up length in minutes (15-minute steps), or 0 if not set. */
-  warmUpMinutes: number;
-  perform: string;
-  location: string;
-};
+export type { FinalsSlot, OrderBand, ScheduleBreak };
 
-export type OrderBand = Times & {
-  id: string;
-  name: string;
-  school: string;
-  classification: string;
-  conflicts: string | null;
-};
-
-/** A finals slot: times now, the band once finalists are announced ("" = to be announced). */
-export type FinalsSlot = Times & { bandId: string };
-
-export type ScheduleBreak = { day: string; start: string; minutes: number; label: string };
-
-type BreakDraft = { key: number; day: string; start: string; minutes: string; label: string };
-
-const DURATIONS = Array.from({ length: 16 }, (_, i) => (i + 1) * 15); // 15 min … 4 hours
 const MAX_FINALISTS = 30;
 
 let nextKey = 0;
 const toDraft = (b: ScheduleBreak): BreakDraft => ({ ...b, minutes: String(b.minutes), key: nextKey++ });
 const pickTimes = ({ day, warmUp, warmUpMinutes, perform, location }: Times): Times => ({ day, warmUp, warmUpMinutes, perform, location });
 const blankTimes = (day: string): Times => ({ day, warmUp: "", warmUpMinutes: 0, perform: "", location: "" });
-
-/** Breaks on one day, as minute spans, skipping any that aren't filled in yet. */
-function breakSpans(breaks: BreakDraft[], day: string): (Span & { label: string })[] {
-  return breaks
-    .filter((b) => b.day === day && b.start && Number(b.minutes) > 0)
-    .map((b) => ({ start: toMinutes(b.start), end: toMinutes(b.start) + Number(b.minutes), label: b.label || "Break" }))
-    .sort((a, b) => a.start - b.start);
-}
 
 /**
  * The host's whole performance schedule: breaks, the running order and an
@@ -60,6 +40,8 @@ export function ScheduleBuilder({
   initialReadyMinutes,
   days,
   zoneLabel,
+  orderPublished,
+  finalsPublished,
   save,
 }: {
   initialBands: OrderBand[];
@@ -68,6 +50,8 @@ export function ScheduleBuilder({
   initialReadyMinutes: number;
   days: string[];
   zoneLabel: string;
+  orderPublished: boolean;
+  finalsPublished: boolean;
   save: (scheduleJson: string) => Promise<ActionState>;
 }) {
   const [bands, setBands] = useState(initialBands);
@@ -79,6 +63,12 @@ export function ScheduleBuilder({
   const [result, setResult] = useState<ActionState>({});
   const [dirty, setDirty] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Once anything is published, start on the read-only view; the full builder
+  // is one tap away. Before that, the builder is the page.
+  const published = orderPublished || finalsPublished;
+  const [mode, setMode] = useState<"view" | "edit">(published ? "view" : "edit");
+  // The last saved schedule, to put back if the host leaves the editor without saving.
+  const [saved, setSaved] = useState(() => ({ bands: initialBands, breaks: initialBreaks.map(toDraft), finals: initialFinals, readyText: String(initialReadyMinutes) }));
 
   const changed = () => {
     setDirty(true);
@@ -128,38 +118,116 @@ export function ScheduleBuilder({
   const editBand = (i: number, patch: Partial<OrderBand>) => updateBands(bands.map((b, k) => (k === i ? { ...b, ...patch } : b)));
   const editFinal = (i: number, patch: Partial<FinalsSlot>) => updateFinals(finals.map((f, k) => (k === i ? { ...f, ...patch } : f)));
 
-  const onSave = () =>
-    startTransition(async () => {
-      const r = await save(
-        JSON.stringify({
-          readyMinutes: readyText,
-          slots: bands.map((b) => ({
-            band_id: b.id,
-            day: b.day,
-            warmUp: b.warmUp,
-            warmUpMinutes: b.warmUpMinutes,
-            perform: b.perform,
-            location: b.location,
-          })),
-          breaks: breaks.map(({ day, start, minutes, label }) => ({ day, start, minutes, label })),
-          finals: finals.map((f) => ({
-            band_id: f.bandId,
-            day: f.day,
-            warmUp: f.warmUp,
-            warmUpMinutes: f.warmUpMinutes,
-            perform: f.perform,
-            location: f.location,
-          })),
-        }),
-      );
-      setResult(r);
-      if (r.ok) setDirty(false);
+  type Snapshot = typeof saved;
+  const toJson = (x: Snapshot) =>
+    JSON.stringify({
+      readyMinutes: x.readyText,
+      slots: x.bands.map((b) => ({
+        band_id: b.id,
+        day: b.day,
+        warmUp: b.warmUp,
+        warmUpMinutes: b.warmUpMinutes,
+        perform: b.perform,
+        location: b.location,
+      })),
+      breaks: x.breaks.map(({ day, start, minutes, label }) => ({ day, start, minutes, label })),
+      finals: x.finals.map((f) => ({
+        band_id: f.bandId,
+        day: f.day,
+        warmUp: f.warmUp,
+        warmUpMinutes: f.warmUpMinutes,
+        perform: f.perform,
+        location: f.location,
+      })),
     });
+  const persist = (x: Snapshot) =>
+    new Promise<boolean>((resolve) =>
+      startTransition(async () => {
+        const r = await save(toJson(x));
+        setResult(r);
+        if (r.ok) {
+          setSaved(x);
+          setDirty(false);
+        }
+        resolve(Boolean(r.ok));
+      }),
+    );
+  const onSave = () => persist({ bands, breaks, finals, readyText });
+
+  // One band (or finals slot) changed from the view, optionally moving the
+  // timed bands after it on the same day by the same amount.
+  const saveRow = async ({ round, index, times, bandId, shiftLater }: RowEdit) => {
+    const list: Times[] = round === "order" ? bands : finals;
+    const old = list[index];
+    const delta = shiftLater && old.perform && times.perform ? toMinutes(times.perform) - toMinutes(old.perform) : 0;
+    const shift = (t: string) => (t ? toTime(toMinutes(t) + delta) : t);
+    const apply = <T extends Times>(rows: T[]): T[] =>
+      rows.map((r, k) =>
+        k === index
+          ? { ...r, ...times }
+          : delta && k > index && r.day === old.day && r.perform
+            ? { ...r, perform: shift(r.perform), warmUp: shift(r.warmUp) }
+            : r,
+      );
+    const next =
+      round === "order"
+        ? { bands: apply(bands), breaks, finals, readyText }
+        : { bands, breaks, readyText, finals: apply(finals).map((f, k) => (k === index && bandId !== undefined ? { ...f, bandId } : f)) };
+    const ok = await persist(next);
+    if (ok) {
+      setBands(next.bands);
+      setFinals(next.finals);
+    }
+    return ok;
+  };
+
+  const leaveEditor = () => {
+    if (dirty && !window.confirm("Discard the changes you haven't saved?")) return;
+    setBands(saved.bands);
+    setBreaks(saved.breaks);
+    setFinals(saved.finals);
+    setReadyText(saved.readyText);
+    setBefore(null);
+    setDirty(false);
+    setResult({});
+    setMode("view");
+  };
 
   if (bands.length === 0) return <p className="text-muted">No bands have registered yet.</p>;
 
+  if (mode === "view") {
+    return (
+      <div className="space-y-4">
+        <FormMessage error={result.error} success={result.ok ? result.message : null} />
+        <ScheduleView
+          bands={bands}
+          finals={finals}
+          breaks={breaks}
+          readyMinutes={readyMinutes}
+          days={days}
+          orderPublished={orderPublished}
+          finalsPublished={finalsPublished}
+          pending={pending}
+          onEditAll={() => {
+            setResult({});
+            setMode("edit");
+          }}
+          onSaveRow={saveRow}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
+      {published && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent bg-accent-soft px-4 py-3">
+          <p className="text-sm font-medium">Editing the full schedule. It&apos;s published, so saved changes go live right away.</p>
+          <Button type="button" variant="secondary" onClick={leaveEditor}>
+            Done
+          </Button>
+        </div>
+      )}
       <BreaksEditor breaks={breaks} days={days} zoneLabel={zoneLabel} onChange={updateBreaks} />
 
       <div className="space-y-6">
@@ -580,124 +648,5 @@ function FinalsEditor({
         ))}
       </ol>
     </div>
-  );
-}
-
-function TimesEditor({
-  value: v,
-  days,
-  breaks,
-  readyMinutes,
-  onChange,
-}: {
-  value: Times;
-  days: string[];
-  breaks: BreakDraft[];
-  readyMinutes: number;
-  onChange: (patch: Partial<Times>) => void;
-}) {
-  return (
-    <>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {days.length > 1 && (
-          <Field label="Day">
-            <Select value={v.day} onChange={(e) => onChange({ day: e.target.value })}>
-              {days.map((d) => (
-                <option key={d} value={d}>
-                  {formatDate(d, { year: undefined })}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
-        <Field label="Warm-up starts">
-          <Input type="time" value={v.warmUp} onChange={(e) => onChange({ warmUp: e.target.value })} />
-        </Field>
-        <Field label="Warm-up length">
-          <Select value={v.warmUpMinutes || ""} onChange={(e) => onChange({ warmUpMinutes: Number(e.target.value) || 0 })}>
-            <option value="">Not set</option>
-            {DURATIONS.map((d) => (
-              <option key={d} value={d}>
-                {formatDuration(d)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Performs">
-          <Input type="time" value={v.perform} onChange={(e) => onChange({ perform: e.target.value })} />
-        </Field>
-        <Field label="Warm-up location" className="col-span-2 sm:col-span-4">
-          <Input value={v.location} onChange={(e) => onChange({ location: e.target.value })} />
-        </Field>
-      </div>
-      <Timeline times={v} readyMinutes={readyMinutes} breaks={breaks} />
-    </>
-  );
-}
-
-/** Warm-up → ends → ready → performs, worked out from the times. */
-function Timeline({ times: t, readyMinutes, breaks }: { times: Times; readyMinutes: number; breaks: BreakDraft[] }) {
-  if (!t.warmUp && !t.perform) return null;
-  const warmEnd = t.warmUp && t.warmUpMinutes ? toTime(toMinutes(t.warmUp) + t.warmUpMinutes) : null;
-  const ready = t.perform ? toTime(toMinutes(t.perform) - readyMinutes) : null;
-  const overlap = warmEnd && ready && toMinutes(warmEnd) > toMinutes(ready);
-  const during = t.perform
-    ? breakSpans(breaks, t.day).find((b) => toMinutes(t.perform) >= b.start && toMinutes(t.perform) < b.end)
-    : undefined;
-  const steps = [
-    t.warmUp && ["Warm-up", displayTime(t.warmUp)],
-    warmEnd && ["Warm-up ends", displayTime(warmEnd)],
-    ready && ["Ready position", displayTime(ready)],
-    t.perform && ["Performs", displayTime(t.perform)],
-  ].filter(Boolean) as [string, string][];
-  return (
-    <div className="mt-3 rounded-lg bg-background px-3 py-2 text-sm">
-      <p className="flex flex-wrap gap-x-2 gap-y-1">
-        {steps.map(([label, time], k) => (
-          <span key={label} className="whitespace-nowrap">
-            {k > 0 && <span className="mr-2 text-muted">→</span>}
-            <span className="text-muted">{label}</span> <span className="font-medium">{time}</span>
-          </span>
-        ))}
-      </p>
-      {overlap && <p className="mt-1 text-danger">⚠️ Warm-up runs past the ready position.</p>}
-      {during && (
-        <p className="mt-1 text-danger">
-          ⚠️ Performs during {during.label} ({displayTime(toTime(during.start))} – {displayTime(toTime(during.end))}).
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Shows any break that falls between the previous performance and this one, then this one. */
-function BreakDividers({
-  breaks,
-  prev,
-  cur,
-  children,
-}: {
-  breaks: BreakDraft[];
-  prev: Times | undefined;
-  cur: Times;
-  children: ReactNode;
-}) {
-  const between =
-    prev && prev.perform && cur.perform && prev.day === cur.day
-      ? breakSpans(breaks, cur.day).filter((b) => b.start >= toMinutes(prev.perform) && b.start < toMinutes(cur.perform))
-      : [];
-  return (
-    <>
-      {between.map((b) => (
-        <li key={`${b.label}-${b.start}`} className="flex items-center gap-3 px-1 text-sm text-muted">
-          <span className="h-px flex-1 bg-border" />
-          <span className="whitespace-nowrap font-medium">
-            ☕ {b.label} · {displayTime(toTime(b.start))} – {displayTime(toTime(b.end))}
-          </span>
-          <span className="h-px flex-1 bg-border" />
-        </li>
-      ))}
-      {children}
-    </>
   );
 }
