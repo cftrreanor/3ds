@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
+import { registrationIsOpen } from "@/lib/bands";
 import { getMyOrganization } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
@@ -27,7 +28,7 @@ type MyBand = {
   band_name: string;
   school_name: string;
   events:
-    | (EventSummary & { band_registration_open: boolean; performance_order_published: boolean; finals_published: boolean })
+    | (EventSummary & { band_registration_open: boolean; band_registration_deadline: string | null; performance_order_published: boolean; finals_published: boolean })
     | null;
   // Only readable once the host publishes, so these double as "times are posted".
   performance_slots: { perform_at: string | null } | { perform_at: string | null }[] | null;
@@ -53,7 +54,7 @@ export default async function DashboardPage() {
       .from("bands")
       .select(
         `id, band_name, school_name,
-         events(${EVENT_COLUMNS}, band_registration_open, performance_order_published, finals_published),
+         events(${EVENT_COLUMNS}, band_registration_open, band_registration_deadline, performance_order_published, finals_published),
          performance_slots(perform_at), finals_slots(perform_at)`,
       )
       .eq("director_user_id", user.id),
@@ -238,7 +239,7 @@ function bandStatus(b: MyBand & { events: NonNullable<MyBand["events"]> }): { te
   const slot = Array.isArray(b.performance_slots) ? b.performance_slots[0] : b.performance_slots;
   const perform = e.performance_order_published ? slot?.perform_at : null;
   if (perform) return { text: `Performs ${at(perform)}`, tone: "brand" };
-  return { text: e.band_registration_open ? "Registered · times not posted yet" : "Registration closed · times not posted yet", tone: "neutral" };
+  return { text: registrationIsOpen(e) ? "Registered · times not posted yet" : "Registration closed · times not posted yet", tone: "neutral" };
 }
 
 function BandCard({ band: b }: { band: MyBand & { events: NonNullable<MyBand["events"]> } }) {

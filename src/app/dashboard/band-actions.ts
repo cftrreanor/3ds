@@ -8,6 +8,7 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { bandColumns, parseBand, readyAt, warmUpEndAt } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
+import { normalizePhone } from "@/lib/phone";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zonedToUtc } from "@/lib/time";
@@ -22,13 +23,22 @@ export async function registerBand(eventId: string, _prev: ActionState, formData
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const supabase = await createClient();
+  const { data: same } = await supabase
+    .from("bands")
+    .select("id")
+    .eq("event_id", eventId)
+    .eq("director_user_id", user.id)
+    .ilike("band_name", parsed.data.bandName.replace(/[%_\\]/g, "\\$&"));
+  if (same?.length) {
+    return { error: `You've already registered ${parsed.data.bandName} for this contest. Open it from your dashboard to make changes.` };
+  }
   const { data, error } = await supabase
     .from("bands")
     .insert({ event_id: eventId, director_user_id: user.id, ...bandColumns(parsed.data) })
     .select("id")
     .single();
   if (error) {
-    if (error.code === "42501") return { error: "Band registration for this event is closed. Please contact the host." };
+    if (error.code === "42501") return { error: "Band registration for this contest is closed. Please contact the host." };
     return { error: friendlyDbError(error) };
   }
 
@@ -69,7 +79,7 @@ export async function updateBand(bandId: string, _prev: ActionState, formData: F
   if (!data?.length) return { error: "Registration is closed, so changes have to go through the host." };
   revalidatePath(`/dashboard/bands/${bandId}`);
   revalidatePath(`/dashboard/events/${data[0].event_id}/bands`);
-  return { ok: true, message: "Saved." };
+  redirect(`/dashboard/bands/${bandId}?saved=1`);
 }
 
 export async function withdrawBand(bandId: string): Promise<ActionState> {
@@ -109,14 +119,47 @@ export async function updateBandSettings(eventId: string, _prev: ActionState, fo
         .string()
         .transform((v) => [...new Set(v.split(",").map((s) => s.trim()).filter(Boolean))])
         .refine((v) => v.length > 0, "Add at least one classification"),
+      deadline: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid deadline date")]),
+      directorInfo: z.string().trim().max(3000, "Information for directors is too long (3,000 characters max)"),
+      contactName: z.string().trim().max(150),
+      contactPhone: z
+        .string()
+        .trim()
+        .transform((v, ctx) => {
+          if (!v) return "";
+          const p = normalizePhone(v);
+          if (!p) ctx.addIssue({ code: "custom", message: "Contact phone: enter a 10-digit number" });
+          return p ?? "";
+        }),
+      contactEmail: z.union([z.literal(""), z.string().trim().toLowerCase().email("Contact email isn't valid")]),
     })
-    .safeParse(Object.fromEntries(formData));
+    .safeParse({
+      deadline: "",
+      directorInfo: "",
+      contactName: "",
+      contactPhone: "",
+      contactEmail: "",
+      ...Object.fromEntries(formData),
+    });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const v = parsed.data;
   const result = await updateEventRow(eventId, {
-    chaperone_limit: parsed.data.chaperoneLimit,
-    classifications: parsed.data.classifications,
+    chaperone_limit: v.chaperoneLimit,
+    classifications: v.classifications,
+    band_registration_deadline: v.deadline || null,
+    director_info: v.directorInfo || null,
   });
-  return result.error ? result : { ok: true, message: "Settings saved." };
+  if (result.error) return result;
+  const supabase = await createClient();
+  const { error } = await supabase.from("event_director_contacts").upsert({
+    event_id: eventId,
+    name: v.contactName,
+    phone: v.contactPhone,
+    email: v.contactEmail,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) return { error: friendlyDbError(error) };
+  return { ok: true, message: "Settings saved." };
 }
 
 const timesSchema = z.object({

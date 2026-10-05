@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
+import { registrationIsOpen } from "@/lib/bands";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { AutoRefresh } from "./auto-refresh";
@@ -33,7 +34,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, performance_order_published, finals_published")
+    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -88,6 +89,7 @@ export default async function EventPublicPage({ params }: Params) {
   }));
   const breaks = (breakData ?? []) as BreakRow[];
   const published = event.performance_order_published || event.finals_published;
+  const bandsOpen = registrationIsOpen(event);
   const tz = event.timezone;
   const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
   const { current, next } = nowAndNext([...schedule, ...finals]);
@@ -137,7 +139,7 @@ export default async function EventPublicPage({ params }: Params) {
         </Card>
       ))}
 
-      {(event.volunteer_signup_open || event.band_registration_open) && event.status === "published" && (
+      {(event.volunteer_signup_open || bandsOpen) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
           {event.volunteer_signup_open && (
             <Link href={`/e/${slug}/volunteer`} className="block">
@@ -147,7 +149,7 @@ export default async function EventPublicPage({ params }: Params) {
               </Card>
             </Link>
           )}
-          {event.band_registration_open && (
+          {bandsOpen && (
             <Link href={`/e/${slug}/bands`} className="block">
               <Card className="h-full transition hover:border-brand">
                 <p className="font-semibold">Band directors</p>

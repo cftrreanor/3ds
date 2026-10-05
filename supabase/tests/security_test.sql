@@ -684,4 +684,62 @@ do $$ declare r record; begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Registration deadline and the directors' host contact
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set band_registration_open = true, band_registration_deadline = current_date - 2
+ where id = '10000000-0000-0000-0000-00000000000a';
+insert into public.event_director_contacts (event_id, name, phone, email)
+values ('10000000-0000-0000-0000-00000000000a', 'Hana Host', '+15125550101', 'host@example.com');
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ declare n int; begin
+  assert not public.band_registration_is_open('10000000-0000-0000-0000-00000000000a'), 'a past deadline closes registration';
+  update public.bands set student_count = 7 where id = '40000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  assert n = 0, 'director cannot edit after the deadline';
+  begin
+    insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                              contact_email, head_director_name, head_director_email, head_director_phone,
+                              student_count, chaperone_count)
+    values ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000005', 'Late HS', 'Late Band', '6A',
+            'addr', 'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 10, 1);
+    raise exception 'FAIL: registered after the deadline';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select name from public.event_director_contacts
+           where event_id = '10000000-0000-0000-0000-00000000000a') = 'Hana Host',
+         'a director with a band at the event sees the host contact';
+  begin
+    insert into public.event_director_contacts (event_id, name) values ('10000000-0000-0000-0000-00000000000b', 'Me');
+    raise exception 'FAIL: a director set the host contact';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set band_registration_deadline = current_date + 2 where id = '10000000-0000-0000-0000-00000000000a';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ declare n int; begin
+  update public.bands set student_count = 7 where id = '40000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  assert n = 1, 'director can edit before the deadline';
+end $$;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.event_director_contacts) = 0, 'strangers cannot see host contacts';
+end $$;
+reset role;
+
+set role anon;
+do $$ begin
+  perform 1 from public.event_director_contacts;
+  raise exception 'FAIL: anon read host contacts';
+exception when insufficient_privilege then null;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
