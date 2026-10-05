@@ -79,12 +79,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           .is("accepted_at", null)
           .order("created_at")
       : Promise.resolve({ data: [] as Invitation[] }),
-    access.canManage
-      ? supabase
-          .from("bands")
-          .select("classification, student_count, chaperone_count, bus_count, box_truck_count, truck_trailer_count, semi_truck_count")
-          .eq("event_id", eventId)
-      : Promise.resolve({ data: [] }),
+    // No contact details: headcounts for hosts and Volunteer Leads, names and status for everyone on the team.
+    supabase.rpc("event_bands", { ev: eventId }),
     supabase.from("station_leads").select("station_id, user_id").eq("event_id", eventId).order("created_at"),
     // Only hosts can read the organization's members.
     access.isHost
@@ -296,30 +292,30 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
-      {access.canManage && (
-        <section className="mt-10" aria-labelledby="bands-heading">
-          <h2 id="bands-heading" className="text-lg font-semibold">
-            Band registration
-          </h2>
-          <Card className="mt-4 space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm leading-6 text-muted">
-                {bands.length
-                  ? `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`
-                  : "No bands registered yet."}{" "}
-                Registration, the performance schedule and finals.
-              </p>
-              <Link
-                href={`/dashboard/events/${eventId}/bands`}
-                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-              >
-                Manage bands
-              </Link>
-            </div>
-            {bands.length > 0 && <LogisticsTotals bands={bands} />}
-          </Card>
-        </section>
-      )}
+      <section className="mt-10" aria-labelledby="bands-heading">
+        <h2 id="bands-heading" className="text-lg font-semibold">
+          {access.isHost ? "Band registration" : "Bands"}
+        </h2>
+        <Card className="mt-4 space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm leading-6 text-muted">
+              {bands.length
+                ? `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`
+                : "No bands registered yet."}{" "}
+              {access.isHost
+                ? "Registration, the performance schedule and finals."
+                : "See the performance order and each band's status on the day."}
+            </p>
+            <Link
+              href={`/dashboard/events/${eventId}/${access.isHost ? "bands" : "schedule"}`}
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+            >
+              {access.isHost ? "Manage bands" : "Band schedule"}
+            </Link>
+          </div>
+          {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} />}
+        </Card>
+      </section>
 
       {access.canManage && (
         <section className="mt-10" aria-labelledby="volunteers-heading">
