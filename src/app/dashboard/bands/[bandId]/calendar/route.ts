@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!band) return new Response("Not found", { status: 404 });
 
   const [{ data: event }, { data: times }] = await Promise.all([
-    supabase.from("events").select("name, timezone, venue_name, venue_address, ready_minutes_before").eq("id", band.event_id).single(),
+    supabase.from("events").select("name, timezone, venue_name, venue_address, ready_minutes_before, finals_ready_minutes_before").eq("id", band.event_id).single(),
     supabase
       .from(round === "finals" ? "finals_slots" : "performance_slots")
       .select("warm_up_at, warm_up_minutes, perform_at, warm_up_location")
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           bandName: band.band_name,
           round,
           times,
-          event,
+          event: { ...event, ready_minutes_before: round === "finals" ? event.finals_ready_minutes_before : event.ready_minutes_before },
           url: `${request.nextUrl.origin}/dashboard/bands/${bandId}`,
         })
       : null;
