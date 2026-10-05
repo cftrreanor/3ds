@@ -91,8 +91,39 @@ export function StationPanel({
         )}
       </div>
 
+      {canManage && (
+        <div className="mt-4 flex flex-col gap-3">
+          <details className="rounded-lg border border-border px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium">Section Lead &amp; station details</summary>
+            <div className="mt-4">
+              <StationForm
+                action={updateStation.bind(null, eventId, station.id)}
+                initial={station}
+                leads={leadOptions}
+                submitLabel="Save station"
+              />
+            </div>
+          </details>
+          <details className="rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
+            <summary className="cursor-pointer text-sm font-medium">Fill the day with shifts</summary>
+            <div className="mt-4">
+              <GenerateShiftsForm
+                action={generateShifts.bind(null, eventId, station.id)}
+                windowLabel={windowLabel}
+              />
+            </div>
+          </details>
+          <details className="rounded-lg border border-border px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium">Add a single shift</summary>
+            <div className="mt-4">
+              <ShiftForm action={createShift.bind(null, eventId, station.id)} days={days} />
+            </div>
+          </details>
+        </div>
+      )}
+      <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
       {stationShifts.length > 0 ? (
-        <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
+        <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
           {stationShifts.map((s) => (
             <li key={s.id} className="px-3 py-2.5">
               <div className="flex items-center justify-between gap-3">
@@ -143,7 +174,7 @@ export function StationPanel({
           ))}
         </ul>
       ) : (
-        <p className="mt-4 text-sm text-muted">No shifts yet.</p>
+        <p className="mt-2 text-sm text-muted">No shifts yet.</p>
       )}
 
       {roster && (
@@ -189,36 +220,6 @@ export function StationPanel({
         </div>
       )}
 
-      {canManage && (
-        <div className="mt-4 flex flex-col gap-3">
-          <details className="rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
-            <summary className="cursor-pointer text-sm font-medium">Fill the day with shifts</summary>
-            <div className="mt-4">
-              <GenerateShiftsForm
-                action={generateShifts.bind(null, eventId, station.id)}
-                windowLabel={windowLabel}
-              />
-            </div>
-          </details>
-          <details className="rounded-lg border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">Add a single shift</summary>
-            <div className="mt-4">
-              <ShiftForm action={createShift.bind(null, eventId, station.id)} days={days} />
-            </div>
-          </details>
-          <details className="rounded-lg border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">Edit station &amp; lead</summary>
-            <div className="mt-4">
-              <StationForm
-                action={updateStation.bind(null, eventId, station.id)}
-                initial={station}
-                leads={leadOptions}
-                submitLabel="Save station"
-              />
-            </div>
-          </details>
-        </div>
-      )}
     </Card>
   );
 }
