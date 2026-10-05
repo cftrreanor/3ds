@@ -1,36 +1,52 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { updateBand, withdrawBand } from "@/app/dashboard/band-actions";
-import { BandForm } from "@/components/band-form";
+import type { ReactNode } from "react";
 import { Badge, Card } from "@/components/ui";
-import { BAND_COLUMNS, readyAt, warmUpEndAt, type BandRow } from "@/lib/bands";
+import { bandCalendarEvent, type BandTimes } from "@/lib/band-calendar";
+import { BAND_COLUMNS, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } from "@/lib/bands";
+import { getOrigin } from "@/lib/data";
+import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
-import { DeleteButton } from "../../events/[eventId]/forms";
 
-export const metadata: Metadata = { title: "Band registration" };
+export const metadata: Metadata = { title: "Contest" };
 
-export default async function BandPage({ params, searchParams }: PageProps<"/dashboard/bands/[bandId]">) {
+const linkClass = "font-medium text-brand underline-offset-4 hover:underline";
+
+/** A band's page for one contest: when and where to be, then their registration. */
+export default async function BandContestPage({ params, searchParams }: PageProps<"/dashboard/bands/[bandId]">) {
   const { bandId } = await params;
-  const { registered } = await searchParams;
+  const { registered, saved } = await searchParams;
   const supabase = await createClient();
   const { data } = await supabase.from("bands").select(BAND_COLUMNS).eq("id", bandId).maybeSingle();
   const band = data as BandRow | null;
   if (!band) notFound();
 
-  const [{ data: event }, { data: slot }, { data: finalsSlot }] = await Promise.all([
+  const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }] = await Promise.all([
     supabase
       .from("events")
-      .select("name, slug, timezone, starts_on, ends_on, venue_name, venue_address, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_published")
+      .select(
+        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_published",
+      )
       .eq("id", band.event_id)
       .single(),
     supabase.from("performance_slots").select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
     supabase.from("finals_slots").select("slot_number, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
+    supabase.from("event_director_contacts").select("name, phone, email").eq("event_id", band.event_id).maybeSingle(),
   ]);
   if (!event) notFound();
-  const tz = event.timezone;
+  const open = registrationIsOpen(event);
+  const origin = await getOrigin();
+  const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
+    api: "1",
+    query: event.venue_address,
+    ...(event.venue_place_id ? { query_place_id: event.venue_place_id } : {}),
+  })}`;
+  const calendar = (round: "order" | "finals", times: BandTimes) =>
+    bandCalendarEvent({ bandId, bandName: band.band_name, round, times, event, url: `${origin}/dashboard/bands/${bandId}` });
+  const hasContact = contact && (contact.name || contact.phone || contact.email);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -43,98 +59,221 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
           <p className="mt-1 text-sm text-muted">We emailed you a copy. We&apos;ll email again when performance times are posted.</p>
         </Card>
       )}
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{band.band_name}</h1>
-      <p className="mt-1 text-muted">
-        {band.school_name} · {event.name} · {formatDateRange(event.starts_on, event.ends_on)}
-      </p>
+      {saved && (
+        <Card className="mt-4 bg-accent-soft" role="status">
+          <p className="font-medium">Registration updated.</p>
+        </Card>
+      )}
+
+      <header className="mt-4">
+        <p className="text-sm font-medium text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{event.name}</h1>
+        <p className="mt-1 text-muted">
+          {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
+          <a href={mapUrl} target="_blank" rel="noreferrer" className={linkClass}>
+            Directions
+          </a>{" "}
+          ·{" "}
+          <Link href={`/e/${event.slug}`} className={linkClass}>
+            Full schedule
+          </Link>
+        </p>
+        <p className="mt-3">
+          <span aria-hidden="true">🎺</span> <span className="font-semibold">{band.band_name}</span>{" "}
+          <span className="text-muted">· {band.school_name}</span>
+        </p>
+      </header>
+
+      {event.finals_published && finalsSlot && (
+        <TimesCard
+          title={`🏆 Finals · #${finalsSlot.slot_number}`}
+          times={finalsSlot}
+          event={event}
+          calendar={calendar("finals", finalsSlot)}
+          icsUrl={`/dashboard/bands/${bandId}/calendar?round=finals`}
+          highlight
+        />
+      )}
+      {event.performance_order_published && slot ? (
+        <TimesCard
+          title={`Your times · #${slot.performance_order} in the order`}
+          times={slot}
+          event={event}
+          calendar={calendar("order", slot)}
+          icsUrl={`/dashboard/bands/${bandId}/calendar`}
+        />
+      ) : (
+        <Card className="mt-6">
+          <h2 className="font-semibold">Your times</h2>
+          <p className="mt-2 text-sm text-muted">
+            The host hasn&apos;t posted the performance order yet. We&apos;ll email you when your times are ready.
+          </p>
+        </Card>
+      )}
+
+      {(event.director_info || hasContact) && (
+        <Card className="mt-6 space-y-4">
+          <h2 className="font-semibold">Contest information</h2>
+          {event.director_info && <p className="whitespace-pre-line leading-7">{event.director_info}</p>}
+          {hasContact && (
+            <div className="rounded-lg bg-background px-3 py-2 text-sm">
+              <p>
+                <span className="font-medium">Questions?</span> {contact.name || "Contact the host"}
+              </p>
+              <p className="mt-0.5 flex flex-wrap gap-x-4">
+                {contact.phone && (
+                  <>
+                    <a href={`tel:${contact.phone}`} className={linkClass}>
+                      Call {formatPhone(contact.phone)}
+                    </a>
+                    <a href={`sms:${contact.phone}`} className={linkClass}>
+                      Text
+                    </a>
+                  </>
+                )}
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className={linkClass}>
+                    Email
+                  </a>
+                )}
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="mt-6">
-        <h2 className="font-semibold">Your times</h2>
-        {event.performance_order_published && slot ? (
-          <TimesList slot={slot} order={`#${slot.performance_order}`} readyMinutes={event.ready_minutes_before} tz={tz} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Your registration</h2>
+          <Badge tone={open ? "accent" : "neutral"}>
+            {open
+              ? event.band_registration_deadline
+                ? `Editable until ${formatDate(event.band_registration_deadline, { year: undefined })}`
+                : "Editable while registration is open"
+              : "Registration closed"}
+          </Badge>
+        </div>
+        <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+          <Item label="Classification">{band.classification}</Item>
+          <Item label="People">
+            {band.student_count} students · {band.chaperone_count} chaperones
+          </Item>
+          <Item label="Vehicles">
+            {[
+              [band.bus_count, "bus", "buses"],
+              [band.box_truck_count, "box truck", "box trucks"],
+              [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
+              [band.semi_truck_count, "semi", "semis"],
+            ]
+              .filter(([n]) => Number(n) > 0)
+              .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+              .join(" · ") || "None listed"}
+          </Item>
+          <Item label="Head director">
+            {band.head_director_name} · {formatPhone(band.head_director_phone)}
+          </Item>
+          {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
+          <Item label="Band contact email">{band.contact_email}</Item>
+          <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
+          <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
+        </dl>
+        {open ? (
+          <Link
+            href={`/dashboard/bands/${bandId}/edit`}
+            className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
+          >
+            Edit registration
+          </Link>
         ) : (
-          <p className="mt-2 text-sm text-muted">
-            The host hasn&apos;t posted the performance order yet. We&apos;ll email you when it&apos;s ready.
+          <p className="mt-5 text-sm text-muted">
+            Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
           </p>
         )}
-        {event.finals_published && finalsSlot && (
-          <div className="mt-6 border-t border-border pt-4">
-            <h3 className="font-semibold">🏆 Finals</h3>
-            <TimesList slot={finalsSlot} order={`#${finalsSlot.slot_number}`} readyMinutes={event.ready_minutes_before} tz={tz} />
-          </div>
-        )}
-        <Link href={`/e/${event.slug}`} className="mt-4 inline-block text-sm font-medium text-brand underline-offset-4 hover:underline">
-          Event page &amp; full schedule
-        </Link>
       </Card>
-
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Registration details</h2>
-        <Badge tone={event.band_registration_open ? "accent" : "neutral"}>
-          {event.band_registration_open ? "Editable until registration closes" : "Registration closed"}
-        </Badge>
-      </div>
-      <div className="mt-4">
-        <BandForm
-          action={updateBand.bind(null, bandId)}
-          classifications={event.classifications}
-          chaperoneLimit={event.chaperone_limit}
-          submitLabel="Save changes"
-          disabled={!event.band_registration_open}
-          initial={{ ...band, head_director_phone: formatPhone(band.head_director_phone) }}
-        />
-      </div>
-      {event.band_registration_open && (
-        <div className="mt-8 border-t border-border pt-4 text-sm">
-          <DeleteButton
-            action={withdrawBand.bind(null, bandId)}
-            label="Withdraw this band"
-            text="Withdraw this band"
-            confirmMessage={`Withdraw ${band.band_name} from ${event.name}? This can't be undone.`}
-          />
-        </div>
-      )}
     </div>
   );
 }
 
-type Times = {
-  warm_up_at: string | null;
-  warm_up_minutes: number | null;
-  perform_at: string | null;
-  warm_up_location: string | null;
-};
-
-function TimesList({ slot, order, readyMinutes, tz }: { slot: Times; order: string; readyMinutes: number; tz: string }) {
-  const warmEnd = warmUpEndAt(slot.warm_up_at, slot.warm_up_minutes);
-  const ready = readyAt(slot.perform_at, readyMinutes);
-  const at = (iso: string | null) =>
-    iso ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}` : "To be announced";
+function Item({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <dl className="mt-3 grid gap-4 sm:grid-cols-2">
-      <div>
-        <dt className="text-sm text-muted">Order</dt>
-        <dd className="text-2xl font-semibold">{order}</dd>
-      </div>
-      <div>
-        <dt className="text-sm text-muted">Warm-up</dt>
-        <dd className="font-medium">{at(slot.warm_up_at)}</dd>
-        {warmEnd && (
-          <dd className="text-sm text-muted">
-            Until {formatTime(warmEnd, tz)} ({slot.warm_up_minutes} min)
-          </dd>
-        )}
-        {slot.warm_up_location && <dd className="text-sm text-muted">{slot.warm_up_location}</dd>}
-      </div>
-      <div>
-        <dt className="text-sm text-muted">Ready position</dt>
-        <dd className="font-medium">{at(ready)}</dd>
-        <dd className="text-sm text-muted">{readyMinutes} minutes before your performance</dd>
-      </div>
-      <div>
-        <dt className="text-sm text-muted">Performance</dt>
-        <dd className="font-medium">{at(slot.perform_at)}</dd>
-      </div>
-    </dl>
+    <div>
+      <dt className="text-muted">{label}</dt>
+      <dd className="mt-0.5 font-medium">{children}</dd>
+    </div>
+  );
+}
+
+type TimesEvent = { timezone: string; starts_on: string; ends_on: string; ready_minutes_before: number };
+
+/** Warm-up → ends → ready → performs, as a vertical timeline with the performance time up top. */
+function TimesCard({
+  title,
+  times: t,
+  event,
+  calendar,
+  icsUrl,
+  highlight = false,
+}: {
+  title: string;
+  times: BandTimes;
+  event: TimesEvent;
+  calendar: ReturnType<typeof bandCalendarEvent>;
+  icsUrl: string;
+  highlight?: boolean;
+}) {
+  const tz = event.timezone;
+  const multiDay = event.starts_on !== event.ends_on;
+  const at = (iso: string) => `${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}`;
+  const warmEnd = warmUpEndAt(t.warm_up_at, t.warm_up_minutes);
+  const ready = readyAt(t.perform_at, event.ready_minutes_before);
+  const steps = [
+    t.warm_up_at && { label: "Warm-up starts", time: at(t.warm_up_at), note: t.warm_up_location },
+    warmEnd && { label: "Warm-up ends", time: at(warmEnd), note: `${t.warm_up_minutes} min` },
+    ready && { label: "Ready position", time: at(ready), note: `${event.ready_minutes_before} min before performing` },
+    t.perform_at && { label: "Performance", time: at(t.perform_at), note: null },
+  ].filter(Boolean) as { label: string; time: string; note: string | null }[];
+
+  return (
+    <Card className={`mt-6 ${highlight ? "border-accent" : ""}`}>
+      <h2 className="font-semibold">{title}</h2>
+      {t.perform_at ? (
+        <p className="mt-3">
+          <span className="block text-sm text-muted">
+            Performs{multiDay ? ` ${formatDate(utcToZonedDate(t.perform_at, tz), { year: undefined })}` : ""}
+          </span>
+          <span className="text-3xl font-semibold tabular-nums">{at(t.perform_at)}</span>
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-muted">Performance time to be announced.</p>
+      )}
+      <ol className="mt-5 space-y-0">
+        {steps.map((s, i) => (
+          <li key={s.label} className="relative flex gap-3 pb-4 last:pb-0">
+            {i < steps.length - 1 && <span className="absolute left-[5px] top-4 h-full w-px bg-border" aria-hidden="true" />}
+            <span
+              className={`relative mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full ${s.label === "Performance" ? "bg-brand" : "border-2 border-brand bg-surface"}`}
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              <p className="text-sm">
+                <span className="font-semibold tabular-nums">{s.time}</span> <span className="text-muted">·</span> {s.label}
+              </p>
+              {s.note && <p className="text-sm text-muted">{s.note}</p>}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {calendar && (
+        <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <span className="text-muted">Add to calendar:</span>
+          <a href={googleCalendarUrl(calendar)} target="_blank" rel="noreferrer" className={linkClass}>
+            Google
+          </a>
+          <a href={icsUrl} className={linkClass}>
+            Apple / Outlook
+          </a>
+        </p>
+      )}
+    </Card>
   );
 }

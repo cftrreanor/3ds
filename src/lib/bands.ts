@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { utcToZonedDate } from "@/lib/time";
 import { normalizePhone } from "@/lib/phone";
 
 // Band registration fields, shared by the director's form and the host's edits.
@@ -129,3 +130,20 @@ export const warmUpEndAt = (warmUpAt: string | null, minutes: number | null) =>
 /** When the band must be in the ready position. */
 export const readyAt = (performAt: string | null, minutesBefore: number) =>
   performAt ? addMinutes(performAt, -minutesBefore) : null;
+
+type RegistrationWindow = {
+  status: string;
+  timezone: string;
+  band_registration_open: boolean;
+  band_registration_deadline: string | null;
+};
+
+/** Is band registration open right now? Mirrors public.band_registration_is_open(). */
+export function registrationIsOpen(e: RegistrationWindow) {
+  return e.status === "published" && e.band_registration_open && !deadlinePassed(e);
+}
+
+/** Has the deadline day ended, in the event's time zone? */
+export function deadlinePassed(e: Pick<RegistrationWindow, "timezone" | "band_registration_deadline">) {
+  return e.band_registration_deadline != null && utcToZonedDate(new Date().toISOString(), e.timezone) > e.band_registration_deadline;
+}

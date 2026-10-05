@@ -3,12 +3,13 @@ import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { registerBand } from "@/app/dashboard/band-actions";
-import { BandForm } from "@/components/band-form";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
+import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateRange } from "@/lib/time";
+import { formatDate, formatDateRange } from "@/lib/time";
+import { RegisterForm, type PreviousBand } from "./register-form";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -16,7 +17,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, starts_on, ends_on, venue_name, venue_address, band_registration_open, chaperone_limit, classifications")
+    .select("id, name, status, starts_on, ends_on, venue_name, venue_address, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -34,15 +35,45 @@ export default async function BandRegistrationPage({ params }: Params) {
   const user = await getUser();
   const supabase = await createClient();
 
-  const [{ data: mine }, { data: profile }] = user
+  const [{ data: myBandData }, { data: profile }] = user
     ? await Promise.all([
-        supabase.from("bands").select("id, band_name, school_name").eq("event_id", event.id).eq("director_user_id", user.id),
+        supabase.from("bands").select(`${BAND_COLUMNS}, events(name)`).eq("director_user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
       ])
     : [{ data: [] }, { data: null }];
+  const myBands = (myBandData ?? []) as unknown as (BandRow & { events: { name: string } | null })[];
+  const mine = myBands.filter((b) => b.event_id === event.id);
+  // The latest registration of each of the director's bands, to copy from.
+  const seen = new Set<string>();
+  const previous: PreviousBand[] = myBands
+    .filter((b) => {
+      const k = `${b.band_name}|${b.school_name}`.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .map((b) => ({
+      ...b,
+      head_director_phone: formatPhone(b.head_director_phone),
+      label: `${b.band_name} (${b.school_name}) · from ${b.events?.name ?? "an earlier contest"}`,
+    }));
 
-  const open = event.status === "published" && event.band_registration_open;
+  const open = registrationIsOpen(event);
   const here = `/e/${slug}/bands`;
+  const form = user && (
+    <RegisterForm
+      action={registerBand.bind(null, event.id)}
+      classifications={event.classifications}
+      chaperoneLimit={event.chaperone_limit}
+      previous={previous}
+      blank={{
+        head_director_name: profile?.full_name ?? "",
+        head_director_email: user.email,
+        head_director_phone: formatPhone(profile?.phone),
+        contact_email: user.email,
+      }}
+    />
+  );
 
   return (
     <>
@@ -55,11 +86,20 @@ export default async function BandRegistrationPage({ params }: Params) {
         <p className="mt-1 text-muted">{[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}</p>
       </header>
 
-      {(mine ?? []).length > 0 && (
+      {(event.director_info || (open && event.band_registration_deadline)) && (
+        <Card className="mt-8 space-y-3">
+          {open && event.band_registration_deadline && (
+            <p className="font-medium">Registration closes at the end of {formatDate(event.band_registration_deadline)}.</p>
+          )}
+          {event.director_info && <p className="whitespace-pre-line leading-7">{event.director_info}</p>}
+        </Card>
+      )}
+
+      {mine.length > 0 && (
         <Card className="mt-8 bg-accent-soft">
           <p className="font-medium">You&apos;ve registered</p>
           <ul className="mt-2 space-y-1">
-            {(mine ?? []).map((b) => (
+            {mine.map((b) => (
               <li key={b.id}>
                 <Link href={`/dashboard/bands/${b.id}`} className="font-medium text-brand underline-offset-4 hover:underline">
                   {b.band_name} ({b.school_name})
@@ -67,7 +107,7 @@ export default async function BandRegistrationPage({ params }: Params) {
               </li>
             ))}
           </ul>
-          {open && <p className="mt-2 text-sm text-muted">Bringing another ensemble? Register it below.</p>}
+          <p className="mt-2 text-sm text-muted">Open a band to see your times or change your registration.</p>
         </Card>
       )}
 
@@ -75,7 +115,11 @@ export default async function BandRegistrationPage({ params }: Params) {
         {!open ? (
           <Card>
             <p className="font-medium">
-              {event.status === "published" ? "Band registration is closed." : "Preview: this page isn't public yet."}
+              {event.status !== "published"
+                ? "Preview: this page isn't public yet."
+                : deadlinePassed(event) && event.band_registration_open
+                  ? `Band registration closed on ${formatDate(event.band_registration_deadline!)}.`
+                  : "Band registration is closed."}
             </p>
             <p className="mt-1 text-sm text-muted">
               {event.status === "published"
@@ -97,19 +141,15 @@ export default async function BandRegistrationPage({ params }: Params) {
               Sign in to register
             </Link>
           </Card>
+        ) : mine.length > 0 ? (
+          <details className="group">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background group-open:mb-6">
+              + Register another ensemble
+            </summary>
+            {form}
+          </details>
         ) : (
-          <BandForm
-            action={registerBand.bind(null, event.id)}
-            classifications={event.classifications}
-            chaperoneLimit={event.chaperone_limit}
-            submitLabel="Register band"
-            initial={{
-              head_director_name: profile?.full_name ?? "",
-              head_director_email: user.email,
-              head_director_phone: formatPhone(profile?.phone),
-              contact_email: user.email,
-            }}
-          />
+          form
         )}
       </div>
     </main>

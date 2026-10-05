@@ -10,11 +10,12 @@ import {
   updateBandSettings,
 } from "@/app/dashboard/band-actions";
 import { Badge, Card } from "@/components/ui";
-import { BAND_COLUMNS, type BandRow } from "@/lib/bands";
+import { requireUser } from "@/lib/auth";
+import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
-import { eachDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
+import { eachDate, formatDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
 import { ScheduleBuilder, type FinalsSlot, type OrderBand, type ScheduleBreak } from "./schedule-builder";
 import { BandSettingsForm } from "./settings-form";
@@ -38,12 +39,13 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_published")
+    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_published")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) notFound();
 
-  const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }] = await Promise.all([
+  const user = await requireUser();
+  const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: contact }, { data: profile }] = await Promise.all([
     supabase.from("bands").select(BAND_COLUMNS).eq("event_id", eventId).order("created_at"),
     supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
     supabase.from("schedule_breaks").select("starts_at, minutes, label").eq("event_id", eventId).order("starts_at"),
@@ -52,7 +54,11 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       .select("slot_number, band_id, warm_up_at, warm_up_minutes, perform_at, warm_up_location")
       .eq("event_id", eventId)
       .order("slot_number"),
+    supabase.from("event_director_contacts").select("name, phone, email").eq("event_id", eventId).maybeSingle(),
+    supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
   ]);
+  const regOpen = registrationIsOpen(event);
+  const pastDeadline = event.band_registration_open && deadlinePassed(event);
   const bands = (bandData ?? []) as BandRow[];
   const slots = new Map(((slotData ?? []) as Slot[]).map((s) => [s.band_id, s]));
   const tz = event.timezone;
@@ -109,12 +115,14 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       <section className="mt-6">
         <Card className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={event.status === "published" && event.band_registration_open ? "brand" : "neutral"}>
+            <Badge tone={regOpen ? "brand" : "neutral"}>
               {event.status !== "published"
                 ? "Event not published"
-                : event.band_registration_open
+                : regOpen
                   ? "Registration open"
-                  : "Registration closed"}
+                  : pastDeadline
+                    ? "Closed: deadline passed"
+                    : "Registration closed"}
             </Badge>
             <span className="text-sm text-muted">
               {bands.length} band{bands.length === 1 ? "" : "s"} registered
@@ -131,6 +139,13 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
           {event.status !== "published" && (
             <p className="text-sm text-muted">Publish the event from its main page first, then open registration here.</p>
           )}
+          {event.band_registration_deadline && (
+            <p className="text-sm text-muted">
+              {pastDeadline
+                ? `The deadline (${formatDate(event.band_registration_deadline)}) has passed. Change it in Registration settings to reopen.`
+                : `Closes automatically at the end of ${formatDate(event.band_registration_deadline)}.`}
+            </p>
+          )}
           <div>
             <p className="text-sm font-medium">Link for band directors</p>
             <p className="mt-1 break-all text-sm text-muted">{registrationUrl}</p>
@@ -146,6 +161,14 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                   action={updateBandSettings.bind(null, eventId)}
                   chaperoneLimit={event.chaperone_limit}
                   classifications={event.classifications}
+                  deadline={event.band_registration_deadline ?? ""}
+                  directorInfo={event.director_info ?? ""}
+                  contact={{
+                    name: contact?.name || profile?.full_name || "",
+                    phone: formatPhone(contact?.phone || profile?.phone),
+                    email: contact?.email || user.email || "",
+                  }}
+                  contactSaved={Boolean(contact)}
                 />
               </div>
             </details>
