@@ -45,7 +45,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   if (!event) notFound();
 
   const user = await requireUser();
-  const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: contact }, { data: profile }] = await Promise.all([
+  const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: contact }, { data: contactPhone }, { data: profile }] = await Promise.all([
     supabase.from("bands").select(BAND_COLUMNS).eq("event_id", eventId).order("created_at"),
     supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
     supabase.from("schedule_breaks").select("starts_at, minutes, label").eq("event_id", eventId).order("starts_at"),
@@ -54,7 +54,8 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       .select("slot_number, band_id, warm_up_at, warm_up_minutes, perform_at, warm_up_location")
       .eq("event_id", eventId)
       .order("slot_number"),
-    supabase.from("event_director_contacts").select("name, phone, email").eq("event_id", eventId).maybeSingle(),
+    supabase.from("event_director_contacts").select("name, email").eq("event_id", eventId).maybeSingle(),
+    supabase.rpc("director_contact_phone", { ev: eventId }),
     supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
   ]);
   const regOpen = registrationIsOpen(event);
@@ -165,7 +166,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                   directorInfo={event.director_info ?? ""}
                   contact={{
                     name: contact?.name || profile?.full_name || "",
-                    phone: formatPhone(contact?.phone || profile?.phone),
+                    phone: formatPhone(contact ? contactPhone : profile?.phone),
                     email: contact?.email || user.email || "",
                   }}
                   contactSaved={Boolean(contact)}

@@ -84,7 +84,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261005000000_warm_up_duration.sql` | Warm-up length per band (15-minute steps) | ✅ run |
 | `20261005010000_ready_position.sql` | Ready position minutes, set per event | ✅ run |
 | `20261005020000_breaks_and_finals.sql` | Schedule breaks and a finals round | ✅ run |
-| `20261006000000_director_contest_info.sql` | Registration deadline, info and host contact for band directors | run this next |
+| `20261006000000_director_contest_info.sql` | Registration deadline, info and host contact for band directors | ✅ run |
+| `20261007000000_director_contact_phone.sql` | Host phone unlocks for directors only the day before and on contest day | run this next |
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:

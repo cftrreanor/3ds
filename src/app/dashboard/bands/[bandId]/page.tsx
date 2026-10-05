@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Badge, Card } from "@/components/ui";
@@ -8,8 +9,10 @@ import { BAND_COLUMNS, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } 
 import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
+import { CONTEST_INFO_COOKIE } from "@/lib/preferences";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
+import { CollapsibleInfo } from "./collapsible-info";
 
 export const metadata: Metadata = { title: "Contest" };
 
@@ -24,7 +27,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const band = data as BandRow | null;
   if (!band) notFound();
 
-  const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }] = await Promise.all([
+  const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }, { data: phone }, cookieStore] = await Promise.all([
     supabase
       .from("events")
       .select(
@@ -34,7 +37,9 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       .single(),
     supabase.from("performance_slots").select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
     supabase.from("finals_slots").select("slot_number, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
-    supabase.from("event_director_contacts").select("name, phone, email").eq("event_id", band.event_id).maybeSingle(),
+    supabase.from("event_director_contacts").select("name, email, has_phone").eq("event_id", band.event_id).maybeSingle(),
+    supabase.rpc("director_contact_phone", { ev: band.event_id }),
+    cookies(),
   ]);
   if (!event) notFound();
   const open = registrationIsOpen(event);
@@ -46,7 +51,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   })}`;
   const calendar = (round: "order" | "finals", times: BandTimes) =>
     bandCalendarEvent({ bandId, bandName: band.band_name, round, times, event, url: `${origin}/dashboard/bands/${bandId}` });
-  const hasContact = contact && (contact.name || contact.phone || contact.email);
+  const hasContact = contact && (contact.name || contact.has_phone || contact.email);
+  const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -78,27 +84,32 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             Full schedule
           </Link>
         </p>
-        {hasContact && (
-          <p className="mt-1 flex flex-wrap gap-x-3 text-muted">
-            <span>Questions? {contact.name || "Contact the host"}</span>
-            {contact.phone && (
-              <>
-                <a href={`tel:${contact.phone}`} className={linkClass}>
-                  Call {formatPhone(contact.phone)}
-                </a>
-                <a href={`sms:${contact.phone}`} className={linkClass}>
-                  Text
-                </a>
-              </>
+        {(hasContact || event.director_info) && (
+          <CollapsibleInfo initialOpen={infoOpen}>
+            {hasContact && (
+              <p className="mt-2 flex flex-wrap gap-x-3 text-muted">
+                <span>{contact.name || "Host contact"}</span>
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className={linkClass}>
+                    Email
+                  </a>
+                )}
+                {/* No digits on screen; the number only unlocks the day before and on contest day. */}
+                {phone && (
+                  <>
+                    <a href={`tel:${phone}`} className={linkClass}>
+                      Call
+                    </a>
+                    <a href={`sms:${phone}`} className={linkClass}>
+                      Text
+                    </a>
+                  </>
+                )}
+              </p>
             )}
-            {contact.email && (
-              <a href={`mailto:${contact.email}`} className={linkClass}>
-                Email
-              </a>
-            )}
-          </p>
+            {event.director_info && <p className="mt-2 whitespace-pre-line text-sm leading-6">{event.director_info}</p>}
+          </CollapsibleInfo>
         )}
-        {event.director_info && <p className="mt-3 whitespace-pre-line text-sm leading-6">{event.director_info}</p>}
         <p className="mt-4">
           <span aria-hidden="true">🎺</span> <span className="font-semibold">{band.band_name}</span>{" "}
           <span className="text-muted">· {band.school_name}</span>
@@ -157,44 +168,44 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             ▾
           </span>
         </summary>
-        <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-            <Item label="Classification">{band.classification}</Item>
-            <Item label="People">
-              {band.student_count} students · {band.chaperone_count} chaperones
-            </Item>
-            <Item label="Vehicles">
-              {[
-                [band.bus_count, "bus", "buses"],
-                [band.box_truck_count, "box truck", "box trucks"],
-                [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
-                [band.semi_truck_count, "semi", "semis"],
-              ]
-                .filter(([n]) => Number(n) > 0)
-                .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
-                .join(" · ") || "None listed"}
-            </Item>
-            <Item label="Head director">
-              {band.head_director_name} · {formatPhone(band.head_director_phone)}
-            </Item>
-            {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
-            <Item label="Band contact email">{band.contact_email}</Item>
-            <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
-            <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
-          </dl>
-          {open ? (
-            <Link
-              href={`/dashboard/bands/${bandId}/edit`}
-              className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
-            >
-              Edit registration
-            </Link>
-          ) : (
-            <p className="mt-5 text-sm text-muted">
-              Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
-            </p>
-          )}
-        </div>
+          <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
+            <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+              <Item label="Classification">{band.classification}</Item>
+              <Item label="People">
+                {band.student_count} students · {band.chaperone_count} chaperones
+              </Item>
+              <Item label="Vehicles">
+                {[
+                  [band.bus_count, "bus", "buses"],
+                  [band.box_truck_count, "box truck", "box trucks"],
+                  [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
+                  [band.semi_truck_count, "semi", "semis"],
+                ]
+                  .filter(([n]) => Number(n) > 0)
+                  .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+                  .join(" · ") || "None listed"}
+              </Item>
+              <Item label="Head director">
+                {band.head_director_name} · {formatPhone(band.head_director_phone)}
+              </Item>
+              {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
+              <Item label="Band contact email">{band.contact_email}</Item>
+              <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
+              <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
+            </dl>
+            {open ? (
+              <Link
+                href={`/dashboard/bands/${bandId}/edit`}
+                className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
+              >
+                Edit registration
+              </Link>
+            ) : (
+              <p className="mt-5 text-sm text-muted">
+                Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
+              </p>
+            )}
+          </div>
       </details>
     </div>
   );
