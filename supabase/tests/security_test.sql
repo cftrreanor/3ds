@@ -548,12 +548,21 @@ values ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-0000000
         '00000000-0000-0000-0000-000000000005', 'North HS', 'Northern Lights', '6A', 'addr',
         'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 200, 20);
 select public.save_performance_order('10000000-0000-0000-0000-00000000000a', jsonb_build_array(
-  jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000002', 'perform_at', now() + interval '10 days 2 hours'),
+  jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000002', 'perform_at', now() + interval '10 days 2 hours',
+                     'warm_up_minutes', 45),
   jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000001', 'perform_at', now() + interval '10 days 3 hours')
 )) \g /dev/null
 do $$ begin
   assert (select performance_order from public.performance_slots where band_id = '40000000-0000-0000-0000-000000000001') = 2,
          'order follows the list';
+  assert (select warm_up_minutes from public.performance_slots where band_id = '40000000-0000-0000-0000-000000000002') = 45,
+         'warm-up length is saved';
+  begin
+    perform public.save_performance_order('10000000-0000-0000-0000-00000000000a',
+      '[{"band_id":"40000000-0000-0000-0000-000000000001","warm_up_minutes":20}]'::jsonb);
+    raise exception 'FAIL: saved a warm-up length that is not in 15-minute steps';
+  exception when check_violation then null;
+  end;
   begin
     perform public.save_performance_order('10000000-0000-0000-0000-00000000000b',
       '[{"band_id":"40000000-0000-0000-0000-000000000001"}]'::jsonb);

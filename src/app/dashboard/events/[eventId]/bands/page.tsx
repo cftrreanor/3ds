@@ -8,7 +8,7 @@ import {
   updateBandSettings,
 } from "@/app/dashboard/band-actions";
 import { Badge, Card } from "@/components/ui";
-import { BAND_COLUMNS, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, READY_MINUTES_BEFORE, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
@@ -23,6 +23,7 @@ type Slot = {
   band_id: string;
   performance_order: number;
   warm_up_at: string | null;
+  warm_up_minutes: number | null;
   perform_at: string | null;
   warm_up_location: string | null;
 };
@@ -42,7 +43,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
 
   const [{ data: bandData }, { data: slotData }] = await Promise.all([
     supabase.from("bands").select(BAND_COLUMNS).eq("event_id", eventId).order("created_at"),
-    supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, perform_at, warm_up_location").eq("event_id", eventId),
+    supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
   ]);
   const bands = (bandData ?? []) as BandRow[];
   const slots = new Map(((slotData ?? []) as Slot[]).map((s) => [s.band_id, s]));
@@ -68,6 +69,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       conflicts: b.contest_day_conflicts,
       day: ref ? utcToZonedDate(ref, tz) : days[0],
       warmUp: s?.warm_up_at ? utcToZonedTime(s.warm_up_at, tz) : "",
+      warmUpMinutes: s?.warm_up_minutes ?? 0,
       perform: s?.perform_at ? utcToZonedTime(s.perform_at, tz) : "",
       location: s?.warm_up_location ?? "",
     };
@@ -170,8 +172,9 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             </Badge>
           </div>
           <p className="mt-1 mb-4 text-sm text-muted">
-            Put bands in order and set their times ({zoneName(tz)}). Directors and the public only see it once you
-            publish. Conflicts that directors reported are shown with ⚠️.
+            Put bands in order and set their times ({zoneName(tz)}). The ready position is {READY_MINUTES_BEFORE}{" "}
+            minutes before each performance. Directors and the public only see the order once you publish. Conflicts
+            directors reported are shown with ⚠️.
           </p>
           <OrderBuilder initial={builderBands} days={days} save={saveRunningOrder.bind(null, eventId)} zoneLabel={zoneName(tz)} />
           {bands.length > 0 && (
