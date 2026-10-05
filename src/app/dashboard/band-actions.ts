@@ -7,7 +7,7 @@ import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { bandColumns, parseBand, readyAt, warmUpEndAt } from "@/lib/bands";
-import { getOrigin } from "@/lib/data";
+import { getEventAccess, getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zonedToUtc } from "@/lib/time";
@@ -119,48 +119,128 @@ export async function updateBandSettings(eventId: string, _prev: ActionState, fo
   return result.error ? result : { ok: true, message: "Settings saved." };
 }
 
-const slotSchema = z.array(
-  z.object({
-    band_id: z.string().uuid(),
-    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    warmUp: z.string().regex(/^(\d{2}:\d{2})?$/),
-    warmUpMinutes: z.number().int().min(0).max(240).refine((m) => m % 15 === 0, "Warm-up length must be in 15-minute steps"),
-    perform: z.string().regex(/^(\d{2}:\d{2})?$/),
-    location: z.string().trim().max(120),
-  }),
-);
+const timesSchema = z.object({
+  band_id: z.union([z.string().uuid(), z.literal("")]),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  warmUp: z.string().regex(/^(\d{2}:\d{2})?$/),
+  warmUpMinutes: z.number().int().min(0).max(240).refine((m) => m % 15 === 0, "Warm-up length must be in 15-minute steps"),
+  perform: z.string().regex(/^(\d{2}:\d{2})?$/),
+  location: z.string().trim().max(120),
+});
 
-/** Save the running order. Times arrive as the event's local wall-clock times. */
-export async function saveRunningOrder(eventId: string, slotsJson: string, readyMinutes: string): Promise<ActionState> {
+const scheduleSchema = z.object({
+  readyMinutes: z.string().regex(/^\d{1,2}$/, "Ready position: enter a number of minutes from 0 to 60.").transform(Number)
+    .pipe(z.number().max(60, "Ready position: enter a number of minutes from 0 to 60.")),
+  slots: z.array(timesSchema.extend({ band_id: z.string().uuid() })),
+  breaks: z
+    .array(
+      z.object({
+        day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        start: z.string().regex(/^\d{2}:\d{2}$/, "Each break needs a start time."),
+        minutes: z.string().regex(/^\d{1,3}$/, "Each break needs a length in minutes.").transform(Number)
+          .pipe(z.number().min(5, "Breaks must be at least 5 minutes.").max(480, "Breaks can be at most 8 hours.")),
+        label: z.string().trim().max(80).transform((v) => v || "Break"),
+      }),
+    )
+    .max(30),
+  finals: z.array(timesSchema).max(30),
+});
+
+/** Save the whole schedule. Times arrive as the event's local wall-clock times. */
+export async function saveSchedule(eventId: string, scheduleJson: string): Promise<ActionState> {
   await requireUser();
   let raw: unknown;
   try {
-    raw = JSON.parse(slotsJson);
+    raw = JSON.parse(scheduleJson);
   } catch {
     raw = null;
   }
-  const parsed = slotSchema.safeParse(raw);
-  if (!parsed.success) return { error: "Something about the order wasn't valid. Please try again." };
-  const ready = z.string().regex(/^\d{1,2}$/).transform(Number).pipe(z.number().max(60)).safeParse(readyMinutes);
-  if (!ready.success) return { error: "Ready position: enter a number of minutes from 0 to 60." };
+  const parsed = scheduleSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues.find((i) => !i.message.startsWith("Invalid"));
+    return { error: issue?.message ?? "Something about the schedule wasn't valid. Please try again." };
+  }
 
-  const saved = await updateEventRow(eventId, { ready_minutes_before: ready.data });
-  if (saved.error) return saved;
   const supabase = await createClient();
   const { data: event } = await supabase.from("events").select("timezone").eq("id", eventId).single();
   if (!event) return { error: "Event not found." };
   const toUtc = (day: string, time: string) => (time ? zonedToUtc(day, time, event.timezone).toISOString() : null);
-  const slots = parsed.data.map((s) => ({
-    band_id: s.band_id,
+  const times = (s: z.infer<typeof timesSchema>) => ({
+    band_id: s.band_id || null,
     warm_up_at: toUtc(s.day, s.warmUp),
     warm_up_minutes: s.warmUpMinutes || null,
     perform_at: toUtc(s.day, s.perform),
     warm_up_location: s.location || null,
-  }));
-  const { error } = await supabase.rpc("save_performance_order", { p_event_id: eventId, p_slots: slots });
-  if (error) return { error: friendlyDbError(error) };
+  });
+  const { error } = await supabase.rpc("save_schedule", {
+    p_event_id: eventId,
+    p_ready_minutes: parsed.data.readyMinutes,
+    p_slots: parsed.data.slots.map(times),
+    p_breaks: parsed.data.breaks.map((b) => ({ starts_at: toUtc(b.day, b.start), minutes: b.minutes, label: b.label })),
+    p_finals: parsed.data.finals.map(times),
+  });
+  if (error) {
+    if (error.code === "23505") return { error: "The same band is picked for two finals slots." };
+    return { error: friendlyDbError(error) };
+  }
   revalidatePath(`/dashboard/events/${eventId}/bands`);
-  return { ok: true, message: "Order saved." };
+  return { ok: true, message: "Schedule saved." };
+}
+
+type EmailEvent = { name: string; slug: string; timezone: string; venue_name: string | null; venue_address: string; ready_minutes_before: number };
+type EmailSlot = {
+  label: string;
+  warm_up_at: string | null;
+  warm_up_minutes: number | null;
+  perform_at: string | null;
+  warm_up_location: string | null;
+  bands: { band_name: string; school_name: string; contact_email: string; head_director_email: string } | null;
+};
+
+const EMAIL_EVENT_COLUMNS = "name, slug, timezone, venue_name, venue_address, ready_minutes_before";
+const EMAIL_BAND_COLUMNS = "bands(band_name, school_name, contact_email, head_director_email)";
+
+/** Email each band's director their times. Runs after the response is sent. */
+function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round: "order" | "finals") {
+  after(async () => {
+    const tz = event.timezone;
+    const at = (iso: string | null) =>
+      iso ? `${formatDate(utcToZonedDate(iso, tz))}, ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}` : "To be announced";
+    for (const s of slots) {
+      if (!s.bands) continue;
+      const warmEnd = warmUpEndAt(s.warm_up_at, s.warm_up_minutes);
+      const { html, text } = emailLayout({
+        heading: round === "finals" ? `You're in the finals at ${event.name}!` : `Your performance time at ${event.name}`,
+        paragraphs: [
+          round === "finals"
+            ? `Congratulations! ${s.bands.band_name} is performing in finals. Here are your finals times.`
+            : `The performance order for ${event.name} is posted. Here are the times for ${s.bands.band_name}.`,
+        ],
+        rows: [
+          { title: round === "finals" ? "Finals order" : "Performance order", detail: s.label },
+          {
+            title: "Warm-up",
+            detail: [at(s.warm_up_at), warmEnd ? `until ${formatTime(warmEnd, tz)} (${s.warm_up_minutes} min)` : null, s.warm_up_location]
+              .filter(Boolean)
+              .join(" · "),
+          },
+          {
+            title: "Ready position",
+            detail: `${at(readyAt(s.perform_at, event.ready_minutes_before))} (${event.ready_minutes_before} min before performing)`,
+          },
+          { title: "Performance", detail: at(s.perform_at) },
+          { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },
+        ],
+        button: { label: "See the full schedule", url: `${origin}/e/${event.slug}` },
+      });
+      const subject =
+        round === "finals" ? `Finals time: ${s.bands.band_name} at ${event.name}` : `Performance time: ${s.bands.band_name} at ${event.name}`;
+      for (const to of new Set([s.bands.head_director_email, s.bands.contact_email])) {
+        await sendEmail({ to, subject, html, text });
+        await pause();
+      }
+    }
+  });
 }
 
 /** Publish (or hide) the running order. Publishing emails every director their times. */
@@ -170,58 +250,50 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
 
   const supabase = await createClient();
   const [{ data: event }, { data: slots }] = await Promise.all([
-    supabase.from("events").select("name, slug, timezone, venue_name, venue_address, ready_minutes_before").eq("id", eventId).single(),
+    supabase.from("events").select(EMAIL_EVENT_COLUMNS).eq("id", eventId).single(),
     supabase
       .from("performance_slots")
-      .select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location, bands(band_name, school_name, contact_email, head_director_email)")
+      .select(`performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location, ${EMAIL_BAND_COLUMNS}`)
       .eq("event_id", eventId)
       .order("performance_order"),
   ]);
-  const origin = await getOrigin();
-  type Slot = {
-    performance_order: number;
-    warm_up_at: string | null;
-    warm_up_minutes: number | null;
-    perform_at: string | null;
-    warm_up_location: string | null;
-    bands: { band_name: string; school_name: string; contact_email: string; head_director_email: string } | null;
-  };
-  after(async () => {
-    for (const s of (slots ?? []) as unknown as Slot[]) {
-      if (!s.bands || !event) continue;
-      const tz = event.timezone;
-      const at = (iso: string | null) =>
-        iso ? `${formatDate(utcToZonedDate(iso, tz))}, ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}` : "To be announced";
-      const { html, text } = emailLayout({
-        heading: `Your performance time at ${event.name}`,
-        paragraphs: [`The performance order for ${event.name} is posted. Here are the times for ${s.bands.band_name}.`],
-        rows: [
-          { title: "Performance order", detail: `#${s.performance_order}` },
-          {
-            title: "Warm-up",
-            detail: [
-              at(s.warm_up_at),
-              warmUpEndAt(s.warm_up_at, s.warm_up_minutes)
-                ? `until ${formatTime(warmUpEndAt(s.warm_up_at, s.warm_up_minutes)!, tz)} (${s.warm_up_minutes} min)`
-                : null,
-              s.warm_up_location,
-            ]
-              .filter(Boolean)
-              .join(" · "),
-          },
-          { title: "Ready position", detail: `${at(readyAt(s.perform_at, event.ready_minutes_before))} (${event.ready_minutes_before} min before performing)` },
-          { title: "Performance", detail: at(s.perform_at) },
-          { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },
-        ],
-        button: { label: "See the full schedule", url: `${origin}/e/${event.slug}` },
-      });
-      const recipients = [...new Set([s.bands.head_director_email, s.bands.contact_email])];
-      for (const to of recipients) {
-        await sendEmail({ to, subject: `Performance time: ${s.bands.band_name} at ${event.name}`, html, text });
-        await pause();
-      }
-    }
-  });
+  if (event) {
+    const rows = ((slots ?? []) as unknown as (Omit<EmailSlot, "label"> & { performance_order: number })[]).map((s) => ({
+      ...s,
+      label: `#${s.performance_order}`,
+    }));
+    emailTimes(event, rows, await getOrigin(), "order");
+  }
   return { ok: true, message: "Published. Directors are being emailed their times." };
 }
 
+/** Publish (or hide) the finals. Finalists are emailed separately, once they're picked. */
+export async function publishFinals(eventId: string, publish: boolean): Promise<ActionState> {
+  const result = await updateEventRow(eventId, { finals_published: publish });
+  return result.error ? result : { ok: true, message: publish ? "Finals published." : "Finals hidden." };
+}
+
+/** Email each picked finalist their finals times. */
+export async function emailFinalists(eventId: string): Promise<ActionState> {
+  await requireUser();
+  if (!(await getEventAccess(eventId)).isHost) return { error: "Only the event's host can do this." };
+  const supabase = await createClient();
+  const [{ data: event }, { data: slots }] = await Promise.all([
+    supabase.from("events").select(`${EMAIL_EVENT_COLUMNS}, finals_published`).eq("id", eventId).single(),
+    supabase
+      .from("finals_slots")
+      .select(`slot_number, warm_up_at, warm_up_minutes, perform_at, warm_up_location, ${EMAIL_BAND_COLUMNS}`)
+      .eq("event_id", eventId)
+      .not("band_id", "is", null)
+      .order("slot_number"),
+  ]);
+  if (!event) return { error: "Event not found." };
+  if (!event.finals_published) return { error: "Publish the finals first." };
+  if (!slots?.length) return { error: "Pick the finalists and save the schedule first." };
+  const rows = (slots as unknown as (Omit<EmailSlot, "label"> & { slot_number: number })[]).map((s) => ({
+    ...s,
+    label: `Finalist #${s.slot_number}`,
+  }));
+  emailTimes(event, rows, await getOrigin(), "finals");
+  return { ok: true, message: `Emailing ${rows.length} finalist${rows.length === 1 ? "" : "s"} their times.` };
+}

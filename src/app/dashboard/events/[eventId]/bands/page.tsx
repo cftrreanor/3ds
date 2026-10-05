@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
+  emailFinalists,
+  publishFinals,
   publishRunningOrder,
-  saveRunningOrder,
+  saveSchedule,
   setBandRegistrationOpen,
   updateBandSettings,
 } from "@/app/dashboard/band-actions";
@@ -14,7 +16,7 @@ import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { eachDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
-import { OrderBuilder, type OrderBand } from "./order-builder";
+import { ScheduleBuilder, type FinalsSlot, type OrderBand, type ScheduleBreak } from "./schedule-builder";
 import { BandSettingsForm } from "./settings-form";
 
 export const metadata: Metadata = { title: "Bands" };
@@ -36,14 +38,20 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before")
+    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_published")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) notFound();
 
-  const [{ data: bandData }, { data: slotData }] = await Promise.all([
+  const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }] = await Promise.all([
     supabase.from("bands").select(BAND_COLUMNS).eq("event_id", eventId).order("created_at"),
     supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
+    supabase.from("schedule_breaks").select("starts_at, minutes, label").eq("event_id", eventId).order("starts_at"),
+    supabase
+      .from("finals_slots")
+      .select("slot_number, band_id, warm_up_at, warm_up_minutes, perform_at, warm_up_location")
+      .eq("event_id", eventId)
+      .order("slot_number"),
   ]);
   const bands = (bandData ?? []) as BandRow[];
   const slots = new Map(((slotData ?? []) as Slot[]).map((s) => [s.band_id, s]));
@@ -58,22 +66,34 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     const sb = slots.get(b.id)?.performance_order ?? Infinity;
     return sa - sb || a.created_at.localeCompare(b.created_at);
   });
-  const builderBands: OrderBand[] = ordered.map((b) => {
-    const s = slots.get(b.id);
+  // Stored times → wall-clock times on the event's days, for the builder.
+  const toTimes = (s: Omit<Slot, "band_id" | "performance_order"> | undefined, fallbackDay: string) => {
     const ref = s?.perform_at ?? s?.warm_up_at;
     return {
-      id: b.id,
-      name: b.band_name,
-      school: b.school_name,
-      classification: b.classification,
-      conflicts: b.contest_day_conflicts,
-      day: ref ? utcToZonedDate(ref, tz) : days[0],
+      day: ref ? utcToZonedDate(ref, tz) : fallbackDay,
       warmUp: s?.warm_up_at ? utcToZonedTime(s.warm_up_at, tz) : "",
       warmUpMinutes: s?.warm_up_minutes ?? 0,
       perform: s?.perform_at ? utcToZonedTime(s.perform_at, tz) : "",
       location: s?.warm_up_location ?? "",
     };
-  });
+  };
+  const builderBands: OrderBand[] = ordered.map((b) => ({
+    id: b.id,
+    name: b.band_name,
+    school: b.school_name,
+    classification: b.classification,
+    conflicts: b.contest_day_conflicts,
+    ...toTimes(slots.get(b.id), days[0]),
+  }));
+  const builderBreaks: ScheduleBreak[] = (breakData ?? []).map((b) => ({
+    day: utcToZonedDate(b.starts_at, tz),
+    start: utcToZonedTime(b.starts_at, tz),
+    minutes: b.minutes,
+    label: b.label,
+  }));
+  const finalsSlots = (finalsData ?? []) as (Omit<Slot, "band_id" | "performance_order"> & { slot_number: number; band_id: string | null })[];
+  const builderFinals: FinalsSlot[] = finalsSlots.map((f) => ({ bandId: f.band_id ?? "", ...toTimes(f, days.at(-1)!) }));
+  const finalistsPicked = finalsSlots.filter((f) => f.band_id).length;
   const unscheduled = bands.filter((b) => !slots.has(b.id)).length;
 
   const total = (k: keyof BandRow) => bands.reduce((n, b) => n + Number(b[k] ?? 0), 0);
@@ -165,46 +185,90 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
 
       {access.isHost && (
         <section className="mt-10">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Performance order</h2>
-            <Badge tone={event.performance_order_published ? "brand" : "neutral"}>
-              {event.performance_order_published ? "Published" : "Not published"}
-            </Badge>
-          </div>
+          <h2 className="text-lg font-semibold">Performance schedule</h2>
           <p className="mt-1 mb-4 text-sm text-muted">
-            Put bands in order and set their times ({zoneName(tz)}). Directors and the public only see the order once
-            you publish. Conflicts directors reported are shown with ⚠️.
+            Set breaks, put bands in order and set their times ({zoneName(tz)}). Directors and the public only see the
+            schedule once you publish. Conflicts directors reported are shown with ⚠️.
           </p>
-          <OrderBuilder
-            initial={builderBands}
-            days={days}
-            save={saveRunningOrder.bind(null, eventId)}
-            zoneLabel={zoneName(tz)}
+          <ScheduleBuilder
+            initialBands={builderBands}
+            initialBreaks={builderBreaks}
+            initialFinals={builderFinals}
             initialReadyMinutes={event.ready_minutes_before}
+            days={days}
+            zoneLabel={zoneName(tz)}
+            save={saveSchedule.bind(null, eventId)}
           />
           {bands.length > 0 && (
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              {event.performance_order_published ? (
-                <ActionButton action={publishRunningOrder.bind(null, eventId, false)} variant="secondary">
-                  Unpublish order
-                </ActionButton>
-              ) : (
-                <ActionButton
-                  action={publishRunningOrder.bind(null, eventId, true)}
-                  confirmMessage={
-                    unscheduled
-                      ? `${unscheduled} band(s) haven't been saved into the order yet. Publish anyway? Each director will be emailed their times.`
-                      : "Publish the order? Each band director will be emailed their times."
-                  }
-                  pendingText="Publishing…"
-                >
-                  Publish order &amp; email directors
-                </ActionButton>
+            <Card className="mt-6 space-y-5">
+              <h3 className="font-semibold">Publishing</h3>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">Running order</span>
+                  <Badge tone={event.performance_order_published ? "brand" : "neutral"}>
+                    {event.performance_order_published ? "Published" : "Not published"}
+                  </Badge>
+                </div>
+                {event.performance_order_published ? (
+                  <ActionButton action={publishRunningOrder.bind(null, eventId, false)} variant="secondary">
+                    Unpublish order
+                  </ActionButton>
+                ) : (
+                  <ActionButton
+                    action={publishRunningOrder.bind(null, eventId, true)}
+                    confirmMessage={
+                      unscheduled
+                        ? `${unscheduled} band(s) haven't been saved into the order yet. Publish anyway? Each director will be emailed their times.`
+                        : "Publish the order? Each band director will be emailed their times."
+                    }
+                    pendingText="Publishing…"
+                  >
+                    Publish order &amp; email directors
+                  </ActionButton>
+                )}
+              </div>
+              {finalsSlots.length > 0 && (
+                <div className="space-y-3 border-t border-border pt-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">Finals</span>
+                    <Badge tone={event.finals_published ? "brand" : "neutral"}>
+                      {event.finals_published ? "Published" : "Not published"}
+                    </Badge>
+                    <span className="text-sm text-muted">
+                      {finalistsPicked} of {finalsSlots.length} finalists picked
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted">
+                    You can publish the finals times before the finalists are announced; slots show as &ldquo;to be
+                    announced&rdquo; until you pick them and save.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {event.finals_published ? (
+                      <ActionButton action={publishFinals.bind(null, eventId, false)} variant="secondary">
+                        Unpublish finals
+                      </ActionButton>
+                    ) : (
+                      <ActionButton action={publishFinals.bind(null, eventId, true)} pendingText="Publishing…">
+                        Publish finals
+                      </ActionButton>
+                    )}
+                    {event.finals_published && finalistsPicked > 0 && (
+                      <ActionButton
+                        action={emailFinalists.bind(null, eventId)}
+                        variant="secondary"
+                        confirmMessage={`Email the ${finalistsPicked} finalist band director(s) their finals times?`}
+                        pendingText="Sending…"
+                      >
+                        Email finalists their times
+                      </ActionButton>
+                    )}
+                  </div>
+                </div>
               )}
-              {event.performance_order_published && (
-                <span className="text-sm text-muted">Changes you save are visible right away.</span>
+              {(event.performance_order_published || event.finals_published) && (
+                <p className="text-sm text-muted">Changes you save to published times are visible right away.</p>
               )}
-            </div>
+            </Card>
           )}
         </section>
       )}

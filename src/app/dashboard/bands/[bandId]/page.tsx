@@ -20,20 +20,17 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
   const band = data as BandRow | null;
   if (!band) notFound();
 
-  const [{ data: event }, { data: slot }] = await Promise.all([
+  const [{ data: event }, { data: slot }, { data: finalsSlot }] = await Promise.all([
     supabase
       .from("events")
-      .select("name, slug, timezone, starts_on, ends_on, venue_name, venue_address, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before")
+      .select("name, slug, timezone, starts_on, ends_on, venue_name, venue_address, band_registration_open, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_published")
       .eq("id", band.event_id)
       .single(),
     supabase.from("performance_slots").select("performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
+    supabase.from("finals_slots").select("slot_number, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", bandId).maybeSingle(),
   ]);
   if (!event) notFound();
   const tz = event.timezone;
-  const warmEnd = slot ? warmUpEndAt(slot.warm_up_at, slot.warm_up_minutes) : null;
-  const ready = slot ? readyAt(slot.perform_at, event.ready_minutes_before) : null;
-  const at = (iso: string | null) =>
-    iso ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}` : "To be announced";
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -54,35 +51,17 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
       <Card className="mt-6">
         <h2 className="font-semibold">Your times</h2>
         {event.performance_order_published && slot ? (
-          <dl className="mt-3 grid gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-sm text-muted">Order</dt>
-              <dd className="text-2xl font-semibold">#{slot.performance_order}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted">Warm-up</dt>
-              <dd className="font-medium">{at(slot.warm_up_at)}</dd>
-              {warmEnd && (
-                <dd className="text-sm text-muted">
-                  Until {formatTime(warmEnd, tz)} ({slot.warm_up_minutes} min)
-                </dd>
-              )}
-              {slot.warm_up_location && <dd className="text-sm text-muted">{slot.warm_up_location}</dd>}
-            </div>
-            <div>
-              <dt className="text-sm text-muted">Ready position</dt>
-              <dd className="font-medium">{at(ready)}</dd>
-              <dd className="text-sm text-muted">{event.ready_minutes_before} minutes before your performance</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted">Performance</dt>
-              <dd className="font-medium">{at(slot.perform_at)}</dd>
-            </div>
-          </dl>
+          <TimesList slot={slot} order={`#${slot.performance_order}`} readyMinutes={event.ready_minutes_before} tz={tz} />
         ) : (
           <p className="mt-2 text-sm text-muted">
             The host hasn&apos;t posted the performance order yet. We&apos;ll email you when it&apos;s ready.
           </p>
+        )}
+        {event.finals_published && finalsSlot && (
+          <div className="mt-6 border-t border-border pt-4">
+            <h3 className="font-semibold">🏆 Finals</h3>
+            <TimesList slot={finalsSlot} order={`#${finalsSlot.slot_number}`} readyMinutes={event.ready_minutes_before} tz={tz} />
+          </div>
         )}
         <Link href={`/e/${event.slug}`} className="mt-4 inline-block text-sm font-medium text-brand underline-offset-4 hover:underline">
           Event page &amp; full schedule
@@ -116,5 +95,46 @@ export default async function BandPage({ params, searchParams }: PageProps<"/das
         </div>
       )}
     </div>
+  );
+}
+
+type Times = {
+  warm_up_at: string | null;
+  warm_up_minutes: number | null;
+  perform_at: string | null;
+  warm_up_location: string | null;
+};
+
+function TimesList({ slot, order, readyMinutes, tz }: { slot: Times; order: string; readyMinutes: number; tz: string }) {
+  const warmEnd = warmUpEndAt(slot.warm_up_at, slot.warm_up_minutes);
+  const ready = readyAt(slot.perform_at, readyMinutes);
+  const at = (iso: string | null) =>
+    iso ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}` : "To be announced";
+  return (
+    <dl className="mt-3 grid gap-4 sm:grid-cols-2">
+      <div>
+        <dt className="text-sm text-muted">Order</dt>
+        <dd className="text-2xl font-semibold">{order}</dd>
+      </div>
+      <div>
+        <dt className="text-sm text-muted">Warm-up</dt>
+        <dd className="font-medium">{at(slot.warm_up_at)}</dd>
+        {warmEnd && (
+          <dd className="text-sm text-muted">
+            Until {formatTime(warmEnd, tz)} ({slot.warm_up_minutes} min)
+          </dd>
+        )}
+        {slot.warm_up_location && <dd className="text-sm text-muted">{slot.warm_up_location}</dd>}
+      </div>
+      <div>
+        <dt className="text-sm text-muted">Ready position</dt>
+        <dd className="font-medium">{at(ready)}</dd>
+        <dd className="text-sm text-muted">{readyMinutes} minutes before your performance</dd>
+      </div>
+      <div>
+        <dt className="text-sm text-muted">Performance</dt>
+        <dd className="font-medium">{at(slot.perform_at)}</dd>
+      </div>
+    </dl>
   );
 }

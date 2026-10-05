@@ -11,13 +11,14 @@ export function Button({
   variant = "primary",
   className,
   ...props
-}: ComponentProps<"button"> & { variant?: "primary" | "secondary" | "danger" | "ghost" }) {
+}: ComponentProps<"button"> & { variant?: "primary" | "secondary" | "accent" | "danger" | "ghost" }) {
   return (
     <button
       className={cx(
         "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
         variant === "primary" && "bg-brand text-brand-foreground hover:opacity-90",
         variant === "secondary" && "border border-border bg-surface hover:bg-background",
+        variant === "accent" && "border border-accent bg-accent font-semibold text-[#14213d] hover:opacity-90",
         variant === "danger" && "border border-border bg-surface text-danger hover:bg-background",
         variant === "ghost" && "text-muted hover:text-foreground",
         className,
