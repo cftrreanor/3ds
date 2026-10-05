@@ -3,10 +3,12 @@ import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { Fragment } from "react";
 import { Badge, Card } from "@/components/ui";
+import { getUser } from "@/lib/auth";
 import { registrationIsOpen } from "@/lib/bands";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
+import { readPass } from "@/lib/volunteer-pass";
 import { AutoRefresh } from "./auto-refresh";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -59,6 +61,11 @@ export default async function EventPublicPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
   if (!event) missing();
+
+  // Volunteering isn't advertised to the public: hosts share the volunteer link
+  // directly. People who already signed up (on this device, or with the
+  // account they're signed in with) get a shortcut to their shifts.
+  const isVolunteer = await volunteersHere(slug, event.id);
 
   const supabase = await createClient();
   const [{ data: scheduleData }, { data: finalsData }, { data: breakData }, { data: announcements }] = await Promise.all([
@@ -139,13 +146,15 @@ export default async function EventPublicPage({ params }: Params) {
         </Card>
       ))}
 
-      {(event.volunteer_signup_open || bandsOpen) && event.status === "published" && (
+      {(isVolunteer || bandsOpen) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          {event.volunteer_signup_open && (
-            <Link href={`/e/${slug}/volunteer`} className="block">
+          {isVolunteer && (
+            <Link href="/my" className="block">
               <Card className="h-full transition hover:border-brand">
-                <p className="font-semibold">Volunteer</p>
-                <p className="mt-1 text-sm text-muted">Pick a shift and help make the day happen.</p>
+                <p className="font-semibold">Your volunteer shifts</p>
+                <p className="mt-1 text-sm text-muted">
+                  {event.volunteer_signup_open ? "See your shifts, or sign up for more." : "See your shifts and who to report to."}
+                </p>
               </Card>
             </Link>
           )}
@@ -253,4 +262,17 @@ function ScheduleList({
       })}
     </ol>
   );
+}
+
+/** Has this visitor volunteered for this event, from this device or with their account? */
+async function volunteersHere(slug: string, eventId: string) {
+  if ((await readPass()).e.includes(slug)) return true;
+  const user = await getUser();
+  if (!user?.email) return false;
+  const { count } = await (await createClient())
+    .from("volunteers")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .eq("email", user.email);
+  return Boolean(count);
 }
