@@ -1,27 +1,29 @@
-/** Contest day: which band steps a station handles, and how each step reads. */
+/** Contest day: the ordered check-in stations a band moves through, and how each reads. */
 
-export type Duty = "parking" | "check_in" | "warm_up" | "gate";
-export type RoundStep = "warming_up" | "at_gate" | "on_field" | "performed";
+export type CheckpointKind = "parking" | "stop" | "warm_up" | "gate";
 export type Round = "prelims" | "finals";
 
-export const DUTIES: { value: Duty; label: string; hint: string }[] = [
+export const CHECKPOINT_KINDS: { value: CheckpointKind; label: string; hint: string }[] = [
   { value: "parking", label: "Parking", hint: "Buses and equipment arriving, equipment spots, leaving" },
-  { value: "check_in", label: "Check-in", hint: "The band checks in at the table" },
-  { value: "warm_up", label: "Warm-up", hint: "Warming up, then sent to the gate" },
-  { value: "gate", label: "Gate", hint: "On the field, then done" },
+  { value: "stop", label: "Check-in point", hint: "One “Here” tap, e.g. the check-in table" },
+  { value: "warm_up", label: "Warm-up", hint: "One “Here” tap, due at the band’s warm-up time" },
+  { value: "gate", label: "Gate", hint: "“Here” due at the ready time, then “Performed”" },
 ];
+export const kindLabel = (k: CheckpointKind) => CHECKPOINT_KINDS.find((x) => x.value === k)?.label ?? k;
 
-export const dutyLabel = (d: Duty) => DUTIES.find((x) => x.value === d)?.label ?? d;
+/** Check-in stations first, in their order; then everything else as before. */
+export function sortStations<T extends { checkpoint_order: number | null }>(stations: T[]): T[] {
+  return [...stations].sort((a, b) => (a.checkpoint_order ?? Infinity) - (b.checkpoint_order ?? Infinity));
+}
 
-export const STEP_LABEL: Record<RoundStep, string> = {
-  warming_up: "Warming up",
-  at_gate: "At the gate",
-  on_field: "On the field",
-  performed: "Done",
-};
+/** A check-in station, as the contest-day screens need it. */
+export type Checkpoint = { id: string; name: string; checkpoint_kind: CheckpointKind; checkpoint_order: number };
+/** One "Here" (or the gate's "Performed"). */
+export type Stop = { band_id: string; station_id: string; round: Round | null; performed: boolean; reached_at: string };
 
 /** A band's contest-day fields, as event_bands() returns them. */
 export type BandDay = {
+  id: string;
   bus_count: number;
   box_truck_count: number;
   truck_trailer_count: number;
@@ -31,10 +33,7 @@ export type BandDay = {
   equipment_spot: number | null;
   away_at: string | null;
   left_at: string | null;
-  checked_in_at: string | null;
   scratched_at: string | null;
-  prelims_step: RoundStep | null;
-  finals_step: RoundStep | null;
 };
 
 export type Tone = "red" | "gold" | "green" | "neutral";
@@ -54,16 +53,26 @@ export function parking(b: BandDay): { key: "nothing" | "buses" | "equipment" | 
   return { key: "nothing", label: "Nothing on-site", tone: "red" };
 }
 
+/** Does this stop count for the round? Parking and check-in points count for both. */
+const inRound = (s: Stop, round: Round) => s.round === null || s.round === round;
+
+/** The furthest station the band has reached along the path, for one round. */
+export function furthest(b: BandDay, stops: Stop[], path: Checkpoint[], round: Round) {
+  const mine = stops.filter((s) => s.band_id === b.id && inRound(s, round));
+  if (mine.some((s) => s.performed)) return { performed: true as const, station: undefined };
+  const reached = path.filter((c) => mine.some((s) => s.station_id === c.id));
+  return { performed: false as const, station: reached.at(-1) };
+}
+
 /** Where the band is overall, for one round. */
-export function whereIs(b: BandDay, round: Round = "prelims"): { label: string; tone: Tone } {
+export function whereIs(b: BandDay, stops: Stop[], path: Checkpoint[], round: Round = "prelims"): { label: string; tone: Tone } {
   if (b.scratched_at) return { label: "Scratched", tone: "neutral" };
-  const step = round === "finals" ? b.finals_step : b.prelims_step;
-  if (step) return { label: STEP_LABEL[step], tone: step === "performed" ? "neutral" : "green" };
-  if (b.left_at) return { label: "Left for the day", tone: "neutral" };
-  if (b.away_at) return { label: "Away, coming back", tone: "gold" };
-  if (b.checked_in_at) return { label: "Checked in", tone: "green" };
+  const f = furthest(b, stops, path, round);
+  if (f.performed) return { label: "Performed", tone: "neutral" };
+  if (f.station) return { label: `At ${f.station.name}`, tone: "green" };
   const p = parking(b);
-  return { label: p.key === "nothing" ? "Not here yet" : p.label, tone: p.tone };
+  if (p.key === "nothing") return { label: "Not here yet", tone: "red" };
+  return { label: p.label, tone: p.tone };
 }
 
 /** "3 buses · 1 box truck" from registration. */
@@ -88,11 +97,8 @@ export const ACTION_LABEL: Record<string, string> = {
   away: "Away",
   back: "Back on-site",
   left: "Left for the day",
-  checked_in: "Checked in",
-  warming_up: "Started warm-up",
-  at_gate: "Sent to the gate",
-  on_field: "On the field",
-  performed: "Done",
+  here: "Here",
+  performed: "Performed",
   scratched: "Scratched",
   unscratched: "Un-scratched",
 };

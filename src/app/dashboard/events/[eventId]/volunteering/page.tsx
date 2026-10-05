@@ -8,8 +8,10 @@ import { getEventAccess, getOrigin } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { eachDate, formatTimeRange } from "@/lib/time";
-import { createStation, setVolunteerSignupOpen } from "../../../actions";
+import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, StationForm, type LeadOption } from "../forms";
+import { kindLabel, sortStations } from "@/lib/contest-day";
+import { TapButton } from "../contest-day/controls";
 import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
 
 export const metadata: Metadata = { title: "Volunteer Registration" };
@@ -38,7 +40,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const [{ data: stationData }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, station_type, duties, location, instructions, lead_user_id")
+      .select("id, name, checkpoint_kind, checkpoint_order, location, instructions, lead_user_id")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -58,10 +60,13 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           .order("created_at")
       : Promise.resolve({ data: [] }),
   ]);
-  // Check-in (band checkpoint) stations first, matching the volunteer signup page.
-  const stations = ((stationData ?? []) as Omit<Station, "lead_ids">[])
-    .map((st) => ({ ...st, lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id) }))
-    .sort((a, b) => Number(b.station_type === "active_checkpoint") - Number(a.station_type === "active_checkpoint"));
+  // Check-in stations first, in the band's order, matching the volunteer signup page.
+  const stations = sortStations((stationData ?? []) as Omit<Station, "lead_ids">[]).map((st) => ({
+    ...st,
+    lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
+  }));
+  const checkpoints = stations.filter((s) => s.checkpoint_kind);
+
   const shifts = (shiftData ?? []) as Shift[];
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = (hostData ?? []) as unknown as HostRow[];
@@ -176,7 +181,53 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           Each station is a place or job volunteers are assigned to, like Parking or Concessions, with its own shift schedule.
         </p>
 
-        <nav aria-label="Stations" className="-mx-4 mt-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <Card className="mt-4 p-4">
+          <h3 className="text-sm font-semibold">Band check-in order</h3>
+          {checkpoints.length > 0 ? (
+            <>
+              <p className="mt-0.5 text-sm text-muted">
+                The stops each band goes through on contest day. This order sorts the station tabs here and on the signup
+                page, and is how we tell whether a band is on track.
+              </p>
+              <ol className="mt-3 space-y-2">
+                {checkpoints.map((c, i) => (
+                  <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
+                    <span className="w-5 text-sm font-semibold text-muted">{i + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{c.name}</span>
+                      <span className="block text-xs text-muted">{kindLabel(c.checkpoint_kind!)}</span>
+                    </span>
+                    {i > 0 && (
+                      <TapButton
+                        action={moveCheckpoint.bind(null, eventId, c.id, "up")}
+                        variant="ghost"
+                        className="[&_button]:min-h-9 [&_button]:px-2"
+                      >
+                        <span aria-label={`Move ${c.name} earlier`}>↑</span>
+                      </TapButton>
+                    )}
+                    {i < checkpoints.length - 1 && (
+                      <TapButton
+                        action={moveCheckpoint.bind(null, eventId, c.id, "down")}
+                        variant="ghost"
+                        className="[&_button]:min-h-9 [&_button]:px-2"
+                      >
+                        <span aria-label={`Move ${c.name} later`}>↓</span>
+                      </TapButton>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <p className="mt-0.5 text-sm text-muted">
+              None yet. In a station&apos;s settings, choose what kind of check-in station it is (Parking, Check-in point,
+              Warm-up or Gate) to add it to the bands&apos; path.
+            </p>
+          )}
+        </Card>
+
+        <nav aria-label="Stations" className="-mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <ul className="flex min-w-max gap-1 border-b border-border">
             {stations.map((s) => {
               const st = shifts.filter((x) => x.station_id === s.id);

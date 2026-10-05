@@ -6,35 +6,23 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-const ACTIONS = [
-  "buses_here",
-  "equipment_here",
-  "away",
-  "back",
-  "left",
-  "checked_in",
-  "warming_up",
-  "at_gate",
-  "on_field",
-  "performed",
-  "scratched",
-  "unscratched",
-] as const;
+const ACTIONS = ["buses_here", "equipment_here", "away", "back", "left", "here", "performed", "scratched", "unscratched"] as const;
 export type BandActionName = (typeof ACTIONS)[number];
 
 const refresh = (eventId: string) => revalidatePath(`/dashboard/events/${eventId}`, "layout");
 
-/** One tap on the contest-day screen. The database checks the tapper's station duties. */
+/** One tap at a check-in station. The database checks the tapper leads that station. */
 export async function bandAction(
   eventId: string,
   bandId: string,
   action: BandActionName,
+  stationId: string | null,
   round: "prelims" | "finals" | null,
 ): Promise<ActionState> {
   await requireUser();
   if (!ACTIONS.includes(action)) return { error: "Unknown action." };
   const supabase = await createClient();
-  const { error } = await supabase.rpc("band_action", { p_band_id: bandId, p_action: action, p_round: round });
+  const { error } = await supabase.rpc("band_action", { p_band_id: bandId, p_action: action, p_station_id: stationId, p_round: round });
   if (error) return { error: friendlyDbError(error) };
   refresh(eventId);
   return { ok: true };
