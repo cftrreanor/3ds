@@ -31,7 +31,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase
       .from("events")
       .select(
-        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_published",
+        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finals_published",
       )
       .eq("id", band.event_id)
       .single(),
@@ -50,7 +50,14 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     ...(event.venue_place_id ? { query_place_id: event.venue_place_id } : {}),
   })}`;
   const calendar = (round: "order" | "finals", times: BandTimes) =>
-    bandCalendarEvent({ bandId, bandName: band.band_name, round, times, event, url: `${origin}/dashboard/bands/${bandId}` });
+    bandCalendarEvent({
+      bandId,
+      bandName: band.band_name,
+      round,
+      times,
+      event: { ...event, ready_minutes_before: round === "finals" ? event.finals_ready_minutes_before : event.ready_minutes_before },
+      url: `${origin}/dashboard/bands/${bandId}`,
+    });
   const hasContact = contact && (contact.name || contact.has_phone || contact.email);
   const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
 
@@ -120,7 +127,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         <TimesCard
           title={`🏆 Finals · #${finalsSlot.slot_number}`}
           times={finalsSlot}
-          event={event}
+          event={{ ...event, ready_minutes_before: event.finals_ready_minutes_before }}
           calendar={calendar("finals", finalsSlot)}
           icsUrl={`/dashboard/bands/${bandId}/calendar?round=finals`}
           highlight

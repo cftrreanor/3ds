@@ -171,9 +171,16 @@ const timesSchema = z.object({
   location: z.string().trim().max(120),
 });
 
+const readyMinutes = (label: string) =>
+  z
+    .string()
+    .regex(/^\d{1,2}$/, `${label} ready position: enter a number of minutes from 0 to 60.`)
+    .transform(Number)
+    .pipe(z.number().max(60, `${label} ready position: enter a number of minutes from 0 to 60.`));
+
 const scheduleSchema = z.object({
-  readyMinutes: z.string().regex(/^\d{1,2}$/, "Ready position: enter a number of minutes from 0 to 60.").transform(Number)
-    .pipe(z.number().max(60, "Ready position: enter a number of minutes from 0 to 60.")),
+  readyMinutes: readyMinutes("Preliminaries"),
+  finalsReadyMinutes: readyMinutes("Finals"),
   slots: z.array(timesSchema.extend({ band_id: z.string().uuid() })),
   breaks: z
     .array(
@@ -225,7 +232,7 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
   const supabase = await createClient();
   // The schedule as it was, to tell which published bands' times change.
   const [{ data: event }, { data: oldSlots }, { data: oldFinals }] = await Promise.all([
-    supabase.from("events").select("timezone, ready_minutes_before, performance_order_published, finals_published").eq("id", eventId).single(),
+    supabase.from("events").select("timezone, ready_minutes_before, finals_ready_minutes_before, performance_order_published, finals_published").eq("id", eventId).single(),
     supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
     supabase.from("finals_slots").select("slot_number, band_id, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
   ]);
@@ -243,6 +250,7 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
   const { error } = await supabase.rpc("save_schedule", {
     p_event_id: eventId,
     p_ready_minutes: parsed.data.readyMinutes,
+    p_finals_ready_minutes: parsed.data.finalsReadyMinutes,
     p_slots: newSlots,
     p_breaks: parsed.data.breaks.map((b) => ({ starts_at: toUtc(b.day, b.start), minutes: b.minutes, label: b.label })),
     p_finals: newFinals,
@@ -253,8 +261,9 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
   }
   revalidatePath(`/dashboard/events/${eventId}/bands`);
 
-  // A new ready position changes every band's ready time.
+  // A new ready position changes every band's ready time in that round.
   const readyChanged = parsed.data.readyMinutes !== event.ready_minutes_before;
+  const finalsReadyChanged = parsed.data.finalsReadyMinutes !== event.finals_ready_minutes_before;
   const changed: ChangedBands = { order: [], finals: [] };
   if (event.performance_order_published) {
     const before = new Map((oldSlots ?? []).map((o) => [o.band_id, o]));
@@ -268,13 +277,21 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
     newFinals.forEach((n, i) => {
       if (!n.band_id) return;
       const o = before.get(n.band_id);
-      if (readyChanged || !o || o.slot_number !== i + 1 || !sameTimes(o, n)) changed.finals.push(n.band_id);
+      if (finalsReadyChanged || !o || o.slot_number !== i + 1 || !sameTimes(o, n)) changed.finals.push(n.band_id);
     });
   }
   return { ok: true, message: "Schedule saved.", ...(changed.order.length || changed.finals.length ? { changed } : {}) };
 }
 
-type EmailEvent = { name: string; slug: string; timezone: string; venue_name: string | null; venue_address: string; ready_minutes_before: number };
+type EmailEvent = {
+  name: string;
+  slug: string;
+  timezone: string;
+  venue_name: string | null;
+  venue_address: string;
+  ready_minutes_before: number;
+  finals_ready_minutes_before: number;
+};
 type EmailSlot = {
   label: string;
   warm_up_at: string | null;
@@ -284,11 +301,12 @@ type EmailSlot = {
   bands: { band_name: string; school_name: string; contact_email: string; head_director_email: string } | null;
 };
 
-const EMAIL_EVENT_COLUMNS = "name, slug, timezone, venue_name, venue_address, ready_minutes_before";
+const EMAIL_EVENT_COLUMNS = "name, slug, timezone, venue_name, venue_address, ready_minutes_before, finals_ready_minutes_before";
 const EMAIL_BAND_COLUMNS = "bands(band_name, school_name, contact_email, head_director_email)";
 
 /** Email each band's director their times. Runs after the response is sent. */
 function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round: "order" | "finals", kind: "posted" | "changed" = "posted") {
+  const readyMin = round === "finals" ? event.finals_ready_minutes_before : event.ready_minutes_before;
   after(async () => {
     const tz = event.timezone;
     const at = (iso: string | null) =>
@@ -320,7 +338,7 @@ function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round
           },
           {
             title: "Ready position",
-            detail: `${at(readyAt(s.perform_at, event.ready_minutes_before))} (${event.ready_minutes_before} min before performing)`,
+            detail: `${at(readyAt(s.perform_at, readyMin))} (${readyMin} min before performing)`,
           },
           { title: "Performance", detail: at(s.perform_at) },
           { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },

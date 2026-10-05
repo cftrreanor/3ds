@@ -771,4 +771,28 @@ do $$ begin
 end $$;
 reset role;
 
+-- Finals have their own ready position.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+select public.save_schedule('10000000-0000-0000-0000-00000000000a', 6, 10,
+  (select coalesce(jsonb_agg(jsonb_build_object('band_id', band_id, 'perform_at', perform_at) order by performance_order), '[]')
+     from public.performance_slots where event_id = '10000000-0000-0000-0000-00000000000a'),
+  '[]', '[]') \g /dev/null
+do $$ begin
+  assert (select ready_minutes_before = 6 and finals_ready_minutes_before = 10 from public.events
+           where id = '10000000-0000-0000-0000-00000000000a'), 'preliminaries and finals ready positions save separately';
+  begin
+    perform public.save_schedule('10000000-0000-0000-0000-00000000000a', 5, 90, '[]', '[]', '[]');
+    raise exception 'FAIL: saved a finals ready position over 60 minutes';
+  exception when check_violation then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  perform public.save_schedule('10000000-0000-0000-0000-00000000000a', 5, 5, '[]', '[]', '[]');
+  raise exception 'FAIL: a band director saved the schedule';
+exception when insufficient_privilege then null;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

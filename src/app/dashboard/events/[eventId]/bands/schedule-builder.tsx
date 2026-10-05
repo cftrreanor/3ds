@@ -3,24 +3,25 @@
 import { useState, useTransition, type ReactNode } from "react";
 import type { ChangedBands, ScheduleSaveState } from "@/app/dashboard/band-actions";
 import { NumberInput } from "@/components/number-input";
-import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
+import { Badge, Button, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { formatDuration, performTimes, toMinutes, toTime } from "@/lib/schedule";
+import { displayTime, formatDuration, performTimes, toMinutes, toTime } from "@/lib/schedule";
 import { formatDate } from "@/lib/time";
 import {
+  Accordion,
   BreakDividers,
+  BreakForm,
   breakSpans,
   DURATIONS,
+  RoundHeading,
   TimesEditor,
   type BreakDraft,
   type FinalsSlot,
   type OrderBand,
   type ScheduleBreak,
-  Accordion,
-  RoundHeading,
   type Times,
 } from "./schedule-parts";
-import { ScheduleView, type RowEdit } from "./schedule-view";
+import { RoundRows, RowEditor, type Row } from "./schedule-view";
 
 export type { FinalsSlot, OrderBand, ScheduleBreak };
 
@@ -30,105 +31,111 @@ let nextKey = 0;
 const toDraft = (b: ScheduleBreak): BreakDraft => ({ ...b, minutes: String(b.minutes), key: nextKey++ });
 const pickTimes = ({ day, warmUp, warmUpMinutes, perform, location }: Times): Times => ({ day, warmUp, warmUpMinutes, perform, location });
 const blankTimes = (day: string): Times => ({ day, warmUp: "", warmUpMinutes: 0, perform: "", location: "" });
+const breakRange = (b: BreakDraft) =>
+  b.start && Number(b.minutes) > 0 ? `${displayTime(b.start)} – ${displayTime(toTime(toMinutes(b.start) + Number(b.minutes)))}` : "Time not set";
+
+type Snapshot = { bands: OrderBand[]; breaks: BreakDraft[]; finals: FinalsSlot[]; readyText: string; finalsReadyText: string };
+type Round = "order" | "finals";
+
+/** What the host is editing. One thing at a time, so the footer has one clear Save. */
+type Editing =
+  | null
+  | { kind: "prelims" }
+  | { kind: "finals" }
+  | { kind: "row"; round: Round; index: number; draft: Times; bandId: string; shiftLater: boolean }
+  | { kind: "break"; key: number; isNew: boolean; from: "list" | Round; draft: BreakDraft; remove: boolean };
 
 /**
- * The host's whole performance schedule: breaks, the running order and an
- * optional finals round, saved together. Drag-free: big up/down buttons work
- * well on phones and for keyboard users.
+ * The host's performance schedule: breaks for the whole day, the preliminaries
+ * and an optional finals round. Each part is viewed read-only and edited on
+ * its own; every save and publish action lives in the sticky footer.
  */
 export function ScheduleBuilder({
   initialBands,
   initialBreaks,
   initialFinals,
   initialReadyMinutes,
+  initialFinalsReadyMinutes,
   days,
   zoneLabel,
   orderPublished,
   finalsPublished,
   save,
   emailChanges,
+  publishOrder,
+  publishFinals,
+  emailFinalists,
 }: {
   initialBands: OrderBand[];
   initialBreaks: ScheduleBreak[];
   initialFinals: FinalsSlot[];
   initialReadyMinutes: number;
+  initialFinalsReadyMinutes: number;
   days: string[];
   zoneLabel: string;
   orderPublished: boolean;
   finalsPublished: boolean;
   save: (scheduleJson: string) => Promise<ScheduleSaveState>;
   emailChanges: (bands: ChangedBands) => Promise<ActionState>;
+  publishOrder: (publish: boolean) => Promise<ActionState>;
+  publishFinals: (publish: boolean) => Promise<ActionState>;
+  emailFinalists: () => Promise<ActionState>;
 }) {
+  // The last saved schedule, and working copies of the part being edited.
+  const [saved, setSaved] = useState<Snapshot>(() => ({
+    bands: initialBands,
+    breaks: initialBreaks.map(toDraft),
+    finals: initialFinals,
+    readyText: String(initialReadyMinutes),
+    finalsReadyText: String(initialFinalsReadyMinutes),
+  }));
   const [bands, setBands] = useState(initialBands);
-  const [breaks, setBreaks] = useState(() => initialBreaks.map(toDraft));
   const [finals, setFinals] = useState(initialFinals);
   // Typed number boxes keep their text so they can be cleared while typing.
   const [readyText, setReadyText] = useState(String(initialReadyMinutes));
-  const readyMinutes = Number(readyText) || 0;
-  const [result, setResult] = useState<ActionState>({});
+  const [finalsReadyText, setFinalsReadyText] = useState(String(initialFinalsReadyMinutes));
+  // Before the preliminaries are published, their builder is the page.
+  const [editing, setEditing] = useState<Editing>(orderPublished || initialBands.length === 0 ? null : { kind: "prelims" });
   const [dirty, setDirty] = useState(false);
+  const [result, setResult] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
   // Published bands whose times changed since the host last emailed them.
   const [changes, setChanges] = useState<ChangedBands | null>(null);
-  // Once anything is published, start on the read-only view; the full builder
-  // is one tap away. Before that, the builder is the page.
-  const published = orderPublished || finalsPublished;
-  const [mode, setMode] = useState<"view" | "edit">(published ? "view" : "edit");
-  // The last saved schedule, to put back if the host leaves the editor without saving.
-  const [saved, setSaved] = useState(() => ({ bands: initialBands, breaks: initialBreaks.map(toDraft), finals: initialFinals, readyText: String(initialReadyMinutes) }));
-
-  const changed = () => {
-    setDirty(true);
-    setResult({});
-  };
-  const updateBands = (next: OrderBand[]) => {
-    setBands(next);
-    changed();
-  };
-  const updateFinals = (next: FinalsSlot[]) => {
-    setFinals(next);
-    changed();
-  };
-  const updateBreaks = (next: BreakDraft[]) => {
-    setBreaks(next);
-    changed();
-  };
-  const onReadyText = (v: string) => {
-    setReadyText(v);
-    changed();
-  };
-
   // Moving a band carries its times with it. The slot times from before the
   // first move are kept so "Update schedule" can give each position its time
   // and warm-up location back, in the new order. null = nothing to update.
   const [before, setBefore] = useState<{ ids: string[]; slots: Times[] } | null>(null);
-  const move = (i: number, by: number) => {
-    const j = i + by;
-    if (j < 0 || j >= bands.length) return;
-    const next = [...bands];
-    [next[i], next[j]] = [next[j], next[i]];
-    const base = before ?? { ids: bands.map((b) => b.id), slots: bands.map(pickTimes) };
-    // Moved back to where it started: nothing left to update.
-    setBefore(next.every((b, k) => b.id === base.ids[k]) ? null : base);
-    updateBands(next);
-  };
-  const updateSchedule = () => {
-    if (!before) return;
-    updateBands(bands.map((b, i) => ({ ...b, ...before.slots[i] })));
-    setBefore(null);
-  };
-  const updateButton = (
-    <Button type="button" variant={before ? "accent" : "secondary"} disabled={!before} onClick={updateSchedule}>
-      Update schedule
-    </Button>
-  );
-  const editBand = (i: number, patch: Partial<OrderBand>) => updateBands(bands.map((b, k) => (k === i ? { ...b, ...patch } : b)));
-  const editFinal = (i: number, patch: Partial<FinalsSlot>) => updateFinals(finals.map((f, k) => (k === i ? { ...f, ...patch } : f)));
 
-  type Snapshot = typeof saved;
+  const breaks = saved.breaks;
+  const readyMinutes = Number(editing?.kind === "prelims" ? readyText : saved.readyText) || 0;
+  const finalsReadyMinutes = Number(editing?.kind === "finals" ? finalsReadyText : saved.finalsReadyText) || 0;
+  const busy = editing !== null;
+
+  const touched = () => {
+    setDirty(true);
+    setResult({});
+  };
+  const start = (next: Editing) => {
+    setResult({});
+    setDirty(false);
+    setEditing(next);
+  };
+  const cancel = () => {
+    if (dirty && !window.confirm("Discard the changes you haven't saved?")) return;
+    setBands(saved.bands);
+    setFinals(saved.finals);
+    setReadyText(saved.readyText);
+    setFinalsReadyText(saved.finalsReadyText);
+    setBefore(null);
+    setDirty(false);
+    setResult({});
+    setEditing(null);
+  };
+
   const toJson = (x: Snapshot) =>
     JSON.stringify({
       readyMinutes: x.readyText,
+      finalsReadyMinutes: x.finalsReadyText,
       slots: x.bands.map((b) => ({
         band_id: b.id,
         day: b.day,
@@ -147,268 +154,558 @@ export function ScheduleBuilder({
         location: f.location,
       })),
     });
-  const persist = (x: Snapshot) =>
-    new Promise<boolean>((resolve) =>
-      startTransition(async () => {
-        const { changed, ...r } = await save(toJson(x));
-        setResult(r);
-        if (r.ok) {
-          setSaved(x);
-          setDirty(false);
-        }
-        if (changed) {
-          // Keep collecting across saves until the host sends or dismisses.
-          setChanges((c) => ({
-            order: [...new Set([...(c?.order ?? []), ...changed.order])],
-            finals: [...new Set([...(c?.finals ?? []), ...changed.finals])],
-          }));
-        }
-        resolve(Boolean(r.ok));
-      }),
-    );
-  const onSave = () => persist({ bands, breaks, finals, readyText });
 
-  // One band (or finals slot) changed from the view, optionally moving the
-  // timed bands after it on the same day by the same amount.
-  const saveRow = async ({ round, index, times, bandId, shiftLater }: RowEdit) => {
-    const list: Times[] = round === "order" ? bands : finals;
+  /** Save the whole schedule (atomic), then go back to viewing. */
+  const persist = (x: Snapshot) =>
+    startTransition(async () => {
+      const { changed, ...r } = await save(toJson(x));
+      setResult(r);
+      if (changed) {
+        // Keep collecting across saves until the host sends or dismisses.
+        setChanges((c) => ({
+          order: [...new Set([...(c?.order ?? []), ...changed.order])],
+          finals: [...new Set([...(c?.finals ?? []), ...changed.finals])],
+        }));
+      }
+      if (!r.ok) return;
+      setSaved(x);
+      setBands(x.bands);
+      setFinals(x.finals);
+      setReadyText(x.readyText);
+      setFinalsReadyText(x.finalsReadyText);
+      setBefore(null);
+      setDirty(false);
+      setEditing(null);
+    });
+
+  const onSave = () => {
+    if (!editing) return;
+    if (editing.kind === "prelims") return persist({ ...saved, bands, readyText });
+    if (editing.kind === "finals") return persist({ ...saved, finals, finalsReadyText });
+    if (editing.kind === "break") {
+      const { key, isNew, draft, remove } = editing;
+      const next = remove ? breaks.filter((b) => b.key !== key) : isNew ? [...breaks, draft] : breaks.map((b) => (b.key === key ? draft : b));
+      return persist({ ...saved, breaks: next });
+    }
+    // One row changed from the view, optionally moving the timed rows after it
+    // on the same day by the same amount.
+    const { round, index, draft, bandId, shiftLater } = editing;
+    const list: Times[] = round === "order" ? saved.bands : saved.finals;
     const old = list[index];
-    const delta = shiftLater && old.perform && times.perform ? toMinutes(times.perform) - toMinutes(old.perform) : 0;
+    const delta = shiftLater && old.perform && draft.perform ? toMinutes(draft.perform) - toMinutes(old.perform) : 0;
     const shift = (t: string) => (t ? toTime(toMinutes(t) + delta) : t);
     const apply = <T extends Times>(rows: T[]): T[] =>
       rows.map((r, k) =>
         k === index
-          ? { ...r, ...times }
+          ? { ...r, ...draft }
           : delta && k > index && r.day === old.day && r.perform
             ? { ...r, perform: shift(r.perform), warmUp: shift(r.warmUp) }
             : r,
       );
-    const next =
-      round === "order"
-        ? { bands: apply(bands), breaks, finals, readyText }
-        : { bands, breaks, readyText, finals: apply(finals).map((f, k) => (k === index && bandId !== undefined ? { ...f, bandId } : f)) };
-    const ok = await persist(next);
-    if (ok) {
-      setBands(next.bands);
-      setFinals(next.finals);
-    }
-    return ok;
+    return round === "order"
+      ? persist({ ...saved, bands: apply(saved.bands) })
+      : persist({ ...saved, finals: apply(saved.finals).map((f, k) => (k === index ? { ...f, bandId } : f)) });
   };
 
-  const leaveEditor = () => {
-    if (dirty && !window.confirm("Discard the changes you haven't saved?")) return;
-    setBands(saved.bands);
-    setBreaks(saved.breaks);
-    setFinals(saved.finals);
-    setReadyText(saved.readyText);
+  const run = (action: () => Promise<ActionState>, confirmMessage?: string) => {
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    startTransition(async () => setResult(await action()));
+  };
+
+  // --- Editing helpers ------------------------------------------------------
+  const move = (i: number, by: number) => {
+    const j = i + by;
+    if (j < 0 || j >= bands.length) return;
+    const next = [...bands];
+    [next[i], next[j]] = [next[j], next[i]];
+    const base = before ?? { ids: bands.map((b) => b.id), slots: bands.map(pickTimes) };
+    // Moved back to where it started: nothing left to update.
+    setBefore(next.every((b, k) => b.id === base.ids[k]) ? null : base);
+    setBands(next);
+    touched();
+  };
+  const updateSchedule = () => {
+    if (!before) return;
+    setBands(bands.map((b, i) => ({ ...b, ...before.slots[i] })));
     setBefore(null);
-    setDirty(false);
-    setResult({});
-    setMode("view");
+    touched();
+  };
+  const updateButton = (
+    <Button type="button" variant={before ? "accent" : "secondary"} disabled={!before} onClick={updateSchedule}>
+      Update schedule
+    </Button>
+  );
+  const editRow = (round: Round, index: number) => {
+    const row = round === "order" ? saved.bands[index] : saved.finals[index];
+    start({ kind: "row", round, index, draft: pickTimes(row), bandId: round === "finals" ? saved.finals[index].bandId : "", shiftLater: false });
+  };
+  const openBreak = (key: number, from: "list" | Round) => {
+    const b = breaks.find((x) => x.key === key);
+    if (b) start({ kind: "break", key, isNew: false, from, draft: { ...b }, remove: false });
+  };
+  const addBreak = () => {
+    const key = nextKey++;
+    start({
+      kind: "break",
+      key,
+      isNew: true,
+      from: "list",
+      draft: { key, day: breaks.at(-1)?.day ?? days[0], start: "12:00", minutes: "30", label: breaks.length ? "Break" : "Lunch" },
+      remove: false,
+    });
+    setDirty(true);
   };
 
-  const changeNotice = changes && (
-    <ChangeNotice
-      names={[...new Set([...changes.order, ...changes.finals])].map((id) => bands.find((b) => b.id === id)?.name ?? "A band")}
-      onSend={async () => {
-        const r = await emailChanges(changes);
-        setResult(r);
-        if (r.ok) setChanges(null);
-      }}
-      onDismiss={() => setChanges(null)}
-    />
+  const breakEditor =
+    editing?.kind === "break" ? (
+      <div className="mt-2 rounded-xl border border-brand bg-surface p-4 text-foreground">
+        <BreakForm
+          value={editing.draft}
+          days={days}
+          zoneLabel={zoneLabel}
+          onChange={(p) => {
+            setEditing({ ...editing, draft: { ...editing.draft, ...p } });
+            touched();
+          }}
+        />
+        {!editing.isNew && (
+          <label className="mt-3 flex items-center gap-2 text-sm text-danger">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={editing.remove}
+              onChange={(e) => {
+                setEditing({ ...editing, remove: e.target.checked });
+                touched();
+              }}
+            />
+            Remove this break
+          </label>
+        )}
+      </div>
+    ) : null;
+
+  const rowEditorFor = (round: Round, rows: Times[]) => {
+    if (editing?.kind !== "row" || editing.round !== round) return null;
+    const old = rows[editing.index];
+    return (
+      <RowEditor
+        draft={editing.draft}
+        original={old}
+        bandId={round === "finals" ? editing.bandId : undefined}
+        bandOptions={round === "finals" ? saved.bands : undefined}
+        takenBandIds={saved.finals.map((f) => f.bandId).filter(Boolean)}
+        later={rows.slice(editing.index + 1).filter((r) => r.day === old.day && r.perform).length}
+        shiftLater={editing.shiftLater}
+        readyMinutes={round === "finals" ? finalsReadyMinutes : readyMinutes}
+        breaks={breaks}
+        days={days}
+        onChange={(p) => {
+          setEditing({ ...editing, draft: { ...editing.draft, ...p } });
+          touched();
+        }}
+        onBandChange={(bandId) => {
+          setEditing({ ...editing, bandId });
+          touched();
+        }}
+        onShiftLater={(shiftLater) => setEditing({ ...editing, shiftLater })}
+      />
+    );
+  };
+
+  if (initialBands.length === 0) return <p className="text-muted">No bands have registered yet.</p>;
+
+  const orderRows: Row[] = saved.bands.map((b, i) => ({
+    key: b.id,
+    number: String(i + 1),
+    title: b.name,
+    subtitle: `${b.school} · ${b.classification}`,
+    conflicts: b.conflicts,
+    times: b,
+  }));
+  const finalsRows: Row[] = saved.finals.map((f, i) => {
+    const band = saved.bands.find((b) => b.id === f.bandId);
+    return {
+      key: `f${i}`,
+      number: `F${i + 1}`,
+      title: band?.name ?? `Finalist ${i + 1}`,
+      subtitle: band ? band.school : "To be announced",
+      conflicts: null,
+      times: f,
+    };
+  });
+  const picked = saved.finals.filter((f) => f.bandId).length;
+  const editButton = (label: string, onClick: () => void) => (
+    <Button type="button" variant="secondary" className="ml-auto min-h-9 px-3" disabled={busy} onClick={onClick}>
+      {label}
+    </Button>
+  );
+  const status = (published: boolean) => (
+    <Badge tone={published ? "brand" : "neutral"}>{published ? "Published" : "Not published"}</Badge>
   );
 
-  if (bands.length === 0) return <p className="text-muted">No bands have registered yet.</p>;
-
-  if (mode === "view") {
-    return (
-      <div className="space-y-4">
-        <FormMessage error={result.error} success={result.ok ? result.message : null} />
-        <ScheduleView
-          bands={bands}
-          finals={finals}
-          breaks={breaks}
-          readyMinutes={readyMinutes}
-          days={days}
-          orderPublished={orderPublished}
-          finalsPublished={finalsPublished}
-          pending={pending}
-          onEditAll={() => {
-            setResult({});
-            setMode("edit");
-          }}
-          onSaveRow={saveRow}
-        />
-        {changeNotice && (
-          <div className="sticky bottom-0 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
-            {changeNotice}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-      {published && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent bg-accent-soft px-4 py-3">
-          <p className="text-sm font-medium">Editing the full schedule. It&apos;s published, so saved changes go live right away.</p>
-          <Button type="button" variant="secondary" onClick={leaveEditor}>
-            Done
-          </Button>
-        </div>
-      )}
-      <BreaksEditor breaks={breaks} days={days} zoneLabel={zoneLabel} onChange={updateBreaks} />
-
-      <div className="space-y-6">
-        <RoundHeading>Preliminaries</RoundHeading>
-        <AutoFill
-          title="Fill in times automatically"
-          noun={bands.length === 1 ? "band" : "bands"}
-          count={bands.length}
-          days={days}
-          defaultDay={days[0]}
-          defaultFirst="09:00"
-          zoneLabel={zoneLabel}
-          breaks={breaks}
-          readyText={readyText}
-          onReadyText={onReadyText}
-          onFill={(times) => {
-            updateBands(bands.map((b, i) => ({ ...b, ...times[i] })));
-            setBefore(null);
-          }}
-          extraAction={updateButton}
-        />
-        <ol className="space-y-3">
-          {bands.map((b, i) => (
-            <BreakDividers key={b.id} breaks={breaks} prev={bands[i - 1]} cur={b}>
-              <li className="rounded-xl border border-border bg-surface p-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-semibold text-brand-foreground">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{b.name}</p>
-                    <p className="text-sm text-muted">
-                      {b.school} · {b.classification}
-                    </p>
-                    {b.conflicts && <p className="mt-1 text-sm">⚠️ {b.conflicts}</p>}
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${b.name} earlier`}>
-                      ↑
-                    </Button>
-                    <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, 1)} disabled={i === bands.length - 1} aria-label={`Move ${b.name} later`}>
-                      ↓
-                    </Button>
-                  </div>
-                </div>
-                <TimesEditor value={b} days={days} breaks={breaks} readyMinutes={readyMinutes} onChange={(patch) => editBand(i, patch)} />
-              </li>
-            </BreakDividers>
-          ))}
-        </ol>
-      </div>
-
-      <FinalsEditor
-        finals={finals}
-        bands={bands}
-        days={days}
-        zoneLabel={zoneLabel}
+    <div className="space-y-10">
+      <BreaksPanel
         breaks={breaks}
-        readyText={readyText}
-        readyMinutes={readyMinutes}
-        onReadyText={onReadyText}
-        onChange={updateFinals}
-        onEdit={editFinal}
+        canEdit={!busy}
+        openKey={editing?.kind === "break" && editing.from === "list" ? editing.key : null}
+        adding={editing?.kind === "break" && editing.isNew ? editing.draft : null}
+        breakEditor={breakEditor}
+        onOpen={(key) => openBreak(key, "list")}
+        onAdd={addBreak}
       />
 
-      <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
-        {before && (
-          <p className="text-sm">You moved bands. Their times moved with them. Update the schedule to re-time the new order.</p>
+      <section className="space-y-4">
+        <RoundHeading aside={<>{status(orderPublished)}{editing?.kind !== "prelims" && editButton("Edit preliminaries", () => start({ kind: "prelims" }))}</>}>
+          Preliminaries
+        </RoundHeading>
+        {editing?.kind === "prelims" ? (
+          <>
+            <AutoFill
+              title="Fill in times automatically"
+              noun={bands.length === 1 ? "band" : "bands"}
+              count={bands.length}
+              days={days}
+              defaultDay={days[0]}
+              defaultFirst="09:00"
+              zoneLabel={zoneLabel}
+              breaks={breaks}
+              readyText={readyText}
+              readyHint="Same for every band in the preliminaries, 0 to 60."
+              onReadyText={(v) => {
+                setReadyText(v);
+                touched();
+              }}
+              onFill={(times) => {
+                setBands(bands.map((b, i) => ({ ...b, ...times[i] })));
+                setBefore(null);
+                touched();
+              }}
+              extraAction={updateButton}
+            />
+            <ol className="space-y-3">
+              {bands.map((b, i) => (
+                <BreakDividers key={b.id} breaks={breaks} prev={bands[i - 1]} cur={b}>
+                  <li className="rounded-xl border border-border bg-surface p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-semibold text-brand-foreground">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold">{b.name}</p>
+                        <p className="text-sm text-muted">
+                          {b.school} · {b.classification}
+                        </p>
+                        {b.conflicts && <p className="mt-1 text-sm">⚠️ {b.conflicts}</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${b.name} earlier`}>
+                          ↑
+                        </Button>
+                        <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, 1)} disabled={i === bands.length - 1} aria-label={`Move ${b.name} later`}>
+                          ↓
+                        </Button>
+                      </div>
+                    </div>
+                    <TimesEditor
+                      value={b}
+                      days={days}
+                      breaks={breaks}
+                      readyMinutes={readyMinutes}
+                      onChange={(patch) => {
+                        setBands(bands.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+                        touched();
+                      }}
+                    />
+                  </li>
+                </BreakDividers>
+              ))}
+            </ol>
+          </>
+        ) : (
+          <RoundRows
+            rows={orderRows}
+            breaks={breaks}
+            readyMinutes={readyMinutes}
+            days={days}
+            editIndex={editing?.kind === "row" && editing.round === "order" ? editing.index : null}
+            rowEditor={rowEditorFor("order", saved.bands)}
+            canEdit={!busy}
+            onEditRow={(i) => editRow("order", i)}
+            onOpenBreak={(key) => openBreak(key, "order")}
+            openBreakKey={editing?.kind === "break" && editing.from === "order" ? editing.key : null}
+            breakEditor={breakEditor}
+          />
         )}
-        {changeNotice}
+      </section>
+
+      <section className="space-y-4">
+        <RoundHeading
+          aside={
+            <>
+              {saved.finals.length > 0 && status(finalsPublished)}
+              {saved.finals.length > 0 && (
+                <span className="text-sm text-muted">
+                  {picked} of {saved.finals.length} picked
+                </span>
+              )}
+              {saved.finals.length > 0 && editing?.kind !== "finals" && editButton("Edit finals", () => start({ kind: "finals" }))}
+            </>
+          }
+        >
+          🏆 Finals
+        </RoundHeading>
+        {editing?.kind === "finals" ? (
+          <FinalsEditor
+            finals={finals}
+            bands={saved.bands}
+            days={days}
+            zoneLabel={zoneLabel}
+            breaks={breaks}
+            readyText={finalsReadyText}
+            readyMinutes={finalsReadyMinutes}
+            onReadyText={(v) => {
+              setFinalsReadyText(v);
+              touched();
+            }}
+            onChange={(next) => {
+              setFinals(next);
+              touched();
+            }}
+          />
+        ) : saved.finals.length === 0 ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-muted">Does this contest have a finals round?</p>
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => start({ kind: "finals" })}>
+              Set up finals
+            </Button>
+          </div>
+        ) : (
+          <RoundRows
+            rows={finalsRows}
+            breaks={breaks}
+            readyMinutes={finalsReadyMinutes}
+            days={days}
+            editIndex={editing?.kind === "row" && editing.round === "finals" ? editing.index : null}
+            rowEditor={rowEditorFor("finals", saved.finals)}
+            canEdit={!busy}
+            onEditRow={(i) => editRow("finals", i)}
+            onOpenBreak={(key) => openBreak(key, "finals")}
+            openBreakKey={editing?.kind === "break" && editing.from === "finals" ? editing.key : null}
+            breakEditor={breakEditor}
+          />
+        )}
+      </section>
+
+      <Footer>
+        {changes && (
+          <ChangeNotice
+            names={[...new Set([...changes.order, ...changes.finals])].map((id) => saved.bands.find((b) => b.id === id)?.name ?? "A band")}
+            onSend={async () => {
+              const r = await emailChanges(changes);
+              setResult(r);
+              if (r.ok) setChanges(null);
+            }}
+            onDismiss={() => setChanges(null)}
+          />
+        )}
         <FormMessage error={result.error} success={result.ok ? result.message : null} />
-        <div className="flex flex-wrap gap-3">
-          {updateButton}
-          <Button type="button" disabled={pending || !dirty} onClick={onSave}>
-            {pending ? "Saving…" : dirty ? "Save schedule" : "Saved"}
-          </Button>
-        </div>
-      </div>
+        {editing ? (
+          <>
+            <p className="text-sm">
+              <span className="font-semibold">{editingLabel(editing, saved)}</span>
+              {liveNote(editing, orderPublished, finalsPublished) && <span className="text-muted"> · goes live as soon as you save</span>}
+            </p>
+            {editing.kind === "prelims" && before && (
+              <p className="text-sm text-muted">You moved bands; their times moved with them. Update the schedule to re-time the new order.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="ghost" className="min-h-10 px-3" onClick={cancel} disabled={pending}>
+                Cancel
+              </Button>
+              {editing.kind === "prelims" && updateButton}
+              <Button type="button" className="ml-auto min-h-10" onClick={onSave} disabled={pending || (!dirty && !(editing.kind === "break" && editing.isNew))}>
+                {pending ? "Saving…" : saveLabel(editing)}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <PublishLine label="Preliminaries" published={orderPublished}>
+              {orderPublished ? (
+                <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishOrder(false))}>
+                  Unpublish
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className="min-h-9 px-3"
+                  disabled={pending}
+                  onClick={() => {
+                    const unscheduled = saved.bands.filter((b) => !b.perform).length;
+                    run(
+                      () => publishOrder(true),
+                      unscheduled
+                        ? `${unscheduled} band(s) don't have a performance time yet. Publish anyway? Each director will be emailed their times.`
+                        : "Publish the preliminaries? Each band director will be emailed their times.",
+                    );
+                  }}
+                >
+                  Publish
+                </Button>
+              )}
+            </PublishLine>
+            {saved.finals.length > 0 && (
+              <PublishLine label="Finals" published={finalsPublished}>
+                {finalsPublished && picked > 0 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="min-h-9 px-3"
+                    disabled={pending}
+                    onClick={() => run(emailFinalists, `Email the ${picked} finalist band director(s) their finals times?`)}
+                  >
+                    Email finalists
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant={finalsPublished ? "secondary" : "primary"}
+                  className="min-h-9 px-3"
+                  disabled={pending}
+                  onClick={() => run(() => publishFinals(!finalsPublished))}
+                >
+                  {finalsPublished ? "Unpublish" : "Publish"}
+                </Button>
+              </PublishLine>
+            )}
+          </div>
+        )}
+      </Footer>
     </div>
   );
 }
 
-function BreaksEditor({
+function editingLabel(e: NonNullable<Editing>, saved: Snapshot) {
+  switch (e.kind) {
+    case "prelims":
+      return "Editing preliminaries";
+    case "finals":
+      return "Editing finals";
+    case "break":
+      return e.isNew ? "Adding a break" : `Editing break: ${e.draft.label || "Break"}`;
+    case "row":
+      return e.round === "order"
+        ? `Editing ${saved.bands[e.index]?.name ?? "band"}`
+        : `Editing finals slot F${e.index + 1}`;
+  }
+}
+
+function liveNote(e: NonNullable<Editing>, orderPublished: boolean, finalsPublished: boolean) {
+  if (e.kind === "prelims" || (e.kind === "row" && e.round === "order")) return orderPublished;
+  if (e.kind === "finals" || e.kind === "row") return finalsPublished;
+  return orderPublished || finalsPublished;
+}
+
+function saveLabel(e: NonNullable<Editing>) {
+  switch (e.kind) {
+    case "prelims":
+      return "Save preliminaries";
+    case "finals":
+      return "Save finals";
+    case "break":
+      return e.remove ? "Remove break" : "Save break";
+    case "row":
+      return "Save";
+  }
+}
+
+/** The one place for Save, Cancel and Publish: always on screen, however long the lists get. */
+function Footer({ children }: { children: ReactNode }) {
+  return (
+    <div className="sticky bottom-0 z-10 -mx-4 space-y-2 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+      {children}
+    </div>
+  );
+}
+
+function PublishLine({ label, published, children }: { label: string; published: boolean; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${published ? "bg-success" : "border-2 border-muted"}`} aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate text-sm">
+        <span className="font-semibold">{label}</span> <span className="text-muted">· {published ? "Published" : "Not published"}</span>
+      </span>
+      <div className="flex shrink-0 gap-2">{children}</div>
+    </div>
+  );
+}
+
+/** Breaks apply to the whole contest day: preliminaries and finals. */
+function BreaksPanel({
   breaks,
-  days,
-  zoneLabel,
-  onChange,
+  canEdit,
+  openKey,
+  adding,
+  breakEditor,
+  onOpen,
+  onAdd,
 }: {
   breaks: BreakDraft[];
-  days: string[];
-  zoneLabel: string;
-  onChange: (next: BreakDraft[]) => void;
+  canEdit: boolean;
+  openKey: number | null;
+  adding: BreakDraft | null;
+  breakEditor: ReactNode;
+  onOpen: (key: number) => void;
+  onAdd: () => void;
 }) {
-  const edit = (key: number, patch: Partial<BreakDraft>) => onChange(breaks.map((b) => (b.key === key ? { ...b, ...patch } : b)));
-  const add = () =>
-    onChange([
-      ...breaks,
-      { key: nextKey++, day: breaks.at(-1)?.day ?? days[0], start: "12:00", minutes: "30", label: breaks.length ? "Break" : "Lunch" },
-    ]);
+  const sorted = [...breaks].sort((a, b) => (a.day + a.start).localeCompare(b.day + b.start));
   return (
     <Accordion
-      title="Breaks"
-      meta={breaks.length ? breaks.map((b) => b.label || "Break").join(", ") : "None yet"}
-      defaultOpen={breaks.length === 0}
+      title="Breaks for the whole day"
+      meta={breaks.length ? sorted.map((b) => b.label || "Break").join(", ") : "None yet"}
+      defaultOpen={breaks.length === 0 || openKey !== null || adding !== null}
     >
-      <div className="space-y-4">
+      <div className="space-y-3">
         <p className="text-sm text-muted">
-          Lunch, judges&apos; breaks, awards. Filling in times automatically skips over them, and they show on the public
-          schedule between bands.
+          Lunch, judges&apos; breaks, awards. They apply to the preliminaries and the finals: filling in times skips over
+          them, and they show on the schedule between bands. Tap a break to change it.
         </p>
-        {breaks.length > 0 && (
-          <ul className="space-y-3">
-            {breaks.map((b) => (
-              <li key={b.key} className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border p-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
-                {days.length > 1 && (
-                  <Field label="Day">
-                    <Select value={b.day} onChange={(e) => edit(b.key, { day: e.target.value })}>
-                      {days.map((d) => (
-                        <option key={d} value={d}>
-                          {formatDate(d, { year: undefined })}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                )}
-                <Field label={`Starts (${zoneLabel})`}>
-                  <Input type="time" required value={b.start} onChange={(e) => edit(b.key, { start: e.target.value })} />
-                </Field>
-                <Field label="Minutes">
-                  <NumberInput maxLength={3} value={b.minutes} onChange={(e) => edit(b.key, { minutes: e.target.value })} />
-                </Field>
-                <Field label="Name" className={days.length > 1 ? "" : "sm:col-span-2"}>
-                  <Input value={b.label} maxLength={80} onChange={(e) => edit(b.key, { label: e.target.value })} placeholder="e.g. Lunch" />
-                </Field>
-                <Button type="button" variant="danger" onClick={() => onChange(breaks.filter((x) => x.key !== b.key))} aria-label={`Remove ${b.label || "break"}`}>
-                  Remove
-                </Button>
+        {sorted.length > 0 && (
+          <ul className="space-y-2">
+            {sorted.map((b) => (
+              <li key={b.key}>
+                <button
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() => onOpen(b.key)}
+                  className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm disabled:cursor-default ${openKey === b.key ? "border-brand" : "border-border hover:border-brand"}`}
+                >
+                  <span aria-hidden="true">☕</span>
+                  <span className="flex-1 font-medium">{b.label || "Break"}</span>
+                  <span className="tabular-nums text-muted">
+                    {formatDate(b.day, { year: undefined, weekday: undefined })} · {breakRange(b)}
+                  </span>
+                </button>
+                {openKey === b.key && breakEditor}
               </li>
             ))}
           </ul>
         )}
-        <Button type="button" variant="secondary" onClick={add}>
-          + Add a break
-        </Button>
+        {adding ? (
+          breakEditor
+        ) : (
+          <Button type="button" variant="secondary" disabled={!canEdit} onClick={onAdd}>
+            + Add a break
+          </Button>
+        )}
       </div>
     </Accordion>
   );
 }
 
-/** The "fill in times automatically" panel, for the running order or the finals. */
+/** The "fill in times automatically" panel, for the preliminaries or the finals. */
 function AutoFill({
   title,
   noun,
@@ -419,6 +716,7 @@ function AutoFill({
   zoneLabel,
   breaks,
   readyText,
+  readyHint,
   onReadyText,
   onFill,
   extraAction,
@@ -433,6 +731,7 @@ function AutoFill({
   zoneLabel: string;
   breaks: BreakDraft[];
   readyText: string;
+  readyHint: string;
   onReadyText: (v: string) => void;
   onFill: (times: Partial<Times>[]) => void;
   /** Another button shown next to "Fill in times". */
@@ -477,10 +776,7 @@ function AutoFill({
         <Field label={`First performance (${zoneLabel})`}>
           <Input type="time" value={auto.first} onChange={(e) => setAuto({ ...auto, first: e.target.value })} />
         </Field>
-        <Field
-          label="Minutes between bands"
-          hint={dayBreaks.length ? `Skips ${dayBreaks.map((b) => b.label).join(", ")}.` : undefined}
-        >
+        <Field label="Minutes between bands" hint={dayBreaks.length ? `Skips ${dayBreaks.map((b) => b.label).join(", ")}.` : undefined}>
           <NumberInput maxLength={3} value={auto.slot} onChange={(e) => setAuto({ ...auto, slot: e.target.value })} />
         </Field>
         <Field label="Warm-up starts (minutes before performing)">
@@ -502,7 +798,7 @@ function AutoFill({
             ))}
           </Select>
         </Field>
-        <Field label="Ready position (minutes before performing)" hint="Same for every band and the finals, 0 to 60. Saved with the schedule.">
+        <Field label="Ready position (minutes before performing)" hint={readyHint}>
           <NumberInput maxLength={2} value={readyText} onChange={(e) => onReadyText(e.target.value)} />
         </Field>
         <Field
@@ -513,11 +809,7 @@ function AutoFill({
               : "Optional. Separate several with commas to alternate bands between them. Leave blank to keep each band's."
           }
         >
-          <Input
-            value={auto.location}
-            onChange={(e) => setAuto({ ...auto, location: e.target.value })}
-            placeholder="e.g. Practice Field A, Practice Field B"
-          />
+          <Input value={auto.location} onChange={(e) => setAuto({ ...auto, location: e.target.value })} placeholder="e.g. Practice Field A, Practice Field B" />
         </Field>
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
@@ -540,7 +832,6 @@ function FinalsEditor({
   readyMinutes,
   onReadyText,
   onChange,
-  onEdit,
 }: {
   finals: FinalsSlot[];
   bands: OrderBand[];
@@ -551,11 +842,11 @@ function FinalsEditor({
   readyMinutes: number;
   onReadyText: (v: string) => void;
   onChange: (next: FinalsSlot[]) => void;
-  onEdit: (i: number, patch: Partial<FinalsSlot>) => void;
 }) {
   const [countText, setCountText] = useState(finals.length ? String(finals.length) : "");
   const lastDay = days.at(-1)!;
   const blank = (): FinalsSlot => ({ ...blankTimes(finals.at(-1)?.day ?? lastDay), bandId: "" });
+  const edit = (i: number, patch: Partial<FinalsSlot>) => onChange(finals.map((f, k) => (k === i ? { ...f, ...patch } : f)));
 
   // Resize when the host finishes typing, so typing "12" doesn't first cut the list to 1.
   const applyCount = () => {
@@ -575,10 +866,8 @@ function FinalsEditor({
     const addRound = () => onChange(Array.from({ length: Number(countText) }, () => ({ ...blankTimes(lastDay), bandId: "" })));
     return (
       <div className="space-y-3">
-        <RoundHeading>Finals</RoundHeading>
         <p className="text-sm text-muted">
-          Does this contest have a finals round? Choose how many bands advance, then set the slot times. Pick the finalist bands
-          once they&apos;re announced.
+          Choose how many bands advance, then set the slot times. Pick the finalist bands once they&apos;re announced.
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <Field label={`Number of finalists (1–${MAX_FINALISTS})`} className="w-56">
@@ -596,7 +885,7 @@ function FinalsEditor({
             />
           </Field>
           <Button type="button" variant="secondary" disabled={!validCount} onClick={addRound}>
-            + Add a finals round
+            + Add finals slots
           </Button>
         </div>
       </div>
@@ -604,24 +893,29 @@ function FinalsEditor({
   }
 
   const taken = new Set(finals.map((f) => f.bandId).filter(Boolean));
-  const named = finals.filter((f) => f.bandId).length;
 
   return (
     <div className="space-y-6">
-      <RoundHeading>Finals</RoundHeading>
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted">
-            {named === 0
-              ? "Finalists show as “to be announced” until you pick them."
-              : `${named} of ${finals.length} finalists picked.`}
-          </p>
-        </div>
+        <Field label="Number of finalists" className="max-w-xs" hint={`1 to ${MAX_FINALISTS}.`}>
+          <NumberInput
+            maxLength={2}
+            value={countText}
+            onChange={(e) => setCountText(e.target.value)}
+            onBlur={applyCount}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyCount();
+              }
+            }}
+          />
+        </Field>
         <Button
           type="button"
           variant="danger"
           onClick={() => {
-            if (window.confirm("Remove the finals round and its times?")) {
+            if (window.confirm("Remove the finals round and its times? This takes effect when you save.")) {
               setCountText("");
               onChange([]);
             }
@@ -630,20 +924,6 @@ function FinalsEditor({
           Remove finals
         </Button>
       </div>
-      <Field label="Number of finalists" className="max-w-xs" hint={`1 to ${MAX_FINALISTS}.`}>
-        <NumberInput
-          maxLength={2}
-          value={countText}
-          onChange={(e) => setCountText(e.target.value)}
-          onBlur={applyCount}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              applyCount();
-            }
-          }}
-        />
-      </Field>
       <AutoFill
         title="Fill in finals times automatically"
         noun={finals.length === 1 ? "finals slot" : "finals slots"}
@@ -654,6 +934,7 @@ function FinalsEditor({
         zoneLabel={zoneLabel}
         breaks={breaks}
         readyText={readyText}
+        readyHint="Same for every finalist, 0 to 60. Can differ from the preliminaries."
         onReadyText={onReadyText}
         onFill={(times) => onChange(finals.map((f, i) => ({ ...f, ...times[i] })))}
       />
@@ -666,7 +947,7 @@ function FinalsEditor({
                   F{i + 1}
                 </span>
                 <Field label={`Finalist ${i + 1}`} className="min-w-0 flex-1">
-                  <Select value={f.bandId} onChange={(e) => onEdit(i, { bandId: e.target.value })}>
+                  <Select value={f.bandId} onChange={(e) => edit(i, { bandId: e.target.value })}>
                     <option value="">To be announced</option>
                     {bands.map((b) => (
                       <option key={b.id} value={b.id} disabled={taken.has(b.id) && b.id !== f.bandId}>
@@ -676,7 +957,7 @@ function FinalsEditor({
                   </Select>
                 </Field>
               </div>
-              <TimesEditor value={f} days={days} breaks={breaks} readyMinutes={readyMinutes} onChange={(patch) => onEdit(i, patch)} />
+              <TimesEditor value={f} days={days} breaks={breaks} readyMinutes={readyMinutes} onChange={(patch) => edit(i, patch)} />
             </li>
           </BreakDividers>
         ))}
@@ -699,6 +980,7 @@ function ChangeNotice({ names, onSend, onDismiss }: { names: string[]; onSend: (
         <Button
           type="button"
           variant="accent"
+          className="min-h-9 px-3"
           disabled={sending}
           onClick={async () => {
             setSending(true);
@@ -708,7 +990,7 @@ function ChangeNotice({ names, onSend, onDismiss }: { names: string[]; onSend: (
         >
           {sending ? "Sending…" : `Email ${names.length === 1 ? "their director" : "their directors"}`}
         </Button>
-        <Button type="button" variant="ghost" onClick={onDismiss}>
+        <Button type="button" variant="ghost" className="min-h-9 px-3" onClick={onDismiss}>
           Not now
         </Button>
       </div>

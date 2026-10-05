@@ -40,7 +40,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_published")
+    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_ready_minutes_before, finals_published")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) notFound();
@@ -101,8 +101,6 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   }));
   const finalsSlots = (finalsData ?? []) as (Omit<Slot, "band_id" | "performance_order"> & { slot_number: number; band_id: string | null })[];
   const builderFinals: FinalsSlot[] = finalsSlots.map((f) => ({ bandId: f.band_id ?? "", ...toTimes(f, days.at(-1)!) }));
-  const finalistsPicked = finalsSlots.filter((f) => f.band_id).length;
-  const unscheduled = bands.filter((b) => !slots.has(b.id)).length;
 
   const total = (k: keyof BandRow) => bands.reduce((n, b) => n + Number(b[k] ?? 0), 0);
   const byClass = bands.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.classification]: (acc[b.classification] ?? 0) + 1 }), {});
@@ -213,92 +211,25 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         <section className="mt-10">
           <h2 className="text-lg font-semibold">Performance schedule</h2>
           <p className="mt-1 mb-4 text-sm text-muted">
-            Set breaks, put bands in order and set their times ({zoneName(tz)}). Directors and the public only see the
-            schedule once you publish. Conflicts directors reported are shown with ⚠️.
+            All times {zoneName(tz)}. Directors and the public only see a round once you publish it from the bar at the
+            bottom. Conflicts directors reported are shown with ⚠️.
           </p>
           <ScheduleBuilder
             initialBands={builderBands}
             initialBreaks={builderBreaks}
             initialFinals={builderFinals}
             initialReadyMinutes={event.ready_minutes_before}
+            initialFinalsReadyMinutes={event.finals_ready_minutes_before}
             days={days}
             zoneLabel={zoneName(tz)}
             orderPublished={event.performance_order_published}
             finalsPublished={event.finals_published}
             save={saveSchedule.bind(null, eventId)}
             emailChanges={emailTimeChanges.bind(null, eventId)}
+            publishOrder={publishRunningOrder.bind(null, eventId)}
+            publishFinals={publishFinals.bind(null, eventId)}
+            emailFinalists={emailFinalists.bind(null, eventId)}
           />
-          {bands.length > 0 && (
-            <Card className="mt-6 space-y-5">
-              <h3 className="font-semibold">Publishing</h3>
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium">Preliminaries</span>
-                  <Badge tone={event.performance_order_published ? "brand" : "neutral"}>
-                    {event.performance_order_published ? "Published" : "Not published"}
-                  </Badge>
-                </div>
-                {event.performance_order_published ? (
-                  <ActionButton action={publishRunningOrder.bind(null, eventId, false)} variant="secondary">
-                    Unpublish preliminaries
-                  </ActionButton>
-                ) : (
-                  <ActionButton
-                    action={publishRunningOrder.bind(null, eventId, true)}
-                    confirmMessage={
-                      unscheduled
-                        ? `${unscheduled} band(s) haven't been saved into the order yet. Publish anyway? Each director will be emailed their times.`
-                        : "Publish the order? Each band director will be emailed their times."
-                    }
-                    pendingText="Publishing…"
-                  >
-                    Publish preliminaries &amp; email directors
-                  </ActionButton>
-                )}
-              </div>
-              {finalsSlots.length > 0 && (
-                <div className="space-y-3 border-t border-border pt-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">Finals</span>
-                    <Badge tone={event.finals_published ? "brand" : "neutral"}>
-                      {event.finals_published ? "Published" : "Not published"}
-                    </Badge>
-                    <span className="text-sm text-muted">
-                      {finalistsPicked} of {finalsSlots.length} finalists picked
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted">
-                    You can publish the finals times before the finalists are announced; slots show as &ldquo;to be
-                    announced&rdquo; until you pick them and save.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    {event.finals_published ? (
-                      <ActionButton action={publishFinals.bind(null, eventId, false)} variant="secondary">
-                        Unpublish finals
-                      </ActionButton>
-                    ) : (
-                      <ActionButton action={publishFinals.bind(null, eventId, true)} pendingText="Publishing…">
-                        Publish finals
-                      </ActionButton>
-                    )}
-                    {event.finals_published && finalistsPicked > 0 && (
-                      <ActionButton
-                        action={emailFinalists.bind(null, eventId)}
-                        variant="secondary"
-                        confirmMessage={`Email the ${finalistsPicked} finalist band director(s) their finals times?`}
-                        pendingText="Sending…"
-                      >
-                        Email finalists their times
-                      </ActionButton>
-                    )}
-                  </div>
-                </div>
-              )}
-              {(event.performance_order_published || event.finals_published) && (
-                <p className="text-sm text-muted">Changes you save to published times are visible right away.</p>
-              )}
-            </Card>
-          )}
         </section>
       )}
 
