@@ -21,6 +21,7 @@ export type Station = {
   name: string;
   checkpoint_kind: CheckpointKind | null;
   checkpoint_order: number | null;
+  due_minutes_before_warm_up: number | null;
   location: string | null;
   instructions: string | null;
   lead_user_id: string | null;

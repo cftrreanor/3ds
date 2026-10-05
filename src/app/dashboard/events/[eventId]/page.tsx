@@ -63,7 +63,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   ] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_kind, checkpoint_order, location, instructions, lead_user_id")
+      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, lead_user_id")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),

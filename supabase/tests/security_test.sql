@@ -1025,7 +1025,19 @@ reset role;
 -- Contest day: ordered check-in stations, parking spots, one-tap stops, undo, notes
 -- ---------------------------------------------------------------------------
 -- Event A's path: 1 Parking (lead@), 2 Check-in table (no lead), 3 Warm-up, 4 Gate (newlead@).
-update public.stations set checkpoint_kind = 'parking', checkpoint_order = 1 where id = '20000000-0000-0000-0000-00000000000a';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  update public.stations set checkpoint_kind = 'parking', checkpoint_order = 1, due_minutes_before_warm_up = 60
+   where id = '20000000-0000-0000-0000-00000000000a';
+  assert found, 'the host sets up a parking check-in station with a deadline';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  update public.stations set due_minutes_before_warm_up = 5 where id = '20000000-0000-0000-0000-00000000000a';
+  if found then raise exception 'FAIL: a Section Lead changed their station''s deadline'; end if;
+end $$;
+reset role;
 insert into public.stations (id, event_id, name, station_type, checkpoint_kind, checkpoint_order) values
   ('20000000-0000-0000-0000-0000000000c1', '10000000-0000-0000-0000-00000000000a', 'Check-in table', 'active_checkpoint', 'stop', 2),
   ('20000000-0000-0000-0000-0000000000c2', '10000000-0000-0000-0000-00000000000a', 'Warm-up', 'active_checkpoint', 'warm_up', 3),

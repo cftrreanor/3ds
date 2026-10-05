@@ -270,6 +270,13 @@ function checkpointKind(formData: FormData) {
   return kind.success ? kind.data : null;
 }
 
+/** Parking and check-in points: minutes before warm-up a band is due (blank: no deadline). */
+function dueMinutes(formData: FormData, kind: string | null) {
+  if (kind !== "parking" && kind !== "stop") return null;
+  const raw = String(formData.get("dueMinutes") ?? "").trim();
+  return /^\d{1,3}$/.test(raw) ? Math.min(Number(raw), 600) : null;
+}
+
 /** The next place in the event's check-in order. */
 async function nextCheckpointOrder(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string) {
   const { data } = await supabase
@@ -298,6 +305,7 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
       station_type: kind ? "active_checkpoint" : "passive",
       checkpoint_kind: kind,
       checkpoint_order: kind ? await nextCheckpointOrder(supabase, eventId) : null,
+      due_minutes_before_warm_up: dueMinutes(formData, kind),
       location: v.location,
       instructions: v.instructions,
     })
@@ -335,6 +343,7 @@ export async function updateStation(
       station_type: kind ? "active_checkpoint" : "passive",
       checkpoint_kind: kind,
       checkpoint_order: order,
+      due_minutes_before_warm_up: dueMinutes(formData, kind),
       location: v.location,
       instructions: v.instructions,
     })

@@ -71,7 +71,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       .select("id, name, timezone, equipment_spots, ready_minutes_before, finals_ready_minutes_before")
       .eq("id", eventId)
       .maybeSingle(),
-    supabase.from("stations").select("id, name, checkpoint_kind, checkpoint_order").eq("event_id", eventId).not("checkpoint_kind", "is", null),
+    supabase
+      .from("stations")
+      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up")
+      .eq("event_id", eventId)
+      .not("checkpoint_kind", "is", null),
     supabase.from("station_leads").select("station_id").eq("event_id", eventId).eq("user_id", user.id),
   ]);
   if (!event) missing();
@@ -125,6 +129,23 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const warmUpOrder = (b: Band) => prelimSlot.get(b.id)?.warm_up_at ?? prelimSlot.get(b.id)?.perform_at ?? "9999";
   const stopsAt = (b: Band, performed = false) =>
     stops.find((s) => s.band_id === b.id && s.station_id === station.id && s.performed === performed && (!byRound || s.round === round));
+  // When this station expects each band, and whether it's late. Parking and
+  // check-in points count back from warm-up; warm-up and gate follow the schedule.
+  const now = new Date().toISOString();
+  const dueAt = (b: Band): string | null => {
+    const slot = slotOf.get(b.id);
+    if (kind === "warm_up") return slot?.warm_up_at ?? null;
+    if (kind === "gate") return slot?.perform_at ? minus(slot.perform_at, readyMinutes) : null;
+    const warmUp = prelimSlot.get(b.id)?.warm_up_at;
+    const before = station.due_minutes_before_warm_up;
+    return warmUp && before != null ? minus(warmUp, before) : null;
+  };
+  const isDone = (b: Band) =>
+    kind === "parking" ? ["all", "away", "left"].includes(parking(b).key) : !!stopsAt(b) || (kind === "gate" && !!stopsAt(b, true));
+  const isLate = (b: Band) => {
+    const due = dueAt(b);
+    return !b.scratched_at && !!due && due < now && !isDone(b);
+  };
   const base = `/dashboard/events/${eventId}/contest-day`;
   const href = (q: Record<string, string>) => `${base}?${new URLSearchParams({ station: station.id, ...q })}`;
 
@@ -136,12 +157,19 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
     list = [...bands].sort(
       (a, b) =>
         scratchedLast(a, b) ||
+        Number(isLate(b)) - Number(isLate(a)) ||
         rank[parking(a).key] - rank[parking(b).key] ||
         (a.equipment_spot ?? 999) - (b.equipment_spot ?? 999) ||
         warmUpOrder(a).localeCompare(warmUpOrder(b)),
     );
   } else if (kind === "stop") {
-    list = [...bands].sort((a, b) => scratchedLast(a, b) || Number(!!stopsAt(a)) - Number(!!stopsAt(b)) || warmUpOrder(a).localeCompare(warmUpOrder(b)));
+    list = [...bands].sort(
+      (a, b) =>
+        scratchedLast(a, b) ||
+        Number(isLate(b)) - Number(isLate(a)) ||
+        Number(!!stopsAt(a)) - Number(!!stopsAt(b)) ||
+        warmUpOrder(a).localeCompare(warmUpOrder(b)),
+    );
   } else {
     const inRound = roundSlots.map((s) => bands.find((b) => b.id === s.band_id)).filter((b): b is Band => !!b);
     const rest = round === "prelims" ? bands.filter((b) => !slotOf.has(b.id)) : [];
@@ -155,6 +183,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
     return { ...acc, [k]: (acc[k] ?? 0) + 1 };
   }, {});
   const hereCount = bands.filter((b) => stopsAt(b)).length;
+  const lateCount = list.filter(isLate).length;
 
   return (
     <div>
@@ -213,6 +242,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
             <span className="font-semibold">{counts.nothing ?? 0}</span> not here
             {counts.away ? ` · ${counts.away} away` : ""}
             {counts.left ? ` · ${counts.left} left` : ""}
+            {lateCount > 0 && <span className="font-semibold text-danger"> · {lateCount} late</span>}
           </p>
           <p className="text-sm">
             Equipment spots: <span className="font-semibold">{used.length}</span> used
@@ -242,6 +272,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
           <span className="font-semibold">{hereCount}</span> of {round === "finals" ? finals.length : bands.length} bands
           {kind === "gate" ? " at the gate so far" : ` checked in at ${station.name}`}
           {round === "finals" ? " (finals)" : ""}.
+          {lateCount > 0 && <span className="font-semibold text-danger"> {lateCount} late.</span>}
         </p>
       )}
 
@@ -286,18 +317,19 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
               <p className="flex min-h-11 items-center rounded-md bg-background px-3 text-sm text-muted">✓ {text}</p>
             );
             const status = kind === "parking" ? parking(b) : whereIs(b, stops, path, round);
-            // When this station expects the band, from its schedule (parking and check-in points have no time).
+            const dueTime = dueAt(b);
+            const late = isLate(b);
             const due =
               kind === "warm_up" && slot?.warm_up_at
                 ? `Warm-up ${time(slot.warm_up_at)}`
                 : kind === "gate" && slot?.perform_at
                   ? `Ready ${time(minus(slot.perform_at, readyMinutes))} · Performs ${time(slot.perform_at)}`
-                  : slot?.perform_at
-                    ? `Performs ${time(slot.perform_at)}`
+                  : dueTime
+                    ? `Due by ${time(dueTime)}`
                     : null;
             return (
               <li key={b.id}>
-                <Card className={`space-y-3 p-4 ${b.scratched_at ? "opacity-60" : ""}`}>
+                <Card className={`space-y-3 p-4 ${b.scratched_at ? "opacity-60" : ""} ${late ? "border-danger" : ""}`}>
                   <div className="flex items-start gap-3">
                     <Pin tone={b.scratched_at ? "neutral" : status.tone} />
                     <div className="min-w-0 flex-1">
@@ -309,8 +341,13 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                       <p className="mt-1 text-sm font-medium">{b.scratched_at ? "Scratched" : status.label}</p>
                     </div>
                     <div className="shrink-0 text-right">
+                      {late && (
+                        <span className="mb-1 inline-flex rounded-full bg-danger px-2.5 py-0.5 text-xs font-semibold text-danger-foreground">
+                          Late
+                        </span>
+                      )}{" "}
                       {b.equipment_spot != null && <Badge tone="brand">Spot {b.equipment_spot}</Badge>}
-                      {due && <p className="mt-1 max-w-36 text-sm tabular-nums text-muted">{due}</p>}
+                      {due && <p className={`mt-1 max-w-36 text-sm tabular-nums ${late ? "font-medium text-danger" : "text-muted"}`}>{due}</p>}
                       {kind === "warm_up" && slot?.warm_up_location && <p className="text-sm text-muted">{slot.warm_up_location}</p>}
                     </div>
                   </div>

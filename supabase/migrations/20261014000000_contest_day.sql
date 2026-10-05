@@ -7,8 +7,10 @@
 -- the station tabs everywhere and is the path "on track" is measured against.
 -- Kinds of check-in station:
 --   parking   buses here · equipment here (gets the next free spot) ·
---             away (keeps the spot) · back · left for the day (frees it)
---   stop      one "Here" tap (e.g. the check-in table)
+--             away (keeps the spot) · back · left for the day (frees it);
+--             due a set time before the band's warm-up (60 minutes unless changed)
+--   stop      one "Here" tap (e.g. the check-in table); optionally due a set
+--             time before warm-up
 --   warm_up   one "Here" tap per round, due at the band's warm-up time
 --   gate      "Here" per round, due at the ready time, then "Performed"
 -- Hosts and Volunteer Leads can tap at every station and scratch a band.
@@ -21,13 +23,17 @@ create type public.checkpoint_kind as enum ('parking', 'stop', 'warm_up', 'gate'
 alter table public.stations
   add column checkpoint_kind  public.checkpoint_kind,
   add column checkpoint_order int check (checkpoint_order > 0),
+  -- Parking and check-in points: flag a band as late if it isn't done this
+  -- long before its warm-up, so the host has time to adjust the schedule.
+  add column due_minutes_before_warm_up int check (due_minutes_before_warm_up between 0 and 600),
   add constraint stations_checkpoint_order check ((checkpoint_kind is null) = (checkpoint_order is null));
 -- Existing band checkpoints become one-tap stops, in their current order.
 update public.stations s set checkpoint_kind = 'stop', checkpoint_order = o.n
   from (select id, row_number() over (partition by event_id order by sort_order, created_at) as n
           from public.stations where station_type = 'active_checkpoint') o
  where o.id = s.id;
-grant insert (checkpoint_kind, checkpoint_order), update (checkpoint_kind, checkpoint_order) on public.stations to authenticated;
+grant insert (checkpoint_kind, checkpoint_order, due_minutes_before_warm_up),
+      update (checkpoint_kind, checkpoint_order, due_minutes_before_warm_up) on public.stations to authenticated;
 
 -- How many equipment spots the lot has (optional; for "12 of 20 used").
 alter table public.events add column equipment_spots int check (equipment_spots between 1 and 500);

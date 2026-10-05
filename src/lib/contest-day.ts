@@ -17,7 +17,14 @@ export function sortStations<T extends { checkpoint_order: number | null }>(stat
 }
 
 /** A check-in station, as the contest-day screens need it. */
-export type Checkpoint = { id: string; name: string; checkpoint_kind: CheckpointKind; checkpoint_order: number };
+export type Checkpoint = {
+  id: string;
+  name: string;
+  checkpoint_kind: CheckpointKind;
+  checkpoint_order: number;
+  /** Parking and check-in points: due this long before the band's warm-up (null: no deadline). */
+  due_minutes_before_warm_up?: number | null;
+};
 /** One "Here" (or the gate's "Performed"). */
 export type Stop = { band_id: string; station_id: string; round: Round | null; performed: boolean; reached_at: string };
 
