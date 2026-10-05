@@ -12,56 +12,14 @@ import {
   formatDateRange,
   formatTimeRange,
   utcToZonedDate,
-  utcToZonedTime,
   zoneName,
 } from "@/lib/time";
-import QRCode from "qrcode";
-import {
-  createShift,
-  createStation,
-  deleteShift,
-  deleteStation,
-  generateShifts,
-  setEventPublished,
-  setVolunteerSignupOpen,
-  updateShift,
-  updateStation,
-} from "../../actions";
+import { setEventPublished } from "../../actions";
 import { cancelInvitation, inviteMember, removeMember } from "../../team-actions";
-import {
-  ActionButton,
-  CopyLinkButton,
-  DeleteButton,
-  GenerateShiftsForm,
-  InviteForm,
-  RemoveButton,
-  ShiftForm,
-  StationForm,
-  type LeadOption,
-} from "./forms";
+import { ActionButton, CopyLinkButton, DeleteButton, InviteForm, RemoveButton, type LeadOption } from "./forms";
+import { StationPanel, type RosterEntry, type Shift } from "./station-panel";
 
 export const metadata: Metadata = { title: "Event setup" };
-
-type Shift = {
-  id: string;
-  station_id: string;
-  title: string;
-  description: string | null;
-  starts_at: string;
-  ends_at: string;
-  max_capacity: number;
-  registered_count: number;
-};
-
-type RosterEntry = {
-  assignment_id: string;
-  shift_id: string;
-  volunteer_name: string;
-  email: string | null;
-  phone: string | null;
-  checked_in_at: string | null;
-  contact_locked: boolean;
-};
 
 type Person = { full_name: string; email: string; phone: string | null } | null;
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: Person };
@@ -127,13 +85,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
   const origin = await getOrigin();
 
-  const signupUrl = `${origin}/e/${event.slug}/volunteer`;
-  const [qrSvg, qrPng] = access.canManage
-    ? await Promise.all([
-        QRCode.toString(signupUrl, { type: "svg", margin: 1, width: 160 }),
-        QRCode.toDataURL(signupUrl, { margin: 2, width: 1024 }),
-      ])
-    : ["", ""];
   const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
 
   // Section Leads see their own station's roster; contact details are
@@ -153,7 +104,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     shiftsByStation.set(s.station_id, [...(shiftsByStation.get(s.station_id) ?? []), s]);
   }
   const totalSlots = (shifts ?? []).reduce((n, s) => n + s.max_capacity, 0);
-
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const directors = staffRows.filter((s) => s.role === "volunteer_director");
   const leads = staffRows.filter((s) => s.role === "section_lead");
@@ -171,6 +121,29 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     })),
   ];
   const stationName = (id: string | null) => stations?.find((s) => s.id === id)?.name;
+  const today = utcToZonedDate(new Date().toISOString(), tz);
+  const isEventDay = today >= event.starts_on && today <= event.ends_on;
+  const [{ count: volunteerCount }, { data: checkins }] = access.canManage
+    ? await Promise.all([
+        supabase.from("volunteers").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+        isEventDay
+          ? supabase.from("volunteer_assignments").select("checked_in_at, shifts!inner(event_id)").eq("shifts.event_id", eventId)
+          : Promise.resolve({ data: [] }),
+      ])
+    : [{ count: 0 }, { data: [] }];
+  const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
+  // The emptiest shifts first: where to send the next volunteers.
+  const needsPeople = ((shifts ?? []) as Shift[])
+    .filter((s) => s.registered_count < s.max_capacity)
+    .sort((a, b) => a.registered_count / a.max_capacity - b.registered_count / b.max_capacity || a.starts_at.localeCompare(b.starts_at))
+    .slice(0, 3)
+    .map((s) => ({
+      id: s.id,
+      label: `${stationName(s.station_id) ?? "Station"} · ${s.title}`,
+      when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}`,
+      filled: s.registered_count,
+      capacity: s.max_capacity,
+    }));
 
   return (
     <div>
@@ -197,11 +170,27 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               Map
             </a>
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Badge tone={event.status === "published" ? "brand" : "neutral"}>
+              {event.status === "published" ? "Published" : "Draft: only your team can see this"}
+            </Badge>
+            {access.isHost &&
+              (event.status !== "published" ? (
+                <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
+                  Publish event
+                </ActionButton>
+              ) : (
+                <ActionButton
+                  action={setEventPublished.bind(null, eventId, false)}
+                  variant="stop"
+                  confirmMessage="Unpublish? The public pages will be hidden and signup will close."
+                >
+                  Unpublish event
+                </ActionButton>
+              ))}
+          </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <Badge tone={event.status === "published" ? "brand" : "neutral"}>
-            {event.status === "published" ? "Published" : "Draft: only your team can see this"}
-          </Badge>
           {access.isHost && (
             <Link
               href={`/dashboard/events/${eventId}/edit`}
@@ -212,120 +201,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           )}
         </div>
       </div>
-
-      {access.canManage && (
-        <section className="mt-10" aria-labelledby="share-heading">
-          <h2 id="share-heading" className="text-lg font-semibold">
-            Volunteer signup
-          </h2>
-          <Card className="mt-4">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 flex-1 space-y-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={event.status === "published" && event.volunteer_signup_open ? "brand" : "neutral"}>
-                    {event.status !== "published"
-                      ? "Not published"
-                      : event.volunteer_signup_open
-                        ? "Signup open"
-                        : "Signup closed"}
-                  </Badge>
-                  <span className="text-sm text-muted">
-                    {signedUp} of {totalSlots} spots filled
-                  </span>
-                </div>
-
-                {access.isHost && (
-                  <div className="flex flex-wrap gap-2">
-                    {event.status !== "published" ? (
-                      <ActionButton action={setEventPublished.bind(null, eventId, true)} pendingText="Publishing…">
-                        Publish event
-                      </ActionButton>
-                    ) : (
-                      <>
-                        <ActionButton
-                          action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
-                          variant={event.volunteer_signup_open ? "secondary" : "primary"}
-                        >
-                          {event.volunteer_signup_open ? "Close volunteer signup" : "Open volunteer signup"}
-                        </ActionButton>
-                        <ActionButton
-                          action={setEventPublished.bind(null, eventId, false)}
-                          variant="secondary"
-                          confirmMessage="Unpublish? The public pages will be hidden and signup will close."
-                        >
-                          Unpublish
-                        </ActionButton>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-sm font-medium">Signup link</p>
-                  <p className="mt-1 break-all text-sm text-muted">{signupUrl}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <CopyLinkButton url={signupUrl} label="Copy link" />
-                    <a
-                      href={`/e/${event.slug}/volunteer`}
-                      target="_blank"
-                      className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
-                    >
-                      Preview page
-                    </a>
-                    <Link
-                      href={`/dashboard/events/${eventId}/volunteers`}
-                      className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
-                    >
-                      Volunteers &amp; check-in
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center gap-2 self-center sm:self-start">
-                <div
-                  className="rounded-lg border border-border bg-white p-2"
-                  aria-label="QR code for the signup link"
-                  role="img"
-                  dangerouslySetInnerHTML={{ __html: qrSvg }}
-                />
-                <a
-                  href={qrPng}
-                  download={`${event.slug}-volunteer-qr.png`}
-                  className="text-xs font-medium text-brand underline-offset-4 hover:underline"
-                >
-                  Download QR code
-                </a>
-              </div>
-            </div>
-          </Card>
-        </section>
-      )}
-
-      {access.canManage && (
-        <section className="mt-10" aria-labelledby="bands-heading">
-          <h2 id="bands-heading" className="text-lg font-semibold">
-            Band registration
-          </h2>
-          <Card className="mt-4 space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm leading-6 text-muted">
-                {bands.length
-                  ? `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`
-                  : "No bands registered yet."}{" "}
-                Registration, the performance schedule and finals.
-              </p>
-              <Link
-                href={`/dashboard/events/${eventId}/bands`}
-                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-              >
-                Manage bands
-              </Link>
-            </div>
-            {bands.length > 0 && <LogisticsTotals bands={bands} />}
-          </Card>
-        </section>
-      )}
 
       {access.canManage && (
         <section className="mt-10" aria-labelledby="team-heading">
@@ -446,192 +321,96 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
-      <section className="mt-10">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <h2 className="text-lg font-semibold">Stations &amp; volunteer shifts</h2>
-          {totalSlots > 0 && (
-            <p className="text-sm text-muted">
-              {stations?.length} station{stations?.length === 1 ? "" : "s"} · {shifts?.length} shifts ·{" "}
-              {totalSlots} volunteer slots
-            </p>
-          )}
-        </div>
+      {access.canManage && (
+        <section className="mt-10" aria-labelledby="bands-heading">
+          <h2 id="bands-heading" className="text-lg font-semibold">
+            Band registration
+          </h2>
+          <Card className="mt-4 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <p className="text-sm leading-6 text-muted">
+                {bands.length
+                  ? `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`
+                  : "No bands registered yet."}{" "}
+                Registration, the performance schedule and finals.
+              </p>
+              <Link
+                href={`/dashboard/events/${eventId}/bands`}
+                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+              >
+                Manage bands
+              </Link>
+            </div>
+            {bands.length > 0 && <LogisticsTotals bands={bands} />}
+          </Card>
+        </section>
+      )}
 
-        {(stations ?? []).length === 0 && (
-          <p className="mt-2 max-w-2xl leading-7 text-muted">
-            A station is a place or job volunteers are assigned to, like Parking, Concessions or a Warm-Up
-            area.{access.canManage && " Add your first one below, then create its shifts."}
-          </p>
-        )}
+      {access.canManage && (
+        <section className="mt-10" aria-labelledby="volunteers-heading">
+          <h2 id="volunteers-heading" className="text-lg font-semibold">
+            Volunteer registration
+          </h2>
+          <Card className="mt-4 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={event.status === "published" && event.volunteer_signup_open ? "brand" : "neutral"}>
+                  {event.status !== "published" ? "Event not published" : event.volunteer_signup_open ? "Signup open" : "Signup closed"}
+                </Badge>
+                <span className="text-sm text-muted">
+                  {(stations ?? []).length} station{(stations ?? []).length === 1 ? "" : "s"} · {(shifts ?? []).length} shift
+                  {(shifts ?? []).length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/dashboard/events/${eventId}/volunteers`}
+                  className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
+                >
+                  Check-in
+                </Link>
+                <Link
+                  href={`/dashboard/events/${eventId}/volunteering`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                >
+                  Manage volunteers
+                </Link>
+              </div>
+            </div>
+            <VolunteerStats
+              filled={signedUp}
+              capacity={totalSlots}
+              volunteers={volunteerCount ?? 0}
+              checkedIn={isEventDay ? checkedIn : null}
+              needs={needsPeople}
+            />
+          </Card>
+        </section>
+      )}
 
-        <div className="mt-6 space-y-6">
-          {(stations ?? []).map((station) => {
-            const stationShifts = shiftsByStation.get(station.id) ?? [];
-            const leadName = nameOf(station.lead_user_id);
-            return (
-              <Card key={station.id}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold">{station.name}</h3>
-                      {station.station_type === "active_checkpoint" && <Badge tone="accent">Band checkpoint</Badge>}
-                      {station.lead_user_id === user.id && <Badge tone="brand">You lead this</Badge>}
-                    </div>
-                    <p className="mt-1 text-sm text-muted">
-                      {[station.location, leadName ? `Lead: ${leadName}` : access.canManage ? "No lead yet" : null]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  </div>
-                  {access.canManage && (
-                    <DeleteButton
-                      action={deleteStation.bind(null, eventId, station.id)}
-                      label={`Delete station ${station.name}`}
-                      confirmMessage={`Delete “${station.name}” and all of its shifts?`}
-                    />
-                  )}
-                </div>
-
-                {stationShifts.length > 0 ? (
-                  <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
-                    {stationShifts.map((s) => (
-                      <li key={s.id} className="px-3 py-2.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{s.title}</p>
-                            <p className="text-sm text-muted">
-                              {multiDay && `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · `}
-                              {formatTimeRange(s.starts_at, s.ends_at, tz)}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1">
-                            <span className="mr-1 text-sm tabular-nums text-muted">
-                              {s.registered_count} / {s.max_capacity} filled
-                            </span>
-                            {access.canManage && (
-                              <DeleteButton
-                                action={deleteShift.bind(null, eventId, s.id)}
-                                label={`Delete shift ${s.title}`}
-                                confirmMessage={`Delete “${s.title}”?`}
-                              />
-                            )}
-                          </div>
-                        </div>
-                        {access.canManage && (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-xs font-medium text-muted hover:text-foreground">
-                              Edit shift
-                            </summary>
-                            <div className="mt-3 pb-1">
-                              <ShiftForm
-                                action={updateShift.bind(null, eventId, s.id)}
-                                days={days}
-                                registered={s.registered_count}
-                                submitLabel="Save shift"
-                                initial={{
-                                  title: s.title,
-                                  day: utcToZonedDate(s.starts_at, tz),
-                                  startTime: utcToZonedTime(s.starts_at, tz),
-                                  endTime: utcToZonedTime(s.ends_at, tz),
-                                  capacity: s.max_capacity,
-                                  description: s.description,
-                                }}
-                              />
-                            </div>
-                          </details>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-4 text-sm text-muted">No shifts yet.</p>
-                )}
-
-                {rosters.has(station.id) && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-semibold">Your volunteers</h4>
-                    {rosters.get(station.id)!.length === 0 ? (
-                      <p className="mt-1 text-sm text-muted">No one has signed up yet.</p>
-                    ) : (
-                      <>
-                        {rosters.get(station.id)![0].contact_locked && (
-                          <p className="mt-1 text-sm text-muted">
-                            Phone numbers and emails unlock on event day ({formatDateRange(event.starts_on, event.ends_on)}).
-                          </p>
-                        )}
-                        <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
-                          {rosters.get(station.id)!.map((v) => {
-                            const shift = stationShifts.find((s) => s.id === v.shift_id);
-                            return (
-                              <li key={v.assignment_id} className="flex items-center justify-between gap-3 px-3 py-2">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium">{v.volunteer_name}</p>
-                                  <p className="truncate text-sm text-muted">
-                                    {shift ? formatTimeRange(shift.starts_at, shift.ends_at, tz) : ""}
-                                    {v.phone && (
-                                      <>
-                                        {" · "}
-                                        <a href={`tel:${v.phone}`} className="font-medium text-brand hover:underline">
-                                          {formatPhone(v.phone)}
-                                        </a>
-                                      </>
-                                    )}
-                                  </p>
-                                </div>
-                                <span className="shrink-0 text-sm">
-                                  {v.checked_in_at ? "✓ Arrived" : <span className="text-muted">Not yet</span>}
-                                </span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {access.canManage && (
-                  <div className="mt-4 flex flex-col gap-3">
-                    <details className="rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
-                      <summary className="cursor-pointer text-sm font-medium">Fill the day with shifts</summary>
-                      <div className="mt-4">
-                        <GenerateShiftsForm
-                          action={generateShifts.bind(null, eventId, station.id)}
-                          windowLabel={windowLabel}
-                        />
-                      </div>
-                    </details>
-                    <details className="rounded-lg border border-border px-4 py-3">
-                      <summary className="cursor-pointer text-sm font-medium">Add a single shift</summary>
-                      <div className="mt-4">
-                        <ShiftForm action={createShift.bind(null, eventId, station.id)} days={days} />
-                      </div>
-                    </details>
-                    <details className="rounded-lg border border-border px-4 py-3">
-                      <summary className="cursor-pointer text-sm font-medium">Edit station &amp; lead</summary>
-                      <div className="mt-4">
-                        <StationForm
-                          action={updateStation.bind(null, eventId, station.id)}
-                          initial={station}
-                          leads={leadOptions}
-                          submitLabel="Save station"
-                        />
-                      </div>
-                    </details>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-
-          {access.canManage && (
-            <Card className="border-dashed">
-              <h3 className="mb-4 font-semibold">Add a station</h3>
-              <StationForm action={createStation.bind(null, eventId)} />
-            </Card>
-          )}
-        </div>
-      </section>
+      {!access.canManage && myStations.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold">Your stations</h2>
+          <div className="mt-4 space-y-6">
+            {myStations.map((station) => (
+              <StationPanel
+                key={station.id}
+                eventId={eventId}
+                station={station}
+                stationShifts={shiftsByStation.get(station.id) ?? []}
+                event={event}
+                days={days}
+                windowLabel={windowLabel}
+                userId={user.id}
+                canManage={false}
+                leadName={nameOf(station.lead_user_id)}
+                leadOptions={leadOptions}
+                roster={rosters.get(station.id)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -710,6 +489,69 @@ function LogisticsTotals({ bands }: { bands: BandTotals[] }) {
           .map(([c, n]) => `${c}: ${n}`)
           .join(" · ")}
       </p>
+    </div>
+  );
+}
+
+/** The Volunteer registration card's numbers: how full the day is and where help is needed. */
+function VolunteerStats({
+  filled,
+  capacity,
+  volunteers,
+  checkedIn,
+  needs,
+}: {
+  filled: number;
+  capacity: number;
+  volunteers: number;
+  /** Only on event day. */
+  checkedIn: { done: number; of: number } | null;
+  needs: { id: string; label: string; when: string; filled: number; capacity: number }[];
+}) {
+  const pct = capacity ? Math.round((filled / capacity) * 100) : 0;
+  return (
+    <div className="space-y-4 border-t border-border pt-4">
+      <div>
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-sm font-semibold">
+            {filled} of {capacity} spots filled
+          </p>
+          <p className="text-sm tabular-nums text-muted">{pct}%</p>
+        </div>
+        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-background" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <div className={`h-full rounded-full ${pct >= 100 ? "bg-success" : "bg-brand"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-background px-3 py-2">
+          <dt className="text-xs text-muted">Volunteers signed up</dt>
+          <dd className="text-xl font-semibold tabular-nums">{volunteers}</dd>
+        </div>
+        <div className="rounded-lg bg-background px-3 py-2">
+          <dt className="text-xs text-muted">{checkedIn ? "Checked in today" : "Open spots"}</dt>
+          <dd className="text-xl font-semibold tabular-nums">
+            {checkedIn ? `${checkedIn.done} of ${checkedIn.of}` : Math.max(capacity - filled, 0)}
+          </dd>
+        </div>
+      </dl>
+      {needs.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold">Needs people</h3>
+          <ul className="mt-2 space-y-1.5">
+            {needs.map((n) => (
+              <li key={n.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{n.label}</span>
+                  <span className="block text-muted">{n.when}</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-muted">
+                  {n.filled} / {n.capacity}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
