@@ -2,6 +2,8 @@ import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { requireUser } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+import { hasPass, readPass } from "@/lib/volunteer-pass";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   if (!isSupabaseConfigured) {
@@ -12,13 +14,22 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
     );
   }
   const user = await requireUser();
+  // "My shifts" only for people who volunteer: with this account's email, or
+  // from this device (e.g. signed up with another email).
+  const [{ count }, pass] = await Promise.all([
+    (await createClient()).from("volunteers").select("id", { count: "exact", head: true }).eq("email", user.email ?? ""),
+    readPass(),
+  ]);
+  const volunteers = Boolean(count) || hasPass(pass);
 
   return (
     <div className="flex flex-1 flex-col">
       <HeaderBar href="/dashboard">
-        <Link href="/my" className={headerLinkClass}>
-          My shifts
-        </Link>
+        {volunteers && (
+          <Link href="/my" className={headerLinkClass}>
+            My shifts
+          </Link>
+        )}
         <Link href="/dashboard/account" className={headerLinkClass}>
           <span className="hidden sm:inline">{user.email}</span>
           <span className="sm:hidden">Account</span>
