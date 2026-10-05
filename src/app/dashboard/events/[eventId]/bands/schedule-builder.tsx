@@ -43,7 +43,7 @@ type Editing =
   | { kind: "prelims" }
   | { kind: "finals" }
   | { kind: "row"; round: Round; index: number; draft: Times; bandId: string; shiftLater: boolean }
-  | { kind: "break"; key: number; isNew: boolean; from: "list" | Round; draft: BreakDraft; remove: boolean };
+  | { kind: "break"; key: number; isNew: boolean; from: "list" | Round; draft: BreakDraft; remove: boolean; shiftLater: boolean };
 
 /**
  * The host's performance schedule: breaks for the whole day, the preliminaries
@@ -94,8 +94,14 @@ export function ScheduleBuilder({
   // Typed number boxes keep their text so they can be cleared while typing.
   const [readyText, setReadyText] = useState(String(initialReadyMinutes));
   const [finalsReadyText, setFinalsReadyText] = useState(String(initialFinalsReadyMinutes));
-  // Before the preliminaries are published, their builder is the page.
-  const [editing, setEditing] = useState<Editing>(orderPublished || initialBands.length === 0 ? null : { kind: "prelims" });
+  // A brand-new schedule (no times yet) opens straight into the preliminaries builder.
+  const [editing, setEditing] = useState<Editing>(
+    orderPublished || initialBands.length === 0 || initialBands.some((b) => b.perform) ? null : { kind: "prelims" },
+  );
+  // While a round is being edited, breaks are edited right alongside it (a
+  // working copy saved with the round); otherwise each break saves on its own.
+  const [breaksWork, setBreaksWork] = useState(saved.breaks);
+  const [inlineBreak, setInlineBreak] = useState<{ key: number; from: "list" | Round } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [result, setResult] = useState<ActionState>({});
   const [pending, startTransition] = useTransition();
@@ -106,7 +112,9 @@ export function ScheduleBuilder({
   // and warm-up location back, in the new order. null = nothing to update.
   const [before, setBefore] = useState<{ ids: string[]; slots: Times[] } | null>(null);
 
-  const breaks = saved.breaks;
+  const roundEditing = editing?.kind === "prelims" || editing?.kind === "finals";
+  const breaks = roundEditing ? breaksWork : saved.breaks;
+  const breaksEditable = editing === null || roundEditing;
   const readyMinutes = Number(editing?.kind === "prelims" ? readyText : saved.readyText) || 0;
   const finalsReadyMinutes = Number(editing?.kind === "finals" ? finalsReadyText : saved.finalsReadyText) || 0;
   const busy = editing !== null;
@@ -118,6 +126,8 @@ export function ScheduleBuilder({
   const start = (next: Editing) => {
     setResult({});
     setDirty(false);
+    setInlineBreak(null);
+    setBreaksWork(saved.breaks);
     setEditing(next);
   };
   const cancel = () => {
@@ -126,6 +136,8 @@ export function ScheduleBuilder({
     setFinals(saved.finals);
     setReadyText(saved.readyText);
     setFinalsReadyText(saved.finalsReadyText);
+    setBreaksWork(saved.breaks);
+    setInlineBreak(null);
     setBefore(null);
     setDirty(false);
     setResult({});
@@ -173,6 +185,8 @@ export function ScheduleBuilder({
       setFinals(x.finals);
       setReadyText(x.readyText);
       setFinalsReadyText(x.finalsReadyText);
+      setBreaksWork(x.breaks);
+      setInlineBreak(null);
       setBefore(null);
       setDirty(false);
       setEditing(null);
@@ -180,12 +194,21 @@ export function ScheduleBuilder({
 
   const onSave = () => {
     if (!editing) return;
-    if (editing.kind === "prelims") return persist({ ...saved, bands, readyText });
-    if (editing.kind === "finals") return persist({ ...saved, finals, finalsReadyText });
+    if (editing.kind === "prelims") return persist({ ...saved, bands, readyText, breaks: breaksWork });
+    if (editing.kind === "finals") return persist({ ...saved, finals, finalsReadyText, breaks: breaksWork });
     if (editing.kind === "break") {
-      const { key, isNew, draft, remove } = editing;
-      const next = remove ? breaks.filter((b) => b.key !== key) : isNew ? [...breaks, draft] : breaks.map((b) => (b.key === key ? draft : b));
-      return persist({ ...saved, breaks: next });
+      const { key, isNew, draft, remove, shiftLater } = editing;
+      const nextBreaks = remove ? saved.breaks.filter((b) => b.key !== key) : isNew ? [...saved.breaks, draft] : saved.breaks.map((b) => (b.key === key ? draft : b));
+      const { delta, day, pivot } = breakShift(editing, saved.breaks);
+      const shiftRows = <T extends Times>(rows: T[]): T[] =>
+        shiftLater && delta
+          ? rows.map((r) =>
+              r.day === day && r.perform && toMinutes(r.perform) >= pivot
+                ? { ...r, perform: toTime(toMinutes(r.perform) + delta), warmUp: r.warmUp ? toTime(toMinutes(r.warmUp) + delta) : r.warmUp }
+                : r,
+            )
+          : rows;
+      return persist({ ...saved, breaks: nextBreaks, bands: shiftRows(saved.bands), finals: shiftRows(saved.finals) });
     }
     // One row changed from the view, optionally moving the timed rows after it
     // on the same day by the same amount.
@@ -240,25 +263,40 @@ export function ScheduleBuilder({
     start({ kind: "row", round, index, draft: pickTimes(row), bandId: round === "finals" ? saved.finals[index].bandId : "", shiftLater: false });
   };
   const openBreak = (key: number, from: "list" | Round) => {
-    const b = breaks.find((x) => x.key === key);
-    if (b) start({ kind: "break", key, isNew: false, from, draft: { ...b }, remove: false });
+    if (roundEditing) {
+      setInlineBreak(inlineBreak?.key === key && inlineBreak.from === from ? null : { key, from });
+      return;
+    }
+    const b = saved.breaks.find((x) => x.key === key);
+    if (b) start({ kind: "break", key, isNew: false, from, draft: { ...b }, remove: false, shiftLater: false });
   };
   const addBreak = () => {
     const key = nextKey++;
-    start({
-      kind: "break",
-      key,
-      isNew: true,
-      from: "list",
-      draft: { key, day: breaks.at(-1)?.day ?? days[0], start: "12:00", minutes: "30", label: breaks.length ? "Break" : "Lunch" },
-      remove: false,
-    });
+    const draft = { key, day: breaks.at(-1)?.day ?? days[0], start: "12:00", minutes: "30", label: breaks.length ? "Break" : "Lunch" };
+    if (roundEditing) {
+      setBreaksWork([...breaksWork, draft]);
+      setInlineBreak({ key, from: "list" });
+      touched();
+      return;
+    }
+    start({ kind: "break", key, isNew: true, from: "list", draft, remove: false, shiftLater: false });
     setDirty(true);
   };
+  const inlineDraft = roundEditing && inlineBreak ? breaksWork.find((b) => b.key === inlineBreak.key) : undefined;
+  const breakOpenKey = (from: "list" | Round) =>
+    editing?.kind === "break" && editing.from === from ? editing.key : inlineBreak?.from === from ? inlineBreak.key : null;
 
+  const breakShiftInfo = editing?.kind === "break" ? breakShift(editing, saved.breaks) : null;
+  const after = (rows: Times[]) =>
+    breakShiftInfo && breakShiftInfo.delta
+      ? rows.filter((r) => r.day === breakShiftInfo.day && r.perform && toMinutes(r.perform) >= breakShiftInfo.pivot).length
+      : 0;
+  const shiftPrelims = after(saved.bands);
+  const shiftFinals = after(saved.finals);
+  const shiftCount = shiftPrelims + shiftFinals;
   const breakEditor =
     editing?.kind === "break" ? (
-      <div className="mt-2 rounded-xl border border-brand bg-surface p-4 text-foreground">
+      <div className="mt-2 space-y-3 rounded-xl border border-brand bg-surface p-4 text-foreground">
         <BreakForm
           value={editing.draft}
           days={days}
@@ -269,7 +307,7 @@ export function ScheduleBuilder({
           }}
         />
         {!editing.isNew && (
-          <label className="mt-3 flex items-center gap-2 text-sm text-danger">
+          <label className="flex items-center gap-2 text-sm text-danger">
             <input
               type="checkbox"
               className="h-4 w-4"
@@ -282,6 +320,57 @@ export function ScheduleBuilder({
             Remove this break
           </label>
         )}
+        {shiftCount > 0 && breakShiftInfo && (
+          <div className="rounded-lg border border-accent bg-accent-soft px-3 py-3 text-sm">
+            <p className="font-medium">
+              ⚠️ {shiftCount} {shiftCount === 1 ? "performance is" : "performances are"} scheduled from{" "}
+              {displayTime(toTime(breakShiftInfo.pivot))} on. They won&apos;t move unless you say so.
+            </p>
+            <label className="mt-2 flex items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                checked={editing.shiftLater}
+                onChange={(e) => setEditing({ ...editing, shiftLater: e.target.checked })}
+              />
+              <span>
+                Also move {shiftCount === 1 ? "it" : `all ${shiftCount}`} {Math.abs(breakShiftInfo.delta)} min{" "}
+                {breakShiftInfo.delta > 0 ? "later" : "earlier"} (
+                {[shiftPrelims && `${shiftPrelims} in the preliminaries`, shiftFinals && `${shiftFinals} in the finals`].filter(Boolean).join(", ")})
+              </span>
+            </label>
+          </div>
+        )}
+      </div>
+    ) : inlineDraft ? (
+      <div className="mt-2 space-y-3 rounded-xl border border-brand bg-surface p-4 text-foreground">
+        <BreakForm
+          value={inlineDraft}
+          days={days}
+          zoneLabel={zoneLabel}
+          onChange={(p) => {
+            setBreaksWork(breaksWork.map((b) => (b.key === inlineDraft.key ? { ...b, ...p } : b)));
+            touched();
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="danger"
+            className="min-h-9 px-3"
+            onClick={() => {
+              setBreaksWork(breaksWork.filter((b) => b.key !== inlineDraft.key));
+              setInlineBreak(null);
+              touched();
+            }}
+          >
+            Remove break
+          </Button>
+          <Button type="button" variant="ghost" className="min-h-9 px-3" onClick={() => setInlineBreak(null)}>
+            Close
+          </Button>
+          <span className="text-sm text-muted">Saved with the {editing?.kind === "finals" ? "finals" : "preliminaries"}.</span>
+        </div>
       </div>
     ) : null;
 
@@ -309,6 +398,7 @@ export function ScheduleBuilder({
           touched();
         }}
         onShiftLater={(shiftLater) => setEditing({ ...editing, shiftLater })}
+        note={round === "finals" ? <FinalistPrivacyNote published={finalsPublished} /> : undefined}
       />
     );
   };
@@ -335,6 +425,14 @@ export function ScheduleBuilder({
     };
   });
   const picked = saved.finals.filter((f) => f.bandId).length;
+  // Saving names into published finals makes them public straight away.
+  const revealing = !finalsPublished
+    ? 0
+    : editing?.kind === "finals"
+      ? finals.filter((f, i) => f.bandId && f.bandId !== saved.finals[i]?.bandId).length
+      : editing?.kind === "row" && editing.round === "finals" && editing.bandId && editing.bandId !== saved.finals[editing.index]?.bandId
+        ? 1
+        : 0;
   const editButton = (label: string, onClick: () => void) => (
     <Button type="button" variant="secondary" className="ml-auto min-h-9 px-3" disabled={busy} onClick={onClick}>
       {label}
@@ -348,8 +446,8 @@ export function ScheduleBuilder({
     <div className="space-y-10">
       <BreaksPanel
         breaks={breaks}
-        canEdit={!busy}
-        openKey={editing?.kind === "break" && editing.from === "list" ? editing.key : null}
+        canEdit={breaksEditable}
+        openKey={breakOpenKey("list")}
         adding={editing?.kind === "break" && editing.isNew ? editing.draft : null}
         breakEditor={breakEditor}
         onOpen={(key) => openBreak(key, "list")}
@@ -386,7 +484,15 @@ export function ScheduleBuilder({
             />
             <ol className="space-y-3">
               {bands.map((b, i) => (
-                <BreakDividers key={b.id} breaks={breaks} prev={bands[i - 1]} cur={b}>
+                <BreakDividers
+                  key={b.id}
+                  breaks={breaks}
+                  prev={bands[i - 1]}
+                  cur={b}
+                  onOpenBreak={(key) => openBreak(key, "order")}
+                  openBreakKey={breakOpenKey("order")}
+                  breakEditor={breakEditor}
+                >
                   <li className="rounded-xl border border-border bg-surface p-4">
                     <div className="flex items-start gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-semibold text-brand-foreground">
@@ -434,7 +540,7 @@ export function ScheduleBuilder({
             canEdit={!busy}
             onEditRow={(i) => editRow("order", i)}
             onOpenBreak={(key) => openBreak(key, "order")}
-            openBreakKey={editing?.kind === "break" && editing.from === "order" ? editing.key : null}
+            openBreakKey={breakOpenKey("order")}
             breakEditor={breakEditor}
           />
         )}
@@ -473,6 +579,10 @@ export function ScheduleBuilder({
               setFinals(next);
               touched();
             }}
+            onOpenBreak={(key) => openBreak(key, "finals")}
+            openBreakKey={breakOpenKey("finals")}
+            breakEditor={breakEditor}
+            published={finalsPublished}
           />
         ) : saved.finals.length === 0 ? (
           <div className="flex flex-wrap items-center gap-3">
@@ -492,7 +602,7 @@ export function ScheduleBuilder({
             canEdit={!busy}
             onEditRow={(i) => editRow("finals", i)}
             onOpenBreak={(key) => openBreak(key, "finals")}
-            openBreakKey={editing?.kind === "break" && editing.from === "finals" ? editing.key : null}
+            openBreakKey={breakOpenKey("finals")}
             breakEditor={breakEditor}
           />
         )}
@@ -517,6 +627,12 @@ export function ScheduleBuilder({
               <span className="font-semibold">{editingLabel(editing, saved)}</span>
               {liveNote(editing, orderPublished, finalsPublished) && <span className="text-muted"> · goes live as soon as you save</span>}
             </p>
+            {revealing > 0 && (
+              <p className="text-sm font-medium text-danger">
+                ⚠️ Saving makes {revealing} finalist name{revealing === 1 ? "" : "s"} public right away. Directors aren&apos;t
+                emailed until you tap Email finalists.
+              </p>
+            )}
             {editing.kind === "prelims" && before && (
               <p className="text-sm text-muted">You moved bands; their times moved with them. Update the schedule to re-time the new order.</p>
             )}
@@ -525,8 +641,23 @@ export function ScheduleBuilder({
                 Cancel
               </Button>
               {editing.kind === "prelims" && updateButton}
-              <Button type="button" className="ml-auto min-h-10" onClick={onSave} disabled={pending || (!dirty && !(editing.kind === "break" && editing.isNew))}>
-                {pending ? "Saving…" : saveLabel(editing)}
+              <Button
+                type="button"
+                variant={revealing ? "warn" : "primary"}
+                className="ml-auto min-h-10"
+                onClick={() => {
+                  if (
+                    revealing &&
+                    !window.confirm(
+                      `Finals are published. Saving shows ${revealing} finalist name${revealing === 1 ? "" : "s"} on the public schedule right away, and directors can see it. Continue?`,
+                    )
+                  )
+                    return;
+                  onSave();
+                }}
+                disabled={pending || (!dirty && !(editing.kind === "break" && editing.isNew))}
+              >
+                {pending ? "Saving…" : revealing ? "Save & reveal finalists" : saveLabel(editing)}
               </Button>
             </div>
           </>
@@ -569,15 +700,30 @@ export function ScheduleBuilder({
                     Email finalists
                   </Button>
                 )}
-                <Button
-                  type="button"
-                  variant={finalsPublished ? "secondary" : "primary"}
-                  className="min-h-9 px-3"
-                  disabled={pending}
-                  onClick={() => run(() => publishFinals(!finalsPublished))}
-                >
-                  {finalsPublished ? "Unpublish" : "Publish"}
-                </Button>
+                {finalsPublished ? (
+                  <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishFinals(false))}>
+                    Unpublish
+                  </Button>
+                ) : picked > 0 ? (
+                  <Button
+                    type="button"
+                    variant="warn"
+                    className="min-h-9 px-3"
+                    disabled={pending}
+                    onClick={() =>
+                      run(
+                        () => publishFinals(true),
+                        `Publishing shows the names of ${picked} finalist${picked === 1 ? "" : "s"} to everyone on the public schedule, and their directors can see it. Continue?`,
+                      )
+                    }
+                  >
+                    Publish & reveal {picked}
+                  </Button>
+                ) : (
+                  <Button type="button" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishFinals(true))}>
+                    Publish
+                  </Button>
+                )}
               </PublishLine>
             )}
           </div>
@@ -832,6 +978,10 @@ function FinalsEditor({
   readyMinutes,
   onReadyText,
   onChange,
+  onOpenBreak,
+  openBreakKey,
+  breakEditor,
+  published,
 }: {
   finals: FinalsSlot[];
   bands: OrderBand[];
@@ -842,6 +992,11 @@ function FinalsEditor({
   readyMinutes: number;
   onReadyText: (v: string) => void;
   onChange: (next: FinalsSlot[]) => void;
+  onOpenBreak: (key: number) => void;
+  openBreakKey: number | null;
+  breakEditor: ReactNode;
+  /** Finals already published: picked names go public on save. */
+  published: boolean;
 }) {
   const [countText, setCountText] = useState(finals.length ? String(finals.length) : "");
   const lastDay = days.at(-1)!;
@@ -896,6 +1051,7 @@ function FinalsEditor({
 
   return (
     <div className="space-y-6">
+      <FinalistPrivacyNote published={published} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <Field label="Number of finalists" className="max-w-xs" hint={`1 to ${MAX_FINALISTS}.`}>
           <NumberInput
@@ -940,7 +1096,15 @@ function FinalsEditor({
       />
       <ol className="space-y-3">
         {finals.map((f, i) => (
-          <BreakDividers key={i} breaks={breaks} prev={finals[i - 1]} cur={f}>
+          <BreakDividers
+            key={i}
+            breaks={breaks}
+            prev={finals[i - 1]}
+            cur={f}
+            onOpenBreak={onOpenBreak}
+            openBreakKey={openBreakKey}
+            breakEditor={breakEditor}
+          >
             <li className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-[#14213d]">
@@ -995,5 +1159,35 @@ function ChangeNotice({ names, onSend, onDismiss }: { names: string[]; onSend: (
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * How a break change moves the timing after it: adding pushes later
+ * performances back by its length, removing pulls them forward, and changing
+ * it moves them by how much its end time moved. Same day only.
+ */
+function breakShift(e: Extract<NonNullable<Editing>, { kind: "break" }>, savedBreaks: BreakDraft[]) {
+  const mins = (b: BreakDraft) => Number(b.minutes) || 0;
+  const old = e.isNew ? undefined : savedBreaks.find((b) => b.key === e.key);
+  if (e.remove && old?.start) return { delta: -mins(old), day: old.day, pivot: toMinutes(old.start) };
+  if (!e.draft.start) return { delta: 0, day: e.draft.day, pivot: 0 };
+  if (!old?.start) return { delta: mins(e.draft), day: e.draft.day, pivot: toMinutes(e.draft.start) };
+  if (old.day !== e.draft.day) return { delta: 0, day: old.day, pivot: 0 };
+  const end = (b: BreakDraft) => toMinutes(b.start) + mins(b);
+  return { delta: end(e.draft) - end(old), day: old.day, pivot: Math.min(toMinutes(old.start), toMinutes(e.draft.start)) };
+}
+
+/** When picked finalist names become public. */
+function FinalistPrivacyNote({ published }: { published: boolean }) {
+  return published ? (
+    <p className="rounded-lg border border-danger px-3 py-2 text-sm text-danger">
+      ⚠️ Finals are published. A band you pick here is shown on the public schedule as soon as you save.
+    </p>
+  ) : (
+    <p className="rounded-lg bg-background px-3 py-2 text-sm text-muted">
+      Finalist names stay private until you publish the finals. You can publish now with &ldquo;To be announced&rdquo;
+      placeholders.
+    </p>
   );
 }
