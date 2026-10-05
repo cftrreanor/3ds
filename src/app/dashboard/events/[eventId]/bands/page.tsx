@@ -104,8 +104,6 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const finalsSlots = (finalsData ?? []) as (Omit<Slot, "band_id" | "performance_order"> & { slot_number: number; band_id: string | null })[];
   const builderFinals: FinalsSlot[] = finalsSlots.map((f) => ({ bandId: f.band_id ?? "", ...toTimes(f, days.at(-1)!) }));
 
-  const total = (k: keyof BandRow) => bands.reduce((n, b) => n + Number(b[k] ?? 0), 0);
-  const byClass = bands.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.classification]: (acc[b.classification] ?? 0) + 1 }), {});
 
   return (
     <div>
@@ -178,36 +176,6 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
           )}
         </Card>
       </section>
-
-      {bands.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-lg font-semibold">Logistics totals</h2>
-          <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ["Students", total("student_count")],
-              ["Chaperones", total("chaperone_count")],
-              ["Buses", total("bus_count")],
-              ["Box trucks", total("box_truck_count")],
-              ["Truck + trailers", total("truck_trailer_count")],
-              ["Semi trucks", total("semi_truck_count")],
-            ].map(([label, value]) => (
-              <Card key={label as string} className="p-4">
-                <dt className="text-sm text-muted">{label}</dt>
-                <dd className="text-2xl font-semibold tabular-nums">{value}</dd>
-              </Card>
-            ))}
-            <Card className="col-span-2 p-4">
-              <dt className="text-sm text-muted">By classification</dt>
-              <dd className="mt-1 text-sm">
-                {Object.entries(byClass)
-                  .sort()
-                  .map(([c, n]) => `${c}: ${n}`)
-                  .join(" · ")}
-              </dd>
-            </Card>
-          </dl>
-        </section>
-      )}
 
       {access.isHost && (
         <section className="mt-10">

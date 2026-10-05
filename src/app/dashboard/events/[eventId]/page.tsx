@@ -91,7 +91,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   if (!event) missing();
 
   const access = await getEventAccess(eventId);
-  const [{ data: stations }, { data: shifts }, { data: staff }, { data: invitations }] = await Promise.all([
+  const [{ data: stations }, { data: shifts }, { data: staff }, { data: invitations }, { data: bandData }] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, station_type, location, instructions, lead_user_id")
@@ -112,7 +112,14 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           .is("accepted_at", null)
           .order("created_at")
       : Promise.resolve({ data: [] as Invitation[] }),
+    access.canManage
+      ? supabase
+          .from("bands")
+          .select("classification, student_count, chaperone_count, bus_count, box_truck_count, truck_trailer_count, semi_truck_count")
+          .eq("event_id", eventId)
+      : Promise.resolve({ data: [] }),
   ]);
+  const bands = (bandData ?? []) as BandTotals[];
 
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
@@ -298,18 +305,24 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       {access.canManage && (
         <section className="mt-10" aria-labelledby="bands-heading">
           <h2 id="bands-heading" className="text-lg font-semibold">
-            Bands
+            Band registration
           </h2>
-          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm leading-6 text-muted">
-              Band registration, logistics totals, and the performance order.
-            </p>
-            <Link
-              href={`/dashboard/events/${eventId}/bands`}
-              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-            >
-              Manage bands
-            </Link>
+          <Card className="mt-4 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <p className="text-sm leading-6 text-muted">
+                {bands.length
+                  ? `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`
+                  : "No bands registered yet."}{" "}
+                Registration, the performance schedule and finals.
+              </p>
+              <Link
+                href={`/dashboard/events/${eventId}/bands`}
+                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+              >
+                Manage bands
+              </Link>
+            </div>
+            {bands.length > 0 && <LogisticsTotals bands={bands} />}
           </Card>
         </section>
       )}
@@ -654,4 +667,49 @@ function mapsUrl(address: string, placeId: string | null) {
   const params = new URLSearchParams({ api: "1", query: address });
   if (placeId) params.set("query_place_id", placeId);
   return `https://www.google.com/maps/search/?${params}`;
+}
+
+type BandTotals = {
+  classification: string;
+  student_count: number;
+  chaperone_count: number;
+  bus_count: number;
+  box_truck_count: number;
+  truck_trailer_count: number;
+  semi_truck_count: number;
+};
+
+/** Headcounts and vehicles across every registered band, for parking and planning. */
+function LogisticsTotals({ bands }: { bands: BandTotals[] }) {
+  const total = (k: Exclude<keyof BandTotals, "classification">) => bands.reduce((n, b) => n + Number(b[k] ?? 0), 0);
+  const byClass = bands.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.classification]: (acc[b.classification] ?? 0) + 1 }), {});
+  return (
+    <div className="border-t border-border pt-4">
+      <h3 className="text-sm font-semibold">Logistics totals</h3>
+      <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {(
+          [
+            ["Students", total("student_count")],
+            ["Chaperones", total("chaperone_count")],
+            ["Buses", total("bus_count")],
+            ["Box trucks", total("box_truck_count")],
+            ["Truck + trailers", total("truck_trailer_count")],
+            ["Semi trucks", total("semi_truck_count")],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="rounded-lg bg-background px-3 py-2">
+            <dt className="text-xs text-muted">{label}</dt>
+            <dd className="text-xl font-semibold tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-sm">
+        <span className="text-muted">By classification: </span>
+        {Object.entries(byClass)
+          .sort()
+          .map(([c, n]) => `${c}: ${n}`)
+          .join(" · ")}
+      </p>
+    </div>
+  );
 }
