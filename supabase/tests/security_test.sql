@@ -673,12 +673,43 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":
 update public.events set finals_published = true where id = '10000000-0000-0000-0000-00000000000a';
 reset role;
 
+-- Stage 1/2: the finals schedule is public, but saved finalists stay private.
 set role anon;
 set request.jwt.claims = '';
 do $$ declare r record; begin
   assert (select count(*) from public.public_finals('future')) = 3, 'published finals show every slot';
   select * into r from public.public_finals('future') where slot_number = 1;
-  assert r.band_name = 'Northern Lights', 'finalist names show once published';
+  assert r.band_name is null and r.perform_at is not null, 'finalist names stay hidden until revealed';
+  assert (select count(*) from public.finals_slots) = 0, 'raw finals rows stay hidden until revealed';
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert (select count(*) from public.finals_slots where band_id = '40000000-0000-0000-0000-000000000002') = 0,
+         'a director cannot see their band made the finals before the reveal';
+end $$;
+
+-- Stage 3: reveal.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set finalists_revealed = true where id = '10000000-0000-0000-0000-00000000000a';
+do $$ begin
+  update public.events set finals_published = false where id = '10000000-0000-0000-0000-00000000000a';
+  raise exception 'FAIL: unpublished finals while finalists were revealed';
+exception when check_violation then null;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert (select count(*) from public.finals_slots where band_id = '40000000-0000-0000-0000-000000000002') = 1,
+         'a finalist director sees their finals slot once revealed';
+end $$;
+reset role;
+
+set role anon;
+set request.jwt.claims = '';
+do $$ declare r record; begin
+  select * into r from public.public_finals('future') where slot_number = 1;
+  assert r.band_name = 'Northern Lights', 'finalist names show once revealed';
   select * into r from public.public_finals('future') where slot_number = 2;
   assert r.band_name is null and r.perform_at is not null, 'placeholders show their time without a band';
 end $$;

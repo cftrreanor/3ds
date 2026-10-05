@@ -60,10 +60,12 @@ export function ScheduleBuilder({
   zoneLabel,
   orderPublished,
   finalsPublished,
+  finalistsRevealed,
   save,
   emailChanges,
   publishOrder,
   publishFinals,
+  revealFinalists,
   emailFinalists,
 }: {
   initialBands: OrderBand[];
@@ -75,10 +77,13 @@ export function ScheduleBuilder({
   zoneLabel: string;
   orderPublished: boolean;
   finalsPublished: boolean;
+  /** Stage 3 of the finals: names are on the public schedule and director pages. */
+  finalistsRevealed: boolean;
   save: (scheduleJson: string) => Promise<ScheduleSaveState>;
   emailChanges: (bands: ChangedBands) => Promise<ActionState>;
   publishOrder: (publish: boolean) => Promise<ActionState>;
   publishFinals: (publish: boolean) => Promise<ActionState>;
+  revealFinalists: (reveal: boolean) => Promise<ActionState>;
   emailFinalists: () => Promise<ActionState>;
 }) {
   // The last saved schedule, and working copies of the part being edited.
@@ -168,10 +173,10 @@ export function ScheduleBuilder({
     });
 
   /** Save the whole schedule (atomic), then go back to viewing. */
-  const persist = (x: Snapshot) =>
+  const persist = (x: Snapshot, then?: () => Promise<ActionState>) =>
     startTransition(async () => {
       const { changed, ...r } = await save(toJson(x));
-      setResult(r);
+      setResult(r.ok && then ? await then() : r);
       if (changed) {
         // Keep collecting across saves until the host sends or dismisses.
         setChanges((c) => ({
@@ -192,10 +197,10 @@ export function ScheduleBuilder({
       setEditing(null);
     });
 
-  const onSave = () => {
+  const onSave = (then?: () => Promise<ActionState>) => {
     if (!editing) return;
     if (editing.kind === "prelims") return persist({ ...saved, bands, readyText, breaks: breaksWork });
-    if (editing.kind === "finals") return persist({ ...saved, finals, finalsReadyText, breaks: breaksWork });
+    if (editing.kind === "finals") return persist({ ...saved, finals, finalsReadyText, breaks: breaksWork }, then);
     if (editing.kind === "break") {
       const { key, isNew, draft, remove, shiftLater } = editing;
       const nextBreaks = remove ? saved.breaks.filter((b) => b.key !== key) : isNew ? [...saved.breaks, draft] : saved.breaks.map((b) => (b.key === key ? draft : b));
@@ -227,7 +232,7 @@ export function ScheduleBuilder({
       );
     return round === "order"
       ? persist({ ...saved, bands: apply(saved.bands) })
-      : persist({ ...saved, finals: apply(saved.finals).map((f, k) => (k === index ? { ...f, bandId } : f)) });
+      : persist({ ...saved, finals: apply(saved.finals).map((f, k) => (k === index ? { ...f, bandId } : f)) }, then);
   };
 
   const run = (action: () => Promise<ActionState>, confirmMessage?: string) => {
@@ -398,7 +403,7 @@ export function ScheduleBuilder({
           touched();
         }}
         onShiftLater={(shiftLater) => setEditing({ ...editing, shiftLater })}
-        note={round === "finals" ? <FinalistPrivacyNote published={finalsPublished} /> : undefined}
+        note={round === "finals" ? <FinalistPrivacyNote published={finalsPublished} revealed={finalistsRevealed} /> : undefined}
       />
     );
   };
@@ -425,8 +430,16 @@ export function ScheduleBuilder({
     };
   });
   const picked = saved.finals.filter((f) => f.bandId).length;
-  // Saving names into published finals makes them public straight away.
-  const revealing = !finalsPublished
+  const finalsEditing = editing?.kind === "finals" || (editing?.kind === "row" && editing.round === "finals");
+  // Names picked in the editor, after saving.
+  const pickedAfterSave =
+    editing?.kind === "finals"
+      ? finals.filter((f) => f.bandId).length
+      : editing?.kind === "row" && editing.round === "finals"
+        ? saved.finals.filter((f, k) => (k === editing.index ? editing.bandId : f.bandId)).length
+        : 0;
+  // Once finalists are revealed, saving a newly picked name shows it straight away.
+  const revealing = !finalistsRevealed
     ? 0
     : editing?.kind === "finals"
       ? finals.filter((f, i) => f.bandId && f.bandId !== saved.finals[i]?.bandId).length
@@ -550,7 +563,11 @@ export function ScheduleBuilder({
         <RoundHeading
           aside={
             <>
-              {saved.finals.length > 0 && status(finalsPublished)}
+              {saved.finals.length > 0 && (
+                <Badge tone={finalsPublished ? "brand" : "neutral"}>
+                  {finalistsRevealed ? "Finalists revealed" : finalsPublished ? "Schedule published" : "Not published"}
+                </Badge>
+              )}
               {saved.finals.length > 0 && (
                 <span className="text-sm text-muted">
                   {picked} of {saved.finals.length} picked
@@ -583,6 +600,7 @@ export function ScheduleBuilder({
             openBreakKey={breakOpenKey("finals")}
             breakEditor={breakEditor}
             published={finalsPublished}
+            revealed={finalistsRevealed}
           />
         ) : saved.finals.length === 0 ? (
           <div className="flex flex-wrap items-center gap-3">
@@ -629,8 +647,8 @@ export function ScheduleBuilder({
             </p>
             {revealing > 0 && (
               <p className="text-sm font-medium text-danger">
-                ⚠️ Saving makes {revealing} finalist name{revealing === 1 ? "" : "s"} public right away. Directors aren&apos;t
-                emailed until you tap Email finalists.
+                ⚠️ Finalists are revealed: saving makes {revealing} more name{revealing === 1 ? "" : "s"} public right away.
+                Directors aren&apos;t emailed until you tap Email finalists.
               </p>
             )}
             {editing.kind === "prelims" && before && (
@@ -641,29 +659,54 @@ export function ScheduleBuilder({
                 Cancel
               </Button>
               {editing.kind === "prelims" && updateButton}
-              <Button
-                type="button"
-                variant={revealing ? "warn" : "primary"}
-                className="ml-auto min-h-10"
-                onClick={() => {
-                  if (
-                    revealing &&
-                    !window.confirm(
-                      `Finals are published. Saving shows ${revealing} finalist name${revealing === 1 ? "" : "s"} on the public schedule right away, and directors can see it. Continue?`,
+              {finalsEditing && finalsPublished && !finalistsRevealed ? (
+                <>
+                  <Button type="button" variant="secondary" className="ml-auto min-h-10" onClick={() => onSave()} disabled={pending || !dirty}>
+                    {pending ? "Saving…" : "Save only"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="warn"
+                    className="min-h-10"
+                    disabled={pending || pickedAfterSave === 0}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `Save and reveal ${pickedAfterSave} finalist${pickedAfterSave === 1 ? "" : "s"}? Their names will show on the public schedule and their directors will see it right away.`,
+                        )
+                      )
+                        return;
+                      onSave(() => revealFinalists(true));
+                    }}
+                  >
+                    Save & reveal
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant={revealing ? "warn" : "primary"}
+                  className="ml-auto min-h-10"
+                  onClick={() => {
+                    if (
+                      revealing &&
+                      !window.confirm(
+                        `Finalists are revealed. Saving shows ${revealing} more finalist name${revealing === 1 ? "" : "s"} on the public schedule right away, and directors can see it. Continue?`,
+                      )
                     )
-                  )
-                    return;
-                  onSave();
-                }}
-                disabled={pending || (!dirty && !(editing.kind === "break" && editing.isNew))}
-              >
-                {pending ? "Saving…" : revealing ? "Save & reveal finalists" : saveLabel(editing)}
-              </Button>
+                      return;
+                    onSave();
+                  }}
+                  disabled={pending || (!dirty && !(editing.kind === "break" && editing.isNew))}
+                >
+                  {pending ? "Saving…" : revealing ? "Save & show names" : saveLabel(editing)}
+                </Button>
+              )}
             </div>
           </>
         ) : (
           <div className="space-y-2">
-            <PublishLine label="Preliminaries" published={orderPublished}>
+            <PublishLine label="Preliminaries" status={orderPublished ? "Published" : "Not published"} on={orderPublished}>
               {orderPublished ? (
                 <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishOrder(false))}>
                   Unpublish
@@ -688,41 +731,62 @@ export function ScheduleBuilder({
               )}
             </PublishLine>
             {saved.finals.length > 0 && (
-              <PublishLine label="Finals" published={finalsPublished}>
-                {finalsPublished && picked > 0 && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="min-h-9 px-3"
-                    disabled={pending}
-                    onClick={() => run(emailFinalists, `Email the ${picked} finalist band director(s) their finals times?`)}
-                  >
-                    Email finalists
-                  </Button>
-                )}
-                {finalsPublished ? (
-                  <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishFinals(false))}>
-                    Unpublish
-                  </Button>
-                ) : picked > 0 ? (
-                  <Button
-                    type="button"
-                    variant="warn"
-                    className="min-h-9 px-3"
-                    disabled={pending}
-                    onClick={() =>
-                      run(
-                        () => publishFinals(true),
-                        `Publishing shows the names of ${picked} finalist${picked === 1 ? "" : "s"} to everyone on the public schedule, and their directors can see it. Continue?`,
-                      )
-                    }
-                  >
-                    Publish & reveal {picked}
-                  </Button>
-                ) : (
+              <PublishLine
+                label="Finals"
+                on={finalsPublished}
+                status={
+                  finalistsRevealed
+                    ? "Finalists revealed"
+                    : finalsPublished
+                      ? `Schedule published, finalists not revealed (${picked} of ${saved.finals.length} saved)`
+                      : "Schedule not published"
+                }
+              >
+                {!finalsPublished ? (
                   <Button type="button" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishFinals(true))}>
-                    Publish
+                    Publish schedule
                   </Button>
+                ) : !finalistsRevealed ? (
+                  <>
+                    <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishFinals(false))}>
+                      Unpublish
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="warn"
+                      className="min-h-9 px-3"
+                      disabled={pending || picked === 0}
+                      onClick={() =>
+                        run(
+                          () => revealFinalists(true),
+                          `Reveal ${picked} finalist${picked === 1 ? "" : "s"}? Their names will show on the public schedule and their directors will see it right away.`,
+                        )
+                      }
+                    >
+                      Reveal {picked}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="min-h-9 px-3"
+                      disabled={pending}
+                      onClick={() => run(() => revealFinalists(false), "Hide the finalist names again? The finals times stay published.")}
+                    >
+                      Hide names
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="min-h-9 px-3"
+                      disabled={pending || picked === 0}
+                      onClick={() => run(emailFinalists, `Email the ${picked} finalist band director(s) their finals times?`)}
+                    >
+                      Email finalists
+                    </Button>
+                  </>
                 )}
               </PublishLine>
             )}
@@ -776,12 +840,12 @@ function Footer({ children }: { children: ReactNode }) {
   );
 }
 
-function PublishLine({ label, published, children }: { label: string; published: boolean; children: ReactNode }) {
+function PublishLine({ label, status, on, children }: { label: string; status: string; on: boolean; children: ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${published ? "bg-success" : "border-2 border-muted"}`} aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-sm">
-        <span className="font-semibold">{label}</span> <span className="text-muted">· {published ? "Published" : "Not published"}</span>
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${on ? "bg-success" : "border-2 border-muted"}`} aria-hidden="true" />
+      <span className="min-w-0 flex-1 text-sm leading-5">
+        <span className="font-semibold">{label}</span> <span className="text-muted">· {status}</span>
       </span>
       <div className="flex shrink-0 gap-2">{children}</div>
     </div>
@@ -982,6 +1046,7 @@ function FinalsEditor({
   openBreakKey,
   breakEditor,
   published,
+  revealed,
 }: {
   finals: FinalsSlot[];
   bands: OrderBand[];
@@ -995,8 +1060,9 @@ function FinalsEditor({
   onOpenBreak: (key: number) => void;
   openBreakKey: number | null;
   breakEditor: ReactNode;
-  /** Finals already published: picked names go public on save. */
   published: boolean;
+  /** Finalists revealed: picked names go public on save. */
+  revealed: boolean;
 }) {
   const [countText, setCountText] = useState(finals.length ? String(finals.length) : "");
   const lastDay = days.at(-1)!;
@@ -1051,7 +1117,7 @@ function FinalsEditor({
 
   return (
     <div className="space-y-6">
-      <FinalistPrivacyNote published={published} />
+      <FinalistPrivacyNote published={published} revealed={revealed} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <Field label="Number of finalists" className="max-w-xs" hint={`1 to ${MAX_FINALISTS}.`}>
           <NumberInput
@@ -1179,15 +1245,18 @@ function breakShift(e: Extract<NonNullable<Editing>, { kind: "break" }>, savedBr
 }
 
 /** When picked finalist names become public. */
-function FinalistPrivacyNote({ published }: { published: boolean }) {
-  return published ? (
-    <p className="rounded-lg border border-danger px-3 py-2 text-sm text-danger">
-      ⚠️ Finals are published. A band you pick here is shown on the public schedule as soon as you save.
-    </p>
-  ) : (
+function FinalistPrivacyNote({ published, revealed }: { published: boolean; revealed: boolean }) {
+  if (revealed)
+    return (
+      <p className="rounded-lg border border-danger px-3 py-2 text-sm text-danger">
+        ⚠️ Finalists are revealed. A band you pick here is shown on the public schedule as soon as you save.
+      </p>
+    );
+  return (
     <p className="rounded-lg bg-background px-3 py-2 text-sm text-muted">
-      Finalist names stay private until you publish the finals. You can publish now with &ldquo;To be announced&rdquo;
-      placeholders.
+      {published
+        ? "The finals schedule is public, but finalist names stay private: Save only keeps them that way. Save & reveal (or Reveal in the footer) shows them."
+        : "Finalist names stay private until you reveal them. You can publish the finals schedule first, with \u201cto be announced\u201d placeholders."}
     </p>
   );
 }

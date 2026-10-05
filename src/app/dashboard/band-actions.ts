@@ -232,7 +232,7 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
   const supabase = await createClient();
   // The schedule as it was, to tell which published bands' times change.
   const [{ data: event }, { data: oldSlots }, { data: oldFinals }] = await Promise.all([
-    supabase.from("events").select("timezone, ready_minutes_before, finals_ready_minutes_before, performance_order_published, finals_published").eq("id", eventId).single(),
+    supabase.from("events").select("timezone, ready_minutes_before, finals_ready_minutes_before, performance_order_published, finalists_revealed").eq("id", eventId).single(),
     supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
     supabase.from("finals_slots").select("slot_number, band_id, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
   ]);
@@ -272,7 +272,8 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
       if (readyChanged || !o || o.performance_order !== i + 1 || !sameTimes(o, n)) changed.order.push(n.band_id!);
     });
   }
-  if (event.finals_published) {
+  // Finalists only hear about their finals times once they're revealed.
+  if (event.finalists_revealed) {
     const before = new Map((oldFinals ?? []).filter((o) => o.band_id).map((o) => [o.band_id, o]));
     newFinals.forEach((n, i) => {
       if (!n.band_id) return;
@@ -385,8 +386,17 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
 
 /** Publish (or hide) the finals. Finalists are emailed separately, once they're picked. */
 export async function publishFinals(eventId: string, publish: boolean): Promise<ActionState> {
-  const result = await updateEventRow(eventId, { finals_published: publish });
+  const result = await updateEventRow(eventId, publish ? { finals_published: true } : { finals_published: false, finalists_revealed: false });
   return result.error ? result : { ok: true, message: publish ? "Finals published." : "Finals hidden." };
+}
+
+/**
+ * Show (or hide again) the finalist names on the public schedule and the
+ * finalists' director pages. Revealing also publishes the finals times.
+ */
+export async function revealFinalists(eventId: string, reveal: boolean): Promise<ActionState> {
+  const result = await updateEventRow(eventId, reveal ? { finals_published: true, finalists_revealed: true } : { finalists_revealed: false });
+  return result.error ? result : { ok: true, message: reveal ? "Finalists revealed." : "Finalist names hidden again." };
 }
 
 /** Email each picked finalist their finals times. */
@@ -395,7 +405,7 @@ export async function emailFinalists(eventId: string): Promise<ActionState> {
   if (!(await getEventAccess(eventId)).isHost) return { error: "Only the event's host can do this." };
   const supabase = await createClient();
   const [{ data: event }, { data: slots }] = await Promise.all([
-    supabase.from("events").select(`${EMAIL_EVENT_COLUMNS}, finals_published`).eq("id", eventId).single(),
+    supabase.from("events").select(`${EMAIL_EVENT_COLUMNS}, finalists_revealed`).eq("id", eventId).single(),
     supabase
       .from("finals_slots")
       .select(`slot_number, warm_up_at, warm_up_minutes, perform_at, warm_up_location, ${EMAIL_BAND_COLUMNS}`)
@@ -404,7 +414,7 @@ export async function emailFinalists(eventId: string): Promise<ActionState> {
       .order("slot_number"),
   ]);
   if (!event) return { error: "Event not found." };
-  if (!event.finals_published) return { error: "Publish the finals first." };
+  if (!event.finalists_revealed) return { error: "Reveal the finalists first." };
   if (!slots?.length) return { error: "Pick the finalists and save the schedule first." };
   const rows = (slots as unknown as (Omit<EmailSlot, "label"> & { slot_number: number })[]).map((s) => ({
     ...s,
@@ -423,7 +433,7 @@ export async function emailTimeChanges(eventId: string, bands: ChangedBands): Pr
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select(`${EMAIL_EVENT_COLUMNS}, performance_order_published, finals_published`)
+    .select(`${EMAIL_EVENT_COLUMNS}, performance_order_published, finalists_revealed`)
     .eq("id", eventId)
     .single();
   if (!event) return { error: "Event not found." };
@@ -432,7 +442,7 @@ export async function emailTimeChanges(eventId: string, bands: ChangedBands): Pr
     event.performance_order_published && ids.data.order.length
       ? supabase.from("performance_slots").select(`performance_order, ${columns}`).eq("event_id", eventId).in("band_id", ids.data.order)
       : Promise.resolve({ data: [] }),
-    event.finals_published && ids.data.finals.length
+    event.finalists_revealed && ids.data.finals.length
       ? supabase.from("finals_slots").select(`slot_number, ${columns}`).eq("event_id", eventId).in("band_id", ids.data.finals)
       : Promise.resolve({ data: [] }),
   ]);

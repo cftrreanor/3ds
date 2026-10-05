@@ -28,7 +28,7 @@ type MyBand = {
   band_name: string;
   school_name: string;
   events:
-    | (EventSummary & { band_registration_open: boolean; band_registration_deadline: string | null; performance_order_published: boolean; finals_published: boolean })
+    | (EventSummary & { band_registration_open: boolean; band_registration_deadline: string | null; performance_order_published: boolean; finalists_revealed: boolean })
     | null;
   // Only readable once the host publishes, so these double as "times are posted".
   performance_slots: { perform_at: string | null } | { perform_at: string | null }[] | null;
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
       .from("bands")
       .select(
         `id, band_name, school_name,
-         events(${EVENT_COLUMNS}, band_registration_open, band_registration_deadline, performance_order_published, finals_published),
+         events(${EVENT_COLUMNS}, band_registration_open, band_registration_deadline, performance_order_published, finalists_revealed),
          performance_slots(perform_at), finals_slots(perform_at)`,
       )
       .eq("director_user_id", user.id),
@@ -234,7 +234,7 @@ function bandStatus(b: MyBand & { events: NonNullable<MyBand["events"]> }): { te
   const at = (iso: string) =>
     `${e.starts_on !== e.ends_on ? `${formatDate(utcToZonedDate(iso, e.timezone), { year: undefined })}, ` : ""}${formatTime(iso, e.timezone)} ${zoneAbbreviation(iso, e.timezone)}`;
   if (isPast(e)) return { text: "Completed", tone: "neutral" };
-  const finals = e.finals_published ? b.finals_slots[0] : undefined;
+  const finals = e.finalists_revealed ? b.finals_slots[0] : undefined;
   if (finals) return { text: finals.perform_at ? `🏆 Finalist · performs ${at(finals.perform_at)}` : "🏆 Finalist", tone: "accent" };
   const slot = Array.isArray(b.performance_slots) ? b.performance_slots[0] : b.performance_slots;
   const perform = e.performance_order_published ? slot?.perform_at : null;
