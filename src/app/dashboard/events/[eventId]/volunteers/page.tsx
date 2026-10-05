@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getEventAccess } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
 import { setCheckedIn } from "./actions";
@@ -28,7 +29,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
     .select("id, name, timezone, starts_on, ends_on")
     .eq("id", eventId)
     .maybeSingle();
-  if (!event) notFound();
+  if (!event) missing();
 
   const { data } = await supabase
     .from("volunteer_assignments")

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import {
   eachDate,
@@ -88,7 +88,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     )
     .eq("id", eventId)
     .maybeSingle();
-  if (!event) notFound();
+  if (!event) missing();
 
   const access = await getEventAccess(eventId);
   const [{ data: stations }, { data: shifts }, { data: staff }, { data: invitations }] = await Promise.all([

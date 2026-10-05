@@ -8,3 +8,5 @@
 - Product name comes from src/lib/brand.ts only; don't hard-code it.
 - Number-only fields use `NumberInput` (src/components/number-input.tsx): a type-in box that
   accepts digits only. Never use `<input type="number">` (no up/down arrows).
+- When a page's main data is missing, call `missing()` from src/lib/schema-check.ts, not
+  `notFound()`: it shows "a database update is needed" when a migration hasn't been run yet.

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Badge, Card } from "@/components/ui";
 import { bandCalendarEvent, type BandTimes } from "@/lib/band-calendar";
@@ -10,6 +9,7 @@ import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { CONTEST_INFO_COOKIE } from "@/lib/preferences";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { CollapsibleInfo } from "./collapsible-info";
@@ -25,7 +25,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const supabase = await createClient();
   const { data } = await supabase.from("bands").select(BAND_COLUMNS).eq("id", bandId).maybeSingle();
   const band = data as BandRow | null;
-  if (!band) notFound();
+  if (!band) missing();
 
   const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }, { data: phone }, cookieStore] = await Promise.all([
     supabase
@@ -41,7 +41,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase.rpc("director_contact_phone", { ev: band.event_id }),
     cookies(),
   ]);
-  if (!event) notFound();
+  if (!event) missing();
   const open = registrationIsOpen(event);
   const origin = await getOrigin();
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({

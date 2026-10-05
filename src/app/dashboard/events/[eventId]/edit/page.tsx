@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { utcToZonedTime } from "@/lib/time";
 import { updateEvent } from "../../../actions";
@@ -24,7 +25,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
     )
     .eq("id", eventId)
     .maybeSingle();
-  if (!event) notFound();
+  if (!event) missing();
   const { count } = await supabase.from("shifts").select("id", { count: "exact", head: true }).eq("event_id", eventId);
 
   return (

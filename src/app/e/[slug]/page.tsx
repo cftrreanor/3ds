@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { Fragment } from "react";
-import { notFound } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
 import { registrationIsOpen } from "@/lib/bands";
+import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { AutoRefresh } from "./auto-refresh";
@@ -58,7 +58,7 @@ function nowAndNext(rows: Line[]) {
 export default async function EventPublicPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
-  if (!event) notFound();
+  if (!event) missing();
 
   const supabase = await createClient();
   const [{ data: scheduleData }, { data: finalsData }, { data: breakData }, { data: announcements }] = await Promise.all([

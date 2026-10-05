@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createPlainClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { schemaAwareFetch } from "@/lib/schema-check";
 import { requireSupabaseEnv } from "./env";
 
 /**
@@ -15,6 +16,7 @@ export async function createClient() {
   const { url, key } = requireSupabaseEnv();
 
   return createServerClient(url, key, {
+    global: { fetch: schemaAwareFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -40,5 +42,5 @@ export function createAdminClient() {
   const { url } = requireSupabaseEnv();
   const secret = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret) throw new Error("SUPABASE_SECRET_KEY is not set");
-  return createPlainClient(url, secret, { auth: { persistSession: false } });
+  return createPlainClient(url, secret, { auth: { persistSession: false }, global: { fetch: schemaAwareFetch } });
 }
