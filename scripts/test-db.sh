@@ -14,3 +14,4 @@ for f in supabase/migrations/*.sql; do
   psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$f"
 done
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/security_test.sql
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/tests/test_data_test.sql

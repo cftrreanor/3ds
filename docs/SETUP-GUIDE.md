@@ -84,6 +84,23 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261005000000_warm_up_duration.sql` | Warm-up length per band (15-minute steps) | ✅ run |
 | `20261005010000_ready_position.sql` | Ready position minutes, set per event | run this next |
 
+## Test data (fake bands and volunteers)
+To try features without making real accounts, fill a test event with fake data:
+
+1. On GitHub, open `supabase/test-data/add-test-data.sql` → **Copy raw file**.
+2. Supabase → **SQL Editor → + New query** → paste.
+3. Near the top, replace `my-test-event` with your event's link name (the part
+   after `/e/` in its public link) → **Run**.
+
+You get 12 bands and 40 volunteers signed up for shifts (one shift full). If the
+event has no shifts yet, three sample stations with three shifts each are added.
+All fake emails are Resend test addresses (`...@resend.dev`): emails to them show
+as *Delivered* in Resend, but nobody receives them. The bands are listed under your
+own account, so you can also see the director's view.
+
+To clear it, do the same with `supabase/test-data/remove-test-data.sql`. It only
+removes the fake records; anything real is left alone.
+
 ## Email (Resend) ✅
 Sign-in emails are sent by **Resend** from `no-reply@fieldcommandevents.com`.
 
