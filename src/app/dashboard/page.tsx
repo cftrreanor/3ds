@@ -39,7 +39,7 @@ export default async function DashboardPage() {
   ]);
   const myBands = (bandRows ?? []) as unknown as MyBand[];
   const helping = ((staffRows ?? []) as unknown as StaffEvent[]).filter(
-    (r): r is StaffEvent & { events: NonNullable<StaffEvent["events"]> } => r.events !== null,
+    (r): r is StaffEvent & { events: NonNullable<StaffEvent["events"]> } => r.events != null,
   );
 
   if (!org && (helping.length > 0 || myBands.length > 0)) {

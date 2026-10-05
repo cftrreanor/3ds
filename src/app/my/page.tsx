@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
+import { HeaderBar, headerLinkClass } from "@/components/logo";
 import Link from "next/link";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
-import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
@@ -90,23 +90,17 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <span aria-hidden className="inline-block h-3 w-3 rounded-full bg-accent" />
-            {brand.name}
+      <HeaderBar maxWidth="max-w-2xl">
+        {user ? (
+          <form action="/auth/signout" method="post">
+            <button className={headerLinkClass}>Sign out</button>
+          </form>
+        ) : (
+          <Link href="/login" className={headerLinkClass}>
+            Organizer sign in
           </Link>
-          {user ? (
-            <form action="/auth/signout" method="post">
-              <button className="min-h-11 rounded-md px-3 text-sm text-muted hover:text-foreground">Sign out</button>
-            </form>
-          ) : (
-            <Link href="/login" className="min-h-11 content-center rounded-md px-3 text-sm text-muted hover:text-foreground">
-              Organizer sign in
-            </Link>
-          )}
-        </div>
-      </header>
+        )}
+      </HeaderBar>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <h1 className="text-2xl font-semibold tracking-tight">My shifts</h1>

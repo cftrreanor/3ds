@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
+import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { acceptInvitation } from "@/app/dashboard/team-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
-import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateRange } from "@/lib/time";
 import { AcceptForm } from "./accept-form";
@@ -40,12 +40,10 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
   const user = await getUser();
 
   return (
+    <>
+    <HeaderBar maxWidth="max-w-md" />
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-md">
-        <Link href="/" className="mb-8 flex items-center justify-center gap-2 text-lg font-semibold">
-          <span aria-hidden className="inline-block h-3 w-3 rounded-full bg-accent" />
-          {brand.name}
-        </Link>
         <Card>
           {!invite ? (
             <>
@@ -111,5 +109,6 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
         </Card>
       </div>
     </main>
+    </>
   );
 }
