@@ -36,6 +36,7 @@ export function SignupForm({
   const pathname = usePathname();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [startedAt] = useState(() => Date.now());
+  const [activeId, setActiveId] = useState(stations[0]?.id);
 
   if (state.confirmed) {
     return (
@@ -95,6 +96,8 @@ export function SignupForm({
 
   // The form is submitted by hand (no reset), so choices and typing survive an error.
   const chosen = selected;
+  // Picks across every station, for the summary above the Sign up button.
+  const picks = stations.flatMap((st) => st.shifts.filter((sh) => chosen.has(sh.id)).map((sh) => ({ ...sh, station: st.name })));
   const toggle = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -125,55 +128,99 @@ export function SignupForm({
         <h2 id="pick" className="text-lg font-semibold">
           1. Pick your shifts
         </h2>
-        <p className="mt-1 text-sm text-muted">Choose as many as you like, as long as the times don&apos;t overlap.</p>
-        <div className="mt-4 space-y-4">
-          {stations.map((st) => (
-            <Card key={st.id} className="p-4 sm:p-5">
-              <h3 className="font-semibold">{st.name}</h3>
-              {st.location && <p className="text-sm text-muted">{st.location}</p>}
-              {st.instructions && <p className="mt-2 text-sm leading-6 text-muted">{st.instructions}</p>}
-              <ul className="mt-3 space-y-2">
-                {st.shifts.map((s) => {
-                  const full = s.spotsLeft <= 0;
-                  const isChosen = chosen.has(s.id);
-                  return (
-                    <li key={s.id}>
-                      <label
-                        className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition ${
-                          full
-                            ? "cursor-not-allowed border-border opacity-60"
-                            : isChosen
-                              ? "border-brand bg-accent-soft"
-                              : "border-border hover:border-brand"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          name="shiftIds"
-                          value={s.id}
-                          checked={isChosen}
-                          disabled={full || disabled}
-                          onChange={() => toggle(s.id)}
-                          className="h-5 w-5 shrink-0 accent-[var(--brand)]"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-medium">{s.when}</span>
-                          <span className="block text-sm text-muted">
-                            {s.title}
-                            {s.description ? ` · ${s.description}` : ""}
-                          </span>
+        <p className="mt-1 text-sm text-muted">
+          {stations.length > 1 ? "Each tab is a station. " : ""}Choose as many shifts as you like, as long as the times
+          don&apos;t overlap.
+        </p>
+
+        {stations.length > 1 && (
+          <div role="tablist" aria-label="Stations" className="-mx-4 mt-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <div className="flex min-w-max gap-1 border-b border-border">
+              {stations.map((st) => {
+                const active = st.id === activeId;
+                const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0);
+                const picked = st.shifts.filter((sh) => chosen.has(sh.id)).length;
+                return (
+                  <button
+                    key={st.id}
+                    type="button"
+                    role="tab"
+                    id={`tab-${st.id}`}
+                    aria-selected={active}
+                    aria-controls={`panel-${st.id}`}
+                    onClick={() => setActiveId(st.id)}
+                    className={`-mb-px flex flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
+                      active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                      {st.name}
+                      {picked > 0 && (
+                        <span className="rounded-full bg-brand px-1.5 text-xs font-semibold text-brand-foreground">{picked}</span>
+                      )}
+                    </span>
+                    <span className="text-xs font-normal text-muted">{open > 0 ? `${open} open spot${open === 1 ? "" : "s"}` : "Full"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Every station stays in the form (hidden tabs included), so picks on other tabs still submit. */}
+        {stations.map((st) => (
+          <Card
+            key={st.id}
+            id={`panel-${st.id}`}
+            role={stations.length > 1 ? "tabpanel" : undefined}
+            aria-labelledby={stations.length > 1 ? `tab-${st.id}` : undefined}
+            hidden={st.id !== activeId}
+            className="mt-4 p-4 sm:p-5"
+          >
+            <h3 className="font-semibold">{st.name}</h3>
+            {st.location && <p className="text-sm text-muted">{st.location}</p>}
+            {st.instructions && <p className="mt-2 text-sm leading-6 text-muted">{st.instructions}</p>}
+            <ul className="mt-3 space-y-2">
+              {st.shifts.map((s) => {
+                const full = s.spotsLeft <= 0;
+                const isChosen = chosen.has(s.id);
+                return (
+                  <li key={s.id}>
+                    <label
+                      className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition ${
+                        full
+                          ? "cursor-not-allowed border-border opacity-60"
+                          : isChosen
+                            ? "border-brand bg-accent-soft"
+                            : "border-border hover:border-brand"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        name="shiftIds"
+                        value={s.id}
+                        checked={isChosen}
+                        disabled={full || disabled}
+                        onChange={() => toggle(s.id)}
+                        className="h-5 w-5 shrink-0 accent-[var(--brand)]"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">{s.when}</span>
+                        <span className="block text-sm text-muted">
+                          {s.title}
+                          {s.description ? ` · ${s.description}` : ""}
                         </span>
-                        <span className={`shrink-0 text-sm font-medium ${full ? "text-muted" : ""}`}>
-                          {full ? "Full" : `${s.spotsLeft} left`}
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          ))}
-        </div>
+                      </span>
+                      <span className={`shrink-0 text-sm font-medium ${full ? "text-muted" : ""}`}>
+                        {full ? "Full" : `${s.spotsLeft} left`}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        ))}
       </section>
 
       <section aria-labelledby="you">
@@ -194,6 +241,18 @@ export function SignupForm({
       </section>
 
       <div className="space-y-3">
+        {picks.length > 0 && (
+          <div className="rounded-lg border border-border bg-surface px-4 py-3">
+            <p className="text-sm font-semibold">Your picks</p>
+            <ul className="mt-1 space-y-0.5 text-sm">
+              {picks.map((p) => (
+                <li key={p.id}>
+                  <span className="font-medium">{p.station}</span> <span className="text-muted">· {p.when}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <FormMessage error={state.error} />
         <SubmitButtonWithCount count={chosen.size} disabled={disabled} />
       </div>
