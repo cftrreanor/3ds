@@ -35,7 +35,7 @@ export async function inviteMember(eventId: string, _prev: ActionState, formData
     return { error: friendlyDbError(error) };
   }
 
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: `Invitation created for ${v.email}. Copy the link below and send it to them.` };
 }
 
@@ -44,7 +44,7 @@ export async function cancelInvitation(eventId: string, invitationId: string): P
   const supabase = await createClient();
   const { error } = await supabase.from("invitations").delete().eq("id", invitationId);
   if (error) return { error: friendlyDbError(error) };
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
 
@@ -58,7 +58,7 @@ export async function removeMember(eventId: string, userId: string, role: string
     .eq("user_id", userId)
     .eq("role", role);
   if (error) return { error: friendlyDbError(error) };
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
 

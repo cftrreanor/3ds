@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
@@ -216,7 +216,7 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
     await notifyVolunteersOfChanges((shiftRows ?? []).map((r) => r.id));
   }
 
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   redirect(`/dashboard/events/${eventId}`);
 }
 
@@ -238,7 +238,7 @@ export async function setEventPublished(eventId: string, publish: boolean): Prom
     return { error: friendlyDbError(error) };
   }
   if (!data?.length) return { error: "Only the event's host can publish it." };
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
 
@@ -252,7 +252,7 @@ export async function setVolunteerSignupOpen(eventId: string, open: boolean): Pr
     .select("id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "Only the event's host can open or close signups." };
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
 
@@ -273,17 +273,22 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
   const v = parsed.data;
 
   const supabase = await createClient();
-  const { error } = await supabase.from("stations").insert({
-    event_id: eventId,
-    name: v.name,
-    station_type: v.stationType,
-    location: v.location,
-    instructions: v.instructions,
-  });
+  const { data, error } = await supabase
+    .from("stations")
+    .insert({
+      event_id: eventId,
+      name: v.name,
+      station_type: v.stationType,
+      location: v.location,
+      instructions: v.instructions,
+    })
+    .select("id")
+    .single();
   if (error) return { error: friendlyDbError(error) };
 
-  revalidatePath(`/dashboard/events/${eventId}`);
-  return { ok: true, message: `Added “${v.name}”.` };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  // Open the new station's tab, ready for its shifts.
+  redirect(`/dashboard/events/${eventId}/volunteering?station=${data.id}`);
 }
 
 export async function updateStation(
@@ -312,7 +317,7 @@ export async function updateStation(
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
 
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: "Station saved." };
 }
 
@@ -328,7 +333,7 @@ export async function deleteStation(eventId: string, stationId: string): Promise
 
   const { error } = await supabase.from("stations").delete().eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
 
@@ -383,7 +388,7 @@ export async function createShift(
   });
   if (error) return { error: friendlyDbError(error) };
 
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: `Added “${v.title}”.` };
 }
 
@@ -440,7 +445,7 @@ export async function generateShifts(
   const { error } = await supabase.from("shifts").insert(rows);
   if (error) return { error: friendlyDbError(error) };
 
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: `Added ${rows.length} shift${rows.length === 1 ? "" : "s"}.` };
 }
 
@@ -490,7 +495,7 @@ export async function updateShift(
       before.title !== v.title);
   if (moved) await notifyVolunteersOfChanges([shiftId]);
 
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: "Shift saved." };
 }
 
@@ -503,6 +508,6 @@ export async function deleteShift(eventId: string, shiftId: string): Promise<Act
   }
   const { error } = await supabase.from("shifts").delete().eq("id", shiftId);
   if (error) return { error: friendlyDbError(error) };
-  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
