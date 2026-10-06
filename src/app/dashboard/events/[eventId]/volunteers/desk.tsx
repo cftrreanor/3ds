@@ -21,7 +21,7 @@ export type DeskShift = {
   title: string;
   time: string;
   capacity: number;
-  /** Has started (event day): anyone not here yet is missing. */
+  /** Has started (event day): anyone who hasn't checked in is "not here yet". */
   started: boolean;
   now: boolean;
   over: boolean;
@@ -40,7 +40,7 @@ type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 type AddWalkUp = (shiftId: string, overCapacity: boolean, prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 /**
- * The volunteer desk: an Overview (who's missing, where help is needed now)
+ * The volunteer desk: an Overview (who's not here yet, where help is needed now)
  * and a tab per station with its shifts. Check people in, add walk-ups, and
  * release no-shows' spots.
  */
@@ -145,7 +145,7 @@ export function Desk({
         <>
           <div role="tablist" aria-label="Stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <div className="flex min-w-max gap-1 border-b border-border">
-              <TabButton active={tab === "overview"} onClick={() => setTab("overview")} label="Overview" sub="Who's missing?" />
+              <TabButton active={tab === "overview"} onClick={() => setTab("overview")} label="Overview" sub="Who's not here yet?" />
               {optimistic.map((s) => {
                 const people = s.shifts.flatMap((sh) => sh.volunteers);
                 return (
@@ -202,7 +202,7 @@ type RowProps = {
 
 function Overview({ stations, openTab, ...rowProps }: { stations: DeskStation[]; openTab: (id: string) => void } & RowProps) {
   const { eventDay } = rowProps;
-  const missing = stations.flatMap((st) =>
+  const notHere = stations.flatMap((st) =>
     st.shifts.filter((sh) => sh.started && !sh.over).flatMap((sh) => sh.volunteers.filter((v) => !v.checkedIn).map((v) => ({ v, st, sh }))),
   );
   const openNow = stations.flatMap((st) =>
@@ -235,18 +235,18 @@ function Overview({ stations, openTab, ...rowProps }: { stations: DeskStation[];
 
       {!eventDay ? (
         <p className="rounded-lg bg-accent-soft px-3 py-2 text-sm">
-          On contest day, this shows who hasn&apos;t arrived for shifts that have started, and where walk-ups are needed.
+          On contest day, this shows who&apos;s not here yet for shifts that have started, and where walk-ups are needed.
         </p>
       ) : (
         <>
           <section>
-            <h2 className="text-sm font-semibold">Missing ({missing.length})</h2>
-            <p className="text-sm text-muted">Their shift has started and they haven&apos;t checked in.</p>
-            {missing.length === 0 ? (
+            <h2 className="text-sm font-semibold">Not here yet ({notHere.length})</h2>
+            <p className="text-sm text-muted">Their shift has started. Give them a call if you need them.</p>
+            {notHere.length === 0 ? (
               <p className="mt-2 text-sm text-muted">Everyone on the current shifts is here.</p>
             ) : (
               <ul className="mt-2 divide-y divide-border rounded-lg border border-border bg-surface">
-                {missing.map(({ v, st, sh }) => (
+                {notHere.map(({ v, st, sh }) => (
                   <VolunteerRow key={v.assignmentId} v={v} shift={sh} detail={`${st.name} · ${sh.time}`} {...rowProps} />
                 ))}
               </ul>
@@ -371,7 +371,7 @@ function VolunteerRow({
 }: { v: DeskVolunteer; shift: DeskShift; detail?: string } & RowProps) {
   const [releasing, setReleasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const missing = eventDay && shift.started && !v.checkedIn;
+  const notHereYet = eventDay && shift.started && !v.checkedIn;
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
       <div className="min-w-0">
@@ -390,7 +390,7 @@ function VolunteerRow({
         {error && <p className="text-sm text-danger">{error}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {missing && (
+        {notHereYet && (
           <Button
             type="button"
             variant="ghost"
