@@ -1408,4 +1408,111 @@ end $$;
 reset role;
 delete from public.platform_admins;
 
+-- ---------------------------------------------------------------------------
+-- Invitation emails: the secret one-tap key never reaches a browser
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.invitations (event_id, email, role, invited_by)
+values ('10000000-0000-0000-0000-00000000000a', 'mailme@example.com', 'section_lead', '00000000-0000-0000-0000-000000000001');
+insert into public.invitations (event_id, email, as_host, invited_by)
+values ('10000000-0000-0000-0000-00000000000a', 'hostmail@example.com', true, '00000000-0000-0000-0000-000000000001');
+do $$ begin
+  begin
+    perform email_token from public.invitations;
+    raise exception 'FAIL: a host read the secret email key';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+select set_config('test.key_before', (select email_token::text from public.invitations where email = 'mailme@example.com'), false) \g /dev/null
+update public.invitations set expires_at = now() - interval '1 day' where email = 'mailme@example.com';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare r record;
+begin
+  select * into r from public.prepare_invitation_email((select id from public.invitations where email = 'mailme@example.com'));
+  assert r.email = 'mailme@example.com' and r.role = 'section_lead' and r.inviter_name = 'Hana Host', 'the email gets the invitation details';
+  assert r.expires_at > now() + interval '29 days', 'resending an expired invitation gives it another 30 days';
+end $$;
+-- A Volunteer Lead can send Section Lead invitations, not co-host ones.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  perform public.prepare_invitation_email((select id from public.invitations where email = 'mailme@example.com'));
+  begin
+    perform public.prepare_invitation_email((select id from public.invitations where email = 'hostmail@example.com'));
+    raise exception 'FAIL: a Volunteer Lead sent a co-host invitation';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.prepare_invitation_email((select id from public.invitations where email = 'mailme@example.com'));
+    raise exception 'FAIL: a stranger sent an invitation';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select email_token::text from public.invitations where email = 'mailme@example.com') <> current_setting('test.key_before'),
+         'sending makes a new secret key, so older emails stop working';
+  assert (select sent_at is not null from public.invitations where email = 'mailme@example.com'), 'sending is recorded';
+end $$;
+delete from public.invitations where email in ('mailme@example.com', 'hostmail@example.com');
+
+-- ---------------------------------------------------------------------------
+-- Removed team members are listed (to the right people) and cleared on return
+-- ---------------------------------------------------------------------------
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000004', 'section_lead');
+insert into public.organization_members (organization_id, user_id, role)
+select organization_id, '00000000-0000-0000-0000-000000000004', 'admin' from public.events where id = '10000000-0000-0000-0000-00000000000a';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+delete from public.event_staff where event_id = '10000000-0000-0000-0000-00000000000a'
+   and user_id = '00000000-0000-0000-0000-000000000004' and role = 'section_lead';
+delete from public.organization_members where user_id = '00000000-0000-0000-0000-000000000004';
+do $$ begin
+  assert (select count(*) from public.team_removals where user_id = '00000000-0000-0000-0000-000000000004') = 2,
+         'the host sees the removed Section Lead and co-host';
+  assert (select removed_by from public.team_removals where role = 'section_lead' and user_id = '00000000-0000-0000-0000-000000000004')
+         = '00000000-0000-0000-0000-000000000001', 'who removed them is recorded';
+  begin
+    insert into public.team_removals (organization_id, role, user_id, email)
+    select organization_id, 'co_host', auth.uid(), 'x@example.com' from public.events limit 1;
+    raise exception 'FAIL: wrote a removal record directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select array_agg(role) from public.team_removals where user_id = '00000000-0000-0000-0000-000000000004') = array['section_lead'],
+         'a Volunteer Lead sees removed leads, not removed co-hosts';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.team_removals) = 0, 'a Section Lead sees no removals';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.team_removals) = 0, 'a stranger sees no removals';
+end $$;
+reset role;
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000004', 'section_lead');
+do $$ begin
+  assert not exists (select 1 from public.team_removals where role = 'section_lead' and user_id = '00000000-0000-0000-0000-000000000004'),
+         'joining again clears the removal';
+end $$;
+-- Deleting an event doesn't trip over its team being removed.
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-000000000004', 'section_lead');
+delete from public.events where id = '10000000-0000-0000-0000-00000000000c';
+do $$ begin
+  assert not exists (select 1 from public.team_removals where event_id = '10000000-0000-0000-0000-00000000000c'),
+         'deleting an event leaves no removal records';
+end $$;
+
 \echo 'All database security tests passed.'

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
-import { acceptInvitation } from "@/app/dashboard/team-actions";
+import { acceptInvitation, joinFromEmail } from "@/app/dashboard/team-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDateRange } from "@/lib/time";
-import { AcceptForm } from "./accept-form";
+import { AcceptForm, JoinForm } from "./accept-form";
 
 export const metadata: Metadata = { title: "You're invited" };
 
@@ -21,8 +21,9 @@ const ROLE = {
   },
 } as const;
 
-export default async function InvitePage({ params }: PageProps<"/invite/[token]">) {
+export default async function InvitePage({ params, searchParams }: PageProps<"/invite/[token]">) {
   const { token } = await params;
+  const { k } = await searchParams;
   const valid = /^[0-9a-f-]{36}$/i.test(token);
   const supabase = await createClient();
   const { data } = valid ? await supabase.rpc("get_invitation", { p_token: token }).maybeSingle() : { data: null };
@@ -39,6 +40,20 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
     accepted: boolean;
   } | null;
   const user = await getUser();
+  // From the invitation email: the secret key proves they own the invited
+  // email, so they can join with one tap (no separate sign-in email).
+  const key = typeof k === "string" && /^[0-9a-f-]{36}$/i.test(k) ? k : null;
+  const fromEmail =
+    key && invite && !invite.accepted && !invite.expired
+      ? await (async () => {
+          const admin = createAdminClient();
+          const { data: match } = await admin.from("invitations").select("id").eq("token", token).eq("email_token", key).maybeSingle();
+          if (!match) return null;
+          const { data: profile } = await admin.from("profiles").select("full_name").eq("email", invite.email).maybeSingle();
+          return { needsName: !profile?.full_name };
+        })()
+      : null;
+  const signedInAsInvitee = user && invite && user.email.toLowerCase() === invite.email.toLowerCase();
   const role =
     invite && (invite.as_host || !invite.role)
       ? {
@@ -82,6 +97,8 @@ export default async function InvitePage({ params }: PageProps<"/invite/[token]"
                   </p>
                 ) : invite.expired ? (
                   <p className="text-sm text-muted">This invitation has expired. Ask for a new one.</p>
+                ) : fromEmail && !signedInAsInvitee ? (
+                  <JoinForm action={joinFromEmail.bind(null, token, key!)} email={invite.email} needsName={fromEmail.needsName} />
                 ) : !user ? (
                   <>
                     <p className="mb-4 text-sm text-muted">
