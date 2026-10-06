@@ -1,5 +1,7 @@
 /** Contest day: the ordered check-in stations a band moves through, and how each reads. */
 
+import { utcToZonedDate } from "@/lib/time";
+
 export type CheckpointKind = "parking" | "stop" | "warm_up" | "gate";
 export type Round = "prelims" | "finals";
 
@@ -179,10 +181,27 @@ export function waitingOn(b: BandDay, c: Check): string {
 
 export type Attention<B extends BandDay = BandDay> = { band: B; check: Check };
 export type OnTrack<B extends BandDay = BandDay> = {
-  tone: "green" | "gold" | "red";
+  /** "before" / "after": not contest day, so nothing is late (no false alarms). */
+  phase: Phase;
+  tone: "green" | "gold" | "red" | "neutral";
   late: Attention<B>[];
   soon: Attention<B>[];
+  /** Has anyone been tapped in anywhere yet today? */
+  started: boolean;
+  /** The earliest deadline still to come, for "first band due 7:00 AM". */
+  firstDue: string | null;
+  /** Bands fully parked, out of those expected (bands not scratched). */
+  parked: number;
+  expected: number;
 };
+
+export type Phase = "before" | "day" | "after";
+
+/** Is it before, on, or after the event's day(s), in the event's time zone? */
+export function eventPhase(e: { starts_on: string; ends_on: string; timezone: string }, now: Date): Phase {
+  const today = utcToZonedDate(now.toISOString(), e.timezone);
+  return today < e.starts_on ? "before" : today > e.ends_on ? "after" : "day";
+}
 
 /** The whole event: who's behind (most late first) and who's due soon (soonest first). */
 export function onTrack<B extends BandDay>(
@@ -192,7 +211,16 @@ export function onTrack<B extends BandDay>(
   slotOf: (bandId: string) => SlotTimes,
   readyMinutes: number,
   now: Date,
+  phase: Phase,
 ): OnTrack<B> {
+  const parkingStation = path.find((c) => c.checkpoint_kind === "parking");
+  const active = bands.filter((b) => !b.scratched_at);
+  const progress = {
+    started: stops.length > 0 || bands.some((b) => b.buses_at || b.equipment_at),
+    parked: parkingStation ? active.filter((b) => doneAt(b, parkingStation, stops)).length : 0,
+    expected: active.length,
+  };
+  if (phase !== "day") return { phase, tone: "neutral", late: [], soon: [], firstDue: null, ...progress };
   const items = bands.flatMap((band) =>
     bandChecks(band, stops, path, slotOf(band.id), readyMinutes, now)
       .filter(countsForOnTrack)
@@ -200,5 +228,10 @@ export function onTrack<B extends BandDay>(
   );
   const late = items.filter((i) => i.check.state === "late").sort((a, b) => b.check.minutes - a.check.minutes);
   const soon = items.filter((i) => i.check.state === "soon").sort((a, b) => a.check.minutes - b.check.minutes);
-  return { tone: late.length ? "red" : soon.length ? "gold" : "green", late, soon };
+  const firstDue =
+    items
+      .filter((i) => i.check.state === "upcoming")
+      .map((i) => i.check.due!)
+      .sort()[0] ?? null;
+  return { phase, tone: late.length ? "red" : soon.length ? "gold" : "green", late, soon, firstDue, ...progress };
 }

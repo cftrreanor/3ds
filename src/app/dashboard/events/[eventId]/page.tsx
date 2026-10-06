@@ -15,7 +15,7 @@ import {
   zoneName,
 } from "@/lib/time";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
-import { onTrack, parking, sortStations, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
+import { eventPhase, onTrack, sortStations, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { OnTrackSummary } from "./contest-day/on-track";
 import { setEventPublished } from "../../actions";
 import { ActionButton, type LeadOption } from "./forms";
@@ -109,7 +109,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   // Contest day: are bands parked and at warm-up on time? (Hosts and Volunteer Leads.)
   const path = stations.filter((s): s is typeof s & Checkpoint => !!s.checkpoint_kind);
   const slots = new Map((slotData ?? []).map((s) => [s.band_id, s]));
-  const status = onTrack(dayBands, (stopData ?? []) as Stop[], path, (id) => slots.get(id), event.ready_minutes_before, new Date());
+  const now = new Date();
+  const status = onTrack(dayBands, (stopData ?? []) as Stop[], path, (id) => slots.get(id), event.ready_minutes_before, now, eventPhase(event, now));
 
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
@@ -285,14 +286,24 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             {access.canManage && bands.length > 0 && (
               <>
                 {isEventDay && <AutoRefresh seconds={30} />}
-                <OnTrackSummary status={status} eventId={eventId} time={(iso) => formatTime(iso, tz)} limit={5} hasPath={path.length > 0} />
+                <OnTrackSummary
+                  status={status}
+                  eventId={eventId}
+                  time={(iso) => formatTime(iso, tz)}
+                  limit={5}
+                  hasPath={path.length > 0}
+                  dayLabel={formatDate(event.starts_on, { year: undefined })}
+                />
               </>
             )}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <p className="text-sm leading-6 text-muted">
-                {bands.length
-                  ? `${dayBands.filter((b) => parking(b).key === "all").length} of ${bands.length} bands on-site · ${new Set((stopData ?? []).filter((x) => x.performed && x.round === "prelims").map((x) => x.band_id)).size} performed.`
-                  : "No bands registered yet."}{" "}
+                {!bands.length
+                  ? "No bands registered yet."
+                  : status.phase === "day"
+                    ? // Hosts already see "N of M fully parked" above; everyone sees how many have performed.
+                      `${access.canManage ? "" : `${status.parked} of ${status.expected} bands parked · `}${new Set((stopData ?? []).filter((x) => x.performed && x.round === "prelims").map((x) => x.band_id)).size} of ${status.expected} performed.`
+                    : `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`}{" "}
                 Tap bands through each check-in station, one tap at a time.
               </p>
               <Link

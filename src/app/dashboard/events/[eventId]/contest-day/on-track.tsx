@@ -5,6 +5,7 @@ const TONE = {
   green: { dot: "bg-success", text: "text-success" },
   gold: { dot: "bg-accent", text: "text-foreground" },
   red: { dot: "bg-danger", text: "text-danger" },
+  neutral: { dot: "bg-border", text: "text-foreground" },
 } as const;
 
 type NamedBand = { id: string; school_name: string } & Attention["band"];
@@ -16,6 +17,7 @@ export function OnTrackSummary({
   time,
   limit,
   hasPath,
+  dayLabel,
 }: {
   status: OnTrack<NamedBand>;
   eventId: string;
@@ -24,26 +26,49 @@ export function OnTrackSummary({
   limit?: number;
   /** False when no check-in stations are set up yet. */
   hasPath: boolean;
+  /** e.g. "Sat, Oct 24", for "Contest day is Sat, Oct 24". */
+  dayLabel: string;
 }) {
-  const { late, soon } = status;
+  const { late, soon, phase, started } = status;
+  const waiting = phase === "day" && !started && late.length === 0 && soon.length === 0;
+  const tone = !hasPath || waiting ? "neutral" : status.tone;
   const headline = !hasPath
     ? "Set up check-in stations to track the day"
-    : late.length
-      ? `${late.length} ${late.length === 1 ? "band is" : "bands are"} behind`
-      : soon.length
-        ? `${soon.length} due in the next 15 minutes`
-        : "On track";
+    : phase === "before"
+      ? `Contest day is ${dayLabel}`
+      : phase === "after"
+        ? "Contest day is over"
+        : late.length
+          ? `${late.length} ${late.length === 1 ? "band is" : "bands are"} behind`
+          : soon.length
+            ? `${soon.length} due in the next 15 minutes`
+            : waiting
+              ? "Parking hasn't started yet"
+              : "On track";
+  // What's actually happened so far, so "on track" never reads as "everyone's parked".
+  const progress = status.expected ? `${status.parked} of ${status.expected} bands fully parked.` : "";
+  const detail = !hasPath
+    ? null
+    : phase === "before"
+      ? "On the day, this shows whether bands are parked and at warm-up on time."
+      : phase === "after"
+        ? progress || null
+        : waiting
+          ? status.firstDue
+            ? `The first band is due at ${time(status.firstDue)}.`
+            : "No deadlines yet: check the schedule's warm-up times."
+          : late.length || soon.length
+            ? progress || null
+            : `No band has missed a deadline yet. ${progress}`;
   const rows = [...late, ...soon];
   const shown = limit ? rows.slice(0, limit) : rows;
   return (
     <div>
-      <p className={`flex items-center gap-2 text-base font-semibold ${TONE[status.tone].text}`} role="status">
-        <span aria-hidden className={`inline-block h-3 w-3 rounded-full ${hasPath ? TONE[status.tone].dot : "bg-border"}`} />
+      <p className={`flex items-center gap-2 text-base font-semibold ${TONE[tone].text}`} role="status">
+        <span aria-hidden className={`inline-block h-3 w-3 rounded-full ${TONE[tone].dot}`} />
         {headline}
       </p>
-      {hasPath && rows.length === 0 && (
-        <p className="mt-1 text-sm text-muted">Every band is parked and at warm-up on time so far.</p>
-      )}
+      {detail && <p className="mt-1 text-sm text-muted">{detail}</p>}
       {shown.length > 0 && (
         <ul className="mt-2 space-y-1.5">
           {shown.map(({ band, check }) => (
