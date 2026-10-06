@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess } from "@/lib/data";
+import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -15,11 +16,13 @@ import {
   zoneName,
 } from "@/lib/time";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
-import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
+import { eventPhase, kindLabel, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { setEventPublished } from "../../actions";
-import { ActionButton, type LeadOption } from "./forms";
-import { StationPanel, type RosterEntry, type Shift } from "./station-panel";
+import { ActionButton } from "./forms";
+import { type RosterEntry, type Shift } from "./station-panel";
+import { LeadStations } from "./lead-stations";
+import { setCheckedIn } from "./volunteers/actions";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -37,7 +40,6 @@ type Invitation = {
 };
 
 const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
-const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 
 export default async function EventPage({ params }: PageProps<"/dashboard/events/[eventId]">) {
   const { eventId } = await params;
@@ -154,22 +156,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const hosts = ((hostData ?? []) as unknown as HostRow[]).sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
   const directors = staffRows.filter((s) => s.role === "volunteer_director");
   const leads = staffRows.filter((s) => s.role === "section_lead");
-  const nameOf = (userId: string | null) => {
-    if (!userId) return null;
-    if (userId === user.id) return "You";
-    const p = [...staffRows, ...hosts].find((s) => s.user_id === userId)?.profiles;
-    return p?.full_name || p?.email || "Team member";
-  };
-  const leadOptions: LeadOption[] = [
-    ...(access.isHost ? [{ id: user.id, label: "Me" }] : []),
-    ...hosts
-      .filter((h) => h.user_id !== user.id)
-      .map((h) => ({ id: h.user_id, label: `${h.profiles?.full_name || h.profiles?.email || "Team member"} (${HOST_LABEL[h.role]})` })),
-    ...[...new Map(staffRows.filter((s) => s.user_id !== user.id && !hosts.some((h) => h.user_id === s.user_id)).map((s) => [s.user_id, s])).values()].map((s) => ({
-      id: s.user_id,
-      label: `${s.profiles?.full_name || s.profiles?.email || "Team member"} (${ROLE_LABEL[s.role]})`,
-    })),
-  ];
   const stationName = (id: string | null) => stations.find((s) => s.id === id)?.name;
 
   // Team card: what needs doing, then who joined this past week.
@@ -199,7 +185,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       ? [
           {
             tone: "warn" as const,
-            text: `${expiredInvites.length === 1 ? "1 invitation has" : `${expiredInvites.length} invitations have`} expired. Cancel and send a new one.`,
+            text: `${expiredInvites.length === 1 ? "1 invitation has" : `${expiredInvites.length} invitations have`} expired. Resend them from the Team page.`,
             tab: expiredInvites[0].as_host ? "hosts" : expiredInvites[0].role === "volunteer_director" ? "volunteer-leads" : "section-leads",
           },
         ]
@@ -458,25 +444,47 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       )}
 
       {!access.canManage && myStations.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-lg font-semibold">Your stations</h2>
-          <div className="mt-4 space-y-6">
-            {myStations.map((station) => (
-              <StationPanel
-                key={station.id}
-                eventId={eventId}
-                station={station}
-                stationShifts={shiftsByStation.get(station.id) ?? []}
-                event={event}
-                days={days}
-                windowLabel={windowLabel}
-                userId={user.id}
-                canManage={false}
-                leadNames={station.lead_ids.map((id) => nameOf(id) ?? "Team member")}
-                leadOptions={leadOptions}
-                roster={rosters.get(station.id)}
-              />
-            ))}
+        <section className="mt-10" aria-labelledby="stations-heading">
+          <h2 id="stations-heading" className="text-lg font-semibold">
+            {myStations.length > 1 ? "Your stations" : "Your station"}
+          </h2>
+          <p className="mt-1 text-sm text-muted">Your volunteers, by shift.</p>
+          <div className="mt-4">
+            <LeadStations
+              stations={myStations.map((station) => {
+                const roster = rosters.get(station.id) ?? [];
+                return {
+                  id: station.id,
+                  name: station.name,
+                  checkpoint: station.checkpoint_kind
+                    ? `Check-in stop ${station.checkpoint_order} · ${kindLabel(station.checkpoint_kind)}`
+                    : null,
+                  location: station.location,
+                  instructions: station.instructions,
+                  shifts: (shiftsByStation.get(station.id) ?? []).map((sh) => ({
+                    id: sh.id,
+                    title: sh.title,
+                    time: `${multiDay ? `${formatDate(utcToZonedDate(sh.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(sh.starts_at, sh.ends_at, tz)}`,
+                    capacity: sh.max_capacity,
+                    now: phase === "day" && new Date(sh.starts_at) <= now && now < new Date(sh.ends_at),
+                    over: phase === "day" && new Date(sh.ends_at) <= now,
+                    volunteers: roster
+                      .filter((v) => v.shift_id === sh.id)
+                      .sort((a, b) => a.volunteer_name.localeCompare(b.volunteer_name))
+                      .map((v) => ({
+                        assignmentId: v.assignment_id,
+                        name: v.volunteer_name,
+                        phone: v.phone,
+                        phoneDisplay: v.phone ? formatPhone(v.phone) : null,
+                        checkedIn: Boolean(v.checked_in_at),
+                      })),
+                  })),
+                };
+              })}
+              eventDay={phase === "day"}
+              unlockLabel={formatDateRange(event.starts_on, event.ends_on)}
+              toggle={setCheckedIn.bind(null, eventId)}
+            />
           </div>
         </section>
       )}

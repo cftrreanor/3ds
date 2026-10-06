@@ -10,6 +10,6 @@ export async function setCheckedIn(eventId: string, assignmentId: string, checke
   const supabase = await createClient();
   const { error } = await supabase.rpc("check_in_volunteer", { p_assignment_id: assignmentId, p_checked_in: checkedIn });
   if (error) return { error: friendlyDbError(error) };
-  revalidatePath(`/dashboard/events/${eventId}/volunteers`);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
