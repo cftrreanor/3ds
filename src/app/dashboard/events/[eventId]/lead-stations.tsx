@@ -8,6 +8,10 @@ export type LeadVolunteer = {
   phone: string | null;
   phoneDisplay: string | null;
   checkedIn: boolean;
+  /** Under 18 / a student: their phone is a guardian's. */
+  minor: boolean;
+  /** Who signed them up, if someone else did. */
+  signedUpBy: string | null;
 };
 
 export type LeadShift = {
@@ -142,11 +146,22 @@ export function LeadStations({
                   {s.volunteers.map((v) => (
                     <li key={v.assignmentId} className="flex items-center justify-between gap-3 px-3 py-2">
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{v.name}</p>
+                        <p className="truncate font-medium">
+                          {v.name}
+                          {v.minor && (
+                            <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">
+                              Under 18
+                            </span>
+                          )}
+                        </p>
+                        {v.signedUpBy && <p className="truncate text-xs text-muted">With {v.signedUpBy}</p>}
                         {v.phone && (
-                          <a href={`tel:${v.phone}`} className="text-sm font-medium text-brand hover:underline">
-                            {v.phoneDisplay}
-                          </a>
+                          <p className="text-sm">
+                            {v.minor && <span className="text-muted">Guardian: </span>}
+                            <a href={`tel:${v.phone}`} className="font-medium text-brand hover:underline">
+                              {v.phoneDisplay}
+                            </a>
+                          </p>
                         )}
                       </div>
                       {eventDay &&

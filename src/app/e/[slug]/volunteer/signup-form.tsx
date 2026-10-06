@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { startTransition, useActionState, useState } from "react";
 import { ActionPendingContext } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
-import { Card, Field, FormMessage, Input } from "@/components/ui";
-import type { SignupState } from "./actions";
+import { Button, Card, Field, FormMessage, Input } from "@/components/ui";
+import type { Companion, SignupState } from "./actions";
 
 export type PublicShift = {
   id: string;
@@ -37,11 +37,24 @@ export function SignupForm({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [startedAt] = useState(() => Date.now());
   const [activeId, setActiveId] = useState(stations[0]?.id);
+  const [minor, setMinor] = useState(false);
+  // Others signed up with them (a spouse, their student): same shifts, same phone.
+  const [companions, setCompanions] = useState<Companion[]>([]);
+  const groupSize = 1 + companions.length;
+  const anyMinor = minor || companions.some((c) => c.minor);
+  const setCompanion = (i: number, change: Partial<Companion>) =>
+    setCompanions((prev) => prev.map((c, j) => (j === i ? { ...c, ...change } : c)));
 
   if (state.confirmed) {
     return (
       <Card className="space-y-4" role="status">
         <h2 className="text-xl font-semibold">You&apos;re signed up! 🎉</h2>
+        {state.confirmed.others.length > 0 && (
+          <p className="text-sm">
+            Also signed up for {state.confirmed.shifts.length === 1 ? "this shift" : "these shifts"}:{" "}
+            <span className="font-medium">{state.confirmed.others.join(", ")}</span>
+          </p>
+        )}
         <ul className="divide-y divide-border rounded-lg border border-border">
           {state.confirmed.shifts.map((s) => (
             <li key={s.title + s.detail} className="px-4 py-3">
@@ -182,8 +195,9 @@ export function SignupForm({
             {st.instructions && <p className="mt-2 text-sm leading-6 text-muted">{st.instructions}</p>}
             <ul className="mt-3 space-y-2">
               {st.shifts.map((s) => {
-                const full = s.spotsLeft <= 0;
                 const isChosen = chosen.has(s.id);
+                // A group signs up together, so a shift needs a spot for everyone.
+                const full = s.spotsLeft < groupSize && !isChosen;
                 return (
                   <li key={s.id}>
                     <label
@@ -212,7 +226,7 @@ export function SignupForm({
                         </span>
                       </span>
                       <span className={`shrink-0 text-sm font-medium ${full ? "text-muted" : ""}`}>
-                        {full ? "Full" : `${s.spotsLeft} left`}
+                        {s.spotsLeft <= 0 ? "Full" : full ? `Only ${s.spotsLeft} left` : `${s.spotsLeft} left`}
                       </span>
                     </label>
                   </li>
@@ -228,15 +242,84 @@ export function SignupForm({
           2. Your details
         </h2>
         <Card className="mt-4 space-y-4 p-4 sm:p-5">
-          <Field label="Full name">
-            <Input name="fullName" autoComplete="name" required defaultValue={state.values?.fullName} />
+          <label className="flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="minor"
+              checked={minor}
+              onChange={(e) => setMinor(e.target.checked)}
+              className="h-5 w-5 accent-[var(--brand)]"
+            />
+            I&apos;m under 18 or a student
+          </label>
+          <Field
+            label={minor ? "First name and last initial" : "Full name"}
+            hint={minor ? "For example, Emma R. We only keep your last initial." : undefined}
+          >
+            <Input name="fullName" autoComplete={minor ? "off" : "name"} required defaultValue={state.values?.fullName} />
           </Field>
-          <Field label="Email" hint="We'll send your confirmation here.">
+          <Field label={minor ? "Parent or guardian's email" : "Email"} hint="We'll send the confirmation here.">
             <Input name="email" type="email" inputMode="email" autoComplete="email" required defaultValue={state.values?.email} />
           </Field>
-          <Field label="Mobile phone" hint="Only your section lead sees this, and only on event day.">
+          <Field
+            label={minor ? "Parent or guardian's cell phone" : "Cell phone"}
+            hint={
+              companions.length
+                ? `This is the number for everyone in your group${anyMinor ? " (as the guardian's number for anyone under 18)" : ""}. Only their section lead sees it, and only on event day.`
+                : "Only your section lead sees this, and only on event day."
+            }
+          >
             <Input name="phone" type="tel" inputMode="tel" autoComplete="tel" required defaultValue={state.values?.phone} />
           </Field>
+
+          <input type="hidden" name="companions" value={JSON.stringify(companions)} />
+          {companions.map((c, i) => (
+            <div key={i} className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">Person {i + 2}</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="min-h-8 px-2 text-xs"
+                  onClick={() => setCompanions((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </Button>
+              </div>
+              <Input
+                value={c.name}
+                onChange={(e) => setCompanion(i, { name: e.target.value })}
+                placeholder={c.minor ? "First name and last initial" : "Their full name"}
+                aria-label={`Person ${i + 2} name`}
+                maxLength={200}
+                required
+                autoComplete="off"
+              />
+              <label className="flex items-center gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={c.minor}
+                  onChange={(e) => setCompanion(i, { minor: e.target.checked })}
+                  className="h-5 w-5 accent-[var(--brand)]"
+                />
+                Under 18 or a student
+              </label>
+              {c.minor && <p className="text-xs text-muted">We only keep their first name and last initial.</p>}
+            </div>
+          ))}
+          {companions.length < 4 && (
+            <div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-10 px-3 text-sm"
+                onClick={() => setCompanions((prev) => [...prev, { name: "", minor: false }])}
+              >
+                + Add someone else
+              </Button>
+              <p className="mt-1 text-xs text-muted">Signing up with a spouse or your student? They&apos;ll be on the same shifts.</p>
+            </div>
+          )}
         </Card>
       </section>
 
@@ -254,17 +337,19 @@ export function SignupForm({
           </div>
         )}
         <FormMessage error={state.error} />
-        <SubmitButtonWithCount count={chosen.size} disabled={disabled} />
+        <SubmitButtonWithCount count={chosen.size} people={groupSize} disabled={disabled} />
       </div>
       </ActionPendingContext>
     </form>
   );
 }
 
-function SubmitButtonWithCount({ count, disabled }: { count: number; disabled?: boolean }) {
+function SubmitButtonWithCount({ count, people, disabled }: { count: number; people: number; disabled?: boolean }) {
   return (
     <SubmitButton className="w-full text-base" disabled={disabled || count === 0} pendingText="Signing you up…">
-      {count === 0 ? "Pick at least one shift" : `Sign up for ${count} shift${count === 1 ? "" : "s"}`}
+      {count === 0
+        ? "Pick at least one shift"
+        : `Sign up ${people > 1 ? `${people} people ` : ""}for ${count} shift${count === 1 ? "" : "s"}`}
     </SubmitButton>
   );
 }

@@ -16,9 +16,23 @@ export type SignupState = ActionState & {
     emailSent: boolean;
     shifts: { title: string; detail: string; googleUrl: string; icsUrl: string }[];
     alreadySignedUp: number;
+    /** The other people they signed up, as stored ("Emma R." for a minor). */
+    others: string[];
   };
-  values?: { fullName: string; email: string; phone: string; shiftIds: string[] };
+  values?: { fullName: string; email: string; phone: string; shiftIds: string[]; minor: boolean; companions: Companion[] };
 };
+
+export type Companion = { name: string; minor: boolean };
+
+const companionsSchema = z
+  .array(z.object({ name: z.string().trim().min(1, "Please enter a name for everyone you're adding.").max(200), minor: z.boolean() }))
+  .max(4, "You can add up to 4 other people.");
+
+/** "Emma Rodriguez" -> "Emma R.": for minors we only keep the last initial (the database does the same). */
+function minorName(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return parts.length < 2 ? parts[0] : `${parts.slice(0, -1).join(" ")} ${parts.at(-1)![0].toUpperCase()}.`;
+}
 
 const schema = z.object({
   fullName: z.string().trim().min(2, "Please enter your first and last name.").max(200),
@@ -38,7 +52,14 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
     email: String(formData.get("email") ?? ""),
     phone: String(formData.get("phone") ?? ""),
   };
-  const values = { ...raw, shiftIds };
+  const minor = formData.get("minor") === "on";
+  let companions: Companion[] = [];
+  try {
+    companions = JSON.parse(String(formData.get("companions") ?? "[]"));
+  } catch {
+    // Handled below as "something went wrong".
+  }
+  const values = { ...raw, shiftIds, minor, companions: Array.isArray(companions) ? companions : [] };
 
   // Simple bot traps: a hidden field people never fill in, and a minimum time on the page.
   const startedAt = Number(formData.get("startedAt"));
@@ -48,6 +69,8 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
 
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
+  const others = companionsSchema.safeParse(values.companions);
+  if (!others.success) return { error: others.error.issues[0].message, values };
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) return { error: "Please enter a 10-digit mobile phone number.", values };
   if (shiftIds.length === 0) return { error: "Pick at least one shift above.", values };
@@ -73,6 +96,8 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
     p_email: parsed.data.email,
     p_phone: phone,
     p_shift_ids: shiftIds,
+    p_minor: minor,
+    p_companions: others.data,
   });
   if (error) {
     if (["P0001", "P0002", "P0003"].includes(error.code ?? "")) return { error: error.message, values };
@@ -99,7 +124,13 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   const multiDay = Boolean(event && event.starts_on !== event.ends_on);
   const entries = await loadCalendarEntries(booked.map((a) => a.id));
   // The email goes to the inbox owner, so it covers every selected shift.
-  const emailSent = await sendSignupConfirmation(entries, tz, origin, multiDay);
+  const emailSent = await sendSignupConfirmation(
+    entries,
+    tz,
+    origin,
+    multiDay,
+    others.data.map((c) => (c.minor ? minorName(c.name) : c.name)),
+  );
 
   const freshIds = new Set(fresh.map((a) => a.id));
   const rows = entries
@@ -127,6 +158,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
       emailSent,
       shifts: rows,
       alreadySignedUp: booked.length - fresh.length,
+      others: others.data.map((c) => (c.minor ? minorName(c.name) : c.name.replace(/\s+/g, " "))),
     },
   };
 }
