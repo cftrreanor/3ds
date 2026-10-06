@@ -30,7 +30,16 @@ type FinalsRow = {
 };
 type BreakRow = { starts_at: string; minutes: number; label: string };
 /** One line of the public schedule, prelims or finals. */
-type Line = { key: string; number: string; perform_at: string | null; title: string; subtitle: string | null };
+type Line = {
+  key: string;
+  number: string;
+  perform_at: string | null;
+  title: string;
+  subtitle: string | null;
+  /** From the gate's taps on contest day (public_progress). */
+  live?: { at_gate: boolean; performed: boolean; scratched: boolean };
+};
+type ProgressRow = { round: "prelims" | "finals"; number: number; at_gate: boolean; performed: boolean; scratched: boolean };
 
 async function loadEvent(slug: string) {
   const supabase = await createClient();
@@ -45,6 +54,18 @@ async function loadEvent(slug: string) {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const event = await loadEvent((await params).slug);
   return { title: event?.name ?? "Event" };
+}
+
+/**
+ * Who just performed and who's up next, from the gate's taps. Falls back to
+ * the clock when the gate isn't tapping bands through (no taps yet).
+ */
+function liveNowAndNext(rows: Line[]) {
+  const live = rows.some((r) => r.live?.performed || r.live?.at_gate);
+  if (!live) return { ...nowAndNext(rows), live: false as const };
+  const lastDone = rows.findLastIndex((r) => r.live?.performed);
+  const next = rows.slice(lastDone + 1).find((r) => !r.live?.performed && !r.live?.scratched) ?? null;
+  return { current: lastDone >= 0 ? rows[lastDone] : null, next, live: true as const };
 }
 
 /** Which band is on now and who's next, from the clock. */
@@ -68,7 +89,7 @@ export default async function EventPublicPage({ params }: Params) {
   const isVolunteer = await volunteersHere(slug, event.id);
 
   const supabase = await createClient();
-  const [{ data: scheduleData }, { data: finalsData }, { data: breakData }, { data: announcements }] = await Promise.all([
+  const [{ data: scheduleData }, { data: finalsData }, { data: breakData }, { data: announcements }, { data: progressData }] = await Promise.all([
     supabase.rpc("public_schedule", { p_slug: slug }),
     supabase.rpc("public_finals", { p_slug: slug }),
     supabase.rpc("public_breaks", { p_slug: slug }),
@@ -79,13 +100,20 @@ export default async function EventPublicPage({ params }: Params) {
       .contains("audiences", ["public"])
       .order("created_at", { ascending: false })
       .limit(3),
+    supabase.rpc("public_progress", { p_slug: slug }),
   ]);
+  const progress = (progressData ?? []) as ProgressRow[];
+  const liveOf = (round: ProgressRow["round"], n: number) => {
+    const p = progress.find((x) => x.round === round && x.number === n);
+    return p ? { at_gate: p.at_gate, performed: p.performed, scratched: p.scratched } : undefined;
+  };
   const schedule: Line[] = ((scheduleData ?? []) as ScheduleRow[]).map((r) => ({
     key: `p${r.performance_order}`,
     number: String(r.performance_order),
     perform_at: r.perform_at,
     title: r.band_name,
     subtitle: `${r.school_name} · ${r.classification}`,
+    live: liveOf("prelims", r.performance_order),
   }));
   const finals: Line[] = ((finalsData ?? []) as FinalsRow[]).map((r) => ({
     key: `f${r.slot_number}`,
@@ -93,13 +121,14 @@ export default async function EventPublicPage({ params }: Params) {
     perform_at: r.perform_at,
     title: r.band_name ?? `Finalist ${r.slot_number}`,
     subtitle: r.band_name ? `${r.school_name} · ${r.classification}` : "To be announced",
+    live: liveOf("finals", r.slot_number),
   }));
   const breaks = (breakData ?? []) as BreakRow[];
   const published = event.performance_order_published || event.finals_published;
   const bandsOpen = registrationIsOpen(event);
   const tz = event.timezone;
   const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
-  const { current, next } = nowAndNext([...schedule, ...finals]);
+  const { current, next, live } = liveNowAndNext([...schedule, ...finals]);
   const multiDay = event.starts_on !== event.ends_on;
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
     api: "1",
@@ -185,14 +214,16 @@ export default async function EventPublicPage({ params }: Params) {
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {current && (
                   <Card className="border-brand">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">On the field</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">{live ? "Just performed" : "On the field"}</p>
                     <p className="mt-1 text-lg font-semibold">{current.title}</p>
                     <p className="text-sm text-muted">{current.subtitle}</p>
                   </Card>
                 )}
                 {next && (
                   <Card>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">Up next · {formatTime(next.perform_at!, tz)}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                      Up next{next.live?.at_gate ? " · at the gate" : next.perform_at ? ` · ${formatTime(next.perform_at, tz)}` : ""}
+                    </p>
                     <p className="mt-1 text-lg font-semibold">{next.title}</p>
                     <p className="text-sm text-muted">{next.subtitle}</p>
                   </Card>
@@ -201,12 +232,12 @@ export default async function EventPublicPage({ params }: Params) {
             )}
             {schedule.length > 0 && finals.length > 0 && <h3 className="mt-8 text-lg font-semibold">Preliminaries</h3>}
             {schedule.length > 0 && (
-              <ScheduleList lines={schedule} breaks={breaks} currentKey={isEventDay ? current?.key : undefined} at={at} />
+              <ScheduleList lines={schedule} breaks={breaks} currentKey={isEventDay ? (live ? next?.key : current?.key) : undefined} currentLabel={live ? "Up next" : "Now"} at={at} />
             )}
             {finals.length > 0 && (
               <>
                 <h3 className="mt-8 text-lg font-semibold">🏆 Finals</h3>
-                <ScheduleList lines={finals} breaks={breaks} currentKey={isEventDay ? current?.key : undefined} at={at} />
+                <ScheduleList lines={finals} breaks={breaks} currentKey={isEventDay ? (live ? next?.key : current?.key) : undefined} currentLabel={live ? "Up next" : "Now"} at={at} />
               </>
             )}
           </>
@@ -222,11 +253,13 @@ function ScheduleList({
   lines,
   breaks,
   currentKey,
+  currentLabel,
   at,
 }: {
   lines: Line[];
   breaks: BreakRow[];
   currentKey: string | undefined;
+  currentLabel: string;
   at: (iso: string) => string;
 }) {
   return (
@@ -250,12 +283,17 @@ function ScheduleList({
             <li className={`flex items-center gap-3 px-4 py-3 ${isCurrent ? "bg-accent-soft" : ""}`}>
               <span className="w-8 shrink-0 text-center text-sm font-semibold text-muted">{r.number}</span>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{r.title}</p>
+                <p className={`truncate font-medium ${r.live?.scratched ? "text-muted line-through" : ""}`}>{r.title}</p>
                 {r.subtitle && <p className="truncate text-sm text-muted">{r.subtitle}</p>}
               </div>
               <div className="shrink-0 text-right">
                 <p className="font-medium tabular-nums">{r.perform_at ? at(r.perform_at) : "TBA"}</p>
-                {isCurrent && <Badge tone="brand">Now</Badge>}
+                {isCurrent && <Badge tone="brand">{currentLabel}</Badge>}
+                {r.live?.scratched ? (
+                  <p className="text-xs text-muted">Withdrawn</p>
+                ) : (
+                  r.live?.performed && <p className="text-xs font-medium text-success">✓ Performed</p>
+                )}
               </div>
             </li>
           </Fragment>

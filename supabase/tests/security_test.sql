@@ -1255,4 +1255,38 @@ do $$ declare moved int; begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Live status for directors and the public
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert exists (select 1 from public.my_band_progress('40000000-0000-0000-0000-000000000009')
+                  where checkpoint_kind = 'gate' and round = 'prelims' and performed),
+         'a director sees their band performed';
+  assert (select count(distinct station_id) from public.my_band_progress('40000000-0000-0000-0000-000000000009')) = 4,
+         'a director sees every stop on the path';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.my_band_progress('40000000-0000-0000-0000-000000000009')) = 0,
+         'nobody else sees a band''s progress';
+end $$;
+reset role;
+set role anon;
+set request.jwt.claims = '';
+do $$ declare r record; begin
+  begin
+    perform public.my_band_progress('40000000-0000-0000-0000-000000000009');
+    raise exception 'FAIL: the public read a band''s progress';
+  exception when insufficient_privilege then null;
+  end;
+  select * into r from public.public_progress('future') where round = 'prelims' and number = 3;
+  assert r.performed and r.scratched, 'the public sees performed and withdrawn';
+  select * into r from public.public_progress('future') where round = 'prelims' and number = 2;
+  assert not r.performed and not r.at_gate, 'bands not yet at the gate show as such';
+  assert (select count(*) from public.public_progress('draft')) = 0, 'nothing for unpublished events';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
