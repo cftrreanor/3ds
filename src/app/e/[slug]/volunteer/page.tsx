@@ -35,7 +35,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
   const [{ data: stations }, { data: shifts }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_order, location, instructions")
+      .select("id, name, checkpoint_order, location, instructions, adults_only")
       .eq("event_id", event.id)
       .order("sort_order")
       .order("created_at"),

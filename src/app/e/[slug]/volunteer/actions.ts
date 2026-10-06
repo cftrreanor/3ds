@@ -100,7 +100,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
     p_companions: others.data,
   });
   if (error) {
-    if (["P0001", "P0002", "P0003"].includes(error.code ?? "")) return { error: error.message, values };
+    if (["P0001", "P0002", "P0003", "P0005"].includes(error.code ?? "")) return { error: error.message, values };
     console.error("register_volunteer failed", error);
     return { error: "We couldn't save your signup. Please try again.", values };
   }

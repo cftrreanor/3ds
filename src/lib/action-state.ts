@@ -20,6 +20,7 @@ export function friendlyDbError(error: { code?: string; message: string }): stri
     case "P0001":
     case "P0002":
     case "P0003":
+    case "P0005":
       // Our own check messages are written for people; pass them through.
       return error.message.includes("violates check constraint")
         ? "Some of the values aren't valid. Please check the form."
