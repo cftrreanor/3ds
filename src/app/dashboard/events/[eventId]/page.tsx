@@ -22,7 +22,6 @@ import { setEventPublished } from "../../actions";
 import { ActionButton } from "./forms";
 import { type RosterEntry, type Shift } from "./station-panel";
 import { LeadStations } from "./lead-stations";
-import { setCheckedIn } from "./volunteers/actions";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -483,7 +482,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               })}
               eventDay={phase === "day"}
               unlockLabel={formatDateRange(event.starts_on, event.ends_on)}
-              toggle={setCheckedIn.bind(null, eventId)}
             />
           </div>
         </section>

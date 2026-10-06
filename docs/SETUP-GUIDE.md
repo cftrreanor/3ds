@@ -98,7 +98,6 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261017000000_tap_toggles.sql` | Contest day: tap a done step again to undo it | ✅ run |
 | `20261018000000_pilot_requests.sql` | "Join the pilot" requests from the home page | ✅ run |
 | `20261019000000_team_emails.sql` | Team: emailed invitations with one-tap accept, and a list of removed members | ✅ run |
-| `20261020000000_lead_volunteer_check_in.sql` | Section Leads check in their own station's volunteers on event day | run this next |
 
 ## Pilot requests
 

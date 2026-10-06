@@ -1,7 +1,6 @@
 "use client";
 
-import { startTransition, useOptimistic, useState } from "react";
-import type { ActionState } from "@/lib/action-state";
+import { useState } from "react";
 
 export type LeadVolunteer = {
   assignmentId: string;
@@ -35,58 +34,34 @@ export type LeadStation = {
 
 /**
  * A Section Lead's stations, one tab each, with their volunteers grouped by
- * shift. On event day, phone numbers show and the lead checks people in.
+ * shift. On event day, phone numbers show along with who has arrived (the
+ * volunteer desk checks people in, where they get shirts and lanyards).
  */
 export function LeadStations({
   stations,
   eventDay,
   unlockLabel,
-  toggle,
 }: {
   stations: LeadStation[];
-  /** Contact details and check-in are open (it's event day). */
+  /** Contact details are open (it's event day). */
   eventDay: boolean;
   /** When they unlock, e.g. "Sat, Oct 24". */
   unlockLabel: string;
-  toggle: (assignmentId: string, checkedIn: boolean) => Promise<ActionState>;
 }) {
   const [tab, setTab] = useState(stations[0]?.id);
-  const [error, setError] = useState<string | null>(null);
-  const [optimistic, setOptimistic] = useOptimistic(stations, (state, change: { id: string; checkedIn: boolean }) =>
-    state.map((st) => ({
-      ...st,
-      shifts: st.shifts.map((sh) => ({
-        ...sh,
-        volunteers: sh.volunteers.map((v) => (v.assignmentId === change.id ? { ...v, checkedIn: change.checkedIn } : v)),
-      })),
-    })),
-  );
-  const current = optimistic.find((s) => s.id === tab) ?? optimistic[0];
+  const current = stations.find((s) => s.id === tab) ?? stations[0];
   if (!current) return null;
 
   const people = current.shifts.flatMap((s) => s.volunteers);
   const arrived = people.filter((v) => v.checkedIn).length;
   const open = current.shifts.reduce((n, s) => n + Math.max(0, s.capacity - s.volunteers.length), 0);
 
-  function onToggle(v: LeadVolunteer) {
-    setError(null);
-    startTransition(async () => {
-      setOptimistic({ id: v.assignmentId, checkedIn: !v.checkedIn });
-      try {
-        const result = await toggle(v.assignmentId, !v.checkedIn);
-        if (result.error) setError(result.error);
-      } catch {
-        setError("That didn't go through. Check your signal and tap again.");
-      }
-    });
-  }
-
   return (
     <div>
-      {optimistic.length > 1 && (
+      {stations.length > 1 && (
         <div role="tablist" aria-label="Your stations" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <div className="flex min-w-max gap-1 border-b border-border">
-            {optimistic.map((s) => {
+            {stations.map((s) => {
               const n = s.shifts.reduce((k, sh) => k + sh.volunteers.length, 0);
               const active = s.id === current.id;
               return (
@@ -111,7 +86,7 @@ export function LeadStations({
         </div>
       )}
 
-      <div role={optimistic.length > 1 ? "tabpanel" : undefined} className="mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
+      <div role={stations.length > 1 ? "tabpanel" : undefined} className="mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h3 className="text-lg font-semibold">{current.name}</h3>
           {current.checkpoint && <span className="text-xs font-medium text-muted">{current.checkpoint}</span>}
@@ -133,13 +108,11 @@ export function LeadStations({
 
         {!eventDay && (
           <p className="mt-4 rounded-lg bg-accent-soft px-3 py-2 text-sm">
-            Phone numbers and check-in open on event day ({unlockLabel}).
+            Phone numbers unlock on event day ({unlockLabel}).
           </p>
         )}
-        {error && (
-          <p role="alert" className="mt-4 text-sm font-medium text-danger">
-            {error}
-          </p>
+        {eventDay && (
+          <p className="mt-4 text-sm text-muted">Volunteers check in at the volunteer desk. This shows who has arrived.</p>
         )}
 
         {current.shifts.length === 0 && <p className="mt-4 text-sm text-muted">No shifts at this station yet.</p>}
@@ -176,28 +149,12 @@ export function LeadStations({
                           </a>
                         )}
                       </div>
-                      {eventDay ? (
-                        <button
-                          type="button"
-                          onClick={() => onToggle(v)}
-                          aria-pressed={v.checkedIn}
-                          aria-label={v.checkedIn ? `${v.name} is checked in. Tap to undo.` : `Check in ${v.name}`}
-                          className={`flex min-h-11 min-w-28 shrink-0 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
-                            v.checkedIn
-                              ? "border border-success bg-surface text-foreground"
-                              : "bg-brand text-brand-foreground hover:opacity-90"
-                          }`}
-                        >
-                          {v.checkedIn ? (
-                            <>
-                              <span>✓ Here</span>
-                              <span className="text-[11px] font-normal text-muted">tap to undo</span>
-                            </>
-                          ) : (
-                            "Check in"
-                          )}
-                        </button>
-                      ) : null}
+                      {eventDay &&
+                        (v.checkedIn ? (
+                          <span className="shrink-0 text-sm font-semibold text-success">✓ Arrived</span>
+                        ) : (
+                          <span className="shrink-0 text-sm text-muted">Not yet</span>
+                        ))}
                     </li>
                   ))}
                   {gaps > 0 && (
