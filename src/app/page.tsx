@@ -1,19 +1,21 @@
 import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { brand } from "@/lib/brand";
+import { requestPilot } from "./pilot-actions";
+import { PilotForm } from "./pilot-form";
 
 const roles = [
   {
     title: "Contest hosts",
-    body: "One command center for every event: schedule, staff, bands and announcements.",
+    body: "One command center for every event: schedule, team, bands and announcements. On contest day, see at a glance whether you're on schedule.",
   },
   {
-    title: "Volunteer directors",
-    body: "Build shifts in minutes. Signups fill themselves, capacity is enforced, check-in is one tap.",
+    title: "Volunteer Leads",
+    body: "Build shifts in minutes. Signups fill themselves, capacity is enforced, and you can run contest day alongside the host.",
   },
   {
-    title: "Section leads",
-    body: "See who's coming to your station. Contact details unlock on event day, and only then.",
+    title: "Section Leads",
+    body: "See who's coming to your station and check bands in with one tap. Contact details unlock on event day, and only then.",
   },
   {
     title: "Volunteers",
@@ -21,20 +23,50 @@ const roles = [
   },
   {
     title: "Band directors",
-    body: "Register your ensemble once: personnel, vehicles and conflicts. See your times when they post.",
+    body: "Register once: personnel, vehicles and conflicts. On contest day, see your next step, your equipment spot and your times.",
   },
   {
     title: "Families & fans",
-    body: "A live performance order and alerts on any phone. No app, no login.",
+    body: "A live performance order: who's on the field now and who's next. On any phone, with no app and no login.",
   },
 ];
 
 const steps = [
-  { n: "1", title: "Set up the event", body: "Dates, venue, stations and shifts." },
+  { n: "1", title: "Set up the event", body: "Dates, venue, check-in stations and volunteer shifts." },
   { n: "2", title: "Share two links", body: "One for volunteers, one for visiting bands." },
   { n: "3", title: "Publish the order", body: "Post performance times when you're ready." },
-  { n: "4", title: "Run the day", body: "Check people in and send announcements from your phone." },
+  { n: "4", title: "Run the day", body: "Check bands through parking, warm-up and the gate, and push the schedule back if you need to." },
 ];
+
+const pilot = [
+  {
+    title: "What you get",
+    items: [
+      "Everything, free for the 2026–27 school year",
+      "Unlimited events, volunteers and bands",
+      "Help setting up your first event",
+      "Direct support from the people building it",
+    ],
+  },
+  {
+    title: "What we ask",
+    items: [
+      "Run at least one real contest with it",
+      "A short call before and after your event",
+      "Tell us what's clunky, so we can fix it",
+    ],
+  },
+  {
+    title: "After the pilot",
+    items: [
+      "Nothing renews or charges automatically",
+      "We'll talk with you about what comes next before the year ends",
+      "Volunteers, bands and families never pay",
+    ],
+  },
+];
+
+const JOIN = "#join";
 
 export default function Home() {
   return (
@@ -43,14 +75,14 @@ export default function Home() {
         <a href="#how" className={`hidden sm:block ${headerLinkClass}`}>
           How it works
         </a>
-        <a href="#pricing" className={`hidden sm:block ${headerLinkClass}`}>
-          Pricing
+        <a href="#pilot" className={`hidden sm:block ${headerLinkClass}`}>
+          Pilot
         </a>
         <Link href="/login" className={headerLinkClass}>
           Sign in
         </Link>
         <a
-          href={`mailto:${brand.supportEmail}?subject=Pilot%20program`}
+          href={JOIN}
           className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md bg-accent px-4 font-semibold text-[#14213d] hover:opacity-90"
         >
           Join the pilot
@@ -60,7 +92,7 @@ export default function Home() {
       <main className="flex-1">
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-16 sm:px-6 sm:pt-24">
           <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium text-foreground">
-            For marching band contests and other school competitions
+            Now inviting host programs to the 2026–27 pilot
           </p>
           <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
             Contest day, without the clipboards.
@@ -70,12 +102,13 @@ export default function Home() {
             place for volunteers, visiting bands and spectators, and keep everyone&apos;s personal
             information private while you do it.
           </p>
+          <p className="mt-4 max-w-2xl text-muted">
+            Built for marching band contests and other school competitions. Free for pilot hosts all school
+            year; spots are limited.
+          </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href={`mailto:${brand.supportEmail}?subject=Pilot%20program`}
-              className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:opacity-90"
-            >
-              Host your contest with us
+            <a href={JOIN} className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:opacity-90">
+              Join the pilot
             </a>
             <a
               href="#how"
@@ -126,20 +159,36 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="pricing" className="border-t border-border bg-surface">
+        <section id="pilot" className="scroll-mt-20 border-t border-border bg-surface">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Simple pricing</h2>
-            <div className="mt-10 max-w-md rounded-2xl border border-border bg-background p-8">
-              <p className="font-medium text-muted">Host license</p>
-              <p className="mt-2 text-4xl font-semibold">
-                $250<span className="text-lg font-normal text-muted"> / year</span>
-              </p>
-              <ul className="mt-6 space-y-2 leading-7 text-muted">
-                <li>Unlimited events during your year</li>
-                <li>Unlimited volunteers and band registrations</li>
-                <li>Director and section lead seats included</li>
-                <li>Free for volunteers, bands and spectators</li>
-              </ul>
+            <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium">Limited spots</p>
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">Join the 2026–27 pilot</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-muted">
+              We&apos;re working closely with a small group of contest hosts this school year. It&apos;s free, and
+              we keep the group small so we can support every host on contest day.
+            </p>
+            <div className="mt-10 grid gap-6 md:grid-cols-3">
+              {pilot.map((col) => (
+                <div key={col.title} className="rounded-xl border border-border bg-background p-6">
+                  <h3 className="font-semibold">{col.title}</h3>
+                  <ul className="mt-3 space-y-2 leading-7 text-muted">
+                    {col.items.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span aria-hidden className="text-success">✓</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div id="join" className="mt-12 max-w-3xl scroll-mt-20">
+              <h3 className="text-xl font-semibold">Request a pilot spot</h3>
+              <p className="mt-1 text-muted">Takes a minute. We&apos;ll reply within a few days.</p>
+              <div className="mt-6">
+                <PilotForm action={requestPilot} />
+              </div>
             </div>
           </div>
         </section>
