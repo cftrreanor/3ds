@@ -96,24 +96,16 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261015000000_push_schedule_back.sql` | Contest day: "Push the schedule back" button | ✅ run |
 | `20261016000000_live_status.sql` | Contest day: live status for directors and the public schedule | ✅ run |
 | `20261017000000_tap_toggles.sql` | Contest day: tap a done step again to undo it | run this first, if you haven't |
-| `20261018000000_pilot_requests.sql` | "Join the pilot" requests from the home page (then see *Pilot requests* below) | run this next |
+| `20261018000000_pilot_requests.sql` | "Join the pilot" requests from the home page | run this next |
 
 ## Pilot requests
 
 People who fill in "Join the pilot" on the home page are saved in the database, and each request
 is emailed to the support address in `src/lib/brand.ts` (you can reply straight to the person).
+This works as soon as `20261018000000_pilot_requests.sql` has been run.
 
-To see them all in the app, make yourself a FieldCommand admin. Do this once, after running
-`20261018000000_pilot_requests.sql`. In the Supabase **SQL Editor**, paste this, put the email
-you sign in with between the quotes, and click **Run**:
-
-```sql
-insert into public.platform_admins (user_id)
-select id from auth.users where email = 'the-email-you-sign-in-with@example.com';
-```
-
-It should say "1 row". Your dashboard then shows a **Pilot requests** box at the top. Only admins
-can see the requests: hosts, volunteers and directors can't.
+Seeing the list of requests inside the app is a later step: see *Make yourself a FieldCommand
+admin* under **Later** below.
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:
@@ -194,6 +186,20 @@ form simply shows plain venue name and address boxes.
 ---
 
 ## Later: set up when we reach that phase
+
+### Make yourself a FieldCommand admin (whenever you're ready)
+Until you do this, pilot requests still arrive by email; you just won't see the list in the app.
+In the Supabase **SQL Editor**, paste this, put the email you sign in with between the quotes,
+and click **Run**:
+
+```sql
+insert into public.platform_admins (user_id)
+select id from auth.users where email = 'the-email-you-sign-in-with@example.com';
+```
+
+It should say "1 row". Your dashboard then shows a **Pilot requests** box at the top, which opens
+every request with a status you can set (new, contacted, accepted, declined). Only admins can see
+the requests: hosts, volunteers and directors can't.
 
 
 ### 6. Sentry: tells us when something breaks (Phase 5)
