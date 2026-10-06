@@ -1525,7 +1525,8 @@ declare a uuid; before int;
 begin
   select registered_count into before from public.shifts where id = '30000000-0000-0000-0000-000000000002';
   a := public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Wally Walkup', '+15125550190');
-  assert (select checked_in_at is not null from public.volunteer_assignments where id = a), 'a walk-up is checked in right away';
+  assert (select checked_in_at is not null from public.volunteer_assignments
+           where volunteer_id = a and shift_id = '30000000-0000-0000-0000-000000000002'), 'a walk-up is checked in right away';
   assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-000000000002') = before + 1, 'a walk-up takes a spot';
   assert (select walk_up and email is null from public.volunteers where phone = '+15125550190'), 'a walk-up needs no email';
   begin
@@ -1577,6 +1578,75 @@ do $$ begin
     raise exception 'FAIL: a visitor added a walk-up';
   exception when insufficient_privilege then null;
   end;
+end $$;
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Signing up with others, minors, and name-only walk-ups
+-- ---------------------------------------------------------------------------
+insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+  ('30000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-00000000000a', 'Family Parking',
+   now() + interval '11 days', now() + interval '11 days 2 hours', 3),
+  ('30000000-0000-0000-0000-0000000000a2', '20000000-0000-0000-0000-00000000000a', 'Tiny Parking',
+   now() + interval '12 days', now() + interval '12 days 2 hours', 1);
+set role service_role;
+select public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Pat Pair', 'pat.pair@example.com', '+15125550170',
+       array['30000000-0000-0000-0000-0000000000a1']::uuid[], false,
+       '[{"name": "Sam Pair"}, {"name": "Kid Pairson Junior", "minor": true}]'::jsonb) \g /dev/null
+do $$
+declare primary_id uuid;
+begin
+  select id into primary_id from public.volunteers where email = 'pat.pair@example.com';
+  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-0000000000a1') = 3,
+         'everyone in a signup takes a spot';
+  assert (select count(*) from public.volunteers where contact_id = primary_id and phone = '+15125550170' and email is null) = 2,
+         'the people added share the signer''s phone and have no email';
+  assert exists (select 1 from public.volunteers where contact_id = primary_id and minor and full_name = 'Kid Pairson J.'),
+         'a minor is stored as first name + last initial';
+  begin
+    perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Duo One', 'duo@example.com', '+15125550171',
+            array['30000000-0000-0000-0000-0000000000a2']::uuid[], false, '[{"name": "Duo Two"}]'::jsonb);
+    raise exception 'FAIL: a group of 2 got the last 1 spot';
+  exception when sqlstate 'P0002' then null;
+  end;
+  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-0000000000a2') = 0
+     and not exists (select 1 from public.volunteers where email = 'duo@example.com'), 'a group that doesn''t fit books no one';
+  begin
+    perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Big Group', 'big@example.com', '+15125550172',
+            array['30000000-0000-0000-0000-0000000000a2']::uuid[], false,
+            '[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"},{"name":"E"}]'::jsonb);
+    raise exception 'FAIL: added more than 4 people';
+  exception when sqlstate 'P0001' then null;
+  end;
+  perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Teen Volunteer', 'guardian@example.com', '+15125550173',
+          array['30000000-0000-0000-0000-0000000000a2']::uuid[], true, '[]'::jsonb);
+  assert (select full_name from public.volunteers where email = 'guardian@example.com') = 'Teen V.',
+         'a minor signing up for themselves keeps only their last initial';
+end $$;
+reset role;
+do $$ begin
+  begin
+    update public.volunteers set minor = true where email = 'pat.pair@example.com';
+    raise exception 'FAIL: stored a minor''s full last name';
+  exception when check_violation then null;
+  end;
+end $$;
+-- The desk adds a walk-up by name only, with a minor alongside.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$
+declare walk uuid;
+begin
+  walk := public.add_walk_up('30000000-0000-0000-0000-0000000000a1', 'Nora Noname', null, true, false,
+          '[{"name": "Nolan Noname", "minor": true}]'::jsonb);
+  assert (select phone is null and walk_up from public.volunteers where id = walk), 'a walk-up needs only a name';
+  assert (select count(*) from public.volunteer_assignments va join public.volunteers v on v.id = va.volunteer_id
+           where va.shift_id = '30000000-0000-0000-0000-0000000000a1' and (v.id = walk or v.contact_id = walk)
+             and va.checked_in_at is not null) = 2, 'a walk-up and the person with them are both checked in';
+  assert (select max_capacity from public.shifts where id = '30000000-0000-0000-0000-0000000000a1') = 5,
+         'adding a group to a full shift makes room for all of them';
+  assert (select bool_or(minor and signed_up_by = 'Pat Pair') from public.station_roster('20000000-0000-0000-0000-00000000000a')),
+         'the roster says who''s a minor and who signed them up';
 end $$;
 reset role;
 

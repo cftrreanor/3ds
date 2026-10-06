@@ -69,6 +69,8 @@ export async function loadLeadStations(
             phone: v.phone,
             phoneDisplay: v.phone ? formatPhone(v.phone) : null,
             checkedIn: Boolean(v.checked_in_at),
+            minor: Boolean(v.minor),
+            signedUpBy: v.signed_up_by ?? null,
           })),
       })),
   }));

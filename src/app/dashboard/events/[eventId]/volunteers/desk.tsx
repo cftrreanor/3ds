@@ -13,6 +13,10 @@ export type DeskVolunteer = {
   phoneDisplay: string | null;
   email: string | null;
   walkUp: boolean;
+  /** Under 18 / a student: their phone is a guardian's. */
+  minor: boolean;
+  /** Who signed them up, if someone else did. */
+  signedUpBy: string | null;
   checkedIn: boolean;
 };
 
@@ -36,7 +40,6 @@ export type DeskStation = {
   shifts: DeskShift[];
 };
 
-type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 type AddWalkUp = (shiftId: string, overCapacity: boolean, prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 /**
@@ -315,11 +318,7 @@ function ShiftCard({ shift, addWalkUp, ...rowProps }: { shift: DeskShift; addWal
         ))}
         <li className="px-3 py-2">
           {adding ? (
-            <WalkUpForm
-              action={addWalkUp.bind(null, shift.id, full)}
-              full={full}
-              onDone={() => setAdding(false)}
-            />
+            <WalkUpForm addWalkUp={addWalkUp} shiftId={shift.id} gaps={gaps} onDone={() => setAdding(false)} />
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-muted">{full ? "Full" : `${gaps} open ${gaps === 1 ? "spot" : "spots"}`}</span>
@@ -336,22 +335,78 @@ function ShiftCard({ shift, addWalkUp, ...rowProps }: { shift: DeskShift; addWal
   );
 }
 
-function WalkUpForm({ action, full, onDone }: { action: Action; full: boolean; onDone: () => void }) {
+function WalkUpForm({
+  addWalkUp,
+  shiftId,
+  gaps,
+  onDone,
+}: {
+  addWalkUp: AddWalkUp;
+  shiftId: string;
+  gaps: number;
+  onDone: () => void;
+}) {
+  const [others, setOthers] = useState<{ name: string; minor: boolean }[]>([]);
+  // Everyone in the group needs a spot; past that, the desk confirms adding anyway.
+  const full = gaps < 1 + others.length;
+  const setOther = (i: number, change: Partial<{ name: string; minor: boolean }>) =>
+    setOthers((prev) => prev.map((o, j) => (j === i ? { ...o, ...change } : o)));
   return (
     <ActionForm
-      action={action}
+      action={addWalkUp.bind(null, shiftId, full)}
       onSuccess={onDone}
-      confirmMessage={full ? "This shift is full. Add them anyway?" : undefined}
+      confirmMessage={full ? `This shift doesn't have room for ${others.length ? "everyone" : "them"}. Add anyway?` : undefined}
       className="space-y-2"
     >
-      <p className="text-sm font-medium">Add a walk-up{full ? " (this shift is full)" : ""}</p>
+      <p className="text-sm font-medium">Add a walk-up</p>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Input name="fullName" placeholder="Their name" required minLength={2} maxLength={200} autoComplete="off" aria-label="Their name" />
-        <Input name="phone" type="tel" placeholder="Phone" required maxLength={30} autoComplete="off" aria-label="Their phone" />
+        <Input name="fullName" placeholder="Their name" required maxLength={200} autoComplete="off" aria-label="Their name" />
+        <Input name="phone" type="tel" placeholder="Phone (optional)" maxLength={30} autoComplete="off" aria-label="Their phone (optional)" />
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="minor" className="h-5 w-5 accent-[var(--brand)]" />
+        Under 18 or a student
+      </label>
+      <input type="hidden" name="companions" value={JSON.stringify(others)} />
+      {others.map((o, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2">
+          <Input
+            value={o.name}
+            onChange={(e) => setOther(i, { name: e.target.value })}
+            placeholder="Their name"
+            aria-label={`Person ${i + 2} name`}
+            required
+            maxLength={200}
+            autoComplete="off"
+            className="min-w-0 flex-1"
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={o.minor}
+              onChange={(e) => setOther(i, { minor: e.target.checked })}
+              className="h-5 w-5 accent-[var(--brand)]"
+            />
+            Under 18
+          </label>
+          <Button type="button" variant="ghost" className="min-h-9 px-2 text-xs" onClick={() => setOthers((prev) => prev.filter((_, j) => j !== i))}>
+            Remove
+          </Button>
+        </div>
+      ))}
+      {others.length < 4 && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-9 px-0 text-xs text-brand"
+          onClick={() => setOthers((prev) => [...prev, { name: "", minor: false }])}
+        >
+          + Add someone else
+        </Button>
+      )}
       <div className="flex gap-2">
         <SubmitButton pendingText="Adding…" className="min-h-10">
-          Add &amp; check in
+          {others.length ? `Add ${others.length + 1} & check in` : "Add & check in"}
         </SubmitButton>
         <Button type="button" variant="ghost" className="min-h-10" onClick={onDone}>
           Cancel
@@ -377,14 +432,19 @@ function VolunteerRow({
       <div className="min-w-0">
         <p className="truncate font-medium">
           {v.name}
+          {v.minor && <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">Under 18</span>}
           {v.walkUp && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold">Walk-up</span>}
         </p>
+        {v.signedUpBy && <p className="truncate text-xs text-muted">With {v.signedUpBy}</p>}
         {detail && <p className="truncate text-sm text-muted">{detail}</p>}
         <p className="truncate text-sm text-muted">
           {v.phone && (
-            <a href={`tel:${v.phone}`} className="font-medium text-brand hover:underline">
-              {v.phoneDisplay}
-            </a>
+            <>
+              {v.minor && "Guardian: "}
+              <a href={`tel:${v.phone}`} className="font-medium text-brand hover:underline">
+                {v.phoneDisplay}
+              </a>
+            </>
           )}
         </p>
         {error && <p className="text-sm text-danger">{error}</p>}

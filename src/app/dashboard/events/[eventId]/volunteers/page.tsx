@@ -19,7 +19,14 @@ type Row = {
   id: string;
   shift_id: string;
   checked_in_at: string | null;
-  volunteers: { full_name: string; email: string | null; phone: string; walk_up: boolean } | null;
+  volunteers: {
+    full_name: string;
+    email: string | null;
+    phone: string | null;
+    walk_up: boolean;
+    minor: boolean;
+    contact: { full_name: string } | null;
+  } | null;
 };
 
 /** The volunteer desk on contest day: a tab per station, check-in, walk-ups and no-shows. */
@@ -46,7 +53,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
     supabase.from("shifts").select("id, station_id, title, starts_at, ends_at, max_capacity").eq("event_id", eventId).order("starts_at"),
     supabase
       .from("volunteer_assignments")
-      .select("id, shift_id, checked_in_at, volunteers(full_name, email, phone, walk_up), shifts!inner(event_id)")
+      .select("id, shift_id, checked_in_at, volunteers(full_name, email, phone, walk_up, minor, contact:volunteers!contact_id(full_name)), shifts!inner(event_id)")
       .eq("shifts.event_id", eventId),
   ]);
 
@@ -84,9 +91,11 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
               assignmentId: r.id,
               name: r.volunteers!.full_name,
               phone: r.volunteers!.phone,
-              phoneDisplay: formatPhone(r.volunteers!.phone),
+              phoneDisplay: r.volunteers!.phone ? formatPhone(r.volunteers!.phone) : null,
               email: r.volunteers!.email,
               walkUp: r.volunteers!.walk_up,
+              minor: r.volunteers!.minor,
+              signedUpBy: r.volunteers!.contact?.full_name ?? null,
               checkedIn: Boolean(r.checked_in_at),
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),

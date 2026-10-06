@@ -15,7 +15,7 @@ export async function setCheckedIn(eventId: string, assignmentId: string, checke
   return { ok: true };
 }
 
-/** Someone showed up to help: add them to a shift, checked in. */
+/** Someone showed up to help (maybe with others): add them to a shift, checked in. Only a name is needed. */
 export async function addWalkUp(
   eventId: string,
   shiftId: string,
@@ -25,22 +25,35 @@ export async function addWalkUp(
 ): Promise<ActionState> {
   await requireUser();
   const name = String(formData.get("fullName") ?? "").trim();
-  if (name.length < 2) return { error: "Please enter their name." };
-  const phone = normalizePhone(String(formData.get("phone") ?? ""));
-  if (!phone) return { error: "Please enter a 10-digit phone number." };
+  if (name.length < 1) return { error: "Please enter their name." };
+  const rawPhone = String(formData.get("phone") ?? "").trim();
+  const phone = rawPhone ? normalizePhone(rawPhone) : null;
+  if (rawPhone && !phone) return { error: "That phone number doesn't look right. Use 10 digits, or leave it blank." };
+  let companions: { name: string; minor: boolean }[] = [];
+  try {
+    companions = JSON.parse(String(formData.get("companions") ?? "[]"));
+  } catch {
+    return { error: "Something went wrong. Please try again." };
+  }
+  if (!Array.isArray(companions) || companions.length > 4) return { error: "You can add up to 4 other people." };
+  if (companions.some((c) => !String(c?.name ?? "").trim())) return { error: "Please enter a name for everyone you're adding." };
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("add_walk_up", {
     p_shift_id: shiftId,
     p_full_name: name,
     p_phone: phone,
     p_over_capacity: overCapacity,
+    p_minor: formData.get("minor") === "on",
+    p_companions: companions.map((c) => ({ name: String(c.name).trim(), minor: Boolean(c.minor) })),
   });
   if (error) {
     if (error.code === "P0004") return { error: "This shift just filled up. Tap Add again to add them anyway." };
     return { error: friendlyDbError(error) };
   }
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `${name} is added and checked in.` };
+  const n = 1 + companions.length;
+  return { ok: true, message: n > 1 ? `${n} people added and checked in.` : `${name} is added and checked in.` };
 }
 
 /** A no-show: take them off the shift so a walk-up can have the spot. */

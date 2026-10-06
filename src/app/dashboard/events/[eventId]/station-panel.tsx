@@ -37,6 +37,10 @@ export type RosterEntry = {
   phone: string | null;
   checked_in_at: string | null;
   contact_locked: boolean;
+  /** Under 18 / a student: their phone is a guardian's. */
+  minor?: boolean;
+  /** Who signed them up, if someone else did. */
+  signed_up_by?: string | null;
 };
 
 /**

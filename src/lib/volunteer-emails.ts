@@ -102,7 +102,14 @@ function shiftRow(e: CalendarEntry, tz: string, origin: string, multiDay: boolea
  * single shift rides in the confirmation itself; with several shifts, the
  * confirmation lists them and each shift gets its own short invite email.
  */
-export async function sendSignupConfirmation(entries: CalendarEntry[], tz: string, origin: string, multiDay: boolean) {
+export async function sendSignupConfirmation(
+  entries: CalendarEntry[],
+  tz: string,
+  origin: string,
+  multiDay: boolean,
+  /** Other people signed up on the same shifts. */
+  others: string[] = [],
+) {
   if (entries.length === 0) return false;
   const first = entries[0];
   const single = entries.length === 1;
@@ -110,6 +117,7 @@ export async function sendSignupConfirmation(entries: CalendarEntry[], tz: strin
     heading: `You're signed up for ${first.event_name}`,
     paragraphs: [
       `Thanks, ${first.volunteer_name.split(" ")[0]}! Here ${single ? "is your shift" : "are your shifts"}${first.venue_name ? ` at ${first.venue_name}` : ""}.`,
+      ...(others.length ? [`Also signed up for ${single ? "this shift" : "these shifts"}: ${others.join(", ")}.`] : []),
       single
         ? CALENDAR_TIP
         : `We're sending a separate calendar invite for each shift. ${CALENDAR_TIP}`,
