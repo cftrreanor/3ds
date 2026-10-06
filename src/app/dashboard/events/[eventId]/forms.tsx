@@ -256,7 +256,7 @@ export function InviteForm({
         </Field>
       )}
       <div className="sm:col-span-2">
-        <SubmitButton pendingText="Creating…">Create invitation</SubmitButton>
+        <SubmitButton pendingText="Sending…">Send invitation</SubmitButton>
       </div>
     </ActionForm>
   );
@@ -282,6 +282,27 @@ export function CopyLinkButton({ url, label = "Copy invite link" }: { url: strin
     >
       {copied ? "Copied!" : label}
     </Button>
+  );
+}
+
+/** A small inline button (Resend, Re-invite) that shows its result next to it. */
+export function SmallActionButton({
+  action,
+  children,
+  pendingText = "Sending…",
+  label,
+}: {
+  action: Action;
+  children: React.ReactNode;
+  pendingText?: string;
+  label?: string;
+}) {
+  return (
+    <ActionForm action={action} resetOnSuccess={false} className="contents">
+      <SubmitButton variant="secondary" pendingText={pendingText} className="min-h-9 px-3 text-xs" aria-label={label}>
+        {children}
+      </SubmitButton>
+    </ActionForm>
   );
 }
 

@@ -7,8 +7,9 @@ import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { cancelInvitation, inviteMember, removeCoHost, removeMember } from "../../../team-actions";
-import { CopyLinkButton, DeleteButton, InviteForm, RemoveButton } from "../forms";
+import { formatDate } from "@/lib/time";
+import { cancelInvitation, inviteMember, reinviteMember, removeCoHost, removeMember, resendInvitation } from "../../../team-actions";
+import { CopyLinkButton, DeleteButton, InviteForm, RemoveButton, SmallActionButton } from "../forms";
 
 export const metadata: Metadata = { title: "Team" };
 
@@ -23,6 +24,16 @@ type Invitation = {
   station_id: string | null;
   token: string;
   expires_at: string;
+  sent_at: string | null;
+};
+type Removal = {
+  id: string;
+  role: "co_host" | "volunteer_director" | "section_lead";
+  user_id: string;
+  email: string;
+  full_name: string;
+  removed_by: string | null;
+  removed_at: string;
 };
 type Tab = "hosts" | "volunteer-leads" | "section-leads";
 
@@ -40,12 +51,12 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
   const { data: event } = await supabase.from("events").select("id, organization_id, name").eq("id", eventId).maybeSingle();
   if (!event) missing();
 
-  const [{ data: staff }, { data: invitationData }, { data: stationData }, { data: leadRows }, { data: hostData }] =
+  const [{ data: staff }, { data: invitationData }, { data: stationData }, { data: leadRows }, { data: hostData }, { data: removalData }] =
     await Promise.all([
       supabase.from("event_staff").select("user_id, role, profiles(full_name, email, phone)").eq("event_id", eventId).order("created_at"),
       supabase
         .from("invitations")
-        .select("id, email, role, as_host, station_id, token, expires_at")
+        .select("id, email, role, as_host, station_id, token, expires_at, sent_at")
         .eq("event_id", eventId)
         .is("accepted_at", null)
         .order("created_at"),
@@ -59,6 +70,12 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
             .eq("organization_id", event.organization_id)
             .order("created_at")
         : Promise.resolve({ data: [] }),
+      // Removed co-hosts (whole organization) and removed leads (this event). RLS limits what you see.
+      supabase
+        .from("team_removals")
+        .select("id, role, user_id, email, full_name, removed_by, removed_at")
+        .or(`event_id.eq.${eventId},and(role.eq.co_host,organization_id.eq.${event.organization_id})`)
+        .order("removed_at", { ascending: false }),
     ]);
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = ((hostData ?? []) as unknown as HostRow[]).sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
@@ -82,6 +99,15 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
     tab === "hosts" ? inv.as_host : tab === "volunteer-leads" ? inv.role === "volunteer_director" : inv.role === "section_lead",
   );
   const stationName = (id: string | null) => stations.find((s) => s.id === id)?.name;
+  const tabRole = tab === "hosts" ? "co_host" : tab === "volunteer-leads" ? "volunteer_director" : "section_lead";
+  // Not people who are back, or who already have an invitation waiting.
+  const current = new Set((tab === "hosts" ? hosts : tab === "volunteer-leads" ? directors : leads).map((m) => m.user_id));
+  const removed = ((removalData ?? []) as Removal[]).filter(
+    (r) => r.role === tabRole && !current.has(r.user_id) && !pending.some((inv) => inv.email.toLowerCase() === r.email.toLowerCase()),
+  );
+  // Volunteer Leads manage Section Leads; hosts manage everyone.
+  const canInvite = access.isHost || tab === "section-leads";
+  const roleName = tab === "hosts" ? "co-host" : tab === "volunteer-leads" ? "Volunteer Lead" : "Section Lead";
 
   return (
     <div>
@@ -116,7 +142,8 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
       <Card className="mt-6 space-y-6">
         {tab === "hosts" && (
           <div>
-            <p className="text-sm leading-6 text-muted">
+            <h2 className="text-sm font-semibold">Current members</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
               Hosts and co-hosts have full access to all of your organization&apos;s events: publishing, bands, the
               schedule, volunteers and the team.
             </p>
@@ -142,7 +169,8 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
 
         {tab === "volunteer-leads" && (
           <div>
-            <p className="text-sm leading-6 text-muted">
+            <h2 className="text-sm font-semibold">Current members</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
               Volunteer Leads run volunteers with you: stations, shifts, signups and check-in. They can invite Section
               Leads.
             </p>
@@ -171,7 +199,8 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
 
         {tab === "section-leads" && (
           <div>
-            <p className="text-sm leading-6 text-muted">
+            <h2 className="text-sm font-semibold">Current members</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
               Section Leads run one station on the day, like Parking. They see who&apos;s on their shifts; phone numbers
               unlock on event day.
             </p>
@@ -218,50 +247,61 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
           </div>
         )}
 
-        {pending.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold">Waiting to accept</h2>
+        <section>
+          <h2 className="text-sm font-semibold">Pending</h2>
+          {pending.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">No invitations waiting.</p>
+          ) : (
             <ul className="mt-2 space-y-2">
-              {pending.map((inv) => (
-                <li
-                  key={inv.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{inv.email}</p>
-                    <p className="text-sm text-muted">
-                      {[stationName(inv.station_id), new Date(inv.expires_at) < new Date() ? "Expired" : "Invited"]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <CopyLinkButton url={`${origin}/invite/${inv.token}`} />
-                    {(access.isHost || inv.role === "section_lead") && (
-                      <DeleteButton
-                        action={cancelInvitation.bind(null, eventId, inv.id)}
-                        label={`Cancel invitation for ${inv.email}`}
-                        confirmMessage={`Cancel the invitation for ${inv.email}?`}
-                        text="Cancel"
-                      />
-                    )}
-                  </div>
-                </li>
-              ))}
+              {pending.map((inv) => {
+                const expired = new Date(inv.expires_at) < new Date();
+                const mine = access.isHost || inv.role === "section_lead";
+                return (
+                  <li
+                    key={inv.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{inv.email}</p>
+                      <p className="text-sm text-muted">
+                        {[
+                          stationName(inv.station_id),
+                          expired ? "Expired" : inv.sent_at ? `Sent ${formatDate(inv.sent_at.slice(0, 10))}` : "Not emailed yet",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {mine && (
+                        <SmallActionButton action={resendInvitation.bind(null, eventId, inv.id)} label={`Resend invitation to ${inv.email}`}>
+                          {inv.sent_at ? "Resend" : "Send"}
+                        </SmallActionButton>
+                      )}
+                      <CopyLinkButton url={`${origin}/invite/${inv.token}`} label="Copy link" />
+                      {mine && (
+                        <DeleteButton
+                          action={cancelInvitation.bind(null, eventId, inv.id)}
+                          label={`Cancel invitation for ${inv.email}`}
+                          confirmMessage={`Cancel the invitation for ${inv.email}?`}
+                          text="Cancel"
+                        />
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
-          </div>
-        )}
+          )}
+        </section>
 
-        {(access.isHost || tab === "section-leads") && (
-          <details className="rounded-lg border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">
-              {tab === "hosts" ? "Invite a co-host" : tab === "volunteer-leads" ? "Invite a Volunteer Lead" : "Invite a Section Lead"}
-            </summary>
-            <div className="mt-4 space-y-4">
-              <p className="text-sm leading-6 text-muted">
-                We&apos;ll create a private link. Send it to them by text or email; they sign in with the email you enter
-                here to join.
-              </p>
+        {canInvite && (
+          <section>
+            <h2 className="text-sm font-semibold">Invite a {roleName}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              We&apos;ll email them an invitation. One tap accepts it and sets up their account; no password needed.
+            </p>
+            <div className="mt-3">
               <InviteForm
                 key={tab}
                 action={inviteMember.bind(null, eventId)}
@@ -275,7 +315,35 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
                 stations={stations.map((s) => ({ id: s.id, name: s.name }))}
               />
             </div>
-          </details>
+          </section>
+        )}
+
+        {removed.length > 0 && (
+          <section>
+            <h2 className="text-sm font-semibold">Removed</h2>
+            <ul className="mt-2 space-y-2">
+              {removed.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-muted">{r.full_name || r.email}</p>
+                    <p className="text-sm text-muted">
+                      {[r.full_name ? r.email : null, `${r.removed_by === r.user_id ? "Left" : "Removed"} ${formatDate(r.removed_at.slice(0, 10))}`]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  {canInvite && (
+                    <SmallActionButton action={reinviteMember.bind(null, eventId, r.id)} label={`Re-invite ${r.email}`}>
+                      Re-invite
+                    </SmallActionButton>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </Card>
     </div>
