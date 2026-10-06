@@ -5,6 +5,10 @@ import { Badge, Card } from "@/components/ui";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import {
   ACTION_LABEL,
+  DUE_SOON_MINUTES,
+  bandChecks,
+  onTrack,
+  type CheckState,
   hasEquipment,
   kindLabel,
   parking,
@@ -31,6 +35,7 @@ import {
   type BandActionName,
 } from "../../../contest-day-actions";
 import { LotSizeForm, NoteForm, TapButton } from "./controls";
+import { OnTrackSummary } from "./on-track";
 
 export const metadata: Metadata = { title: "Contest day" };
 
@@ -83,6 +88,8 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   // Hosts and Volunteer Leads work every station; Section Leads the ones they lead.
   const mine = access.canManage ? path : path.filter((c) => (myLeads ?? []).some((l) => l.station_id === c.id));
   if (mine.length === 0) redirect(`/dashboard/events/${eventId}`);
+  // Hosts and Volunteer Leads start on the Overview: is every band on track?
+  const overview = access.canManage && (!stationParam || stationParam === "overview");
   const station = mine.find((c) => c.id === stationParam) ?? mine[0];
   const kind = station.checkpoint_kind;
 
@@ -194,17 +201,32 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       <h1 className="mt-3 text-2xl font-semibold tracking-tight">Contest day</h1>
       <p className="mt-1 text-sm text-muted">Updates every 20 seconds. Tap a button once; it saves right away.</p>
 
-      {mine.length > 1 && (
+      {(mine.length > 1 || access.canManage) && (
         <nav aria-label="Check-in stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <ul className="flex min-w-max gap-1 border-b border-border">
+            {access.canManage && (
+              <li>
+                <Link
+                  href={`${base}?station=overview`}
+                  scroll={false}
+                  aria-current={overview ? "page" : undefined}
+                  className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
+                    overview ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
+                  }`}
+                >
+                  <span className="whitespace-nowrap">Overview</span>
+                  <span className="text-xs font-normal text-muted">On track?</span>
+                </Link>
+              </li>
+            )}
             {mine.map((c) => (
               <li key={c.id}>
                 <Link
                   href={`${base}?station=${c.id}`}
                   scroll={false}
-                  aria-current={c.id === station.id ? "page" : undefined}
+                  aria-current={!overview && c.id === station.id ? "page" : undefined}
                   className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-                    c.id === station.id ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
+                    !overview && c.id === station.id ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
                   }`}
                 >
                   <span className="whitespace-nowrap">
@@ -218,6 +240,18 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
         </nav>
       )}
 
+      {overview ? (
+        <Overview
+          bands={bands}
+          stops={stops}
+          path={path}
+          prelims={prelims}
+          readyMinutes={event.ready_minutes_before}
+          eventId={eventId}
+          time={time}
+        />
+      ) : (
+        <>
       {byRound && finals.length > 0 && (
         <div className="mt-4 inline-flex rounded-lg border border-border bg-surface p-1 text-sm">
           {(["prelims", "finals"] as const).map((r) => (
@@ -447,6 +481,104 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
           })}
         </ul>
       )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Hosts and Volunteer Leads: is every band on track, and where is each one along the path? */
+function Overview({
+  bands,
+  stops,
+  path,
+  prelims,
+  readyMinutes,
+  eventId,
+  time,
+}: {
+  bands: Band[];
+  stops: Stop[];
+  path: Checkpoint[];
+  prelims: Slot[];
+  readyMinutes: number;
+  eventId: string;
+  time: (iso: string) => string;
+}) {
+  const now = new Date();
+  const slotOf = new Map(prelims.map((s) => [s.band_id, s]));
+  const status = onTrack(bands, stops, path, (id) => slotOf.get(id), readyMinutes, now);
+  // Performance order, then anyone not yet scheduled; scratched bands last.
+  const ordered = [
+    ...prelims.map((s) => bands.find((b) => b.id === s.band_id)).filter((b): b is Band => !!b),
+    ...bands.filter((b) => !slotOf.has(b.id)),
+  ].sort((a, b) => Number(!!a.scratched_at) - Number(!!b.scratched_at));
+  const DOT: Record<CheckState, string> = {
+    done: "border-success bg-success text-success-foreground",
+    late: "border-danger bg-danger text-danger-foreground",
+    soon: "border-accent bg-accent text-[#14213d]",
+    upcoming: "border-border text-muted",
+    none: "border-border text-muted",
+  };
+  const WORD: Record<CheckState, string> = { done: "done", late: "late", soon: "due soon", upcoming: "not yet", none: "not yet" };
+
+  return (
+    <div className="mt-5 space-y-6">
+      <Card className="p-4">
+        <OnTrackSummary status={status} eventId={eventId} time={time} hasPath={path.length > 0} />
+        <p className="mt-3 text-xs text-muted">
+          Bands are due at parking (and any check-in point with a deadline) before their warm-up, and at warm-up by
+          their warm-up time. &ldquo;Due soon&rdquo; means within {DUE_SOON_MINUTES} minutes.
+        </p>
+      </Card>
+
+      <section aria-labelledby="board-heading">
+        <h2 id="board-heading" className="text-lg font-semibold">
+          Every band
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          {path.map((c, i) => `${i + 1} ${c.name}`).join(" · ")}
+        </p>
+        <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">
+          {ordered.map((b) => {
+            const slot = slotOf.get(b.id);
+            const checks = bandChecks(b, stops, path, slot, readyMinutes, now);
+            const where = whereIs(b, stops, path, "prelims");
+            return (
+              <li key={b.id} className={`px-4 py-3 ${b.scratched_at ? "opacity-60" : ""}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium leading-tight">
+                      {slot ? <span className="text-muted">#{slot.order} </span> : null}
+                      {b.school_name}
+                    </p>
+                    <p className="text-sm text-muted">{b.scratched_at ? "Scratched" : where.label}</p>
+                  </div>
+                  <p className="shrink-0 text-right text-sm tabular-nums text-muted">
+                    {slot?.warm_up_at ? `Warm-up ${time(slot.warm_up_at)}` : slot?.perform_at ? `Performs ${time(slot.perform_at)}` : "Not scheduled"}
+                  </p>
+                </div>
+                <ol className="mt-2 flex flex-wrap gap-1.5" aria-label={`${b.school_name} along the path`}>
+                  {checks.map((c, i) => (
+                    <li key={c.station.id}>
+                      <Link
+                        href={`/dashboard/events/${eventId}/contest-day?station=${c.station.id}`}
+                        title={`${c.station.name}: ${WORD[c.state]}${c.due && c.state !== "done" ? ` (due ${time(c.due)})` : ""}`}
+                        className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-semibold ${DOT[c.state]}`}
+                      >
+                        <span aria-hidden>{c.state === "done" ? "✓" : i + 1}</span>
+                        <span className="sr-only">
+                          {c.station.name}: {WORD[c.state]}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </div>
   );
 }

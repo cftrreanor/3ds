@@ -9,11 +9,14 @@ import {
   eachDate,
   formatDate,
   formatDateRange,
+  formatTime,
   formatTimeRange,
   utcToZonedDate,
   zoneName,
 } from "@/lib/time";
-import { parking, sortStations, type BandDay } from "@/lib/contest-day";
+import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { onTrack, parking, sortStations, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
+import { OnTrackSummary } from "./contest-day/on-track";
 import { setEventPublished } from "../../actions";
 import { ActionButton, type LeadOption } from "./forms";
 import { StationPanel, type RosterEntry, type Shift } from "./station-panel";
@@ -44,7 +47,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, organization_id, slug, name, status, ready_minutes_before, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -60,6 +63,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     { data: leadRows },
     { data: hostData },
     { data: stopData },
+    { data: slotData },
   ] = await Promise.all([
     supabase
       .from("stations")
@@ -92,7 +96,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           .eq("organization_id", event.organization_id)
           .order("created_at")
       : Promise.resolve({ data: [] }),
-    supabase.from("band_stops").select("band_id, round, performed").eq("event_id", eventId),
+    supabase.from("band_stops").select("band_id, station_id, round, performed, reached_at").eq("event_id", eventId),
+    supabase.from("performance_slots").select("band_id, warm_up_at, perform_at").eq("event_id", eventId),
   ]);
   // Each station with everyone leading it (first-added first).
   const stations = sortStations(stationData ?? []).map((st) => ({
@@ -100,7 +105,11 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
   }));
   const bands = (bandData ?? []) as BandTotals[];
-  const dayBands = (bandData ?? []) as BandDay[];
+  const dayBands = (bandData ?? []) as (BandDay & { school_name: string })[];
+  // Contest day: are bands parked and at warm-up on time? (Hosts and Volunteer Leads.)
+  const path = stations.filter((s): s is typeof s & Checkpoint => !!s.checkpoint_kind);
+  const slots = new Map((slotData ?? []).map((s) => [s.band_id, s]));
+  const status = onTrack(dayBands, (stopData ?? []) as Stop[], path, (id) => slots.get(id), event.ready_minutes_before, new Date());
 
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
@@ -272,7 +281,13 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           <h2 id="day-heading" className="text-lg font-semibold">
             Contest day
           </h2>
-          <Card className="mt-4">
+          <Card className="mt-4 space-y-4">
+            {access.canManage && bands.length > 0 && (
+              <>
+                {isEventDay && <AutoRefresh seconds={30} />}
+                <OnTrackSummary status={status} eventId={eventId} time={(iso) => formatTime(iso, tz)} limit={5} hasPath={path.length > 0} />
+              </>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <p className="text-sm leading-6 text-muted">
                 {bands.length
