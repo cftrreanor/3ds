@@ -41,6 +41,8 @@ import {
 import { pushScheduleBack } from "../../../band-actions";
 import { DoneButton, LotSizeForm, NoteForm, PushBackForm, TapButton } from "./controls";
 import { AttentionList, DayTiles, StatusLine } from "./on-track";
+import { loadLeadStations } from "../lead-station-data";
+import { LeadStations } from "../lead-stations";
 
 export const metadata: Metadata = { title: "Contest day" };
 
@@ -86,19 +88,117 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       .maybeSingle(),
     supabase
       .from("stations")
-      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up")
+      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions")
       .eq("event_id", eventId)
-      .not("checkpoint_kind", "is", null),
+      .order("sort_order")
+      .order("created_at"),
     supabase.from("station_leads").select("station_id").eq("event_id", eventId).eq("user_id", user.id),
   ]);
   if (!event) missing();
-  const path = sortStations((pathData ?? []) as Checkpoint[]);
-  // Hosts and Volunteer Leads work every station; Section Leads the ones they lead.
-  const mine = access.canManage ? path : path.filter((c) => (myLeads ?? []).some((l) => l.station_id === c.id));
-  if (mine.length === 0) redirect(`/dashboard/events/${eventId}`);
+  type StationRow = Checkpoint & { location: string | null; instructions: string | null };
+  const allStations = (pathData ?? []) as unknown as StationRow[];
+  const path = sortStations(allStations.filter((s) => s.checkpoint_kind));
+  const leads = (id: string) => (myLeads ?? []).some((l) => l.station_id === id);
+  // Hosts and Volunteer Leads work every check-in station; Section Leads the
+  // ones they lead, plus their other stations (like Concessions) for their volunteers.
+  const mine = access.canManage ? path : path.filter((c) => leads(c.id));
+  const myOther = access.canManage ? [] : allStations.filter((s) => !s.checkpoint_kind && leads(s.id));
+  if (mine.length === 0 && myOther.length === 0) redirect(`/dashboard/events/${eventId}`);
   // Hosts and Volunteer Leads start on the Overview: is every band on track?
   const overview = access.canManage && (!stationParam || stationParam === "overview");
-  const station = mine.find((c) => c.id === stationParam) ?? mine[0];
+  const other = myOther.find((s) => s.id === stationParam) ?? (mine.length === 0 ? myOther[0] : undefined);
+  const station: Checkpoint | undefined = other ? undefined : (mine.find((c) => c.id === stationParam) ?? mine[0]);
+  const base = `/dashboard/events/${eventId}/contest-day`;
+  const tabClass = (active: boolean) =>
+    `-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
+      active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
+    }`;
+  const header = (
+    <>
+      <AutoRefresh seconds={20} />
+      <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
+        ← Back to {event.name}
+      </Link>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Contest day</h1>
+      <p className="mt-1 text-sm text-muted">Updates every 20 seconds. Tap a button once; it saves right away.</p>
+
+      {(mine.length + myOther.length > 1 || access.canManage) && (
+        <nav aria-label="Stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <ul className="flex min-w-max gap-1 border-b border-border">
+            {access.canManage && (
+              <li>
+                <Link href={`${base}?station=overview`} scroll={false} aria-current={overview ? "page" : undefined} className={tabClass(overview)}>
+                  <span className="whitespace-nowrap">Overview</span>
+                  <span className="text-xs font-normal text-muted">On track?</span>
+                </Link>
+              </li>
+            )}
+            {mine.map((c) => {
+              const active = !overview && c.id === station?.id;
+              return (
+                <li key={c.id}>
+                  <Link href={`${base}?station=${c.id}`} scroll={false} aria-current={active ? "page" : undefined} className={tabClass(active)}>
+                    <span className="whitespace-nowrap">
+                      {path.indexOf(c) + 1}. {c.name}
+                    </span>
+                    <span className="text-xs font-normal text-muted">{kindLabel(c.checkpoint_kind)}</span>
+                  </Link>
+                </li>
+              );
+            })}
+            {myOther.map((s) => {
+              const active = s.id === other?.id;
+              return (
+                <li key={s.id}>
+                  <Link href={`${base}?station=${s.id}`} scroll={false} aria-current={active ? "page" : undefined} className={tabClass(active)}>
+                    <span className="whitespace-nowrap">{s.name}</span>
+                    <span className="text-xs font-normal text-muted">Volunteers</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      )}
+    </>
+  );
+
+  // Section Leads: the volunteers on their station's shifts. A check-in
+  // station has a Bands / Volunteers switch; any other station is just volunteers.
+  const volunteersView = other ?? (!access.canManage && view === "volunteers" ? allStations.find((s) => s.id === station?.id) : undefined);
+  const viewSwitch = (current: "bands" | "volunteers") =>
+    station &&
+    !access.canManage && (
+      <div className="mt-4 inline-flex rounded-lg border border-border bg-surface p-1 text-sm">
+        {(["bands", "volunteers"] as const).map((v) => (
+          <Link
+            key={v}
+            href={`${base}?${new URLSearchParams({ station: station.id, ...(v === "volunteers" ? { view: v } : {}) })}`}
+            scroll={false}
+            aria-current={v === current ? "page" : undefined}
+            className={`rounded-md px-4 py-1.5 ${v === current ? "bg-brand font-medium text-brand-foreground" : "text-muted"}`}
+          >
+            {v === "bands" ? "Bands" : "Volunteers"}
+          </Link>
+        ))}
+      </div>
+    );
+  if (volunteersView || !station) {
+    const leadStations = volunteersView ? await loadLeadStations(supabase, [volunteersView], event) : [];
+    return (
+      <div>
+        {header}
+        {viewSwitch("volunteers")}
+        <div className="mt-4">
+          <LeadStations
+            stations={leadStations}
+            eventDay={eventPhase(event, new Date()) === "day"}
+            unlockLabel={formatDate(event.starts_on, { year: undefined })}
+          />
+        </div>
+      </div>
+    );
+  }
   const kind = station.checkpoint_kind;
 
   const [{ data: bandData }, { data: slotData }, { data: finalsData }, { data: stopData }, { data: noteData }, { data: activityData }] =
@@ -163,7 +263,6 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
     const due = dueAt(b);
     return phase === "day" && !b.scratched_at && !!due && due < now && !isDone(b);
   };
-  const base = `/dashboard/events/${eventId}/contest-day`;
   const href = (q: Record<string, string>) => `${base}?${new URLSearchParams({ station: station.id, ...q })}`;
 
   // Each station's list, in the order it works through bands.
@@ -204,51 +303,8 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
 
   return (
     <div>
-      <AutoRefresh seconds={20} />
-      <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
-        ← Back to {event.name}
-      </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Contest day</h1>
-      <p className="mt-1 text-sm text-muted">Updates every 20 seconds. Tap a button once; it saves right away.</p>
-
-      {(mine.length > 1 || access.canManage) && (
-        <nav aria-label="Check-in stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <ul className="flex min-w-max gap-1 border-b border-border">
-            {access.canManage && (
-              <li>
-                <Link
-                  href={`${base}?station=overview`}
-                  scroll={false}
-                  aria-current={overview ? "page" : undefined}
-                  className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-                    overview ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-                  }`}
-                >
-                  <span className="whitespace-nowrap">Overview</span>
-                  <span className="text-xs font-normal text-muted">On track?</span>
-                </Link>
-              </li>
-            )}
-            {mine.map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`${base}?station=${c.id}`}
-                  scroll={false}
-                  aria-current={!overview && c.id === station.id ? "page" : undefined}
-                  className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-                    !overview && c.id === station.id ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-                  }`}
-                >
-                  <span className="whitespace-nowrap">
-                    {path.indexOf(c) + 1}. {c.name}
-                  </span>
-                  <span className="text-xs font-normal text-muted">{kindLabel(c.checkpoint_kind)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
+      {header}
+      {!overview && viewSwitch("bands")}
 
       {overview ? (
         <Overview

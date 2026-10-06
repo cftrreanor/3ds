@@ -3,7 +3,6 @@ import Link from "next/link";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess } from "@/lib/data";
-import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -16,12 +15,11 @@ import {
   zoneName,
 } from "@/lib/time";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
-import { eventPhase, kindLabel, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
+import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { setEventPublished } from "../../actions";
 import { ActionButton } from "./forms";
-import { type RosterEntry, type Shift } from "./station-panel";
-import { LeadStations } from "./lead-stations";
+import { type Shift } from "./station-panel";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -134,17 +132,11 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
   const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
 
-  // Section Leads see their own station's roster; contact details are
-  // released by the database only on event day.
+  // Section Leads: their stations (volunteers by shift) are on the Contest day page.
   const myStations = stations.filter((s) => s.lead_ids.includes(user.id));
-  const rosters = new Map<string, RosterEntry[]>(
-    await Promise.all(
-      myStations.map(async (s) => {
-        const { data } = await supabase.rpc("station_roster", { p_station_id: s.id });
-        return [s.id, (data ?? []) as RosterEntry[]] as const;
-      }),
-    ),
-  );
+  const myVolunteers = (shifts ?? [])
+    .filter((sh) => myStations.some((st) => st.id === sh.station_id))
+    .reduce((n, sh) => n + sh.registered_count, 0);
 
   const shiftsByStation = new Map<string, Shift[]>();
   for (const s of (shifts ?? []) as Shift[]) {
@@ -276,7 +268,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         </div>
       </div>
 
-      {(access.canManage || myStations.some((s) => s.checkpoint_kind)) && (
+      {(access.canManage || myStations.length > 0) && (
         <section className="mt-10" aria-labelledby="day-heading">
           <h2 id="day-heading" className="text-lg font-semibold">
             Contest day
@@ -327,13 +319,23 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               </>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <p className="text-sm leading-6 text-muted">
-                  {!bands.length
-                    ? "No bands registered yet."
-                    : phase === "day"
-                      ? `${status.parked} of ${status.expected} bands parked · ${tiles.find((t) => t.label === "Performed")?.done ?? 0} of ${status.expected} performed.`
-                      : `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`}
+                <div className="space-y-1 text-sm leading-6">
+                  <p>
+                    <span className="font-medium">You lead {myStations.map((s) => s.name).join(", ")}.</span>{" "}
+                    <span className="text-muted">
+                      {myVolunteers} {myVolunteers === 1 ? "volunteer" : "volunteers"} signed up.
+                    </span>
+                  </p>
+                  {myStations.some((s) => s.checkpoint_kind) && (
+                    <p className="text-muted">
+                      {!bands.length
+                        ? "No bands registered yet."
+                        : phase === "day"
+                          ? `${status.parked} of ${status.expected} bands parked · ${tiles.find((t) => t.label === "Performed")?.done ?? 0} of ${status.expected} performed.`
+                          : `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`}
                 </p>
+                  )}
+                </div>
                 <Link
                   href={`/dashboard/events/${eventId}/contest-day`}
                   className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
@@ -442,50 +444,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
-      {!access.canManage && myStations.length > 0 && (
-        <section className="mt-10" aria-labelledby="stations-heading">
-          <h2 id="stations-heading" className="text-lg font-semibold">
-            {myStations.length > 1 ? "Your stations" : "Your station"}
-          </h2>
-          <p className="mt-1 text-sm text-muted">Your volunteers, by shift.</p>
-          <div className="mt-4">
-            <LeadStations
-              stations={myStations.map((station) => {
-                const roster = rosters.get(station.id) ?? [];
-                return {
-                  id: station.id,
-                  name: station.name,
-                  checkpoint: station.checkpoint_kind
-                    ? `Check-in stop ${station.checkpoint_order} · ${kindLabel(station.checkpoint_kind)}`
-                    : null,
-                  location: station.location,
-                  instructions: station.instructions,
-                  shifts: (shiftsByStation.get(station.id) ?? []).map((sh) => ({
-                    id: sh.id,
-                    title: sh.title,
-                    time: `${multiDay ? `${formatDate(utcToZonedDate(sh.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(sh.starts_at, sh.ends_at, tz)}`,
-                    capacity: sh.max_capacity,
-                    now: phase === "day" && new Date(sh.starts_at) <= now && now < new Date(sh.ends_at),
-                    over: phase === "day" && new Date(sh.ends_at) <= now,
-                    volunteers: roster
-                      .filter((v) => v.shift_id === sh.id)
-                      .sort((a, b) => a.volunteer_name.localeCompare(b.volunteer_name))
-                      .map((v) => ({
-                        assignmentId: v.assignment_id,
-                        name: v.volunteer_name,
-                        phone: v.phone,
-                        phoneDisplay: v.phone ? formatPhone(v.phone) : null,
-                        checkedIn: Boolean(v.checked_in_at),
-                      })),
-                  })),
-                };
-              })}
-              eventDay={phase === "day"}
-              unlockLabel={formatDateRange(event.starts_on, event.ends_on)}
-            />
-          </div>
-        </section>
-      )}
     </div>
   );
 }
