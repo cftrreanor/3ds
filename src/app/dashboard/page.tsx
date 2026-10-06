@@ -68,6 +68,12 @@ export default async function DashboardPage() {
     .filter((r): r is StaffEvent & { events: EventSummary } => r.events != null)
     .sort((a, b) => a.events.starts_on.localeCompare(b.events.starts_on));
 
+  // FieldCommand staff: a way in to the pilot requests from the home page.
+  const { data: isAdmin } = await supabase.rpc("is_platform_admin");
+  const newRequests = isAdmin
+    ? ((await supabase.from("pilot_requests").select("id", { count: "exact", head: true }).eq("status", "new")).count ?? 0)
+    : 0;
+
   const orgs = orgRows ?? [];
   const hosted = orgs.length
     ? ((
@@ -101,6 +107,15 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-14">
+      {isAdmin && (
+        <Link
+          href="/dashboard/pilot-requests"
+          className="flex items-center justify-between rounded-xl border border-border bg-surface px-5 py-4 hover:bg-background"
+        >
+          <span className="font-semibold">Pilot requests</span>
+          <span className="text-sm text-muted">{newRequests ? `${newRequests} new →` : "View all →"}</span>
+        </Link>
+      )}
       {org && (
         <Section
           icon="🏟️"

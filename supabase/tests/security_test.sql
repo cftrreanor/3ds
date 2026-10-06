@@ -1345,4 +1345,67 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Pilot requests: only platform admins can read them; no one writes from a browser
+-- ---------------------------------------------------------------------------
+insert into public.pilot_requests (name, email, organization, bands, volunteers)
+values ('Pat Pilot', 'pat@example.com', 'Lakeside Band Boosters', 20, 150);
+set role anon;
+set request.jwt.claims = '{}';
+do $$ begin
+  begin
+    insert into public.pilot_requests (name, email, organization) values ('Spam Bot', 'bot@example.com', 'Spam');
+    raise exception 'FAIL: a visitor wrote a pilot request straight to the table';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.pilot_requests;
+    raise exception 'FAIL: a visitor read pilot requests';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set role authenticated;
+-- The host of an organization is not FieldCommand staff.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert not public.is_platform_admin(), 'a host is not a platform admin';
+  assert (select count(*) from public.pilot_requests) = 0, 'a host can''t read pilot requests';
+  update public.pilot_requests set status = 'accepted';
+  begin
+    insert into public.platform_admins (user_id) values (auth.uid());
+    raise exception 'FAIL: a user made themselves a platform admin';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.platform_admins;
+    raise exception 'FAIL: a user read the platform admin list';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select status from public.pilot_requests where email = 'pat@example.com') = 'new', 'a host can''t change a pilot request';
+end $$;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert public.is_platform_admin(), 'an admin is a platform admin';
+  assert (select count(*) from public.pilot_requests) = 1, 'a platform admin reads pilot requests';
+  update public.pilot_requests set status = 'contacted' where email = 'pat@example.com';
+  assert (select status from public.pilot_requests where email = 'pat@example.com') = 'contacted', 'a platform admin marks a request contacted';
+  begin
+    update public.pilot_requests set email = 'changed@example.com';
+    raise exception 'FAIL: a platform admin rewrote what someone submitted';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    delete from public.pilot_requests;
+    raise exception 'FAIL: deleted pilot requests from a browser';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.platform_admins;
+
 \echo 'All database security tests passed.'

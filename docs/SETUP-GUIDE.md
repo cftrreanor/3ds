@@ -95,7 +95,25 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261014000000_contest_day.sql` | Contest day: ordered check-in stations, parking spots, one-tap stops, notes, undo | ✅ run |
 | `20261015000000_push_schedule_back.sql` | Contest day: "Push the schedule back" button | ✅ run |
 | `20261016000000_live_status.sql` | Contest day: live status for directors and the public schedule | ✅ run |
-| `20261017000000_tap_toggles.sql` | Contest day: tap a done step again to undo it | run this next |
+| `20261017000000_tap_toggles.sql` | Contest day: tap a done step again to undo it | run this first, if you haven't |
+| `20261018000000_pilot_requests.sql` | "Join the pilot" requests from the home page (then see *Pilot requests* below) | run this next |
+
+## Pilot requests
+
+People who fill in "Join the pilot" on the home page are saved in the database, and each request
+is emailed to the support address in `src/lib/brand.ts` (you can reply straight to the person).
+
+To see them all in the app, make yourself a FieldCommand admin. Do this once, after running
+`20261018000000_pilot_requests.sql`. In the Supabase **SQL Editor**, paste this, put the email
+you sign in with between the quotes, and click **Run**:
+
+```sql
+insert into public.platform_admins (user_id)
+select id from auth.users where email = 'the-email-you-sign-in-with@example.com';
+```
+
+It should say "1 row". Your dashboard then shows a **Pilot requests** box at the top. Only admins
+can see the requests: hosts, volunteers and directors can't.
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:

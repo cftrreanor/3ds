@@ -2,5 +2,5 @@
 export const brand = {
   name: "FieldCommand",
   tagline: "Run contest day from one place.",
-  supportEmail: "support@example.com",
+  supportEmail: "fieldcommandevents@gmail.com",
 } as const;
