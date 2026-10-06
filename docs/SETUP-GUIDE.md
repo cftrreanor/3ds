@@ -94,7 +94,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261013000000_lead_permissions.sql` | Leads see band names and status, not contact details | ✅ run |
 | `20261014000000_contest_day.sql` | Contest day: ordered check-in stations, parking spots, one-tap stops, notes, undo | ✅ run |
 | `20261015000000_push_schedule_back.sql` | Contest day: "Push the schedule back" button | ✅ run |
-| `20261016000000_live_status.sql` | Contest day: live status for directors and the public schedule | run this next |
+| `20261016000000_live_status.sql` | Contest day: live status for directors and the public schedule | ✅ run |
+| `20261017000000_tap_toggles.sql` | Contest day: tap a done step again to undo it | run this next |
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:

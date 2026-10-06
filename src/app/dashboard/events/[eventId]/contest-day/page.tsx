@@ -9,7 +9,10 @@ import {
   type Phase,
   DUE_SOON_MINUTES,
   bandChecks,
+  nextUp,
   onTrack,
+  columnName,
+  stationTiles,
   type CheckState,
   hasEquipment,
   kindLabel,
@@ -33,12 +36,11 @@ import {
   bandAction,
   deleteBandNote,
   setEquipmentSpots,
-  undoBandAction,
   type BandActionName,
 } from "../../../contest-day-actions";
 import { pushScheduleBack } from "../../../band-actions";
-import { LotSizeForm, NoteForm, PushBackForm, TapButton } from "./controls";
-import { OnTrackSummary } from "./on-track";
+import { DoneButton, LotSizeForm, NoteForm, PushBackForm, TapButton } from "./controls";
+import { AttentionList, DayTiles, StatusLine } from "./on-track";
 
 export const metadata: Metadata = { title: "Contest day" };
 
@@ -62,13 +64,16 @@ type Activity = {
   created_at: string;
 };
 
+const FILTERS = ["all", "behind", "soon", "away", "done"] as const;
+type Filter = (typeof FILTERS)[number];
+
 const PIN: Record<Tone, string> = { red: "text-danger", gold: "text-accent", green: "text-success", neutral: "text-muted" };
 const minus = (iso: string, minutes: number) => new Date(new Date(iso).getTime() - minutes * 60_000).toISOString();
 
 /** One tab per check-in station, in the band's order, with one-tap buttons, notes and undo. */
 export default async function ContestDayPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/contest-day">) {
   const { eventId } = await params;
-  const { station: stationParam, round: roundParam, view } = await searchParams;
+  const { station: stationParam, round: roundParam, view, filter: filterParam } = await searchParams;
   const user = await requireUser();
   const access = await getEventAccess(eventId);
   const supabase = await createClient();
@@ -247,6 +252,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
 
       {overview ? (
         <Overview
+          filter={(FILTERS as readonly string[]).includes(String(filterParam)) ? (filterParam as Filter) : "all"}
           isHost={access.isHost}
           published={event.performance_order_published}
           hasFinals={finals.length > 0}
@@ -357,8 +363,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
             const performed = kind === "gate" ? stopsAt(b, true) : undefined;
             const tap = (action: BandActionName) =>
               bandAction.bind(null, eventId, b.id, action, station.id, byRound ? round : null);
-            const done = (text: string) => (
-              <p className="flex min-h-11 items-center rounded-md bg-background px-3 text-sm text-muted">✓ {text}</p>
+            // A done step stays a button: tap it again to take just that step back.
+            const done = (step: string, detail: string, undo: BandActionName, className = "") => (
+              <DoneButton action={tap(undo)} detail={detail} className={className}>
+                {step}
+              </DoneButton>
             );
             const status = kind === "parking" ? parking(b) : whereIs(b, stops, path, round);
             const dueTime = dueAt(b);
@@ -404,7 +413,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                         <>
                           {(b.bus_count > 0 || !hasEquipment(b)) &&
                             (b.buses_at ? (
-                              done(`${b.bus_count > 0 ? "Buses" : "Arrived"} ${time(b.buses_at)}`)
+                              done(b.bus_count > 0 ? "Buses" : "Arrived", time(b.buses_at), "clear_buses")
                             ) : (
                               // No vehicles on the registration: one "Arrived" tap.
                               <TapButton action={tap("buses_here")} variant="go">
@@ -413,7 +422,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                             ))}
                           {hasEquipment(b) &&
                             (b.equipment_at ? (
-                              done(b.equipment_spot != null ? `Equipment · Spot ${b.equipment_spot}` : `Equipment ${time(b.equipment_at)}`)
+                              done(
+                                "Equipment",
+                                b.equipment_spot != null ? `Spot ${b.equipment_spot}` : time(b.equipment_at),
+                                "clear_equipment",
+                              )
                             ) : (
                               <TapButton action={tap("equipment_here")} variant="go">
                                 Equipment here
@@ -432,7 +445,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                             ))}
                           {(b.buses_at || b.equipment_at) &&
                             (b.left_at ? (
-                              done(`Left ${time(b.left_at)}`)
+                              done("Left", time(b.left_at), "clear_left")
                             ) : (
                               <TapButton
                                 action={tap("left")}
@@ -446,7 +459,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                       )}
                       {kind !== "parking" &&
                         (here ? (
-                          <div className={kind === "gate" ? "" : "col-span-2"}>{done(`Here ${time(here.reached_at)}`)}</div>
+                          done("Here", time(here.reached_at), "clear_here", kind === "gate" ? "" : "col-span-2")
                         ) : (
                           <TapButton action={tap("here")} variant="go" className={kind === "gate" ? "" : "col-span-2"}>
                             Here
@@ -454,7 +467,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                         ))}
                       {kind === "gate" &&
                         (performed ? (
-                          done(`Performed ${time(performed.reached_at)}`)
+                          done("Performed", time(performed.reached_at), "clear_performed")
                         ) : (
                           <TapButton action={tap("performed")} variant={here ? "go" : "secondary"}>
                             Performed
@@ -484,7 +497,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                     )}
                   </div>
 
-                  <LastTap band={b} last={lastBy.get(b.id)} path={path} eventId={eventId} userId={user.id} canManage={access.canManage} time={time} />
+                  <LastTap last={lastBy.get(b.id)} path={path} userId={user.id} time={time} />
                 </Card>
               </li>
             );
@@ -504,6 +517,7 @@ function Overview({
   hasFinals,
   phase,
   dayLabel,
+  filter,
   bands,
   stops,
   path,
@@ -517,6 +531,7 @@ function Overview({
   hasFinals: boolean;
   phase: Phase;
   dayLabel: string;
+  filter: Filter;
   bands: Band[];
   stops: Stop[];
   path: Checkpoint[];
@@ -528,19 +543,46 @@ function Overview({
   const now = new Date();
   const slotOf = new Map(prelims.map((s) => [s.band_id, s]));
   const status = onTrack(bands, stops, path, (id) => slotOf.get(id), readyMinutes, now, phase);
+  const tiles = stationTiles(bands, stops, path, (id) => slotOf.get(id), readyMinutes, now, phase);
+  const inOrder = prelims.flatMap((s) => {
+    const band = bands.find((b) => b.id === s.band_id);
+    return band ? [{ band, perform_at: s.perform_at, order: s.order }] : [];
+  });
+  const next = phase === "day" ? nextUp(inOrder, stops) : null;
+  const gate = path.find((c) => c.checkpoint_kind === "gate");
   // Performance order, then anyone not yet scheduled; scratched bands last.
-  const ordered = [
-    ...prelims.map((s) => bands.find((b) => b.id === s.band_id)).filter((b): b is Band => !!b),
-    ...bands.filter((b) => !slotOf.has(b.id)),
-  ].sort((a, b) => Number(!!a.scratched_at) - Number(!!b.scratched_at));
-  // Bands still to perform, for "Push the schedule back": the first one is the default.
+  const ordered = [...inOrder.map((o) => o.band), ...bands.filter((b) => !slotOf.has(b.id))].sort(
+    (a, b) => Number(!!a.scratched_at) - Number(!!b.scratched_at),
+  );
   const performed = new Set(stops.filter((x) => x.performed && x.round === "prelims").map((x) => x.band_id));
+  // Bands still to perform, for "Push the schedule back": the first one is the default.
   const remaining = prelims
     .filter((s) => s.band_id && !performed.has(s.band_id))
     .map((s) => {
       const b = bands.find((x) => x.id === s.band_id);
       return { order: s.order, label: `#${s.order} ${b?.school_name ?? "Band"}${s.perform_at ? ` · ${time(s.perform_at)}` : ""}` };
     });
+
+  // Each band's checks, and which filter chips it matches.
+  const rows = ordered.map((b) => {
+    // Outside contest day, deadlines show as "not yet" rather than late or due soon.
+    const checks = bandChecks(b, stops, path, slotOf.get(b.id), readyMinutes, now).map((c) =>
+      phase === "day" || c.state === "done" ? c : { ...c, state: "upcoming" as const },
+    );
+    const counted = checks.filter((c) => c.station.checkpoint_kind !== "gate");
+    const late = counted.some((c) => c.state === "late");
+    const soon = !late && counted.some((c) => c.state === "soon");
+    const matches: Record<Filter, boolean> = {
+      all: true,
+      behind: late,
+      soon,
+      away: !b.scratched_at && parking(b).key === "nothing",
+      done: performed.has(b.id),
+    };
+    return { b, checks, matches };
+  });
+  const count = (f: Filter) => rows.filter((r) => r.matches[f]).length;
+  const shown = rows.filter((r) => r.matches[filter]);
   const DOT: Record<CheckState, string> = {
     done: "border-success bg-success text-success-foreground",
     late: "border-danger bg-danger text-danger-foreground",
@@ -549,16 +591,118 @@ function Overview({
     none: "border-border text-muted",
   };
   const WORD: Record<CheckState, string> = { done: "done", late: "late", soon: "due soon", upcoming: "not yet", none: "not yet" };
+  const CHIPS: { id: Filter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "behind", label: "Behind" },
+    { id: "soon", label: "Due soon" },
+    { id: "away", label: "Not here yet" },
+    { id: "done", label: "Performed" },
+  ];
+  const columns = `minmax(0,1fr) repeat(${path.length}, 2.5rem)`;
 
   return (
-    <div className="mt-5 space-y-6">
-      <Card className="p-4">
-        <OnTrackSummary status={status} eventId={eventId} time={time} hasPath={path.length > 0} dayLabel={dayLabel} />
-        <p className="mt-3 text-xs text-muted">
-          Bands are due at parking (and any check-in point with a deadline) before their warm-up, and at warm-up by
-          their warm-up time. &ldquo;Due soon&rdquo; means within {DUE_SOON_MINUTES} minutes.
-        </p>
+    <div className="mt-5 space-y-5">
+      <Card className="space-y-4 p-4">
+        <StatusLine status={status} hasPath={path.length > 0} dayLabel={dayLabel} time={time} />
+        {path.length > 0 && (
+          <DayTiles
+            tiles={tiles}
+            next={
+              next && {
+                order: next.order,
+                school: next.band.school_name,
+                band: next.band.band_name,
+                perform_at: next.perform_at,
+                atGate: !!gate && stops.some((x) => x.band_id === next.band.id && x.station_id === gate.id && x.round === "prelims"),
+              }
+            }
+            eventId={eventId}
+            time={time}
+          />
+        )}
+        <AttentionList status={status} eventId={eventId} />
       </Card>
+
+      <section aria-labelledby="board-heading">
+        <h2 id="board-heading" className="sr-only">
+          Every band
+        </h2>
+        <nav aria-label="Filter bands" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <ul className="flex min-w-max gap-2">
+            {CHIPS.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/dashboard/events/${eventId}/contest-day?${new URLSearchParams({ station: "overview", ...(c.id === "all" ? {} : { filter: c.id }) })}`}
+                  scroll={false}
+                  aria-current={filter === c.id ? "page" : undefined}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm ${
+                    filter === c.id ? "border-brand bg-brand text-brand-foreground" : "border-border bg-surface text-foreground hover:bg-background"
+                  }`}
+                >
+                  {c.label}
+                  <span className={`tabular-nums ${filter === c.id ? "" : "text-muted"}`}>{count(c.id)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="mt-3 overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="grid items-end gap-1 border-b border-border px-3 py-2 text-[11px] text-muted" style={{ gridTemplateColumns: columns }}>
+            <span>Band</span>
+            {path.map((c) => (
+              <span key={c.id} className="truncate text-center" title={c.name}>
+                {columnName(c)}
+              </span>
+            ))}
+          </div>
+          {shown.length === 0 && <p className="px-3 py-4 text-sm text-muted">No bands here.</p>}
+          <ul className="divide-y divide-border">
+            {shown.map(({ b, checks }) => {
+              const slot = slotOf.get(b.id);
+              return (
+                <li
+                  key={b.id}
+                  className={`grid items-center gap-1 px-3 py-2 ${b.scratched_at ? "opacity-50" : ""}`}
+                  style={{ gridTemplateColumns: columns }}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {slot ? <span className="text-muted">#{slot.order} </span> : null}
+                      {b.school_name}
+                    </span>
+                    <span className="block text-xs text-muted">{b.band_name}</span>
+                    <span className="block text-xs tabular-nums text-muted">
+                      {b.scratched_at ? "Scratched" : slot?.perform_at ? `Performs ${time(slot.perform_at)}` : "Not scheduled"}
+                    </span>
+                  </span>
+                  {checks.map((c) => (
+                    <Link
+                      key={c.station.id}
+                      href={`/dashboard/events/${eventId}/contest-day?station=${c.station.id}`}
+                      title={`${c.station.name}: ${WORD[c.state]}${c.due && c.state !== "done" ? ` (due ${time(c.due)})` : ""}`}
+                      className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-semibold ${DOT[c.state]}`}
+                    >
+                      <span aria-hidden>{c.state === "done" ? "✓" : c.state === "late" ? "!" : ""}</span>
+                      <span className="sr-only">
+                        {c.station.name}: {WORD[c.state]}
+                      </span>
+                    </Link>
+                  ))}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <details className="mt-2 text-xs text-muted">
+          <summary className="cursor-pointer">How this works</summary>
+          <p className="mt-1 leading-5">
+            Bands are due at parking (and any check-in point with a deadline) before their warm-up, and at warm-up by their
+            warm-up time. &ldquo;Due soon&rdquo; means within {DUE_SOON_MINUTES} minutes. Green ✓ done, red ! late, gold
+            due soon, grey not yet. Tap a dot to open that station.
+          </p>
+        </details>
+      </section>
 
       {isHost && remaining.length > 0 && (
         <Card className="p-4">
@@ -579,57 +723,6 @@ function Overview({
           </details>
         </Card>
       )}
-
-      <section aria-labelledby="board-heading">
-        <h2 id="board-heading" className="text-lg font-semibold">
-          Every band
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          {path.map((c, i) => `${i + 1} ${c.name}`).join(" · ")}
-        </p>
-        <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">
-          {ordered.map((b) => {
-            const slot = slotOf.get(b.id);
-            // Outside contest day, deadlines show as "not yet" rather than late or due soon.
-            const checks = bandChecks(b, stops, path, slot, readyMinutes, now).map((c) =>
-              phase === "day" || c.state === "done" ? c : { ...c, state: "upcoming" as const },
-            );
-            const where = whereIs(b, stops, path, "prelims");
-            return (
-              <li key={b.id} className={`px-4 py-3 ${b.scratched_at ? "opacity-60" : ""}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium leading-tight">
-                      {slot ? <span className="text-muted">#{slot.order} </span> : null}
-                      {b.school_name}
-                    </p>
-                    <p className="text-sm text-muted">{b.scratched_at ? "Scratched" : where.label}</p>
-                  </div>
-                  <p className="shrink-0 text-right text-sm tabular-nums text-muted">
-                    {slot?.warm_up_at ? `Warm-up ${time(slot.warm_up_at)}` : slot?.perform_at ? `Performs ${time(slot.perform_at)}` : "Not scheduled"}
-                  </p>
-                </div>
-                <ol className="mt-2 flex flex-wrap gap-1.5" aria-label={`${b.school_name} along the path`}>
-                  {checks.map((c, i) => (
-                    <li key={c.station.id}>
-                      <Link
-                        href={`/dashboard/events/${eventId}/contest-day?station=${c.station.id}`}
-                        title={`${c.station.name}: ${WORD[c.state]}${c.due && c.state !== "done" ? ` (due ${time(c.due)})` : ""}`}
-                        className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-semibold ${DOT[c.state]}`}
-                      >
-                        <span aria-hidden>{c.state === "done" ? "✓" : i + 1}</span>
-                        <span className="sr-only">
-                          {c.station.name}: {WORD[c.state]}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ol>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
     </div>
   );
 }
@@ -686,26 +779,20 @@ function BandNotes({
   );
 }
 
-/** "Last: Here at Warm-up · Lee, 9:05 AM", with Undo for the person who tapped it (or a manager). */
+/** "Last: Here at Warm-up · Lee, 9:05 AM": who did the latest tap. (A done step is undone by tapping it again.) */
 function LastTap({
-  band: b,
   last,
   path,
-  eventId,
   userId,
-  canManage,
   time,
 }: {
-  band: Band;
   last: Activity | undefined;
   path: Checkpoint[];
-  eventId: string;
   userId: string;
-  canManage: boolean;
   time: (iso: string) => string;
 }) {
   if (!last) return null;
-  const at = last.action === "here" || last.action === "performed" ? path.find((c) => c.id === last.station_id)?.name : undefined;
+  const at = ["here", "performed", "clear_here", "clear_performed"].includes(last.action) ? path.find((c) => c.id === last.station_id)?.name : undefined;
   const label = `${ACTION_LABEL[last.action] ?? last.action}${at ? ` at ${at}` : ""}${last.round === "finals" ? " (finals)" : ""}`;
   return (
     <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted">
@@ -714,16 +801,6 @@ function LastTap({
         {last.detail ? ` · ${last.detail}` : ""} · {last.created_by === userId ? "You" : (last.actor_name ?? "Team")},{" "}
         {time(last.created_at)}
       </span>
-      {(last.created_by === userId || canManage) && (
-        <TapButton
-          action={undoBandAction.bind(null, eventId, b.id)}
-          variant="ghost"
-          confirmMessage={`Undo "${label}" for ${b.school_name}?`}
-          className="shrink-0 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-xs [&_button]:underline"
-        >
-          Undo
-        </TapButton>
-      )}
     </div>
   );
 }

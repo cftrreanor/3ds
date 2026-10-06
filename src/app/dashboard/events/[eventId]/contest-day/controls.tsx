@@ -58,6 +58,35 @@ export function TapButton({
   );
 }
 
+/**
+ * A step that's done: shows the check, step and time, and tapping it again
+ * takes that step back (no pop-up: it's just as quick to tap the step again).
+ */
+export function DoneButton({
+  action,
+  children,
+  detail,
+  className,
+}: {
+  action: () => Promise<ActionState>;
+  /** The step, e.g. "Buses". */
+  children: React.ReactNode;
+  /** When or where, e.g. "7:10 AM" or "Spot 2". */
+  detail: string;
+  className?: string;
+}) {
+  return (
+    <TapButton
+      action={action}
+      variant="secondary"
+      className={`${className ?? ""} [&_button]:min-h-11 [&_button]:flex-col [&_button]:gap-0 [&_button]:border-success [&_button]:py-1`}
+    >
+      <span className="font-medium">✓ {children}</span>
+      <span className="text-xs font-normal text-muted">{detail} · tap to undo</span>
+    </TapButton>
+  );
+}
+
 export function NoteForm({ action }: { action: (prev: ActionState, formData: FormData) => Promise<ActionState> }) {
   return (
     <ActionForm action={action} className="space-y-2">
