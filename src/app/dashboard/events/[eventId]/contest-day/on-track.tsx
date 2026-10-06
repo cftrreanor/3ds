@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { shortName, waitingOn, type Attention, type OnTrack, type Tile } from "@/lib/contest-day";
 
-type NamedBand = { id: string; school_name: string } & Attention["band"];
+type NamedBand = { id: string; school_name: string; band_name: string | null } & Attention["band"];
 
 /** 21 → "21m", 576 → "9h 36m". */
 const span = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`);
@@ -58,7 +58,7 @@ export function DayTiles({
   time,
 }: {
   tiles: Tile[];
-  next: { order: number; school: string; perform_at: string | null; atGate: boolean } | null;
+  next: { order: number; school: string; band: string | null; perform_at: string | null; atGate: boolean } | null;
   eventId: string;
   time: (iso: string) => string;
 }) {
@@ -98,6 +98,7 @@ export function DayTiles({
           <p className="font-semibold">
             #{next.order} {next.school}
             <span className="font-normal text-muted">
+              {next.band ? ` · ${next.band}` : ""}
               {next.perform_at ? ` · ${time(next.perform_at)}` : ""}
               {next.atGate ? " · at the gate" : ""}
             </span>
@@ -129,11 +130,14 @@ export function AttentionList({
           <li key={`${band.id}-${check.station.id}`}>
             <Link
               href={`/dashboard/events/${eventId}/contest-day?station=${check.station.id}`}
-              title={`${band.school_name}: ${waitingOn(band, check)}`}
+              title={`${band.school_name}${band.band_name ? ` (${band.band_name})` : ""}: ${waitingOn(band, check)}`}
               className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 py-1.5 text-sm hover:bg-background"
             >
               <span aria-hidden className={`h-2 w-2 rounded-full ${check.state === "late" ? "bg-danger" : "bg-accent"}`} />
-              <span className="truncate font-medium">{band.school_name}</span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{band.school_name}</span>
+                {band.band_name && <span className="block truncate text-xs text-muted">{band.band_name}</span>}
+              </span>
               <span className="text-muted">{shortName(check.station)}</span>
               <span className={`whitespace-nowrap text-right tabular-nums ${check.state === "late" ? "font-semibold text-danger" : "text-muted"}`}>
                 {check.state === "late" ? `${span(check.minutes)} late` : `in ${span(check.minutes)}`}

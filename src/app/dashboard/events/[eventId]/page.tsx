@@ -105,7 +105,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
   }));
   const bands = (bandData ?? []) as BandTotals[];
-  const dayBands = (bandData ?? []) as (BandDay & { school_name: string })[];
+  const dayBands = (bandData ?? []) as (BandDay & { school_name: string; band_name: string | null })[];
   // Contest day: are bands parked and at warm-up on time? (Hosts and Volunteer Leads.)
   const path = stations.filter((s): s is typeof s & Checkpoint => !!s.checkpoint_kind);
   const slots = new Map((slotData ?? []).map((s) => [s.band_id, s]));
@@ -321,6 +321,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                       upNext && {
                         order: upNext.order,
                         school: upNext.band.school_name,
+                        band: upNext.band.band_name,
                         perform_at: upNext.perform_at,
                         atGate: !!gate && stops.some((x) => x.band_id === upNext.band.id && x.station_id === gate.id && x.round === "prelims"),
                       }

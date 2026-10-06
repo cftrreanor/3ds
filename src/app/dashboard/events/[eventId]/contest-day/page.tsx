@@ -611,6 +611,7 @@ function Overview({
               next && {
                 order: next.order,
                 school: next.band.school_name,
+                band: next.band.band_name,
                 perform_at: next.perform_at,
                 atGate: !!gate && stops.some((x) => x.band_id === next.band.id && x.station_id === gate.id && x.round === "prelims"),
               }
@@ -670,12 +671,9 @@ function Overview({
                       {slot ? <span className="text-muted">#{slot.order} </span> : null}
                       {b.school_name}
                     </span>
+                    <span className="block text-xs text-muted">{b.band_name}</span>
                     <span className="block text-xs tabular-nums text-muted">
-                      {b.scratched_at
-                        ? "Scratched"
-                        : slot?.perform_at
-                          ? `Performs ${time(slot.perform_at)}`
-                          : "Not scheduled"}
+                      {b.scratched_at ? "Scratched" : slot?.perform_at ? `Performs ${time(slot.perform_at)}` : "Not scheduled"}
                     </span>
                   </span>
                   {checks.map((c) => (
