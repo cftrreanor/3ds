@@ -460,3 +460,42 @@ export async function emailTimeChanges(eventId: string, bands: ChangedBands): Pr
   const n = new Set([...ids.data.order, ...ids.data.finals]).size;
   return { ok: true, message: `Emailing ${n} band director${n === 1 ? "" : "s"} their updated times.` };
 }
+
+const pushBackSchema = z.object({
+  fromOrder: z.string().regex(/^\d{1,3}$/, "Pick the first band to move.").transform(Number),
+  minutes: z
+    .string()
+    .trim()
+    .regex(/^\d{1,3}$/, "Enter how many minutes.")
+    .transform(Number)
+    .pipe(z.number().min(1, "Enter at least 1 minute.").max(240, "Push back at most 240 minutes (4 hours).")),
+});
+
+/** Contest day, running behind: move every band from #N onward later, and tell their directors. */
+export async function pushScheduleBack(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = pushBackSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { fromOrder, minutes } = parsed.data;
+  const includeFinals = formData.get("includeFinals") === "on";
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("push_schedule_back", {
+    p_event_id: eventId,
+    p_from_order: fromOrder,
+    p_minutes: minutes,
+    p_include_finals: includeFinals,
+  });
+  if (error) return { error: friendlyDbError(error) };
+  const rows = (data ?? []) as { round: "prelims" | "finals"; band_id: string | null }[];
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+
+  const count = rows.filter((r) => r.round === "prelims").length;
+  const moved = `Moved ${count} band${count === 1 ? "" : "s"} ${minutes} minutes later${includeFinals ? ", and the finals" : ""}.`;
+  if (formData.get("email") !== "on") return { ok: true, message: moved };
+  // Only directors who can already see their times (published order, revealed finalists) hear about it.
+  const emailed = await emailTimeChanges(eventId, {
+    order: rows.filter((r) => r.round === "prelims" && r.band_id).map((r) => r.band_id!),
+    finals: rows.filter((r) => r.round === "finals" && r.band_id).map((r) => r.band_id!),
+  });
+  return emailed.error ? { ok: true, message: `${moved} The emails couldn't be sent: ${emailed.error}` } : { ok: true, message: `${moved} ${emailed.message}` };
+}

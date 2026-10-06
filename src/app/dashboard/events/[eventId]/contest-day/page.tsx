@@ -5,6 +5,8 @@ import { Badge, Card } from "@/components/ui";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import {
   ACTION_LABEL,
+  eventPhase,
+  type Phase,
   DUE_SOON_MINUTES,
   bandChecks,
   onTrack,
@@ -25,7 +27,7 @@ import { requireUser } from "@/lib/auth";
 import { getEventAccess } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatTime } from "@/lib/time";
+import { formatDate, formatTime } from "@/lib/time";
 import {
   addBandNote,
   bandAction,
@@ -34,7 +36,8 @@ import {
   undoBandAction,
   type BandActionName,
 } from "../../../contest-day-actions";
-import { LotSizeForm, NoteForm, TapButton } from "./controls";
+import { pushScheduleBack } from "../../../band-actions";
+import { LotSizeForm, NoteForm, PushBackForm, TapButton } from "./controls";
 import { OnTrackSummary } from "./on-track";
 
 export const metadata: Metadata = { title: "Contest day" };
@@ -73,7 +76,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const [{ data: event }, { data: pathData }, { data: myLeads }] = await Promise.all([
     supabase
       .from("events")
-      .select("id, name, timezone, equipment_spots, ready_minutes_before, finals_ready_minutes_before")
+      .select("id, name, timezone, starts_on, ends_on, equipment_spots, ready_minutes_before, finals_ready_minutes_before, performance_order_published")
       .eq("id", eventId)
       .maybeSingle(),
     supabase
@@ -149,9 +152,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   };
   const isDone = (b: Band) =>
     kind === "parking" ? ["all", "away", "left"].includes(parking(b).key) : !!stopsAt(b) || (kind === "gate" && !!stopsAt(b, true));
+  // Only on contest day: before or after it, nothing is "late" (no false alarms while testing or afterwards).
+  const phase = eventPhase(event, new Date());
   const isLate = (b: Band) => {
     const due = dueAt(b);
-    return !b.scratched_at && !!due && due < now && !isDone(b);
+    return phase === "day" && !b.scratched_at && !!due && due < now && !isDone(b);
   };
   const base = `/dashboard/events/${eventId}/contest-day`;
   const href = (q: Record<string, string>) => `${base}?${new URLSearchParams({ station: station.id, ...q })}`;
@@ -242,6 +247,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
 
       {overview ? (
         <Overview
+          isHost={access.isHost}
+          published={event.performance_order_published}
+          hasFinals={finals.length > 0}
+          phase={phase}
+          dayLabel={formatDate(event.starts_on, { year: undefined })}
           bands={bands}
           stops={stops}
           path={path}
@@ -489,6 +499,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
 
 /** Hosts and Volunteer Leads: is every band on track, and where is each one along the path? */
 function Overview({
+  isHost,
+  published,
+  hasFinals,
+  phase,
+  dayLabel,
   bands,
   stops,
   path,
@@ -497,6 +512,11 @@ function Overview({
   eventId,
   time,
 }: {
+  isHost: boolean;
+  published: boolean;
+  hasFinals: boolean;
+  phase: Phase;
+  dayLabel: string;
   bands: Band[];
   stops: Stop[];
   path: Checkpoint[];
@@ -507,12 +527,20 @@ function Overview({
 }) {
   const now = new Date();
   const slotOf = new Map(prelims.map((s) => [s.band_id, s]));
-  const status = onTrack(bands, stops, path, (id) => slotOf.get(id), readyMinutes, now);
+  const status = onTrack(bands, stops, path, (id) => slotOf.get(id), readyMinutes, now, phase);
   // Performance order, then anyone not yet scheduled; scratched bands last.
   const ordered = [
     ...prelims.map((s) => bands.find((b) => b.id === s.band_id)).filter((b): b is Band => !!b),
     ...bands.filter((b) => !slotOf.has(b.id)),
   ].sort((a, b) => Number(!!a.scratched_at) - Number(!!b.scratched_at));
+  // Bands still to perform, for "Push the schedule back": the first one is the default.
+  const performed = new Set(stops.filter((x) => x.performed && x.round === "prelims").map((x) => x.band_id));
+  const remaining = prelims
+    .filter((s) => s.band_id && !performed.has(s.band_id))
+    .map((s) => {
+      const b = bands.find((x) => x.id === s.band_id);
+      return { order: s.order, label: `#${s.order} ${b?.school_name ?? "Band"}${s.perform_at ? ` · ${time(s.perform_at)}` : ""}` };
+    });
   const DOT: Record<CheckState, string> = {
     done: "border-success bg-success text-success-foreground",
     late: "border-danger bg-danger text-danger-foreground",
@@ -525,12 +553,32 @@ function Overview({
   return (
     <div className="mt-5 space-y-6">
       <Card className="p-4">
-        <OnTrackSummary status={status} eventId={eventId} time={time} hasPath={path.length > 0} />
+        <OnTrackSummary status={status} eventId={eventId} time={time} hasPath={path.length > 0} dayLabel={dayLabel} />
         <p className="mt-3 text-xs text-muted">
           Bands are due at parking (and any check-in point with a deadline) before their warm-up, and at warm-up by
           their warm-up time. &ldquo;Due soon&rdquo; means within {DUE_SOON_MINUTES} minutes.
         </p>
       </Card>
+
+      {isHost && remaining.length > 0 && (
+        <Card className="p-4">
+          <details>
+            <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Moves the warm-up and performance times of the band you pick and everyone after them, plus the breaks in
+              between. Bands before them stay as they are.
+            </p>
+            <div className="mt-3">
+              <PushBackForm
+                action={pushScheduleBack.bind(null, eventId)}
+                bands={remaining}
+                hasFinals={hasFinals}
+                published={published}
+              />
+            </div>
+          </details>
+        </Card>
+      )}
 
       <section aria-labelledby="board-heading">
         <h2 id="board-heading" className="text-lg font-semibold">
@@ -542,7 +590,10 @@ function Overview({
         <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">
           {ordered.map((b) => {
             const slot = slotOf.get(b.id);
-            const checks = bandChecks(b, stops, path, slot, readyMinutes, now);
+            // Outside contest day, deadlines show as "not yet" rather than late or due soon.
+            const checks = bandChecks(b, stops, path, slot, readyMinutes, now).map((c) =>
+              phase === "day" || c.state === "done" ? c : { ...c, state: "upcoming" as const },
+            );
             const where = whereIs(b, stops, path, "prelims");
             return (
               <li key={b.id} className={`px-4 py-3 ${b.scratched_at ? "opacity-60" : ""}`}>

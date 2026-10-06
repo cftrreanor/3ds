@@ -4,7 +4,7 @@ import { useState, useTransition, type ComponentProps } from "react";
 import { ActionForm } from "@/components/action-form";
 import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
-import { Button, Field, Textarea } from "@/components/ui";
+import { Button, Field, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 
 /**
@@ -83,6 +83,63 @@ export function LotSizeForm({
       </Field>
       <SubmitButton variant="secondary" className="min-h-11">
         Save
+      </SubmitButton>
+    </ActionForm>
+  );
+}
+
+/** Running behind: move everyone from a chosen band onward later, and email their directors. */
+export function PushBackForm({
+  action,
+  bands,
+  hasFinals,
+  published,
+}: {
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Bands still to perform, in order: the first one is the default. */
+  bands: { order: number; label: string }[];
+  hasFinals: boolean;
+  /** Directors only get emails once the schedule is published. */
+  published: boolean;
+}) {
+  const [minutes, setMinutes] = useState("10");
+  const [from, setFrom] = useState(String(bands[0]?.order ?? ""));
+  const first = bands.find((b) => String(b.order) === from);
+  return (
+    <ActionForm
+      action={action}
+      resetOnSuccess={false}
+      confirmMessage={`Move ${first?.label.split(" · ")[0] ?? "that band"} and every band after them ${minutes || "?"} minutes later?`}
+      className="space-y-3"
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Starting with">
+          <Select name="fromOrder" value={from} onChange={(e) => setFrom(e.target.value)}>
+            {bands.map((b) => (
+              <option key={b.order} value={b.order}>
+                {b.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="How many minutes later?">
+          <NumberInput name="minutes" maxLength={3} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+        </Field>
+      </div>
+      {hasFinals && (
+        <label className="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="includeFinals" className="h-5 w-5 accent-[var(--brand)]" />
+          Move the finals too
+        </label>
+      )}
+      {published && (
+        <label className="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="email" defaultChecked className="h-5 w-5 accent-[var(--brand)]" />
+          Email those bands&apos; directors their new times
+        </label>
+      )}
+      <SubmitButton variant="warn" pendingText="Moving…">
+        Push the schedule back
       </SubmitButton>
     </ActionForm>
   );
