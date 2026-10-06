@@ -1515,4 +1515,69 @@ do $$ begin
          'deleting an event leaves no removal records';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Walk-up volunteers: the desk adds them (checked in), even to a full shift
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$
+declare a uuid; before int;
+begin
+  select registered_count into before from public.shifts where id = '30000000-0000-0000-0000-000000000002';
+  a := public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Wally Walkup', '+15125550190');
+  assert (select checked_in_at is not null from public.volunteer_assignments where id = a), 'a walk-up is checked in right away';
+  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-000000000002') = before + 1, 'a walk-up takes a spot';
+  assert (select walk_up and email is null from public.volunteers where phone = '+15125550190'), 'a walk-up needs no email';
+  begin
+    perform public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Wally Walkup', '+15125550190');
+    raise exception 'FAIL: the same walk-up added to a shift twice';
+  exception when raise_exception then null;
+  end;
+end $$;
+-- A full shift asks first, then grows by one.
+reset role;
+update public.shifts set max_capacity = registered_count where id = '30000000-0000-0000-0000-000000000002';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$
+declare cap int;
+begin
+  select max_capacity into cap from public.shifts where id = '30000000-0000-0000-0000-000000000002';
+  begin
+    perform public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Fiona Full', '+15125550191');
+    raise exception 'FAIL: a walk-up went into a full shift without asking';
+  exception when sqlstate 'P0004' then null;
+  end;
+  perform public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Fiona Full', '+15125550191', true);
+  assert (select max_capacity from public.shifts where id = '30000000-0000-0000-0000-000000000002') = cap + 1,
+         'adding anyway makes room for one more';
+end $$;
+-- Section Leads and strangers can't add walk-ups.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  begin
+    perform public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Sly Lead', '+15125550192');
+    raise exception 'FAIL: a Section Lead added a walk-up';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Sam Stranger', '+15125550193');
+    raise exception 'FAIL: a stranger added a walk-up';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform public.add_walk_up('30000000-0000-0000-0000-000000000002', 'Anon', '+15125550194');
+    raise exception 'FAIL: a visitor added a walk-up';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

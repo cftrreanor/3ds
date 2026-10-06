@@ -40,7 +40,8 @@ export async function loadCalendarEntries(assignmentIds: string[], bump = false)
     console.error("calendar_entries failed", error);
     return [];
   }
-  return (data ?? []) as CalendarEntry[];
+  // Walk-ups added at the desk have no email, so there's nothing to send them.
+  return ((data ?? []) as CalendarEntry[]).filter((e) => e.volunteer_email);
 }
 
 export const manageUrl = (origin: string, e: { access_token: string }) => `${origin}/pass/${e.access_token}`;

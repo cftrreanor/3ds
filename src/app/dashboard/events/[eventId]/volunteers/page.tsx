@@ -1,23 +1,28 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { eventPhase, kindLabel, sortStations, type CheckpointKind } from "@/lib/contest-day";
 import { getEventAccess } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
-import { setCheckedIn } from "./actions";
-import { CheckInList, type RosterRow } from "./check-in-list";
+import { addWalkUp, releaseSpot, setCheckedIn } from "./actions";
+import { Desk, type DeskStation } from "./desk";
 
-export const metadata: Metadata = { title: "Volunteers & check-in" };
+export const metadata: Metadata = { title: "Volunteer check-in" };
 
+type StationRow = { id: string; name: string; checkpoint_kind: CheckpointKind | null; checkpoint_order: number | null };
+type ShiftRow = { id: string; station_id: string; title: string; starts_at: string; ends_at: string; max_capacity: number };
 type Row = {
   id: string;
+  shift_id: string;
   checked_in_at: string | null;
-  volunteers: { full_name: string; email: string; phone: string } | null;
-  shifts: { id: string; title: string; starts_at: string; ends_at: string; stations: { name: string } | null } | null;
+  volunteers: { full_name: string; email: string | null; phone: string; walk_up: boolean } | null;
 };
 
+/** The volunteer desk on contest day: a tab per station, check-in, walk-ups and no-shows. */
 export default async function VolunteersPage({ params }: PageProps<"/dashboard/events/[eventId]/volunteers">) {
   const { eventId } = await params;
   const access = await getEventAccess(eventId);
@@ -31,42 +36,82 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
     .maybeSingle();
   if (!event) missing();
 
-  const { data } = await supabase
-    .from("volunteer_assignments")
-    .select(
-      "id, checked_in_at, volunteers(full_name, email, phone), shifts!inner(id, title, starts_at, ends_at, event_id, stations(name))",
-    )
-    .eq("shifts.event_id", eventId);
+  const [{ data: stationData }, { data: shiftData }, { data: rowData }] = await Promise.all([
+    supabase
+      .from("stations")
+      .select("id, name, checkpoint_kind, checkpoint_order")
+      .eq("event_id", eventId)
+      .order("sort_order")
+      .order("created_at"),
+    supabase.from("shifts").select("id, station_id, title, starts_at, ends_at, max_capacity").eq("event_id", eventId).order("starts_at"),
+    supabase
+      .from("volunteer_assignments")
+      .select("id, shift_id, checked_in_at, volunteers(full_name, email, phone, walk_up), shifts!inner(event_id)")
+      .eq("shifts.event_id", eventId),
+  ]);
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
-  const rows: RosterRow[] = ((data ?? []) as unknown as Row[])
-    .filter((r) => r.volunteers && r.shifts)
-    .map((r) => ({
-      assignmentId: r.id,
-      name: r.volunteers!.full_name,
-      email: r.volunteers!.email,
-      phone: r.volunteers!.phone,
-      phoneDisplay: formatPhone(r.volunteers!.phone),
-      station: r.shifts!.stations?.name ?? "Station",
-      shiftId: r.shifts!.id,
-      shiftLabel: `${multiDay ? `${formatDate(utcToZonedDate(r.shifts!.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(r.shifts!.starts_at, r.shifts!.ends_at, tz)}`,
-      startsAt: r.shifts!.starts_at,
-      checkedIn: Boolean(r.checked_in_at),
-    }))
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.station.localeCompare(b.station) || a.name.localeCompare(b.name));
+  const now = new Date();
+  const eventDay = eventPhase(event, now) === "day";
+  const rows = (rowData ?? []) as unknown as Row[];
+  const shifts = (shiftData ?? []) as ShiftRow[];
+
+  // Same station order as everywhere else: the bands' check-in path first.
+  // Stations without shifts (a gate run by its lead alone) have no one to check in.
+  const stations: DeskStation[] = sortStations((stationData ?? []) as StationRow[])
+    .filter((st) => shifts.some((sh) => sh.station_id === st.id))
+    .map((st) => ({
+    id: st.id,
+    name: st.name,
+    kind: st.checkpoint_kind ? kindLabel(st.checkpoint_kind) : null,
+    shifts: shifts
+      .filter((sh) => sh.station_id === st.id)
+      .map((sh) => {
+        const started = eventDay && new Date(sh.starts_at) <= now;
+        const over = eventDay && new Date(sh.ends_at) <= now;
+        return {
+          id: sh.id,
+          title: sh.title,
+          time: `${multiDay ? `${formatDate(utcToZonedDate(sh.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(sh.starts_at, sh.ends_at, tz)}`,
+          capacity: sh.max_capacity,
+          started,
+          now: started && !over,
+          over,
+          volunteers: rows
+            .filter((r) => r.shift_id === sh.id && r.volunteers)
+            .map((r) => ({
+              assignmentId: r.id,
+              name: r.volunteers!.full_name,
+              phone: r.volunteers!.phone,
+              phoneDisplay: formatPhone(r.volunteers!.phone),
+              email: r.volunteers!.email,
+              walkUp: r.volunteers!.walk_up,
+              checkedIn: Boolean(r.checked_in_at),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        };
+      }),
+  }));
 
   return (
     <div>
+      <AutoRefresh seconds={30} />
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Volunteers &amp; check-in</h1>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Volunteer check-in</h1>
       <p className="mt-1 mb-6 text-muted">
-        Tap <strong className="text-foreground">Check in</strong> as people arrive at the volunteer desk. Their
-        section lead sees it on their station page.
+        Tap <strong className="text-foreground">Check in</strong> as people arrive at the volunteer desk. Someone new
+        wants to help? Add them as a walk-up on a shift with open spots.
       </p>
-      <CheckInList rows={rows} toggle={setCheckedIn.bind(null, eventId)} />
+      <Desk
+        stations={stations}
+        eventDay={eventDay}
+        toggle={setCheckedIn.bind(null, eventId)}
+        addWalkUp={addWalkUp.bind(null, eventId)}
+        release={releaseSpot.bind(null, eventId)}
+      />
     </div>
   );
 }
