@@ -1198,4 +1198,61 @@ do $$ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Running behind: push the rest of the schedule back
+-- ---------------------------------------------------------------------------
+delete from public.schedule_breaks where event_id = '10000000-0000-0000-0000-00000000000a';
+delete from public.performance_slots where event_id = '10000000-0000-0000-0000-00000000000a';
+delete from public.finals_slots where event_id = '10000000-0000-0000-0000-00000000000a';
+insert into public.performance_slots (band_id, event_id, performance_order, warm_up_at, perform_at) values
+  ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-00000000000a', 1, '2030-01-01 09:00+00', '2030-01-01 10:00+00'),
+  ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-00000000000a', 2, '2030-01-01 09:15+00', '2030-01-01 10:15+00'),
+  ('40000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-00000000000a', 3, '2030-01-01 09:30+00', '2030-01-01 10:30+00');
+insert into public.schedule_breaks (event_id, starts_at, minutes, label) values
+  ('10000000-0000-0000-0000-00000000000a', '2030-01-01 09:55+00', 5, 'Before band 1'),
+  ('10000000-0000-0000-0000-00000000000a', '2030-01-01 10:10+00', 5, 'Between 1 and 2'),
+  ('10000000-0000-0000-0000-00000000000a', '2030-01-01 18:30+00', 30, 'Before finals');
+insert into public.finals_slots (event_id, slot_number, band_id, warm_up_at, perform_at) values
+  ('10000000-0000-0000-0000-00000000000a', 1, '40000000-0000-0000-0000-000000000002', '2030-01-01 18:00+00', '2030-01-01 19:00+00');
+set role authenticated;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  begin
+    perform public.push_schedule_back('10000000-0000-0000-0000-00000000000a', 2, 10, false);
+    raise exception 'FAIL: a Volunteer Lead moved the schedule';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ declare moved int; begin
+  begin
+    perform public.push_schedule_back('10000000-0000-0000-0000-00000000000a', 2, 0, false);
+    raise exception 'FAIL: pushed back by 0 minutes';
+  exception when raise_exception then null;
+  end;
+  select count(*) into moved from public.push_schedule_back('10000000-0000-0000-0000-00000000000a', 2, 10, false);
+  assert moved = 2, format('bands #2 and #3 move (got %s)', moved);
+  assert (select perform_at from public.performance_slots where performance_order = 1
+           and event_id = '10000000-0000-0000-0000-00000000000a') = '2030-01-01 10:00+00', 'band #1 stays put';
+  assert (select warm_up_at = '2030-01-01 09:25+00' and perform_at = '2030-01-01 10:25+00' from public.performance_slots
+           where performance_order = 2 and event_id = '10000000-0000-0000-0000-00000000000a'), 'band #2 moves 10 minutes later';
+  assert (select starts_at from public.schedule_breaks where label = 'Before band 1') = '2030-01-01 09:55+00',
+         'a break before the first moved band stays put';
+  assert (select starts_at from public.schedule_breaks where label = 'Between 1 and 2') = '2030-01-01 10:20+00',
+         'a break after the band before moves';
+  assert (select starts_at from public.schedule_breaks where label = 'Before finals') = '2030-01-01 18:30+00',
+         'finals breaks stay put unless finals move';
+  assert (select perform_at from public.finals_slots where event_id = '10000000-0000-0000-0000-00000000000a') = '2030-01-01 19:00+00',
+         'finals stay put unless asked';
+  select count(*) into moved from public.push_schedule_back('10000000-0000-0000-0000-00000000000a', 3, 5, true);
+  assert moved = 2, format('band #3 and the finalist move (got %s)', moved);
+  assert (select perform_at from public.finals_slots where event_id = '10000000-0000-0000-0000-00000000000a') = '2030-01-01 19:05+00',
+         'finals move when asked';
+  assert (select starts_at from public.schedule_breaks where label = 'Before finals') = '2030-01-01 18:35+00',
+         'finals breaks move with the finals';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

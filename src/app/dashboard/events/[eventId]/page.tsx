@@ -294,6 +294,14 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                   hasPath={path.length > 0}
                   dayLabel={formatDate(event.starts_on, { year: undefined })}
                 />
+                {access.isHost && status.late.length > 0 && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/contest-day?station=overview`}
+                    className="inline-flex text-sm font-medium text-brand underline-offset-4 hover:underline"
+                  >
+                    Running behind? Push the schedule back
+                  </Link>
+                )}
               </>
             )}
             <div className="flex flex-wrap items-center justify-between gap-4">

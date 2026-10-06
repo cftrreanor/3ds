@@ -92,7 +92,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261011000000_station_leads.sql` | More than one Section Lead per station | ✅ run |
 | `20261012000000_co_hosts.sql` | Co-hosts: invite someone to run events with you | ✅ run |
 | `20261013000000_lead_permissions.sql` | Leads see band names and status, not contact details | ✅ run |
-| `20261014000000_contest_day.sql` | Contest day: ordered check-in stations, parking spots, one-tap stops, notes, undo | run this next |
+| `20261014000000_contest_day.sql` | Contest day: ordered check-in stations, parking spots, one-tap stops, notes, undo | ✅ run |
+| `20261015000000_push_schedule_back.sql` | Contest day: "Push the schedule back" button | run this next |
 
 ## Test data (fake bands and volunteers)
 To try features without making real accounts, fill a test event with fake data:

@@ -36,7 +36,8 @@ import {
   undoBandAction,
   type BandActionName,
 } from "../../../contest-day-actions";
-import { LotSizeForm, NoteForm, TapButton } from "./controls";
+import { pushScheduleBack } from "../../../band-actions";
+import { LotSizeForm, NoteForm, PushBackForm, TapButton } from "./controls";
 import { OnTrackSummary } from "./on-track";
 
 export const metadata: Metadata = { title: "Contest day" };
@@ -75,7 +76,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const [{ data: event }, { data: pathData }, { data: myLeads }] = await Promise.all([
     supabase
       .from("events")
-      .select("id, name, timezone, starts_on, ends_on, equipment_spots, ready_minutes_before, finals_ready_minutes_before")
+      .select("id, name, timezone, starts_on, ends_on, equipment_spots, ready_minutes_before, finals_ready_minutes_before, performance_order_published")
       .eq("id", eventId)
       .maybeSingle(),
     supabase
@@ -246,6 +247,9 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
 
       {overview ? (
         <Overview
+          isHost={access.isHost}
+          published={event.performance_order_published}
+          hasFinals={finals.length > 0}
           phase={phase}
           dayLabel={formatDate(event.starts_on, { year: undefined })}
           bands={bands}
@@ -495,6 +499,9 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
 
 /** Hosts and Volunteer Leads: is every band on track, and where is each one along the path? */
 function Overview({
+  isHost,
+  published,
+  hasFinals,
   phase,
   dayLabel,
   bands,
@@ -505,6 +512,9 @@ function Overview({
   eventId,
   time,
 }: {
+  isHost: boolean;
+  published: boolean;
+  hasFinals: boolean;
   phase: Phase;
   dayLabel: string;
   bands: Band[];
@@ -523,6 +533,14 @@ function Overview({
     ...prelims.map((s) => bands.find((b) => b.id === s.band_id)).filter((b): b is Band => !!b),
     ...bands.filter((b) => !slotOf.has(b.id)),
   ].sort((a, b) => Number(!!a.scratched_at) - Number(!!b.scratched_at));
+  // Bands still to perform, for "Push the schedule back": the first one is the default.
+  const performed = new Set(stops.filter((x) => x.performed && x.round === "prelims").map((x) => x.band_id));
+  const remaining = prelims
+    .filter((s) => s.band_id && !performed.has(s.band_id))
+    .map((s) => {
+      const b = bands.find((x) => x.id === s.band_id);
+      return { order: s.order, label: `#${s.order} ${b?.school_name ?? "Band"}${s.perform_at ? ` · ${time(s.perform_at)}` : ""}` };
+    });
   const DOT: Record<CheckState, string> = {
     done: "border-success bg-success text-success-foreground",
     late: "border-danger bg-danger text-danger-foreground",
@@ -541,6 +559,26 @@ function Overview({
           their warm-up time. &ldquo;Due soon&rdquo; means within {DUE_SOON_MINUTES} minutes.
         </p>
       </Card>
+
+      {isHost && remaining.length > 0 && (
+        <Card className="p-4">
+          <details>
+            <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Moves the warm-up and performance times of the band you pick and everyone after them, plus the breaks in
+              between. Bands before them stay as they are.
+            </p>
+            <div className="mt-3">
+              <PushBackForm
+                action={pushScheduleBack.bind(null, eventId)}
+                bands={remaining}
+                hasFinals={hasFinals}
+                published={published}
+              />
+            </div>
+          </details>
+        </Card>
+      )}
 
       <section aria-labelledby="board-heading">
         <h2 id="board-heading" className="text-lg font-semibold">
