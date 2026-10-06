@@ -240,3 +240,62 @@ export function onTrack<B extends BandDay>(
       .sort()[0] ?? null;
   return { phase, tone: late.length ? "red" : soon.length ? "gold" : "green", late, soon, firstDue, ...progress };
 }
+
+/** Short names for small spaces (tiles, board columns). */
+/** Board column headings: Park, Check, Warm, Gate. */
+export function columnName(c: Checkpoint) {
+  if (c.checkpoint_kind === "parking") return "Park";
+  if (c.checkpoint_kind === "warm_up") return "Warm";
+  if (c.checkpoint_kind === "gate") return "Gate";
+  return c.name.split(/[\s-]+/)[0].slice(0, 6);
+}
+
+export function shortName(c: Checkpoint) {
+  return c.checkpoint_kind === "parking" ? "Parking" : c.checkpoint_kind === "warm_up" ? "Warm-up" : c.checkpoint_kind === "gate" ? "Gate" : c.name;
+}
+
+export type Tile = {
+  station: Checkpoint;
+  /** "Parked", "Warm-up", "Performed"… */
+  label: string;
+  done: number;
+  total: number;
+  late: number;
+  soon: number;
+  /** Gate only: bands at the gate who haven't performed yet. */
+  atGate?: number;
+};
+
+/** One number per check-in station: how many bands are done there, and how many are late or due soon. */
+export function stationTiles(
+  bands: BandDay[],
+  stops: Stop[],
+  path: Checkpoint[],
+  slotOf: (bandId: string) => SlotTimes,
+  readyMinutes: number,
+  now: Date,
+  phase: Phase,
+): Tile[] {
+  const active = bands.filter((b) => !b.scratched_at);
+  const checks = active.map((b) => bandChecks(b, stops, path, slotOf(b.id), readyMinutes, now));
+  const performed = (b: BandDay) => stops.some((s) => s.band_id === b.id && s.performed && s.round === "prelims");
+  return path.map((station, i) => {
+    const states = checks.map((c) => c[i].state);
+    const onDay = (s: CheckState) => (phase === "day" ? states.filter((x) => x === s).length : 0);
+    if (station.checkpoint_kind === "gate") {
+      const done = active.filter(performed).length;
+      return { station, label: "Performed", done, total: active.length, late: onDay("late"), soon: onDay("soon"), atGate: states.filter((s) => s === "done").length - done };
+    }
+    const label = station.checkpoint_kind === "parking" ? "Parked" : shortName(station);
+    return { station, label, done: states.filter((s) => s === "done").length, total: active.length, late: onDay("late"), soon: onDay("soon") };
+  });
+}
+
+/** Next band to perform (prelims): the first in order that hasn't performed and isn't scratched. */
+export function nextUp<B extends BandDay>(ordered: { band: B; perform_at: string | null; order: number }[], stops: Stop[]) {
+  return (
+    ordered.find(
+      (o) => !o.band.scratched_at && !stops.some((s) => s.band_id === o.band.id && s.performed && s.round === "prelims"),
+    ) ?? null
+  );
+}

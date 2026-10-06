@@ -15,8 +15,8 @@ import {
   zoneName,
 } from "@/lib/time";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
-import { eventPhase, onTrack, sortStations, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
-import { OnTrackSummary } from "./contest-day/on-track";
+import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
+import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { setEventPublished } from "../../actions";
 import { ActionButton, type LeadOption } from "./forms";
 import { StationPanel, type RosterEntry, type Shift } from "./station-panel";
@@ -97,7 +97,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           .order("created_at")
       : Promise.resolve({ data: [] }),
     supabase.from("band_stops").select("band_id, station_id, round, performed, reached_at").eq("event_id", eventId),
-    supabase.from("performance_slots").select("band_id, warm_up_at, perform_at").eq("event_id", eventId),
+    supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, perform_at").eq("event_id", eventId).order("performance_order"),
   ]);
   // Each station with everyone leading it (first-added first).
   const stations = sortStations(stationData ?? []).map((st) => ({
@@ -110,7 +110,21 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const path = stations.filter((s): s is typeof s & Checkpoint => !!s.checkpoint_kind);
   const slots = new Map((slotData ?? []).map((s) => [s.band_id, s]));
   const now = new Date();
-  const status = onTrack(dayBands, (stopData ?? []) as Stop[], path, (id) => slots.get(id), event.ready_minutes_before, now, eventPhase(event, now));
+  const phase = eventPhase(event, now);
+  const stops = (stopData ?? []) as Stop[];
+  const status = onTrack(dayBands, stops, path, (id) => slots.get(id), event.ready_minutes_before, now, phase);
+  const tiles = stationTiles(dayBands, stops, path, (id) => slots.get(id), event.ready_minutes_before, now, phase);
+  const upNext =
+    phase === "day"
+      ? nextUp(
+          (slotData ?? []).flatMap((s) => {
+            const band = dayBands.find((b) => b.id === s.band_id);
+            return band ? [{ band, perform_at: s.perform_at, order: s.performance_order }] : [];
+          }),
+          stops,
+        )
+      : null;
+  const gate = path.find((c) => c.checkpoint_kind === "gate");
 
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
@@ -283,17 +297,39 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             Contest day
           </h2>
           <Card className="mt-4 space-y-4">
-            {access.canManage && bands.length > 0 && (
+            {access.canManage && bands.length > 0 ? (
               <>
                 {isEventDay && <AutoRefresh seconds={30} />}
-                <OnTrackSummary
-                  status={status}
-                  eventId={eventId}
-                  time={(iso) => formatTime(iso, tz)}
-                  limit={5}
-                  hasPath={path.length > 0}
-                  dayLabel={formatDate(event.starts_on, { year: undefined })}
-                />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <StatusLine
+                    status={status}
+                    hasPath={path.length > 0}
+                    dayLabel={formatDate(event.starts_on, { year: undefined })}
+                    time={(iso) => formatTime(iso, tz)}
+                  />
+                  <Link
+                    href={`/dashboard/events/${eventId}/contest-day`}
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                  >
+                    Open contest day
+                  </Link>
+                </div>
+                {phase !== "before" && path.length > 0 && (
+                  <DayTiles
+                    tiles={tiles}
+                    next={
+                      upNext && {
+                        order: upNext.order,
+                        school: upNext.band.school_name,
+                        perform_at: upNext.perform_at,
+                        atGate: !!gate && stops.some((x) => x.band_id === upNext.band.id && x.station_id === gate.id && x.round === "prelims"),
+                      }
+                    }
+                    eventId={eventId}
+                    time={(iso) => formatTime(iso, tz)}
+                  />
+                )}
+                <AttentionList status={status} eventId={eventId} limit={3} />
                 {access.isHost && status.late.length > 0 && (
                   <Link
                     href={`/dashboard/events/${eventId}/contest-day?station=overview`}
@@ -303,24 +339,23 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                   </Link>
                 )}
               </>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="text-sm leading-6 text-muted">
+                  {!bands.length
+                    ? "No bands registered yet."
+                    : phase === "day"
+                      ? `${status.parked} of ${status.expected} bands parked · ${tiles.find((t) => t.label === "Performed")?.done ?? 0} of ${status.expected} performed.`
+                      : `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`}
+                </p>
+                <Link
+                  href={`/dashboard/events/${eventId}/contest-day`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                >
+                  Open contest day
+                </Link>
+              </div>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm leading-6 text-muted">
-                {!bands.length
-                  ? "No bands registered yet."
-                  : status.phase === "day"
-                    ? // Hosts already see "N of M fully parked" above; everyone sees how many have performed.
-                      `${access.canManage ? "" : `${status.parked} of ${status.expected} bands parked · `}${new Set((stopData ?? []).filter((x) => x.performed && x.round === "prelims").map((x) => x.band_id)).size} of ${status.expected} performed.`
-                    : `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`}{" "}
-                Tap bands through each check-in station, one tap at a time.
-              </p>
-              <Link
-                href={`/dashboard/events/${eventId}/contest-day`}
-                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-              >
-                Open contest day
-              </Link>
-            </div>
           </Card>
         </section>
       )}
