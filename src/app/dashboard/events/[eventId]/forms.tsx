@@ -17,6 +17,7 @@ type StationValues = {
   due_minutes_before_warm_up: number | null;
   location: string | null;
   instructions: string | null;
+  adults_only?: boolean;
   /** Everyone leading this station, first-added first. */
   lead_ids?: string[];
 };
@@ -75,6 +76,18 @@ export function StationForm({
       <Field label="Instructions for volunteers" hint="Optional. What to wear, bring and do." className="sm:col-span-2">
         <Textarea name="instructions" defaultValue={initial?.instructions ?? ""} />
       </Field>
+      <label className="flex items-start gap-3 text-sm sm:col-span-2">
+        <input
+          type="checkbox"
+          name="adultsOnly"
+          defaultChecked={initial?.adults_only ?? false}
+          className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+        />
+        <span>
+          <span className="font-medium">Adults only (18+)</span>
+          <span className="block text-muted">No one under 18 can sign up for this station&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
+        </span>
+      </label>
       {leads && (
         <fieldset className="sm:col-span-2">
           <legend className="text-sm font-medium">Section Leads</legend>

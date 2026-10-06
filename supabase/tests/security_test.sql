@@ -1650,4 +1650,37 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Adults-only stations: no minors, by signup or at the desk
+-- ---------------------------------------------------------------------------
+update public.stations set adults_only = true where id = '20000000-0000-0000-0000-00000000000a';
+insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+  ('30000000-0000-0000-0000-0000000000a3', '20000000-0000-0000-0000-00000000000a', 'Grown-up Parking',
+   now() + interval '13 days', now() + interval '13 days 2 hours', 5);
+set role service_role;
+do $$ begin
+  begin
+    perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Mom Adult', 'mom.adult@example.com', '+15125550180',
+            array['30000000-0000-0000-0000-0000000000a3']::uuid[], false, '[{"name": "Kiddo Adult", "minor": true}]'::jsonb);
+    raise exception 'FAIL: a minor signed up for an adults-only station';
+  exception when sqlstate 'P0005' then null;
+  end;
+  assert not exists (select 1 from public.volunteers where email = 'mom.adult@example.com'), 'nothing is booked when a minor is turned away';
+  perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Mom Adult', 'mom.adult@example.com', '+15125550180',
+          array['30000000-0000-0000-0000-0000000000a3']::uuid[], false, '[{"name": "Dad Adult"}]'::jsonb);
+  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-0000000000a3') = 2, 'adults can sign up';
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  begin
+    perform public.add_walk_up('30000000-0000-0000-0000-0000000000a3', 'Teen Walker', null, false, true);
+    raise exception 'FAIL: the desk added a minor to an adults-only station';
+  exception when sqlstate 'P0005' then null;
+  end;
+end $$;
+reset role;
+update public.stations set adults_only = false where id = '20000000-0000-0000-0000-00000000000a';
+
 \echo 'All database security tests passed.'

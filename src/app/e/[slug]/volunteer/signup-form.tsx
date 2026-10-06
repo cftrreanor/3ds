@@ -20,6 +20,8 @@ export type PublicStation = {
   name: string;
   location: string | null;
   instructions: string | null;
+  /** No one under 18 on this station's shifts. */
+  adults_only: boolean;
   shifts: PublicShift[];
 };
 
@@ -190,7 +192,15 @@ export function SignupForm({
             hidden={st.id !== activeId}
             className="mt-4 p-4 sm:p-5"
           >
-            <h3 className="font-semibold">{st.name}</h3>
+            <h3 className="font-semibold">
+              {st.name}
+              {st.adults_only && (
+                <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-xs font-semibold ring-1 ring-border">Adults only (18+)</span>
+              )}
+            </h3>
+            {st.adults_only && anyMinor && (
+              <p className="mt-1 text-sm text-danger">Someone in your group is under 18, so these shifts aren&apos;t available.</p>
+            )}
             {st.location && <p className="text-sm text-muted">{st.location}</p>}
             {st.instructions && <p className="mt-2 text-sm leading-6 text-muted">{st.instructions}</p>}
             <ul className="mt-3 space-y-2">
@@ -198,11 +208,12 @@ export function SignupForm({
                 const isChosen = chosen.has(s.id);
                 // A group signs up together, so a shift needs a spot for everyone.
                 const full = s.spotsLeft < groupSize && !isChosen;
+                const adultsOnly = st.adults_only && anyMinor && !isChosen;
                 return (
                   <li key={s.id}>
                     <label
                       className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition ${
-                        full
+                        full || adultsOnly
                           ? "cursor-not-allowed border-border opacity-60"
                           : isChosen
                             ? "border-brand bg-accent-soft"
@@ -214,7 +225,7 @@ export function SignupForm({
                         name="shiftIds"
                         value={s.id}
                         checked={isChosen}
-                        disabled={full || disabled}
+                        disabled={full || adultsOnly || disabled}
                         onChange={() => toggle(s.id)}
                         className="h-5 w-5 shrink-0 accent-[var(--brand)]"
                       />

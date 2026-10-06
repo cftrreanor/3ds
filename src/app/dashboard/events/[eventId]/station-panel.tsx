@@ -24,6 +24,7 @@ export type Station = {
   due_minutes_before_warm_up: number | null;
   location: string | null;
   instructions: string | null;
+  adults_only?: boolean;
   lead_user_id: string | null;
   /** Everyone leading this station, first-added first. */
   lead_ids: string[];
@@ -87,6 +88,7 @@ export function StationPanel({
                 Check-in stop {station.checkpoint_order} · {kindLabel(station.checkpoint_kind)}
               </Badge>
             )}
+            {station.adults_only && <Badge>Adults only (18+)</Badge>}
             {station.lead_ids.includes(userId) && <Badge tone="brand">You lead this</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">

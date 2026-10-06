@@ -308,6 +308,7 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
       due_minutes_before_warm_up: dueMinutes(formData, kind),
       location: v.location,
       instructions: v.instructions,
+      adults_only: formData.get("adultsOnly") === "on",
     })
     .select("id")
     .single();
@@ -346,6 +347,7 @@ export async function updateStation(
       due_minutes_before_warm_up: dueMinutes(formData, kind),
       location: v.location,
       instructions: v.instructions,
+      adults_only: formData.get("adultsOnly") === "on",
     })
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
