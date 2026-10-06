@@ -109,3 +109,96 @@ export const ACTION_LABEL: Record<string, string> = {
   scratched: "Scratched",
   unscratched: "Un-scratched",
 };
+
+// ---------------------------------------------------------------------------
+// On track? Each band is due at parking (and any check-in point with a
+// deadline) a set time before its warm-up, and at warm-up by its warm-up
+// time. Hosts hear about a band before the deadline ("due soon"), not just after.
+// ---------------------------------------------------------------------------
+
+/** How far ahead a deadline counts as "due soon". */
+export const DUE_SOON_MINUTES = 15;
+
+export type CheckState = "done" | "late" | "soon" | "upcoming" | "none";
+export type Check = {
+  station: Checkpoint;
+  /** When the band is due at this station (null: no deadline). */
+  due: string | null;
+  state: CheckState;
+  /** Minutes late ("late") or until due ("soon"/"upcoming"). */
+  minutes: number;
+};
+/** The band's prelims times from the schedule. */
+export type SlotTimes = { warm_up_at: string | null; perform_at: string | null } | undefined;
+
+const minusMinutes = (iso: string, minutes: number) => new Date(new Date(iso).getTime() - minutes * 60_000).toISOString();
+
+/** When this station expects the band, from its prelims schedule. */
+export function dueAt(station: Checkpoint, slot: SlotTimes, readyMinutes: number): string | null {
+  switch (station.checkpoint_kind) {
+    case "warm_up":
+      return slot?.warm_up_at ?? null;
+    case "gate":
+      return slot?.perform_at ? minusMinutes(slot.perform_at, readyMinutes) : null;
+    default: {
+      const before = station.due_minutes_before_warm_up;
+      return slot?.warm_up_at && before != null ? minusMinutes(slot.warm_up_at, before) : null;
+    }
+  }
+}
+
+/** Has the band done this station (prelims)? Parking counts once buses and equipment are in. */
+export function doneAt(b: BandDay, station: Checkpoint, stops: Stop[]): boolean {
+  if (station.checkpoint_kind === "parking") return ["all", "away", "left"].includes(parking(b).key);
+  return stops.some((s) => s.band_id === b.id && s.station_id === station.id && (s.round === null || s.round === "prelims"));
+}
+
+/** The band's check at every station on the path, as of `now`. */
+export function bandChecks(b: BandDay, stops: Stop[], path: Checkpoint[], slot: SlotTimes, readyMinutes: number, now: Date): Check[] {
+  return path.map((station) => {
+    const due = dueAt(station, slot, readyMinutes);
+    if (doneAt(b, station, stops)) return { station, due, state: "done", minutes: 0 };
+    if (!due || b.scratched_at || b.left_at) return { station, due, state: "none", minutes: 0 };
+    const diff = Math.round((new Date(due).getTime() - now.getTime()) / 60_000);
+    if (diff < 0) return { station, due, state: "late", minutes: -diff };
+    return { station, due, state: diff <= DUE_SOON_MINUTES ? "soon" : "upcoming", minutes: diff };
+  });
+}
+
+/** The checks that decide "are we on time": parking, check-in points and warm-up (not the gate). */
+export const countsForOnTrack = (c: Check) => c.station.checkpoint_kind !== "gate";
+
+/** What a check is waiting on, e.g. "equipment not parked" or "not at Warm-Up". */
+export function waitingOn(b: BandDay, c: Check): string {
+  if (c.station.checkpoint_kind !== "parking") return `not at ${c.station.name}`;
+  const p = parking(b);
+  if (p.key === "buses") return "equipment not parked";
+  if (p.key === "equipment") return "buses not here";
+  return "not parked";
+}
+
+export type Attention<B extends BandDay = BandDay> = { band: B; check: Check };
+export type OnTrack<B extends BandDay = BandDay> = {
+  tone: "green" | "gold" | "red";
+  late: Attention<B>[];
+  soon: Attention<B>[];
+};
+
+/** The whole event: who's behind (most late first) and who's due soon (soonest first). */
+export function onTrack<B extends BandDay>(
+  bands: B[],
+  stops: Stop[],
+  path: Checkpoint[],
+  slotOf: (bandId: string) => SlotTimes,
+  readyMinutes: number,
+  now: Date,
+): OnTrack<B> {
+  const items = bands.flatMap((band) =>
+    bandChecks(band, stops, path, slotOf(band.id), readyMinutes, now)
+      .filter(countsForOnTrack)
+      .map((check) => ({ band, check })),
+  );
+  const late = items.filter((i) => i.check.state === "late").sort((a, b) => b.check.minutes - a.check.minutes);
+  const soon = items.filter((i) => i.check.state === "soon").sort((a, b) => a.check.minutes - b.check.minutes);
+  return { tone: late.length ? "red" : soon.length ? "gold" : "green", late, soon };
+}
