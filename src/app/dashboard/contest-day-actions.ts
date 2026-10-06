@@ -6,7 +6,23 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-const ACTIONS = ["buses_here", "equipment_here", "away", "back", "left", "here", "performed", "scratched", "unscratched"] as const;
+const ACTIONS = [
+  "buses_here",
+  "equipment_here",
+  "away",
+  "back",
+  "left",
+  "here",
+  "performed",
+  "scratched",
+  "unscratched",
+  // Tapping a done step again takes just that step back.
+  "clear_buses",
+  "clear_equipment",
+  "clear_left",
+  "clear_here",
+  "clear_performed",
+] as const;
 export type BandActionName = (typeof ACTIONS)[number];
 
 const refresh = (eventId: string) => revalidatePath(`/dashboard/events/${eventId}`, "layout");

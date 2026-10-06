@@ -33,11 +33,10 @@ import {
   bandAction,
   deleteBandNote,
   setEquipmentSpots,
-  undoBandAction,
   type BandActionName,
 } from "../../../contest-day-actions";
 import { pushScheduleBack } from "../../../band-actions";
-import { LotSizeForm, NoteForm, PushBackForm, TapButton } from "./controls";
+import { DoneButton, LotSizeForm, NoteForm, PushBackForm, TapButton } from "./controls";
 import { OnTrackSummary } from "./on-track";
 
 export const metadata: Metadata = { title: "Contest day" };
@@ -357,8 +356,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
             const performed = kind === "gate" ? stopsAt(b, true) : undefined;
             const tap = (action: BandActionName) =>
               bandAction.bind(null, eventId, b.id, action, station.id, byRound ? round : null);
-            const done = (text: string) => (
-              <p className="flex min-h-11 items-center rounded-md bg-background px-3 text-sm text-muted">✓ {text}</p>
+            // A done step stays a button: tap it again to take just that step back.
+            const done = (step: string, detail: string, undo: BandActionName, className = "") => (
+              <DoneButton action={tap(undo)} detail={detail} className={className}>
+                {step}
+              </DoneButton>
             );
             const status = kind === "parking" ? parking(b) : whereIs(b, stops, path, round);
             const dueTime = dueAt(b);
@@ -404,7 +406,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                         <>
                           {(b.bus_count > 0 || !hasEquipment(b)) &&
                             (b.buses_at ? (
-                              done(`${b.bus_count > 0 ? "Buses" : "Arrived"} ${time(b.buses_at)}`)
+                              done(b.bus_count > 0 ? "Buses" : "Arrived", time(b.buses_at), "clear_buses")
                             ) : (
                               // No vehicles on the registration: one "Arrived" tap.
                               <TapButton action={tap("buses_here")} variant="go">
@@ -413,7 +415,11 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                             ))}
                           {hasEquipment(b) &&
                             (b.equipment_at ? (
-                              done(b.equipment_spot != null ? `Equipment · Spot ${b.equipment_spot}` : `Equipment ${time(b.equipment_at)}`)
+                              done(
+                                "Equipment",
+                                b.equipment_spot != null ? `Spot ${b.equipment_spot}` : time(b.equipment_at),
+                                "clear_equipment",
+                              )
                             ) : (
                               <TapButton action={tap("equipment_here")} variant="go">
                                 Equipment here
@@ -432,7 +438,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                             ))}
                           {(b.buses_at || b.equipment_at) &&
                             (b.left_at ? (
-                              done(`Left ${time(b.left_at)}`)
+                              done("Left", time(b.left_at), "clear_left")
                             ) : (
                               <TapButton
                                 action={tap("left")}
@@ -446,7 +452,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                       )}
                       {kind !== "parking" &&
                         (here ? (
-                          <div className={kind === "gate" ? "" : "col-span-2"}>{done(`Here ${time(here.reached_at)}`)}</div>
+                          done("Here", time(here.reached_at), "clear_here", kind === "gate" ? "" : "col-span-2")
                         ) : (
                           <TapButton action={tap("here")} variant="go" className={kind === "gate" ? "" : "col-span-2"}>
                             Here
@@ -454,7 +460,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                         ))}
                       {kind === "gate" &&
                         (performed ? (
-                          done(`Performed ${time(performed.reached_at)}`)
+                          done("Performed", time(performed.reached_at), "clear_performed")
                         ) : (
                           <TapButton action={tap("performed")} variant={here ? "go" : "secondary"}>
                             Performed
@@ -484,7 +490,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                     )}
                   </div>
 
-                  <LastTap band={b} last={lastBy.get(b.id)} path={path} eventId={eventId} userId={user.id} canManage={access.canManage} time={time} />
+                  <LastTap last={lastBy.get(b.id)} path={path} userId={user.id} time={time} />
                 </Card>
               </li>
             );
@@ -686,26 +692,20 @@ function BandNotes({
   );
 }
 
-/** "Last: Here at Warm-up · Lee, 9:05 AM", with Undo for the person who tapped it (or a manager). */
+/** "Last: Here at Warm-up · Lee, 9:05 AM": who did the latest tap. (A done step is undone by tapping it again.) */
 function LastTap({
-  band: b,
   last,
   path,
-  eventId,
   userId,
-  canManage,
   time,
 }: {
-  band: Band;
   last: Activity | undefined;
   path: Checkpoint[];
-  eventId: string;
   userId: string;
-  canManage: boolean;
   time: (iso: string) => string;
 }) {
   if (!last) return null;
-  const at = last.action === "here" || last.action === "performed" ? path.find((c) => c.id === last.station_id)?.name : undefined;
+  const at = ["here", "performed", "clear_here", "clear_performed"].includes(last.action) ? path.find((c) => c.id === last.station_id)?.name : undefined;
   const label = `${ACTION_LABEL[last.action] ?? last.action}${at ? ` at ${at}` : ""}${last.round === "finals" ? " (finals)" : ""}`;
   return (
     <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted">
@@ -714,16 +714,6 @@ function LastTap({
         {last.detail ? ` · ${last.detail}` : ""} · {last.created_by === userId ? "You" : (last.actor_name ?? "Team")},{" "}
         {time(last.created_at)}
       </span>
-      {(last.created_by === userId || canManage) && (
-        <TapButton
-          action={undoBandAction.bind(null, eventId, b.id)}
-          variant="ghost"
-          confirmMessage={`Undo "${label}" for ${b.school_name}?`}
-          className="shrink-0 [&_button]:min-h-8 [&_button]:px-2 [&_button]:text-xs [&_button]:underline"
-        >
-          Undo
-        </TapButton>
-      )}
     </div>
   );
 }

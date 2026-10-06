@@ -110,6 +110,11 @@ export const ACTION_LABEL: Record<string, string> = {
   performed: "Performed",
   scratched: "Scratched",
   unscratched: "Un-scratched",
+  clear_buses: "Took back Buses here",
+  clear_equipment: "Took back Equipment here",
+  clear_left: "Took back Left for the day",
+  clear_here: "Took back Here",
+  clear_performed: "Took back Performed",
 };
 
 // ---------------------------------------------------------------------------

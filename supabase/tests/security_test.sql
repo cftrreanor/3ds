@@ -1289,4 +1289,60 @@ do $$ declare r record; begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Tap a done step again to take it back
+-- ---------------------------------------------------------------------------
+update public.bands set buses_at = null, equipment_at = null, equipment_spot = null, away_at = null, left_at = null, scratched_at = null
+ where event_id = '10000000-0000-0000-0000-00000000000a';
+delete from public.band_stops where event_id = '10000000-0000-0000-0000-00000000000a';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$
+declare park constant uuid := '20000000-0000-0000-0000-00000000000a';
+begin
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'buses_here', park);
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_buses', park);
+  assert (select buses_at from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000001') is null, 'tapping Buses again takes it back';
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'equipment_here', park);
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_equipment', park);
+  assert (select equipment_spot is null and equipment_at is null from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000001'), 'taking equipment back frees the spot';
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'equipment_here', park);
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'left', park);
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_left', park);
+  assert (select left_at is null and equipment_spot = 1 from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000001'), 'taking "left" back returns the band to its spot';
+  -- Spot 1 taken while they were gone: they get the next free one.
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'left', park);
+  perform public.band_action('40000000-0000-0000-0000-000000000002', 'equipment_here', park);
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_left', park);
+  assert (select equipment_spot from public.event_bands('10000000-0000-0000-0000-00000000000a')
+           where id = '40000000-0000-0000-0000-000000000001') = 2, 'a band coming back gets a free spot if theirs was taken';
+  begin
+    perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_here', '20000000-0000-0000-0000-0000000000c3', 'prelims');
+    raise exception 'FAIL: a parking lead took back a gate tap';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000007","email":"newlead@example.com"}';
+do $$
+declare gate constant uuid := '20000000-0000-0000-0000-0000000000c3';
+begin
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'here', gate, 'prelims');
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'performed', gate, 'prelims');
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_performed', gate, 'prelims');
+  assert (select count(*) from public.band_stops where band_id = '40000000-0000-0000-0000-000000000001') = 1,
+         'taking Performed back leaves Here';
+  perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_here', gate, 'prelims');
+  assert not exists (select 1 from public.band_stops where band_id = '40000000-0000-0000-0000-000000000001'),
+         'taking Here back removes the stop';
+  begin
+    perform public.band_action('40000000-0000-0000-0000-000000000001', 'clear_buses', gate);
+    raise exception 'FAIL: a parking take-back at the gate';
+  exception when raise_exception then null;
+  end;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
