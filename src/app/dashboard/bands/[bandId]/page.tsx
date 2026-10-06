@@ -13,7 +13,10 @@ import { CONTEST_INFO_COOKIE } from "@/lib/preferences";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
+import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { CollapsibleInfo } from "./collapsible-info";
+import { ContestDayCard, type ProgressRow } from "./contest-day-card";
 
 export const metadata: Metadata = { title: "Contest" };
 
@@ -28,7 +31,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const band = data as BandRow | null;
   if (!band) missing();
 
-  const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }, { data: phone }, cookieStore] = await Promise.all([
+  const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }, { data: phone }, cookieStore, { data: day }, { data: progress }] = await Promise.all([
     supabase
       .from("events")
       .select(
@@ -41,6 +44,13 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase.from("event_director_contacts").select("name, email, has_phone").eq("event_id", band.event_id).maybeSingle(),
     supabase.rpc("director_contact_phone", { ev: band.event_id }),
     cookies(),
+    // Contest day: where the band is along the host's check-in path.
+    supabase
+      .from("bands")
+      .select("id, band_name, bus_count, box_truck_count, truck_trailer_count, semi_truck_count, buses_at, equipment_at, equipment_spot, away_at, left_at, scratched_at")
+      .eq("id", bandId)
+      .maybeSingle(),
+    supabase.rpc("my_band_progress", { p_band_id: bandId }),
   ]);
   if (!event) missing();
   const open = registrationIsOpen(event);
@@ -61,6 +71,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     });
   const hasContact = contact && (contact.name || contact.has_phone || contact.email);
   const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
+  const contestDay =
+    eventPhase(event, new Date()) === "day" && event.performance_order_published && slot && day && (progress ?? []).length > 0;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -128,6 +140,21 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           <span className="text-muted">· {band.school_name}</span>
         </p>
       </header>
+
+      {contestDay && (
+        <>
+          <AutoRefresh seconds={30} />
+          <ContestDayCard
+            band={day as BandDay & { band_name: string }}
+            rows={(progress ?? []) as ProgressRow[]}
+            prelims={slot}
+            finals={event.finalists_revealed ? finalsSlot : null}
+            readyMinutes={event.ready_minutes_before}
+            finalsReadyMinutes={event.finals_ready_minutes_before}
+            time={(iso) => formatTime(iso, event.timezone)}
+          />
+        </>
+      )}
 
       {event.finalists_revealed && finalsSlot && (
         <TimesCard
