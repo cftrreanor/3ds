@@ -268,6 +268,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         <div className="mt-6">
           {current ? (
             <StationPanel
+              // A fresh panel per station, so its forms never keep the previous tab's choices.
+              key={current.id}
               eventId={eventId}
               station={current}
               stationShifts={currentShifts}
