@@ -261,16 +261,40 @@ export async function setVolunteerSignupOpen(eventId: string, open: boolean): Pr
 // ---------------------------------------------------------------------------
 const stationSchema = z.object({
   name: text(80),
-  stationType: z.enum(["passive", "active_checkpoint"]),
   location: optionalText(200),
   instructions: optionalText(2000),
 });
+/** A check-in station's kind (blank for a regular station). */
+function checkpointKind(formData: FormData) {
+  const kind = z.enum(["parking", "stop", "warm_up", "gate"]).safeParse(formData.get("checkpointKind"));
+  return kind.success ? kind.data : null;
+}
+
+/** Parking and check-in points: minutes before warm-up a band is due (blank: no deadline). */
+function dueMinutes(formData: FormData, kind: string | null) {
+  if (kind !== "parking" && kind !== "stop") return null;
+  const raw = String(formData.get("dueMinutes") ?? "").trim();
+  return /^\d{1,3}$/.test(raw) ? Math.min(Number(raw), 600) : null;
+}
+
+/** The next place in the event's check-in order. */
+async function nextCheckpointOrder(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string) {
+  const { data } = await supabase
+    .from("stations")
+    .select("checkpoint_order")
+    .eq("event_id", eventId)
+    .not("checkpoint_order", "is", null)
+    .order("checkpoint_order", { ascending: false })
+    .limit(1);
+  return (data?.[0]?.checkpoint_order ?? 0) + 1;
+}
 
 export async function createStation(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const parsed = stationSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
+  const kind = checkpointKind(formData);
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -278,7 +302,10 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
     .insert({
       event_id: eventId,
       name: v.name,
-      station_type: v.stationType,
+      station_type: kind ? "active_checkpoint" : "passive",
+      checkpoint_kind: kind,
+      checkpoint_order: kind ? await nextCheckpointOrder(supabase, eventId) : null,
+      due_minutes_before_warm_up: dueMinutes(formData, kind),
       location: v.location,
       instructions: v.instructions,
     })
@@ -305,9 +332,21 @@ export async function updateStation(
   if (!leadIds.success) return { error: "Something went wrong with the Section Leads. Please try again." };
 
   const supabase = await createClient();
+  // A station that becomes a check-in station goes to the end of the order; one that stops being one leaves it.
+  const kind = checkpointKind(formData);
+  const { data: current } = await supabase.from("stations").select("checkpoint_order").eq("id", stationId).maybeSingle();
+  const order = kind ? (current?.checkpoint_order ?? (await nextCheckpointOrder(supabase, eventId))) : null;
   const { error } = await supabase
     .from("stations")
-    .update({ name: v.name, station_type: v.stationType, location: v.location, instructions: v.instructions })
+    .update({
+      name: v.name,
+      station_type: kind ? "active_checkpoint" : "passive",
+      checkpoint_kind: kind,
+      checkpoint_order: order,
+      due_minutes_before_warm_up: dueMinutes(formData, kind),
+      location: v.location,
+      instructions: v.instructions,
+    })
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
 
@@ -329,6 +368,31 @@ export async function updateStation(
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: "Station saved." };
+}
+
+/** Moves a check-in station one place earlier or later in the band's path. */
+export async function moveCheckpoint(eventId: string, stationId: string, direction: "up" | "down"): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("stations")
+    .select("id, checkpoint_order")
+    .eq("event_id", eventId)
+    .not("checkpoint_order", "is", null)
+    .order("checkpoint_order");
+  const list = data ?? [];
+  const i = list.findIndex((s) => s.id === stationId);
+  const j = direction === "up" ? i - 1 : i + 1;
+  if (i < 0 || j < 0 || j >= list.length) return { ok: true };
+  // Renumber 1…n with the two swapped, so the order stays tidy.
+  [list[i], list[j]] = [list[j], list[i]];
+  for (const [n, s] of list.entries()) {
+    if (s.checkpoint_order === n + 1) continue;
+    const { error } = await supabase.from("stations").update({ checkpoint_order: n + 1 }).eq("id", s.id);
+    if (error) return { error: friendlyDbError(error) };
+  }
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true };
 }
 
 export async function deleteStation(eventId: string, stationId: string): Promise<ActionState> {

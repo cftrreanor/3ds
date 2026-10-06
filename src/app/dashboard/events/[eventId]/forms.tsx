@@ -6,13 +6,15 @@ import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 type StationValues = {
   name: string;
-  station_type: string;
+  checkpoint_kind: CheckpointKind | null;
+  due_minutes_before_warm_up: number | null;
   location: string | null;
   instructions: string | null;
   /** Everyone leading this station, first-added first. */
@@ -31,17 +33,42 @@ export function StationForm({
   leads?: LeadOption[];
   submitLabel?: string;
 }) {
+  const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
   return (
     <ActionForm action={action} className="grid gap-4 sm:grid-cols-2" resetOnSuccess={!initial}>
       <Field label="Station name" hint="e.g. Spectator Parking, Concessions, Warm-Up Area A">
         <Input name="name" required defaultValue={initial?.name} />
       </Field>
-      <Field label="Type">
-        <Select name="stationType" defaultValue={initial?.station_type ?? "passive"}>
-          <option value="passive">Regular station (parking, concessions, hospitality…)</option>
-          <option value="active_checkpoint">Band checkpoint (warm-up, inspection, gate)</option>
+      <Field
+        label="Check-in station?"
+        hint="Check-in stations are the stops a band goes through on contest day, in the order you set. Their Section Leads tap bands in."
+      >
+        <Select name="checkpointKind" value={kind} onChange={(e) => setKind(e.target.value)}>
+          <option value="">No, a regular station (concessions, hospitality…)</option>
+          {CHECKPOINT_KINDS.map((k) => (
+            <option key={k.value} value={k.value}>
+              {k.label}: {k.hint}
+            </option>
+          ))}
         </Select>
       </Field>
+      {(kind === "parking" || kind === "stop") && (
+        <Field
+          label="Due how many minutes before the band's warm-up?"
+          hint={
+            kind === "parking"
+              ? "Bands not fully parked by then are flagged Late, so you have time to adjust the schedule."
+              : "Optional. Leave blank if this stop has no deadline."
+          }
+        >
+          <NumberInput
+            key={kind}
+            name="dueMinutes"
+            maxLength={3}
+            defaultValue={initial?.checkpoint_kind === kind ? (initial.due_minutes_before_warm_up ?? "") : kind === "parking" ? 60 : ""}
+          />
+        </Field>
+      )}
       <Field label="Location" hint="Optional. Where volunteers should report." className="sm:col-span-2">
         <Input name="location" defaultValue={initial?.location ?? ""} placeholder="e.g. North lot, by the ticket booth" />
       </Field>

@@ -13,6 +13,7 @@ import {
   utcToZonedDate,
   zoneName,
 } from "@/lib/time";
+import { parking, sortStations, type BandDay } from "@/lib/contest-day";
 import { setEventPublished } from "../../actions";
 import { ActionButton, type LeadOption } from "./forms";
 import { StationPanel, type RosterEntry, type Shift } from "./station-panel";
@@ -58,10 +59,11 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     { data: bandData },
     { data: leadRows },
     { data: hostData },
+    { data: stopData },
   ] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, station_type, location, instructions, lead_user_id")
+      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, lead_user_id")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -90,13 +92,15 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           .eq("organization_id", event.organization_id)
           .order("created_at")
       : Promise.resolve({ data: [] }),
+    supabase.from("band_stops").select("band_id, round, performed").eq("event_id", eventId),
   ]);
   // Each station with everyone leading it (first-added first).
-  const stations = (stationData ?? []).map((st) => ({
+  const stations = sortStations(stationData ?? []).map((st) => ({
     ...st,
     lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
   }));
   const bands = (bandData ?? []) as BandTotals[];
+  const dayBands = (bandData ?? []) as BandDay[];
 
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
@@ -262,6 +266,30 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           )}
         </div>
       </div>
+
+      {(access.canManage || myStations.some((s) => s.checkpoint_kind)) && (
+        <section className="mt-10" aria-labelledby="day-heading">
+          <h2 id="day-heading" className="text-lg font-semibold">
+            Contest day
+          </h2>
+          <Card className="mt-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <p className="text-sm leading-6 text-muted">
+                {bands.length
+                  ? `${dayBands.filter((b) => parking(b).key === "all").length} of ${bands.length} bands on-site · ${new Set((stopData ?? []).filter((x) => x.performed && x.round === "prelims").map((x) => x.band_id)).size} performed.`
+                  : "No bands registered yet."}{" "}
+                Tap bands through each check-in station, one tap at a time.
+              </p>
+              <Link
+                href={`/dashboard/events/${eventId}/contest-day`}
+                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+              >
+                Open contest day
+              </Link>
+            </div>
+          </Card>
+        </section>
+      )}
 
       {access.canManage && (
         <section className="mt-10" aria-labelledby="team-heading">

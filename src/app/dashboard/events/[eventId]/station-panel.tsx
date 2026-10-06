@@ -1,4 +1,5 @@
 import { Badge, Card } from "@/components/ui";
+import { kindLabel, type CheckpointKind } from "@/lib/contest-day";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
@@ -18,7 +19,9 @@ export type Shift = {
 export type Station = {
   id: string;
   name: string;
-  station_type: string;
+  checkpoint_kind: CheckpointKind | null;
+  checkpoint_order: number | null;
+  due_minutes_before_warm_up: number | null;
   location: string | null;
   instructions: string | null;
   lead_user_id: string | null;
@@ -75,7 +78,11 @@ export function StationPanel({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{station.name}</h3>
-            {station.station_type === "active_checkpoint" && <Badge tone="accent">Band checkpoint</Badge>}
+            {station.checkpoint_kind && (
+              <Badge tone="accent">
+                Check-in stop {station.checkpoint_order} · {kindLabel(station.checkpoint_kind)}
+              </Badge>
+            )}
             {station.lead_ids.includes(userId) && <Badge tone="brand">You lead this</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">

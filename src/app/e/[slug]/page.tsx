@@ -20,7 +20,6 @@ type ScheduleRow = {
   school_name: string;
   band_name: string;
   classification: string;
-  status: string;
 };
 type FinalsRow = {
   slot_number: number;

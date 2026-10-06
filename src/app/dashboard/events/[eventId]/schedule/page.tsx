@@ -6,25 +6,20 @@ import { Badge, Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
+import { sortStations, whereIs, type BandDay, type Checkpoint, type Round, type Stop, type Tone } from "@/lib/contest-day";
 import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Band schedule" };
 
 /** What leads may know about a band (event_bands): no contact details. Counts are for Volunteer Leads only. */
-export type LeadBand = {
+export type LeadBand = BandDay & {
   id: string;
   band_name: string;
   school_name: string;
   classification: string;
-  status: BandStatus;
   student_count: number | null;
   chaperone_count: number | null;
-  bus_count: number | null;
-  box_truck_count: number | null;
-  truck_trailer_count: number | null;
-  semi_truck_count: number | null;
 };
-type BandStatus = "pending" | "checked_in" | "warm_up_active" | "departed_to_gate" | "performed";
 type Slot = {
   band_id: string | null;
   number: string;
@@ -35,13 +30,15 @@ type Slot = {
 };
 type BreakRow = { starts_at: string; minutes: number; label: string };
 
-const STATUS: Record<BandStatus, { label: string; tone: "neutral" | "accent" | "brand" }> = {
-  pending: { label: "Not here yet", tone: "neutral" },
-  checked_in: { label: "Checked in", tone: "accent" },
-  warm_up_active: { label: "Warming up", tone: "accent" },
-  departed_to_gate: { label: "At the gate", tone: "brand" },
-  performed: { label: "Performed", tone: "neutral" },
-};
+const BADGE_TONE: Record<Tone, "neutral" | "accent" | "brand"> = { red: "neutral", gold: "accent", green: "brand", neutral: "neutral" };
+
+/** Where the band is: needs the day's stops and the check-in path. */
+type Track = { stops: Stop[]; path: Checkpoint[] };
+
+function Status({ band, round, track }: { band: LeadBand; round: Round; track: Track }) {
+  const w = whereIs(band, track.stops, track.path, round);
+  return <Badge tone={BADGE_TONE[w.tone]}>{w.label}</Badge>;
+}
 
 /** Read-only schedule and band status for Volunteer Leads and Section Leads. */
 export default async function LeadSchedulePage({ params }: PageProps<"/dashboard/events/[eventId]/schedule">) {
@@ -61,8 +58,15 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
   if (!event) missing();
 
   // Each read only returns what this person may see: drafts stay with the hosts.
-  const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: finalsTimes }] =
-    await Promise.all([
+  const [
+    { data: bandData },
+    { data: slotData },
+    { data: breakData },
+    { data: finalsData },
+    { data: finalsTimes },
+    { data: stopData },
+    { data: pathData },
+  ] = await Promise.all([
       supabase.rpc("event_bands", { ev: eventId }),
       supabase
         .from("performance_slots")
@@ -76,7 +80,14 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
         .eq("event_id", eventId)
         .order("slot_number"),
       event.finals_published ? supabase.rpc("public_finals", { p_slug: event.slug }) : Promise.resolve({ data: [] }),
+      supabase.from("band_stops").select("band_id, station_id, round, performed, reached_at").eq("event_id", eventId),
+      supabase
+        .from("stations")
+        .select("id, name, checkpoint_kind, checkpoint_order")
+        .eq("event_id", eventId)
+        .not("checkpoint_kind", "is", null),
     ]);
+  const track: Track = { stops: (stopData ?? []) as Stop[], path: sortStations((pathData ?? []) as Checkpoint[]) };
   const bands = (bandData ?? []) as LeadBand[];
   const byId = new Map(bands.map((b) => [b.id, b]));
   const breaks = (breakData ?? []) as BreakRow[];
@@ -112,18 +123,21 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
 
       {bands.length > 0 && (
         <p className="mt-4 text-sm">
-          {(["checked_in", "warm_up_active", "departed_to_gate", "performed"] as const)
-            .map((st) => ({ st, n: bands.filter((b) => b.status === st).length }))
-            .filter((x) => x.n > 0)
-            .map((x) => `${x.n} ${STATUS[x.st].label.toLowerCase()}`)
-            .join(" · ") || `${bands.length} band${bands.length === 1 ? "" : "s"} registered`}
+          {Object.entries(
+            bands.reduce<Record<string, number>>((acc, b) => {
+              const label = whereIs(b, track.stops, track.path).label;
+              return { ...acc, [label]: (acc[label] ?? 0) + 1 };
+            }, {}),
+          )
+            .map(([label, n]) => `${n} ${label.toLowerCase()}`)
+            .join(" · ")}
         </p>
       )}
 
       <section className="mt-6">
         <h2 className="text-lg font-semibold">Preliminaries</h2>
         {prelims.length > 0 ? (
-          <ScheduleRows slots={prelims} byId={byId} breaks={breaks} at={at} />
+          <ScheduleRows slots={prelims} byId={byId} breaks={breaks} at={at} round="prelims" track={track} />
         ) : (
           <Card className="mt-3">
             <p className="text-sm text-muted">The host hasn&apos;t published the performance order yet.</p>
@@ -135,7 +149,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
         <section className="mt-10">
           <h2 className="text-lg font-semibold">🏆 Finals</h2>
           {!event.finalists_revealed && <p className="mt-1 text-sm text-muted">Finalists are announced by the host.</p>}
-          <ScheduleRows slots={finals} byId={byId} breaks={breaks} at={at} />
+          <ScheduleRows slots={finals} byId={byId} breaks={breaks} at={at} round="finals" track={track} />
         </section>
       )}
 
@@ -146,7 +160,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
             {unscheduled.map((b) => (
               <li key={b.id} className="flex items-start gap-3 px-4 py-3">
                 <BandLines band={b} />
-                <Badge tone={STATUS[b.status].tone}>{STATUS[b.status].label}</Badge>
+                <Status band={b} round="prelims" track={track} />
               </li>
             ))}
           </ul>
@@ -161,11 +175,15 @@ function ScheduleRows({
   byId,
   breaks,
   at,
+  round,
+  track,
 }: {
+  track: Track;
   slots: Slot[];
   byId: Map<string, LeadBand>;
   breaks: BreakRow[];
   at: (iso: string) => string;
+  round: Round;
 }) {
   return (
     <ol className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">
@@ -189,7 +207,7 @@ function ScheduleRows({
               {band ? <BandLines band={band} slot={s} at={at} /> : <p className="min-w-0 flex-1 font-medium text-muted">To be announced</p>}
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <p className="font-medium tabular-nums">{s.perform_at ? at(s.perform_at) : "TBA"}</p>
-                {band && <Badge tone={STATUS[band.status].tone}>{STATUS[band.status].label}</Badge>}
+                {band && <Status band={band} round={round} track={track} />}
               </div>
             </li>
           </Fragment>
