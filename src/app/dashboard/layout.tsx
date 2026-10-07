@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DemoBar } from "@/components/demo-bar";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { requireUser } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -24,6 +25,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
 
   return (
     <div className="flex flex-1 flex-col">
+      <DemoBar />
       <HeaderBar href="/dashboard">
         {volunteers && (
           <Link href="/my" className={headerLinkClass}>

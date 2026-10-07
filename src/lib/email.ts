@@ -1,6 +1,7 @@
 import "server-only";
 import nodemailer from "nodemailer";
 import { brand } from "@/lib/brand";
+import { isDemoEmail } from "@/lib/demo-email";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
 // Without RESEND_API_KEY, emails are skipped and logged, so the app still works.
@@ -84,6 +85,8 @@ export async function sendEmail({
   attachments?: EmailAttachment[];
   invite?: CalendarInvite;
 }): Promise<boolean> {
+  // Demo people (src/lib/demo.ts) have made-up addresses: never email them.
+  if (isDemoEmail(to)) return true;
   if (invite) return sendInvite({ to, subject, html, text, invite });
   const key = process.env.RESEND_API_KEY;
   if (!key) {

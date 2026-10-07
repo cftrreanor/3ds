@@ -98,11 +98,12 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261017000000_tap_toggles.sql` | Contest day: tap a done step again to undo it | ✅ run |
 | `20261018000000_pilot_requests.sql` | "Join the pilot" requests from the home page | ✅ run |
 | `20261019000000_team_emails.sql` | Team: emailed invitations with one-tap accept, and a list of removed members | ✅ run |
-| `20261021000000_walk_ups.sql` | Volunteer check-in: add walk-up volunteers (name + phone), even to a full shift | run this first, if you haven't |
-| `20261022000000_volunteer_groups.sql` | Volunteer signup: add someone else (a spouse, a student), minors kept to first name + last initial, name-only walk-ups | run this first, if you haven't |
-| `20261023000000_adults_only_stations.sql` | Stations: an "Adults only (18+)" setting | run this first, if you haven't |
-| `20261024000000_event_files.sql` | Maps & documents: share PDFs and images with the public, directors, volunteers or the team (also creates the private `event-files` storage bucket) | run this first, if you haven't |
-| `20261025000000_event_file_uploader.sql` | Maps & documents: who uploaded each file, and when | run this next |
+| `20261021000000_walk_ups.sql` | Volunteer check-in: add walk-up volunteers (name + phone), even to a full shift | ✅ run |
+| `20261022000000_volunteer_groups.sql` | Volunteer signup: add someone else (a spouse, a student), minors kept to first name + last initial, name-only walk-ups | ✅ run |
+| `20261023000000_adults_only_stations.sql` | Stations: an "Adults only (18+)" setting | ✅ run |
+| `20261024000000_event_files.sql` | Maps & documents: share PDFs and images with the public, directors, volunteers or the team (also creates the private `event-files` storage bucket) | ✅ run |
+| `20261025000000_event_file_uploader.sql` | Maps & documents: who uploaded each file, and when | ✅ run |
+| `20261026000000_demo_mode.sql` | Demo mode: FieldCommand admins can view an event as each role | run this next |
 
 ## Pilot requests
 
@@ -206,6 +207,19 @@ select id from auth.users where email = 'the-email-you-sign-in-with@example.com'
 It should say "1 row". Your dashboard then shows a **Pilot requests** box at the top, which opens
 every request with a status you can set (new, contacted, accepted, declined). Only admins can see
 the requests: hosts, volunteers and directors can't.
+
+Being an admin also turns on **demo mode** (needs `20261026000000_demo_mode.sql`). Open any event
+and scroll to **Demo this event** at the bottom. Tap a role (Host, Volunteer Lead, Section Lead,
+Director, Volunteer, Parent) and this browser signs in as a made-up demo person in that role. A bar
+across the top lets you switch roles with one tap. When you're done:
+
+- Tap **Back to me**. It signs you out and emails a sign-in link to your own address.
+- On your own account, tap **Remove demo people** on the event, so the demo band, volunteer and team
+  members don't show up in its lists.
+
+Demo people really are on the event while you demo, and as Host you can do anything a host can
+(including emailing the event's bands and volunteers), so use a practice event. Demo people
+themselves never get emails.
 
 
 ### 6. Sentry: tells us when something breaks (Phase 5)

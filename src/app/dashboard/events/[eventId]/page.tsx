@@ -4,7 +4,7 @@ import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   eachDate,
   formatDate,
@@ -20,7 +20,9 @@ import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { setEventPublished } from "../../actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
+import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
+import { PERSONAS } from "@/lib/demo";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 
 export const metadata: Metadata = { title: "Event setup" };
@@ -133,6 +135,15 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     ? (((await supabase.from("event_files").select("id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from, uploaded_by, uploaded_at").eq("event_id", eventId).order("created_at")).data ?? []) as EventFile[])
     : await filesFor([eventId], ["public", "team"], () => tz);
   const uploaded = access.isHost ? await uploadedLines(files, tz) : undefined;
+  // Demo mode, for FieldCommand admins (src/lib/demo.ts).
+  const demo = (await supabase.rpc("is_platform_admin")).data
+    ? {
+        active: Boolean(
+          (await createAdminClient().from("demo_events").select("event_id").eq("owner_id", user.id).eq("event_id", eventId).maybeSingle())
+            .data,
+        ),
+      }
+    : null;
   const days = eachDate(event.starts_on, event.ends_on);
   const multiDay = days.length > 1;
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
@@ -473,6 +484,28 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
+      {demo && (
+        <section className="mt-10" aria-labelledby="demo-heading">
+          <h2 id="demo-heading" className="text-lg font-semibold">
+            Demo this event
+          </h2>
+          <Card className="mt-4 space-y-3">
+            <p className="text-sm leading-6 text-muted">
+              See this event the way each person does, without switching emails. Tap a role and this browser signs in as
+              a demo person in that role: a co-host, a Volunteer Lead, a Section Lead (of the first stations), the
+              director of &ldquo;Demo High School&rdquo;, a volunteer with a shift, or a parent looking at the public page.
+              A bar at the top switches roles; <strong className="text-foreground">Back to me</strong> emails you a
+              sign-in link to get back to your own account.
+            </p>
+            <p className="text-sm leading-6 text-muted">
+              Use a practice event: the demo people really are on this event (in its lists and counts), and as Host
+              you can do anything a host can, including emailing its bands and volunteers. Demo people never get
+              emails.
+            </p>
+            <DemoStart eventId={eventId} personas={PERSONAS} active={demo.active} />
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

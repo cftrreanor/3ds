@@ -25,9 +25,20 @@ function formatSeconds(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export function LoginForm({ linkError, next, email }: { linkError?: boolean; next?: string; email?: string }) {
+export function LoginForm({
+  linkError,
+  next,
+  email,
+  sentTo,
+}: {
+  linkError?: boolean;
+  next?: string;
+  email?: string;
+  /** A link was already emailed here (e.g. leaving demo mode). */
+  sentTo?: string;
+}) {
   const [mode, setMode] = useState<"link" | "password">("link");
-  const [linkState, linkAction] = useActionState<LoginState, FormData>(sendLoginLink, {});
+  const [linkState, linkAction] = useActionState<LoginState, FormData>(sendLoginLink, sentTo ? { sentTo } : {});
   const [pwState, pwAction] = useActionState<LoginState, FormData>(signInWithPassword, {});
   const state = mode === "link" ? linkState : pwState;
   const wait = useCountdown(state.sentTo ? RESEND_AFTER : state.retryAfter, state);

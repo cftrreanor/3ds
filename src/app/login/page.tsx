@@ -9,7 +9,7 @@ import { LoginForm } from "./login-form";
 export const metadata: Metadata = { title: "Sign in" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { error, next, email } = await searchParams;
+  const { error, next, email, sent } = await searchParams;
   const safeNext = typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
   if (isSupabaseConfigured && (await getUser())) redirect(safeNext ?? "/dashboard");
 
@@ -25,6 +25,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               linkError={error === "link"}
               next={safeNext}
               email={typeof email === "string" ? email : undefined}
+              sentTo={sent === "1" && typeof email === "string" ? email : undefined}
             />
           ) : (
             <p className="text-muted">Sign-in isn&apos;t available yet: the database connection is not set up.</p>
