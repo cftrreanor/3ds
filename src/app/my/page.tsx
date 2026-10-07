@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { FileLinks } from "@/components/file-links";
+import { filesFor } from "@/lib/event-files";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import Link from "next/link";
 import { Card } from "@/components/ui";
@@ -58,6 +60,12 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   const rows = [...byId.values()].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const { upcoming, past } = splitByTime(rows);
   const byEvent = groupBy(upcoming, (r) => r.event_id);
+  // Maps & documents the host shared with volunteers (or everyone).
+  const tzOf = new Map(rows.map((r) => [r.event_id, r.timezone]));
+  const files = groupBy(
+    await filesFor([...byEvent.keys()], ["public", "volunteers"], (id) => tzOf.get(id) ?? "America/Chicago"),
+    (f) => f.event_id,
+  );
   const origin = await getOrigin();
 
   // Events this person volunteers for (or did, before cancelling) that are
@@ -169,6 +177,12 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
                   </ul>
                 </div>
               ))}
+              {files.has(eventId) && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">Maps &amp; documents</h3>
+                  <FileLinks files={files.get(eventId)!} className="mt-2" />
+                </div>
+              )}
               {signupLinks.has(eventId) && <SignUpMoreLink slug={signupLinks.get(eventId)!.slug} />}
             </section>
           );

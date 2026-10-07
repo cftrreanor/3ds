@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { FileLinks } from "@/components/file-links";
+import { filesFor } from "@/lib/event-files";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { Fragment } from "react";
@@ -124,6 +126,7 @@ export default async function EventPublicPage({ params }: Params) {
     live: liveOf("finals", r.slot_number),
   }));
   const breaks = (breakData ?? []) as BreakRow[];
+  const files = event.status === "published" ? await filesFor([event.id], ["public"], () => event.timezone) : [];
   const published = event.performance_order_published || event.finals_published;
   const bandsOpen = registrationIsOpen(event);
   const tz = event.timezone;
@@ -197,6 +200,15 @@ export default async function EventPublicPage({ params }: Params) {
             </Link>
           )}
         </div>
+      )}
+
+      {files.length > 0 && (
+        <section className="mt-10" aria-labelledby="maps-heading">
+          <h2 id="maps-heading" className="text-xl font-semibold">
+            Maps &amp; info
+          </h2>
+          <FileLinks files={files} className="mt-3" />
+        </section>
       )}
 
       <section className="mt-10">

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { FileLinks } from "@/components/file-links";
+import { filesFor } from "@/lib/event-files";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
@@ -54,6 +56,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   ]);
   if (!event) missing();
   const open = registrationIsOpen(event);
+  const files = await filesFor([band.event_id], ["public", "directors"], () => event.timezone);
   const origin = await getOrigin();
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
     api: "1",
@@ -154,6 +157,14 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             time={(iso) => formatTime(iso, event.timezone)}
           />
         </>
+      )}
+
+      {files.length > 0 && (
+        <Card className="mt-6">
+          <h2 className="font-semibold">Maps &amp; documents</h2>
+          <p className="mt-1 text-sm text-muted">From the host.</p>
+          <FileLinks files={files} className="mt-3" />
+        </Card>
       )}
 
       {event.finalists_revealed && finalsSlot && (

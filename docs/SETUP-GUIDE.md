@@ -100,7 +100,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261019000000_team_emails.sql` | Team: emailed invitations with one-tap accept, and a list of removed members | ✅ run |
 | `20261021000000_walk_ups.sql` | Volunteer check-in: add walk-up volunteers (name + phone), even to a full shift | run this first, if you haven't |
 | `20261022000000_volunteer_groups.sql` | Volunteer signup: add someone else (a spouse, a student), minors kept to first name + last initial, name-only walk-ups | run this first, if you haven't |
-| `20261023000000_adults_only_stations.sql` | Stations: an "Adults only (18+)" setting | run this next |
+| `20261023000000_adults_only_stations.sql` | Stations: an "Adults only (18+)" setting | run this first, if you haven't |
+| `20261024000000_event_files.sql` | Maps & documents: share PDFs and images with the public, directors, volunteers or the team (also creates the private `event-files` storage bucket) | run this next |
 
 ## Pilot requests
 

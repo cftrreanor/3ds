@@ -1683,4 +1683,65 @@ end $$;
 reset role;
 update public.stations set adults_only = false where id = '20000000-0000-0000-0000-00000000000a';
 
+-- ---------------------------------------------------------------------------
+-- Maps & documents: only hosts see and change the file list
+-- ---------------------------------------------------------------------------
+do $$ begin
+  assert (select not public from storage.buckets where id = 'event-files'), 'the files bucket is private';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences, created_by)
+values ('10000000-0000-0000-0000-00000000000a', 'Stadium map', '10000000-0000-0000-0000-00000000000a/map.pdf', 'map.pdf',
+        'application/pdf', 12345, array['public', 'directors'], '00000000-0000-0000-0000-000000000001');
+do $$ begin
+  assert (select count(*) from public.event_files) = 1, 'a host sees their files';
+  update public.event_files set label = 'Stadium & parking map';
+  begin
+    insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences, created_by)
+    values ('10000000-0000-0000-0000-00000000000a', 'Bad', '10000000-0000-0000-0000-00000000000b/x.pdf', 'x.pdf',
+            'application/pdf', 1, array['public'], auth.uid());
+    raise exception 'FAIL: a file path outside its event''s folder';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences, created_by)
+    values ('10000000-0000-0000-0000-00000000000a', 'Bad', '10000000-0000-0000-0000-00000000000a/x.exe', 'x.exe',
+            'application/x-msdownload', 1, array['public'], auth.uid());
+    raise exception 'FAIL: stored a file type that isn''t a PDF or image';
+  exception when check_violation then null;
+  end;
+end $$;
+-- A Volunteer Lead, a Section Lead and a stranger can't read or change the list directly.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select count(*) from public.event_files) = 0, 'a Volunteer Lead doesn''t read the file list directly';
+  update public.event_files set label = 'hijacked';
+  delete from public.event_files;
+  begin
+    insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences, created_by)
+    values ('10000000-0000-0000-0000-00000000000a', 'Mine', '10000000-0000-0000-0000-00000000000a/m.pdf', 'm.pdf',
+            'application/pdf', 1, array['public'], auth.uid());
+    raise exception 'FAIL: a Volunteer Lead added a file';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.event_files) = 0, 'a stranger can''t read the file list';
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.event_files;
+    raise exception 'FAIL: a visitor read the file list';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select label from public.event_files) = 'Stadium & parking map', 'only the host''s change stuck';
+end $$;
+
 \echo 'All database security tests passed.'

@@ -28,3 +28,13 @@ grant usage on schema public to anon, authenticated, service_role;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+
+-- Supabase Storage's bucket list (files themselves aren't needed for these tests).
+create schema storage;
+create table storage.buckets (
+  id                  text primary key,
+  name                text not null,
+  public              boolean default false,
+  file_size_limit     bigint,
+  allowed_mime_types  text[]
+);
