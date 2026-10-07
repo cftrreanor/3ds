@@ -20,6 +20,8 @@ import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { setEventPublished } from "../../actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
+import { FileLinks } from "@/components/file-links";
+import { filesFor, type EventFile } from "@/lib/event-files";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -126,6 +128,10 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const gate = path.find((c) => c.checkpoint_kind === "gate");
 
   const tz = event.timezone;
+  // Maps & documents: hosts see every file (hidden ones too); the team, the ones shared with them.
+  const files: EventFile[] = access.isHost
+    ? (((await supabase.from("event_files").select("id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from").eq("event_id", eventId).order("created_at")).data ?? []) as EventFile[])
+    : await filesFor([eventId], ["public", "team"], () => tz);
   const days = eachDate(event.starts_on, event.ends_on);
   const multiDay = days.length > 1;
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
@@ -374,6 +380,28 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               updates={teamUpdates}
             />
           </Card>
+        </section>
+      )}
+
+      {(files.length > 0 || access.isHost) && (
+        <section className="mt-10" aria-labelledby="files-heading">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="files-heading" className="text-lg font-semibold">
+              Maps &amp; documents
+            </h2>
+            {access.isHost && (
+              <Link href={`/dashboard/events/${eventId}/edit#files-heading`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
+                {files.length ? "Manage" : "Add a map or document"}
+              </Link>
+            )}
+          </div>
+          {files.length ? (
+            <FileLinks files={files} className="mt-3" />
+          ) : (
+            <p className="mt-1 text-sm text-muted">
+              Share a stadium map, parking map or director packet with the public, band directors, volunteers or your team.
+            </p>
+          )}
         </section>
       )}
 
