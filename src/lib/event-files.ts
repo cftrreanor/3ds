@@ -1,7 +1,7 @@
 import "server-only";
 import { getUser } from "@/lib/auth";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { utcToZonedDate } from "@/lib/time";
+import { formatDate, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
 
 // Maps & documents a host shares. Files sit in a private bucket; people open
@@ -31,6 +31,9 @@ export type EventFile = {
   size_bytes: number;
   audiences: Audience[];
   visible_from: string | null;
+  /** Only loaded for hosts. */
+  uploaded_by?: string | null;
+  uploaded_at?: string | null;
 };
 
 const COLUMNS = "id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from";
@@ -97,4 +100,26 @@ export async function canOpen(file: EventFile, event: { id: string; status: stri
   }
   if (has("volunteers") && (await volunteerEventIds()).has(event.id)) return true;
   return false;
+}
+
+/** For hosts: "Uploaded by Hana Host · Tue, Oct 7, 9:52 AM CDT", for each file id. */
+export async function uploadedLines(
+  files: { id: string; uploaded_by?: string | null; uploaded_at?: string | null }[],
+  timezone: string,
+): Promise<Map<string, string>> {
+  const ids = [...new Set(files.map((f) => f.uploaded_by).filter((id): id is string => Boolean(id)))];
+  const { data } = ids.length
+    ? await createAdminClient().from("profiles").select("id, full_name, email").in("id", ids)
+    : { data: [] };
+  const names = new Map((data ?? []).map((p) => [p.id as string, (p.full_name as string) || (p.email as string)]));
+  return new Map(
+    files
+      .filter((f) => f.uploaded_at)
+      .map((f) => {
+        const at = f.uploaded_at!;
+        const when = `${formatDate(utcToZonedDate(at, timezone), { year: undefined })}, ${formatTime(at, timezone)} ${zoneAbbreviation(at, timezone)}`;
+        const who = f.uploaded_by ? names.get(f.uploaded_by) : null;
+        return [f.id, `Uploaded ${who ? `by ${who} ` : ""}· ${when}`];
+      }),
+  );
 }

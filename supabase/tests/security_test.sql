@@ -1744,4 +1744,33 @@ do $$ begin
   assert (select label from public.event_files) = 'Stadium & parking map', 'only the host''s change stuck';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Maps & documents: who uploaded a file, and when (replacing counts as uploading)
+-- ---------------------------------------------------------------------------
+alter table public.event_files disable trigger event_files_stamp_upload;
+update public.event_files set uploaded_at = now() - interval '1 day', uploaded_by = null;
+alter table public.event_files enable trigger event_files_stamp_upload;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  update public.event_files set label = 'Renamed map';
+  assert (select uploaded_by is null and uploaded_at < now() - interval '1 hour' from public.event_files),
+         'renaming a file doesn''t change who uploaded it';
+  update public.event_files set path = '10000000-0000-0000-0000-00000000000a/new-map.pdf';
+  assert (select uploaded_by = auth.uid() and uploaded_at > now() - interval '1 minute' from public.event_files),
+         'replacing a file records who uploaded it, and when';
+  begin
+    insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences, created_by, uploaded_by)
+    values ('10000000-0000-0000-0000-00000000000a', 'Packet', '10000000-0000-0000-0000-00000000000a/p.pdf', 'p.pdf',
+            'application/pdf', 1, array['directors'], auth.uid(), '00000000-0000-0000-0000-000000000006');
+    raise exception 'FAIL: set someone else as the uploader';
+  exception when insufficient_privilege then null;
+  end;
+  insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences, created_by)
+  values ('10000000-0000-0000-0000-00000000000a', 'Packet', '10000000-0000-0000-0000-00000000000a/p.pdf', 'p.pdf',
+          'application/pdf', 1, array['directors'], auth.uid());
+  assert (select uploaded_by from public.event_files where label = 'Packet') = auth.uid(), 'a new file records its uploader';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

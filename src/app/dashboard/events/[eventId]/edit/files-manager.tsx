@@ -19,6 +19,8 @@ export type ManagedFile = {
   /** "Hidden until Tue, Oct 20" while its day hasn't come. */
   hiddenNote: string | null;
   href: string;
+  /** "Uploaded by Hana Host · Tue, Oct 7, 9:52 AM CDT" */
+  uploaded: string | null;
 };
 
 type Audience = { value: string; label: string; hint: string };
@@ -69,6 +71,7 @@ export function FilesManager({
                   <p className="text-sm text-muted">
                     {[f.meta, f.audiences.map(label).join(", "), f.hiddenNote].filter(Boolean).join(" · ")}
                   </p>
+                  {f.uploaded && <p className="text-xs text-muted">{f.uploaded}</p>}
                 </div>
                 <div className="flex items-center gap-1">
                   <Button type="button" variant="secondary" className="min-h-9 px-3 text-xs" onClick={() => setEditing(f.id)}>
