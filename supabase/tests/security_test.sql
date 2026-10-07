@@ -1773,4 +1773,115 @@ do $$ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Demo mode: demo people, added and removed only by the server
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('d0000000-0000-0000-0000-000000000001', 'host-1@demo.fieldcommandevents.com',     '{"full_name":"Demo Host"}'),
+  ('d0000000-0000-0000-0000-000000000002', 'lead-1@demo.fieldcommandevents.com',     '{"full_name":"Demo Section Lead"}'),
+  ('d0000000-0000-0000-0000-000000000003', 'director-1@demo.fieldcommandevents.com', '{"full_name":"Demo Director"}'),
+  ('d0000000-0000-0000-0000-000000000004', 'vol-1@demo.fieldcommandevents.com',      '{"full_name":"Demo Volunteer"}');
+insert into public.demo_accounts (user_id, owner_id, persona) values
+  ('d0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'host'),
+  ('d0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'section_lead'),
+  ('d0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'director'),
+  ('d0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'volunteer');
+
+-- Browsers (even a demo account) can't see or change any of it.
+set role authenticated;
+set request.jwt.claims = '{"sub":"d0000000-0000-0000-0000-000000000001","email":"host-1@demo.fieldcommandevents.com"}';
+do $$ begin
+  begin
+    perform 1 from public.demo_accounts;
+    raise exception 'FAIL: a browser read the demo accounts';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.demo_events (owner_id, event_id) values (auth.uid(), '10000000-0000-0000-0000-00000000000a');
+    raise exception 'FAIL: a browser turned on demo mode';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.demo_join('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-00000000000a', auth.uid());
+    raise exception 'FAIL: a browser added a demo person to an event';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.demo_leave('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-00000000000a');
+    raise exception 'FAIL: a browser removed demo people';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.demo_events;
+    raise exception 'FAIL: a visitor read the demo events';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+set role service_role;
+do $$ begin
+  begin
+    perform public.demo_join('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-00000000000a',
+                             'd0000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: added a demo person to an event without demo mode on';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+insert into public.demo_events (owner_id, event_id)
+values ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-00000000000a');
+do $$
+declare
+  owner constant uuid := '00000000-0000-0000-0000-000000000001';
+  ev    constant uuid := '10000000-0000-0000-0000-00000000000a';
+  org   uuid := (select organization_id from public.events where id = ev);
+  band  uuid;
+  spots int := (select sum(registered_count) from public.shifts where event_id = ev);
+begin
+  begin
+    perform public.demo_join('00000000-0000-0000-0000-000000000002', ev, 'd0000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: used someone else''s demo account';
+  exception when sqlstate 'P0001' then null;
+  end;
+
+  perform public.demo_join(owner, ev, 'd0000000-0000-0000-0000-000000000001');
+  assert exists (select 1 from public.organization_members
+                  where organization_id = org and user_id = 'd0000000-0000-0000-0000-000000000001' and role = 'admin'),
+         'the demo host co-hosts';
+
+  perform public.demo_join(owner, ev, 'd0000000-0000-0000-0000-000000000002');
+  assert exists (select 1 from public.event_staff
+                  where event_id = ev and user_id = 'd0000000-0000-0000-0000-000000000002' and role = 'section_lead'),
+         'the demo Section Lead is on the team';
+  assert (select count(*) from public.station_leads where user_id = 'd0000000-0000-0000-0000-000000000002') between 1 and 2,
+         'the demo Section Lead leads a station or two';
+
+  band := public.demo_join(owner, ev, 'd0000000-0000-0000-0000-000000000003');
+  assert band is not null and (select school_name from public.bands where id = band) = 'Demo High School',
+         'the demo director has a band';
+  assert public.demo_join(owner, ev, 'd0000000-0000-0000-0000-000000000003') = band, 'switching again keeps the same band';
+
+  perform public.demo_join(owner, ev, 'd0000000-0000-0000-0000-000000000004');
+  perform public.demo_join(owner, ev, 'd0000000-0000-0000-0000-000000000004');
+  assert (select count(*) from public.volunteer_assignments va join public.volunteers v on v.id = va.volunteer_id
+           where v.email = 'vol-1@demo.fieldcommandevents.com') = 1, 'the demo volunteer has one shift';
+  assert (select sum(registered_count) from public.shifts where event_id = ev) = spots + 1, 'their spot is counted';
+
+  perform public.demo_leave(owner, ev);
+  assert (select sum(registered_count) from public.shifts where event_id = ev) = spots, 'their spot is freed';
+  assert not exists (select 1 from public.volunteers where email = 'vol-1@demo.fieldcommandevents.com'), 'the demo volunteer is gone';
+  assert not exists (select 1 from public.bands where id = band), 'the demo band is gone';
+  assert not exists (select 1 from public.station_leads where user_id = 'd0000000-0000-0000-0000-000000000002'), 'the demo lead''s stations are freed';
+  assert not exists (select 1 from public.event_staff where user_id::text like 'd0000000%'), 'the demo team is gone';
+  assert not exists (select 1 from public.organization_members where user_id::text like 'd0000000%'), 'the demo host is gone';
+  assert not exists (select 1 from public.team_removals where user_id::text like 'd0000000%'), 'demo people aren''t listed as removed';
+  assert not exists (select 1 from public.demo_events where event_id = ev), 'demo mode is off for the event';
+  assert exists (select 1 from public.organization_members where organization_id = org and user_id = owner), 'the real host stays';
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
