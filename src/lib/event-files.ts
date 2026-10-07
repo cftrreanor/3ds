@@ -34,9 +34,11 @@ export type EventFile = {
   /** Only loaded for hosts. */
   uploaded_by?: string | null;
   uploaded_at?: string | null;
+  /** "Uploaded Wed, Oct 7, 9:52 AM CDT", for everyone but hosts (who also see who). */
+  uploaded_when?: string;
 };
 
-const COLUMNS = "id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from";
+const COLUMNS = "id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from, uploaded_at";
 
 export const fileHref = (id: string) => `/files/${id}`;
 
@@ -61,7 +63,9 @@ export async function filesFor(eventIds: string[], audiences: Audience[], timezo
     .in("event_id", eventIds)
     .overlaps("audiences", audiences)
     .order("created_at");
-  return ((data ?? []) as EventFile[]).filter((f) => isShowing(f, timezone(f.event_id)));
+  return ((data ?? []) as EventFile[])
+    .filter((f) => isShowing(f, timezone(f.event_id)))
+    .map((f) => ({ ...f, uploaded_when: f.uploaded_at ? `Uploaded ${uploadedAt(f.uploaded_at, timezone(f.event_id))}` : undefined }));
 }
 
 /** Events this browser's volunteer pass or signed-in account has shifts at. */
@@ -102,6 +106,11 @@ export async function canOpen(file: EventFile, event: { id: string; status: stri
   return false;
 }
 
+/** "Wed, Oct 7, 9:52 AM CDT" */
+function uploadedAt(at: string, timezone: string) {
+  return `${formatDate(utcToZonedDate(at, timezone), { year: undefined })}, ${formatTime(at, timezone)} ${zoneAbbreviation(at, timezone)}`;
+}
+
 /** For hosts: "Uploaded by Hana Host · Tue, Oct 7, 9:52 AM CDT", for each file id. */
 export async function uploadedLines(
   files: { id: string; uploaded_by?: string | null; uploaded_at?: string | null }[],
@@ -116,8 +125,7 @@ export async function uploadedLines(
     files
       .filter((f) => f.uploaded_at)
       .map((f) => {
-        const at = f.uploaded_at!;
-        const when = `${formatDate(utcToZonedDate(at, timezone), { year: undefined })}, ${formatTime(at, timezone)} ${zoneAbbreviation(at, timezone)}`;
+        const when = uploadedAt(f.uploaded_at!, timezone);
         const who = f.uploaded_by ? names.get(f.uploaded_by) : null;
         return [f.id, `Uploaded ${who ? `by ${who} ` : ""}· ${when}`];
       }),

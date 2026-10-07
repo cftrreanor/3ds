@@ -8,7 +8,7 @@ export function FileLinks({
 }: {
   files: EventFile[];
   className?: string;
-  /** Extra line per file id, e.g. who uploaded it (for hosts). */
+  /** For hosts: who uploaded each file and when, by file id. Everyone else sees just when. */
   details?: Map<string, string>;
 }) {
   if (files.length === 0) return null;
@@ -25,7 +25,9 @@ export function FileLinks({
             <span className="min-w-0">
               <span className="block truncate font-medium text-brand">{f.label}</span>
               <span className="block text-xs text-muted">{fileMeta(f)}</span>
-              {details?.get(f.id) && <span className="block text-xs text-muted">{details.get(f.id)}</span>}
+              {(details?.get(f.id) ?? f.uploaded_when) && (
+                <span className="block text-xs text-muted">{details?.get(f.id) ?? f.uploaded_when}</span>
+              )}
             </span>
             <span aria-hidden className="shrink-0 text-sm text-muted">
               Open ↗
