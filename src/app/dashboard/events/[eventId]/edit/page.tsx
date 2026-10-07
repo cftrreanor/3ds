@@ -6,7 +6,7 @@ import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { AUDIENCES, fileHref, fileMeta, isShowing, type EventFile } from "@/lib/event-files";
+import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, utcToZonedTime } from "@/lib/time";
 import { updateEvent } from "../../../actions";
 import { deleteFile, prepareUpload, saveFile } from "../../../file-actions";
@@ -33,11 +33,13 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
     supabase.from("shifts").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase
       .from("event_files")
-      .select("id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from")
+      .select("id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from, uploaded_by, uploaded_at")
       .eq("event_id", eventId)
       .order("created_at"),
   ]);
-  const files = ((fileData ?? []) as EventFile[]).map((f) => ({
+  const fileRows = (fileData ?? []) as (EventFile & { uploaded_by: string | null; uploaded_at: string })[];
+  const uploaded = await uploadedLines(fileRows, event.timezone);
+  const files = fileRows.map((f) => ({
     id: f.id,
     label: f.label,
     meta: fileMeta(f),
@@ -45,6 +47,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
     visibleFrom: f.visible_from,
     hiddenNote: isShowing(f, event.timezone) ? null : `Hidden until ${formatDate(f.visible_from!, { year: undefined })}`,
     href: fileHref(f.id),
+    uploaded: uploaded.get(f.id) ?? null,
   }));
 
   return (

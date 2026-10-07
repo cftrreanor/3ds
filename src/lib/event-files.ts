@@ -1,7 +1,7 @@
 import "server-only";
 import { getUser } from "@/lib/auth";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { utcToZonedDate } from "@/lib/time";
+import { formatDate, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
 
 // Maps & documents a host shares. Files sit in a private bucket; people open
@@ -31,9 +31,14 @@ export type EventFile = {
   size_bytes: number;
   audiences: Audience[];
   visible_from: string | null;
+  /** Only loaded for hosts. */
+  uploaded_by?: string | null;
+  uploaded_at?: string | null;
+  /** "Uploaded Wed, Oct 7, 9:52 AM CDT", for everyone but hosts (who also see who). */
+  uploaded_when?: string;
 };
 
-const COLUMNS = "id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from";
+const COLUMNS = "id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from, uploaded_at";
 
 export const fileHref = (id: string) => `/files/${id}`;
 
@@ -58,7 +63,9 @@ export async function filesFor(eventIds: string[], audiences: Audience[], timezo
     .in("event_id", eventIds)
     .overlaps("audiences", audiences)
     .order("created_at");
-  return ((data ?? []) as EventFile[]).filter((f) => isShowing(f, timezone(f.event_id)));
+  return ((data ?? []) as EventFile[])
+    .filter((f) => isShowing(f, timezone(f.event_id)))
+    .map((f) => ({ ...f, uploaded_when: f.uploaded_at ? `Uploaded ${uploadedAt(f.uploaded_at, timezone(f.event_id))}` : undefined }));
 }
 
 /** Events this browser's volunteer pass or signed-in account has shifts at. */
@@ -97,4 +104,30 @@ export async function canOpen(file: EventFile, event: { id: string; status: stri
   }
   if (has("volunteers") && (await volunteerEventIds()).has(event.id)) return true;
   return false;
+}
+
+/** "Wed, Oct 7, 9:52 AM CDT" */
+function uploadedAt(at: string, timezone: string) {
+  return `${formatDate(utcToZonedDate(at, timezone), { year: undefined })}, ${formatTime(at, timezone)} ${zoneAbbreviation(at, timezone)}`;
+}
+
+/** For hosts: "Uploaded by Hana Host · Tue, Oct 7, 9:52 AM CDT", for each file id. */
+export async function uploadedLines(
+  files: { id: string; uploaded_by?: string | null; uploaded_at?: string | null }[],
+  timezone: string,
+): Promise<Map<string, string>> {
+  const ids = [...new Set(files.map((f) => f.uploaded_by).filter((id): id is string => Boolean(id)))];
+  const { data } = ids.length
+    ? await createAdminClient().from("profiles").select("id, full_name, email").in("id", ids)
+    : { data: [] };
+  const names = new Map((data ?? []).map((p) => [p.id as string, (p.full_name as string) || (p.email as string)]));
+  return new Map(
+    files
+      .filter((f) => f.uploaded_at)
+      .map((f) => {
+        const when = uploadedAt(f.uploaded_at!, timezone);
+        const who = f.uploaded_by ? names.get(f.uploaded_by) : null;
+        return [f.id, `Uploaded ${who ? `by ${who} ` : ""}· ${when}`];
+      }),
+  );
 }

@@ -21,7 +21,7 @@ import { setEventPublished } from "../../actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
 import { FileLinks } from "@/components/file-links";
-import { filesFor, type EventFile } from "@/lib/event-files";
+import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -130,8 +130,9 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const tz = event.timezone;
   // Maps & documents: hosts see every file (hidden ones too); the team, the ones shared with them.
   const files: EventFile[] = access.isHost
-    ? (((await supabase.from("event_files").select("id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from").eq("event_id", eventId).order("created_at")).data ?? []) as EventFile[])
+    ? (((await supabase.from("event_files").select("id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from, uploaded_by, uploaded_at").eq("event_id", eventId).order("created_at")).data ?? []) as EventFile[])
     : await filesFor([eventId], ["public", "team"], () => tz);
+  const uploaded = access.isHost ? await uploadedLines(files, tz) : undefined;
   const days = eachDate(event.starts_on, event.ends_on);
   const multiDay = days.length > 1;
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
@@ -396,7 +397,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             )}
           </div>
           {files.length ? (
-            <FileLinks files={files} className="mt-3" />
+            <FileLinks files={files} details={uploaded} className="mt-3" />
           ) : (
             <p className="mt-1 text-sm text-muted">
               Share a stadium map, parking map or director packet with the public, band directors, volunteers or your team.
