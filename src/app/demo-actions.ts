@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ActionState } from "@/lib/action-state";
+import { isSchemaError } from "@/lib/schema-check";
 import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { DEMO_COOKIE, demoEmail, PERSONAS, personaLabel, type Persona } from "@/lib/demo";
@@ -12,6 +13,9 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 type Admin = ReturnType<typeof createAdminClient>;
 
 const isPersona = (p: string): p is Persona => PERSONAS.some((x) => x.value === p);
+
+const NEEDS_UPDATE =
+  "Demo mode needs a database update: run 20261026000000_demo_mode.sql in the Supabase SQL Editor (see docs/SETUP-GUIDE.md), then try again.";
 
 /**
  * Switch this browser to a demo role on an event. A FieldCommand admin can
@@ -46,7 +50,7 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
       .upsert({ owner_id: ownerId, event_id: eventId, last_used_at: new Date().toISOString() });
     if (error) {
       console.error("Turning on demo mode failed", error);
-      return { error: "We couldn't turn on demo mode for this event. Please try again." };
+      return { error: isSchemaError(error) ? NEEDS_UPDATE : `We couldn't turn on demo mode for this event. (Details: ${error.code ?? "unknown"}: ${error.message})` };
     }
   }
 
@@ -60,8 +64,9 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
   if (joinError) {
     console.error("demo_join failed", joinError);
     return {
-      error:
-        joinError.message === "Add a classification to the event first"
+      error: isSchemaError(joinError)
+        ? NEEDS_UPDATE
+        : joinError.message === "Add a classification to the event first"
           ? "Add at least one classification to the event first (Edit details), so the demo band can register."
           : "We couldn't add the demo person to this event. Please try again.",
     };
