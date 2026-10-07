@@ -13,7 +13,7 @@ import { Desk, type DeskStation } from "./desk";
 
 export const metadata: Metadata = { title: "Volunteer check-in" };
 
-type StationRow = { id: string; name: string; checkpoint_kind: CheckpointKind | null; checkpoint_order: number | null };
+type StationRow = { id: string; name: string; checkpoint_kind: CheckpointKind | null; checkpoint_order: number | null; adults_only: boolean };
 type ShiftRow = { id: string; station_id: string; title: string; starts_at: string; ends_at: string; max_capacity: number };
 type Row = {
   id: string;
@@ -46,7 +46,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
   const [{ data: stationData }, { data: shiftData }, { data: rowData }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_kind, checkpoint_order")
+      .select("id, name, checkpoint_kind, checkpoint_order, adults_only")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -72,6 +72,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
     id: st.id,
     name: st.name,
     kind: st.checkpoint_kind ? kindLabel(st.checkpoint_kind) : null,
+    adultsOnly: st.adults_only,
     shifts: shifts
       .filter((sh) => sh.station_id === st.id)
       .map((sh) => {

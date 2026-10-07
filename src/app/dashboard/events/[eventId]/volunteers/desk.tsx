@@ -37,6 +37,8 @@ export type DeskStation = {
   name: string;
   /** "Parking", "Check-in point"… for stations on the bands' path. */
   kind: string | null;
+  /** No one under 18 on this station's shifts. */
+  adultsOnly: boolean;
   shifts: DeskShift[];
 };
 
@@ -168,7 +170,7 @@ export function Desk({
             <div className="mt-4 space-y-4">
               {current.shifts.length === 0 && <p className="text-sm text-muted">No shifts at this station.</p>}
               {current.shifts.map((sh) => (
-                <ShiftCard key={sh.id} shift={sh} addWalkUp={addWalkUp} {...rowProps} />
+                <ShiftCard key={sh.id} shift={sh} adultsOnly={current.adultsOnly} addWalkUp={addWalkUp} {...rowProps} />
               ))}
             </div>
           ) : (
@@ -288,7 +290,12 @@ function Overview({ stations, openTab, ...rowProps }: { stations: DeskStation[];
   );
 }
 
-function ShiftCard({ shift, addWalkUp, ...rowProps }: { shift: DeskShift; addWalkUp: AddWalkUp } & RowProps) {
+function ShiftCard({
+  shift,
+  adultsOnly,
+  addWalkUp,
+  ...rowProps
+}: { shift: DeskShift; adultsOnly: boolean; addWalkUp: AddWalkUp } & RowProps) {
   const [adding, setAdding] = useState(false);
   const here = shift.volunteers.filter((v) => v.checkedIn).length;
   const gaps = shift.capacity - shift.volunteers.length;
@@ -318,7 +325,7 @@ function ShiftCard({ shift, addWalkUp, ...rowProps }: { shift: DeskShift; addWal
         ))}
         <li className="px-3 py-2">
           {adding ? (
-            <WalkUpForm addWalkUp={addWalkUp} shiftId={shift.id} gaps={gaps} onDone={() => setAdding(false)} />
+            <WalkUpForm addWalkUp={addWalkUp} shiftId={shift.id} gaps={gaps} adultsOnly={adultsOnly} onDone={() => setAdding(false)} />
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-muted">{full ? "Full" : `${gaps} open ${gaps === 1 ? "spot" : "spots"}`}</span>
@@ -339,14 +346,19 @@ function WalkUpForm({
   addWalkUp,
   shiftId,
   gaps,
+  adultsOnly,
   onDone,
 }: {
   addWalkUp: AddWalkUp;
   shiftId: string;
   gaps: number;
+  adultsOnly: boolean;
   onDone: () => void;
 }) {
   const [others, setOthers] = useState<{ name: string; minor: boolean }[]>([]);
+  const [minor, setMinor] = useState(false);
+  // Same as the signup page: say so as soon as someone under 18 is ticked.
+  const blocked = adultsOnly && (minor || others.some((o) => o.minor));
   // Everyone in the group needs a spot; past that, the desk confirms adding anyway.
   const full = gaps < 1 + others.length;
   const setOther = (i: number, change: Partial<{ name: string; minor: boolean }>) =>
@@ -358,13 +370,22 @@ function WalkUpForm({
       confirmMessage={full ? `This shift doesn't have room for ${others.length ? "everyone" : "them"}. Add anyway?` : undefined}
       className="space-y-2"
     >
-      <p className="text-sm font-medium">Add a walk-up</p>
+      <p className="text-sm font-medium">
+        Add a walk-up
+        {adultsOnly && <span className="ml-2 text-xs font-normal text-muted">Adults only (18+)</span>}
+      </p>
       <div className="grid gap-2 sm:grid-cols-2">
         <Input name="fullName" placeholder="Their name" required maxLength={200} autoComplete="off" aria-label="Their name" />
         <Input name="phone" type="tel" placeholder="Phone (optional)" maxLength={30} autoComplete="off" aria-label="Their phone (optional)" />
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="minor" className="h-5 w-5 accent-[var(--brand)]" />
+        <input
+          type="checkbox"
+          name="minor"
+          checked={minor}
+          onChange={(e) => setMinor(e.target.checked)}
+          className="h-5 w-5 accent-[var(--brand)]"
+        />
         Under 18 or a student
       </label>
       <input type="hidden" name="companions" value={JSON.stringify(others)} />
@@ -404,8 +425,13 @@ function WalkUpForm({
           + Add someone else
         </Button>
       )}
+      {blocked && (
+        <p role="alert" className="text-sm text-danger">
+          This station is adults only (18+), so someone under 18 can&apos;t be added here. Try another station.
+        </p>
+      )}
       <div className="flex gap-2">
-        <SubmitButton pendingText="Adding…" className="min-h-10">
+        <SubmitButton pendingText="Adding…" className="min-h-10" disabled={blocked}>
           {others.length ? `Add ${others.length + 1} & check in` : "Add & check in"}
         </SubmitButton>
         <Button type="button" variant="ghost" className="min-h-10" onClick={onDone}>
