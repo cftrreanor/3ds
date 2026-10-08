@@ -56,15 +56,14 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
               ) : (
                 <>
                   <p className="mt-3 leading-7 text-muted">
-                    This invitation&apos;s sign-in link has already been used or has expired. Sign in with{" "}
-                    <strong className="text-foreground">{invite.email}</strong> to register; your saved band details will be
-                    there.
+                    Band registration for this contest is closed, so this link no longer signs you in. Please contact the
+                    host if you need to make a change.
                   </p>
                   <Link
-                    href={`/login?next=${encodeURIComponent(here)}&email=${encodeURIComponent(invite.email)}`}
-                    className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+                    href={here}
+                    className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
                   >
-                    Sign in to register
+                    See the contest&apos;s registration page
                   </Link>
                 </>
               )}

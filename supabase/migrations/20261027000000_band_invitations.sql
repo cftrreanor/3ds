@@ -4,8 +4,8 @@
 --
 --   * past_band_directors(event) lists those directors (hosts only).
 --   * band_invitations records who was emailed. Each email carries a secret
---     token: tapping it once (within 30 days) signs the director in, straight
---     to registration with their saved band details. The server checks and
+--     token: tapping it signs the director in, straight to registration with
+--     their saved band details, for as long as registration is open. The server checks and
 --     uses the token; browsers never see it.
 -- =============================================================================
 
@@ -16,7 +16,7 @@ create table public.band_invitations (
   token       uuid not null default gen_random_uuid() unique,
   invited_by  uuid references public.profiles (id) on delete set null,
   sent_at     timestamptz not null default now(),
-  -- When its sign-in link was used (it works once).
+  -- When its sign-in link was last used.
   used_at     timestamptz,
   unique (event_id, email)
 );

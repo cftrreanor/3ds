@@ -94,8 +94,8 @@ export function InvitePastBands({
         {pending ? "Sending…" : `Send ${picked.size} invitation${picked.size === 1 ? "" : "s"}`}
       </Button>
       <p className="text-xs text-muted">
-        Each email has a button that signs the director in (once, for 30 days) and shows their saved band, ready to register
-        in one tap. Sending again replaces the earlier link.
+        Each email has a button that signs the director in and shows their saved band, ready to register in one tap. It
+        works for as long as registration is open. Sending again replaces the earlier link.
       </p>
     </div>
   );
