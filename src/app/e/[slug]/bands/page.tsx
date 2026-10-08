@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
-import { registerBand } from "@/app/dashboard/band-actions";
+import { registerAgain, registerBand } from "@/app/dashboard/band-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
@@ -44,7 +44,8 @@ export default async function BandRegistrationPage({ params }: Params) {
   const myBands = (myBandData ?? []) as unknown as (BandRow & { events: { name: string } | null })[];
   const mine = myBands.filter((b) => b.event_id === event.id);
   // The latest registration of each of the director's bands, to copy from.
-  const seen = new Set<string>();
+  // (Not ones already registered for this contest.)
+  const seen = new Set<string>(mine.map((b) => `${b.band_name}|${b.school_name}`.toLowerCase()));
   const previous: PreviousBand[] = myBands
     .filter((b) => {
       const k = `${b.band_name}|${b.school_name}`.toLowerCase();
@@ -55,7 +56,7 @@ export default async function BandRegistrationPage({ params }: Params) {
     .map((b) => ({
       ...b,
       head_director_phone: formatPhone(b.head_director_phone),
-      label: `${b.band_name} (${b.school_name}) · from ${b.events?.name ?? "an earlier contest"}`,
+      from: b.events?.name ?? "an earlier contest",
     }));
 
   const open = registrationIsOpen(event);
@@ -63,6 +64,7 @@ export default async function BandRegistrationPage({ params }: Params) {
   const form = user && (
     <RegisterForm
       action={registerBand.bind(null, event.id)}
+      again={registerAgain.bind(null, event.id)}
       classifications={event.classifications}
       chaperoneLimit={event.chaperone_limit}
       previous={previous}
