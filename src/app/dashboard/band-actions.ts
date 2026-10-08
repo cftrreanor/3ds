@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
-import { bandColumns, parseBand, readyAt, warmUpEndAt } from "@/lib/bands";
+import { BAND_COLUMNS, bandColumns, parseBand, readyAt, warmUpEndAt, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
@@ -21,20 +21,69 @@ export async function registerBand(eventId: string, _prev: ActionState, formData
   const user = await requireUser();
   const parsed = parseBand(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  return createRegistration(eventId, user, bandColumns(parsed.data));
+}
 
+/**
+ * One-tap registration with a band's details from an earlier contest
+ * (everything but that contest's scheduling conflicts).
+ */
+export async function registerAgain(eventId: string, sourceBandId: string): Promise<ActionState> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const [{ data: source }, { data: event }] = await Promise.all([
+    supabase.from("bands").select(BAND_COLUMNS).eq("id", sourceBandId).eq("director_user_id", user.id).maybeSingle(),
+    supabase.from("events").select("classifications, chaperone_limit").eq("id", eventId).maybeSingle(),
+  ]);
+  if (!source || !event) return { error: "We couldn't find that registration. Please fill in the form instead." };
+  const b = source as BandRow;
+  if (!event.classifications.includes(b.classification)) {
+    return { error: `This contest doesn't have a ${b.classification} classification. Tap “Review & edit” to pick one.` };
+  }
+  if (b.chaperone_count > event.chaperone_limit) {
+    return { error: `This contest allows ${event.chaperone_limit} chaperones per band. Tap “Review & edit” to change the number.` };
+  }
+  return createRegistration(eventId, user, {
+    school_name: b.school_name,
+    band_name: b.band_name,
+    classification: b.classification,
+    school_address: b.school_address,
+    contact_email: b.contact_email,
+    head_director_name: b.head_director_name,
+    head_director_email: b.head_director_email,
+    head_director_phone: b.head_director_phone,
+    assistant_directors: b.assistant_directors,
+    student_count: b.student_count,
+    chaperone_count: b.chaperone_count,
+    bus_count: b.bus_count,
+    box_truck_count: b.box_truck_count,
+    truck_trailer_count: b.truck_trailer_count,
+    semi_truck_count: b.semi_truck_count,
+    // Conflicts belong to the earlier contest's day.
+    contest_day_conflicts: null,
+    special_needs: b.special_needs,
+  });
+}
+
+/** Save a registration, email the director a copy and open their band's page. */
+async function createRegistration(
+  eventId: string,
+  user: { id: string; email: string },
+  v: ReturnType<typeof bandColumns>,
+): Promise<ActionState> {
   const supabase = await createClient();
   const { data: same } = await supabase
     .from("bands")
     .select("id")
     .eq("event_id", eventId)
     .eq("director_user_id", user.id)
-    .ilike("band_name", parsed.data.bandName.replace(/[%_\\]/g, "\\$&"));
+    .ilike("band_name", v.band_name.replace(/[%_\\]/g, "\\$&"));
   if (same?.length) {
-    return { error: `You've already registered ${parsed.data.bandName} for this contest. Open it from your dashboard to make changes.` };
+    return { error: `You've already registered ${v.band_name} for this contest. Open it from your dashboard to make changes.` };
   }
   const { data, error } = await supabase
     .from("bands")
-    .insert({ event_id: eventId, director_user_id: user.id, ...bandColumns(parsed.data) })
+    .insert({ event_id: eventId, director_user_id: user.id, ...v })
     .select("id")
     .single();
   if (error) {
@@ -44,25 +93,24 @@ export async function registerBand(eventId: string, _prev: ActionState, formData
 
   const { data: event } = await supabase.from("events").select("name, starts_on, ends_on").eq("id", eventId).single();
   const origin = await getOrigin();
-  const v = parsed.data;
   after(async () => {
     const { html, text } = emailLayout({
-      heading: `${v.bandName} is registered`,
+      heading: `${v.band_name} is registered`,
       paragraphs: [
-        `Thanks! ${v.schoolName} is registered for ${event?.name ?? "the contest"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
+        `Thanks! ${v.school_name} is registered for ${event?.name ?? "the contest"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
         "You can review or change your registration while registration is open. We'll email you when the performance order and your times are posted.",
       ],
       rows: [
         { title: "Classification", detail: v.classification },
-        { title: "People", detail: `${v.studentCount} students · ${v.chaperoneCount} chaperones` },
+        { title: "People", detail: `${v.student_count} students · ${v.chaperone_count} chaperones` },
         {
           title: "Vehicles",
-          detail: `${v.busCount} buses · ${v.boxTruckCount} box trucks · ${v.truckTrailerCount} truck/trailers · ${v.semiTruckCount} semis`,
+          detail: `${v.bus_count} buses · ${v.box_truck_count} box trucks · ${v.truck_trailer_count} truck/trailers · ${v.semi_truck_count} semis`,
         },
       ],
       button: { label: "View my registration", url: `${origin}/dashboard/bands/${data.id}` },
     });
-    await sendEmail({ to: user.email, subject: `Registered: ${v.bandName} at ${event?.name ?? "the contest"}`, html, text });
+    await sendEmail({ to: user.email, subject: `Registered: ${v.band_name} at ${event?.name ?? "the contest"}`, html, text });
   });
 
   revalidatePath("/dashboard");

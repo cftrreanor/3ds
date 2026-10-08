@@ -13,6 +13,8 @@ import {
 } from "@/app/dashboard/band-actions";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
+import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
+import { InvitePastBands, type PastDirector } from "./invite-past-bands";
 import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
@@ -62,6 +64,22 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     supabase.rpc("director_contact_phone", { ev: eventId }),
     supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
   ]);
+  const { data: pastData } = await supabase.rpc("past_band_directors", { p_event: eventId });
+  const pastDirectors: PastDirector[] = ((pastData ?? []) as {
+    email: string;
+    full_name: string;
+    bands: string[];
+    last_event: string;
+    registered: boolean;
+    invited_at: string | null;
+  }[]).map((d) => ({
+    email: d.email,
+    name: d.full_name,
+    bands: d.bands,
+    lastEvent: d.last_event,
+    registered: d.registered,
+    invited: d.invited_at ? `Invited ${formatDate(utcToZonedDate(d.invited_at, event.timezone), { year: undefined })}` : null,
+  }));
   const regOpen = registrationIsOpen(event);
   const pastDeadline = event.band_registration_open && deadlinePassed(event);
   const bands = (bandData ?? []) as BandRow[];
@@ -177,6 +195,21 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
           )}
         </Card>
       </section>
+
+      {pastDirectors.length > 0 && (
+        <section className="mt-10" aria-labelledby="invite-heading">
+          <h2 id="invite-heading" className="text-xl font-semibold">
+            Invite bands from your past events
+          </h2>
+          <p className="mt-1 mb-4 text-sm text-muted">
+            Directors who registered at your earlier events. Their band&apos;s details are saved, so they can register in one
+            tap.
+          </p>
+          <Card>
+            <InvitePastBands directors={pastDirectors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} />
+          </Card>
+        </section>
+      )}
 
       {access.isHost && (
         <section className="mt-10">

@@ -1884,4 +1884,82 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Band invitations: hosts invite directors from their earlier events
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000000e1', 'past@example.com', '{"full_name":"Pat Past"}');
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-00000000000f',
+        (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a'),
+        'Next Classic', 'next-classic', 'draft', current_date + 40, current_date + 40,
+        now() + interval '40 days', now() + interval '40 days 10 hours', '1 Stadium Rd');
+insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('10000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000e1', 'West HS', 'Westwind', '5A',
+        'addr', 'past@example.com', 'Pat Past', 'past@example.com', '+15125550120', 80, 8);
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare r record;
+begin
+  select * into r from public.past_band_directors('10000000-0000-0000-0000-00000000000f') where email = 'past@example.com';
+  assert found, 'a host sees directors from their earlier events';
+  assert r.bands = array['Westwind (West HS)'] and r.last_event = 'Today Invitational' and not r.registered
+         and r.invited_at is null, 'with their bands, last event and invitation status';
+  begin
+    insert into public.band_invitations (event_id, email) values ('10000000-0000-0000-0000-00000000000f', 'past@example.com');
+    raise exception 'FAIL: a browser created a band invitation';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+insert into public.band_invitations (event_id, email, invited_by)
+values ('10000000-0000-0000-0000-00000000000f', 'past@example.com', '00000000-0000-0000-0000-000000000001');
+set role authenticated;
+do $$ begin
+  assert (select invited_at is not null from public.past_band_directors('10000000-0000-0000-0000-00000000000f')
+           where email = 'past@example.com'), 'the list shows who was invited';
+  assert (select count(*) from public.band_invitations) = 1, 'a host sees their event''s invitations';
+  begin
+    perform token from public.band_invitations;
+    raise exception 'FAIL: a browser read an invitation''s sign-in token';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+-- A Volunteer Lead, the director and a stranger see neither the list nor the invitations.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select count(*) from public.past_band_directors('10000000-0000-0000-0000-00000000000f')) = 0
+         and (select count(*) from public.past_band_directors('10000000-0000-0000-0000-00000000000a')) = 0,
+         'a Volunteer Lead doesn''t see past directors';
+  assert (select count(*) from public.band_invitations) = 0, 'a Volunteer Lead doesn''t see invitations';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000e1","email":"past@example.com"}';
+do $$ begin
+  assert (select count(*) from public.past_band_directors('10000000-0000-0000-0000-00000000000f')) = 0, 'a director doesn''t see the list';
+  assert (select count(*) from public.band_invitations) = 0, 'a director doesn''t read invitations';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.past_band_directors('10000000-0000-0000-0000-00000000000f')) = 0, 'a stranger sees nothing';
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform public.past_band_directors('10000000-0000-0000-0000-00000000000f');
+    raise exception 'FAIL: a visitor listed past directors';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.band_invitations;
+    raise exception 'FAIL: a visitor read band invitations';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'
