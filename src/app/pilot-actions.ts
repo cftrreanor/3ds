@@ -91,7 +91,7 @@ export async function requestPilot(_prev: ActionState, formData: FormData): Prom
     heading: `Pilot request: ${d.organization}`,
     paragraphs: [`${d.name} asked to join the pilot. Reply to this email to reach them.`],
     rows,
-    button: { label: "See all pilot requests", url: `${origin}/dashboard/pilot-requests` },
+    button: { label: "See all pilot requests", url: `${origin}/admin/pilot-requests` },
   });
   await sendEmail({ to: brand.supportEmail, subject: `Pilot request: ${d.organization}`, html, text, replyTo: d.email });
 

@@ -5,7 +5,9 @@ import type { ReactNode } from "react";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { registrationIsOpen } from "@/lib/bands";
-import { getMyOrganization } from "@/lib/data";
+import { getMyOrganization, type Organization } from "@/lib/data";
+import { freeStatus } from "@/lib/admin";
+import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { OnboardingForm } from "./onboarding-form";
@@ -109,11 +111,11 @@ export default async function DashboardPage() {
     <div className="space-y-14">
       {isAdmin && (
         <Link
-          href="/dashboard/pilot-requests"
-          className="flex items-center justify-between rounded-xl border border-border bg-surface px-5 py-4 hover:bg-background"
+          href="/admin"
+          className="flex items-center justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-card hover:border-brand/40"
         >
-          <span className="font-semibold">Pilot requests</span>
-          <span className="text-sm text-muted">{newRequests ? `${newRequests} new →` : "View all →"}</span>
+          <span className="font-semibold">FieldCommand admin</span>
+          <span className="text-sm text-muted">{newRequests ? `${newRequests} new pilot request${newRequests === 1 ? "" : "s"} →` : "Organizations, plans, pilot requests →"}</span>
         </Link>
       )}
       {org && (
@@ -129,6 +131,7 @@ export default async function DashboardPage() {
               New event
             </Link>
           }
+          notice={org && <PlanNotice org={org} />}
           items={hosted.map((e) => ({ key: e.id, past: isPast(e), node: <HostedCard event={e} /> }))}
           empty={
             <Card className="text-center">
@@ -178,6 +181,7 @@ function Section({
   title,
   description,
   action,
+  notice,
   items,
   empty,
 }: {
@@ -185,6 +189,8 @@ function Section({
   title: string;
   description: string;
   action?: ReactNode;
+  /** A note under the heading, e.g. when a free pilot ends. */
+  notice?: ReactNode;
   items: { key: string; past: boolean; node: ReactNode }[];
   empty?: ReactNode;
 }) {
@@ -208,6 +214,7 @@ function Section({
         </div>
         {action}
       </div>
+      {notice && <div className="mt-4">{notice}</div>}
       <div className="mt-6">
         {upcoming.length > 0 ? grid(upcoming) : items.length === 0 && empty ? empty : (
           <p className="text-sm text-muted">Nothing coming up.</p>
@@ -293,5 +300,34 @@ function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } })
       <p className="mt-2 text-sm text-muted">{formatDateRange(r.events.starts_on, r.events.ends_on)}</p>
       <p className="mt-1 text-sm text-muted">{where(r.events)}</p>
     </CardLink>
+  );
+}
+
+/** Hosts: when their free pilot or trial ends (and what that means). */
+function PlanNotice({ org }: { org: Organization }) {
+  const free = freeStatus(org);
+  if (!free) return null;
+  if (free.ended) {
+    return (
+      <p className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm leading-6">
+        <strong>Your free period ended {free.day}.</strong> Events you&apos;ve already published stay live, but publishing new
+        ones is paused. Email <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">{brand.supportEmail}</a> to keep going.
+      </p>
+    );
+  }
+  return (
+    <p className={`rounded-lg px-4 py-3 text-sm leading-6 ${free.soon ? "border border-warning/40 bg-warning-soft" : "bg-brand-soft"}`}>
+      {org.subscription_status === "trialing" ? "Free trial" : "Free pilot"} through <strong>{free.day}</strong>.
+      {free.soon && (
+        <>
+          {" "}
+          After that, publishing new events pauses. Email{" "}
+          <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">
+            {brand.supportEmail}
+          </a>{" "}
+          to keep going.
+        </>
+      )}
+    </p>
   );
 }

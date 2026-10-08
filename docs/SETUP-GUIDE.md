@@ -103,8 +103,9 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261023000000_adults_only_stations.sql` | Stations: an "Adults only (18+)" setting | ✅ run |
 | `20261024000000_event_files.sql` | Maps & documents: share PDFs and images with the public, directors, volunteers or the team (also creates the private `event-files` storage bucket) | ✅ run |
 | `20261025000000_event_file_uploader.sql` | Maps & documents: who uploaded each file, and when | ✅ run |
-| `20261026000000_demo_mode.sql` | Demo mode: FieldCommand admins can view an event as each role | run this first, if you haven't |
-| `20261027000000_band_invitations.sql` | Band registration: invite directors from your past events; they register in one tap with their saved band | run this next |
+| `20261026000000_demo_mode.sql` | Demo mode: FieldCommand admins can view an event as each role | ✅ run |
+| `20261027000000_band_invitations.sql` | Band registration: invite directors from your past events; they register in one tap with their saved band | ✅ run |
+| `20261028000000_admin_dashboard.sql` | Admin dashboard: set each organization's plan and the last day of its free pilot; admin activity log | run this next |
 
 ## Pilot requests
 
@@ -205,8 +206,9 @@ insert into public.platform_admins (user_id)
 select id from auth.users where email = 'the-email-you-sign-in-with@example.com';
 ```
 
-It should say "1 row". Your dashboard then shows a **Pilot requests** box at the top, which opens
-every request with a status you can set (new, contacted, accepted, declined). Only admins can see
+It should say "1 row". Your dashboard then shows a **FieldCommand admin** box at the top. It opens
+the admin dashboard (`/admin`): Overview, Organizations (each one's plan and the last day of its
+free pilot), Pilot requests and Admin activity. Pilot requests lists every request with a status you can set (new, contacted, accepted, declined). Only admins can see
 the requests: hosts, volunteers and directors can't.
 
 Being an admin also turns on **demo mode** (needs `20261026000000_demo_mode.sql`). Open any event
