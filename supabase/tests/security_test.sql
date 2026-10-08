@@ -1962,4 +1962,83 @@ do $$ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Admin dashboard: plans, free-until dates and the admin log
+-- ---------------------------------------------------------------------------
+select organization_id as plan_org from public.events where id = '10000000-0000-0000-0000-00000000000a' \gset
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    update public.organizations set free_until = current_date + 365;
+    raise exception 'FAIL: a host extended their own free period';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.admin_set_plan((select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a'),
+                                  'active', null, null);
+    raise exception 'FAIL: a host changed their own plan';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select count(*) from public.admin_log) = 0, 'a host can''t read the admin log';
+end $$;
+reset role;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare org uuid := (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a');
+begin
+  begin
+    perform public.admin_set_plan(org, 'comped', null, null);
+    raise exception 'FAIL: a pilot without its last free day';
+  exception when sqlstate 'P0001' then null;
+  end;
+  perform public.admin_set_plan(org, 'comped', current_date - 1, 'Pilot ended yesterday');
+  assert not public.org_has_active_plan(org), 'a pilot past its last day isn''t active';
+  assert (select details->'to'->>'free_until' from public.admin_log where organization_id = org) = (current_date - 1)::text
+         and (select details->>'note' from public.admin_log where organization_id = org) = 'Pilot ended yesterday'
+         and (select admin_id from public.admin_log where organization_id = org) = auth.uid(),
+         'the change is logged with who made it';
+end $$;
+reset role;
+
+-- After a pilot ends: published events stay editable, new ones can't be published.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  update public.events set director_info = 'Gates open at 7.' where id = '10000000-0000-0000-0000-00000000000a';
+  assert (select director_info from public.events where id = '10000000-0000-0000-0000-00000000000a') = 'Gates open at 7.',
+         'a host still edits a published event after their pilot ends';
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-00000000000f';
+    raise exception 'FAIL: published a new event after the pilot ended';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+select public.admin_set_plan(:'plan_org', 'comped', current_date, null);
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-00000000000f';
+  assert (select status from public.events where id = '10000000-0000-0000-0000-00000000000f') = 'published',
+         'a pilot is active through its last day';
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.admin_log;
+    raise exception 'FAIL: a visitor read the admin log';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.platform_admins;
+update public.organizations set subscription_status = 'comped', free_until = null;
+
 \echo 'All database security tests passed.'

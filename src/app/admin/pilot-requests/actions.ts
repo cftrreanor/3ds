@@ -16,6 +16,6 @@ export async function setPilotStatus(id: string, _prev: ActionState, formData: F
   const { data, error } = await supabase.from("pilot_requests").update({ status }).eq("id", id).select("id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "You don't have permission to do that." };
-  revalidatePath("/dashboard/pilot-requests");
+  revalidatePath("/admin", "layout");
   return { ok: true, message: "Saved." };
 }
