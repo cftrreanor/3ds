@@ -30,7 +30,7 @@ typography:
     lineHeight: 1.15
     letterSpacing: -0.02em
   body:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Public Sans, system-ui, sans-serif"
     fontSize: 15px
     fontWeight: 400
     lineHeight: 1.65
@@ -88,7 +88,7 @@ Status colors always come with a text label; never rely on color alone.
 
 - **Page titles (`h1`)**: Barlow Condensed, bold. Event names are the largest.
 - **Section headings (`h2`, `h3`)**: Barlow.
-- **Everything else**: Inter, 15px, with tabular numbers so times and counts line up.
+- **Everything else**: Public Sans, 15px, with tabular numbers so times and counts line up. (Chosen over Inter, the original spec, after a side-by-side comparison.)
 - **Codes and IDs**: JetBrains Mono (`font-mono`).
 
 ## Rationale
