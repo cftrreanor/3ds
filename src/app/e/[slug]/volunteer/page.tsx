@@ -78,7 +78,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       <header className="mt-6">
         <p className="text-sm font-medium text-muted">Volunteer signup</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{event.name}</h1>
+        <h1 className="mt-1 text-4xl font-bold tracking-tight sm:text-5xl">{event.name}</h1>
         <p className="mt-2 text-muted">
           {formatDateRange(event.starts_on, event.ends_on)} · All times {zoneName(tz)}
         </p>
@@ -92,7 +92,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
       </header>
 
       {!isOpen && (
-        <Card className="mt-8 bg-accent-soft">
+        <Card className="mt-8 bg-brand-soft">
           <p className="font-medium">
             {event.status === "published" ? "Volunteer signup is closed." : "Preview: this page isn't public yet."}
           </p>

@@ -114,7 +114,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Team</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Team</h1>
       <p className="mt-1 text-muted">Everyone helping you run {event.name}.</p>
 
       <nav aria-label="Team roles" className="-mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -228,7 +228,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
               <p className="mt-3 text-sm text-muted">None yet.</p>
             )}
             {unled.length > 0 && (
-              <p className="mt-3 rounded-lg bg-accent-soft px-3 py-2 text-sm leading-6">
+              <p className="mt-3 rounded-lg bg-brand-soft px-3 py-2 text-sm leading-6">
                 <span className="font-medium">No lead yet:</span>{" "}
                 {unled.map((s, i) => (
                   <span key={s.id}>

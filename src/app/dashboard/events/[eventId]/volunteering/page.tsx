@@ -114,7 +114,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Volunteer Registration</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Volunteer Registration</h1>
 
       <Card className="mt-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
@@ -176,7 +176,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       </Card>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">Stations &amp; shifts</h2>
+        <h2 className="text-xl font-semibold">Stations &amp; shifts</h2>
         <p className="mt-1 text-sm text-muted">
           Each station is a place or job volunteers are assigned to, like Parking or Concessions, with its own shift schedule.
         </p>

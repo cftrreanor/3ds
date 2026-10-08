@@ -237,7 +237,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{event.name}</h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{event.name}</h1>
           <p className="mt-1 text-muted">
             {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
           </p>
@@ -288,7 +288,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       {(access.canManage || myStations.length > 0) && (
         <section className="mt-10" aria-labelledby="day-heading">
-          <h2 id="day-heading" className="text-lg font-semibold">
+          <h2 id="day-heading" className="text-xl font-semibold">
             Contest day
           </h2>
           <Card className="mt-4 space-y-4">
@@ -368,7 +368,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       {access.canManage && (
         <section className="mt-10" aria-labelledby="team-heading">
-          <h2 id="team-heading" className="text-lg font-semibold">
+          <h2 id="team-heading" className="text-xl font-semibold">
             Team
           </h2>
           <Card className="mt-4 space-y-5">
@@ -398,7 +398,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       {(files.length > 0 || access.isHost) && (
         <section className="mt-10" aria-labelledby="files-heading">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="files-heading" className="text-lg font-semibold">
+            <h2 id="files-heading" className="text-xl font-semibold">
               Maps &amp; documents
             </h2>
             {access.isHost && (
@@ -418,7 +418,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       )}
 
       <section className="mt-10" aria-labelledby="bands-heading">
-        <h2 id="bands-heading" className="text-lg font-semibold">
+        <h2 id="bands-heading" className="text-xl font-semibold">
           {access.isHost ? "Band registration" : "Bands"}
         </h2>
         <Card className="mt-4 space-y-5">
@@ -444,7 +444,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       {access.canManage && (
         <section className="mt-10" aria-labelledby="volunteers-heading">
-          <h2 id="volunteers-heading" className="text-lg font-semibold">
+          <h2 id="volunteers-heading" className="text-xl font-semibold">
             Volunteer registration
           </h2>
           <Card className="mt-4 space-y-5">
@@ -486,7 +486,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       {demo && (
         <section className="mt-10" aria-labelledby="demo-heading">
-          <h2 id="demo-heading" className="text-lg font-semibold">
+          <h2 id="demo-heading" className="text-xl font-semibold">
             Demo this event
           </h2>
           <Card className="mt-4 space-y-3">

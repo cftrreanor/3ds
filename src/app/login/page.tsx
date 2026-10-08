@@ -19,7 +19,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
         <Card>
-          <h1 className="mb-6 text-xl font-semibold">Sign in</h1>
+          <h1 className="mb-6 text-2xl font-bold">Sign in</h1>
           {isSupabaseConfigured ? (
             <LoginForm
               linkError={error === "link"}

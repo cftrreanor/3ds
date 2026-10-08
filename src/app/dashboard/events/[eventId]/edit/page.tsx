@@ -55,7 +55,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Edit event details</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Edit event details</h1>
       <Card className="mt-8">
         <EventForm
           action={updateEvent.bind(null, eventId)}
@@ -82,7 +82,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
       </Card>
 
       <section className="mt-10" aria-labelledby="files-heading">
-        <h2 id="files-heading" className="text-lg font-semibold">
+        <h2 id="files-heading" className="text-xl font-semibold">
           Maps &amp; documents
         </h2>
         <p className="mt-1 text-sm text-muted">

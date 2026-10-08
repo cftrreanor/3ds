@@ -15,10 +15,10 @@ export function Button({
   return (
     <button
       className={cx(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
-        variant === "primary" && "bg-brand text-brand-foreground hover:opacity-90",
-        variant === "secondary" && "border border-border bg-surface hover:bg-background",
-        variant === "accent" && "border border-accent bg-accent font-semibold text-[#14213d] hover:opacity-90",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0",
+        variant === "primary" && "bg-brand font-semibold text-brand-foreground hover:bg-brand-hover",
+        variant === "secondary" && "border border-border bg-surface hover:border-brand/40 hover:bg-background",
+        variant === "accent" && "bg-accent font-semibold text-accent-foreground hover:opacity-90",
         variant === "go" && "bg-success font-semibold text-success-foreground hover:opacity-90",
         variant === "warn" && "bg-danger font-semibold text-danger-foreground hover:opacity-90",
         variant === "danger" && "border border-danger bg-surface font-semibold text-danger hover:bg-danger/5",
@@ -43,7 +43,7 @@ export function Field({
 }) {
   return (
     <label className={cx("flex flex-col gap-1.5", className)}>
-      <span className="text-sm font-medium">{label}</span>
+      <span className="text-sm font-semibold">{label}</span>
       {children}
       {hint && <span className="text-sm text-muted">{hint}</span>}
     </label>
@@ -51,7 +51,7 @@ export function Field({
 }
 
 const inputClass =
-  "min-h-11 w-full rounded-md border border-border bg-surface px-3 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "min-h-11 w-full rounded-md border border-border bg-surface px-3 text-base outline-none transition focus:border-brand focus:ring-[3px] focus:ring-brand/25";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cx(inputClass, className)} {...props} />;
@@ -66,23 +66,26 @@ export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
 }
 
 export function Card({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cx("rounded-xl border border-border bg-surface p-5 sm:p-6", className)} {...props} />;
+  return <div className={cx("rounded-xl border border-border bg-surface p-4 shadow-card sm:p-6", className)} {...props} />;
 }
 
 export function Badge({
   tone = "neutral",
   children,
 }: {
-  tone?: "neutral" | "accent" | "brand";
+  tone?: "neutral" | "info" | "accent" | "brand" | "success" | "warning";
   children: ReactNode;
 }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
         tone === "neutral" && "bg-background text-muted ring-1 ring-border",
-        tone === "accent" && "bg-accent-soft text-foreground",
+        tone === "info" && "bg-brand-soft text-foreground ring-1 ring-brand/25",
+        tone === "accent" && "bg-accent-soft text-foreground ring-1 ring-accent/30",
         tone === "brand" && "bg-brand text-brand-foreground",
+        tone === "success" && "bg-success-soft text-foreground ring-1 ring-success/30",
+        tone === "warning" && "bg-warning-soft text-foreground ring-1 ring-warning/30",
       )}
     >
       {children}
@@ -100,7 +103,7 @@ export function FormMessage({ error, success }: { error?: string | null; success
   }
   if (success) {
     return (
-      <p role="status" className="rounded-md bg-accent-soft px-3 py-2 text-sm">
+      <p role="status" className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm">
         {success}
       </p>
     );

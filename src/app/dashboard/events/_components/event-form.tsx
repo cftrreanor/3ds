@@ -43,7 +43,7 @@ export function EventForm({
       <fieldset className="grid gap-4 sm:grid-cols-2">
         <legend className="mb-3 text-sm font-medium">When</legend>
         {hasShifts && (
-          <p className="rounded-md bg-accent-soft px-3 py-2 text-sm sm:col-span-2">
+          <p className="rounded-md bg-brand-soft px-3 py-2 text-sm sm:col-span-2">
             Changing the date moves your existing shifts with it. A 7:00 AM shift stays at 7:00 AM on the new day.
           </p>
         )}

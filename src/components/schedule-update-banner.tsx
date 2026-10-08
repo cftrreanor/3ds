@@ -36,7 +36,7 @@ export function ScheduleUpdateBanner({ slug, version }: { slug: string; version:
   const changed = Boolean(latest && (!version || new Date(latest).getTime() > new Date(version).getTime()));
   if (!changed) return null;
   return (
-    <div role="status" className="sticky top-0 z-20 border-b border-accent bg-accent-soft">
+    <div role="status" className="sticky top-0 z-20 border-b border-brand/30 bg-brand-soft">
       <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
         <p className="flex-1 text-sm font-medium">The schedule has been updated.</p>
         <button

@@ -18,7 +18,7 @@ export default async function NewEventPage() {
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
         ← All events
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">New event</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">New event</h1>
       <p className="mt-2 leading-7 text-muted">
         Just the basics for now. You&apos;ll add stations and volunteer shifts next.
       </p>

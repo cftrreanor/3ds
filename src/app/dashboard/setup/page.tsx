@@ -10,7 +10,7 @@ export default async function SetupPage() {
   if (await getMyOrganization()) redirect("/dashboard");
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="text-2xl font-semibold tracking-tight">Set up your organization</h1>
+      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Set up your organization</h1>
       <p className="mt-2 leading-7 text-muted">
         This is the group that hosts your contest. You can invite other organizers later.
       </p>

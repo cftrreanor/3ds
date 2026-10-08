@@ -6,7 +6,7 @@ type NamedBand = { id: string; school_name: string; band_name: string | null } &
 /** 21 → "21m", 576 → "9h 36m". */
 const span = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`);
 
-const DOT = { green: "bg-success", gold: "bg-accent", red: "bg-danger", neutral: "bg-border" } as const;
+const DOT = { green: "bg-success", gold: "bg-warning", red: "bg-danger", neutral: "bg-border" } as const;
 
 /** One line: 🔴 2 behind · 🟡 1 due soon, or On track / Parking hasn't started / Contest day is Sat, Oct 24. */
 export function StatusLine({
@@ -65,7 +65,7 @@ export function DayTiles({
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {tiles.map((t) => {
-        const ring = t.late ? "ring-2 ring-danger" : t.soon ? "ring-2 ring-accent" : "ring-1 ring-border";
+        const ring = t.late ? "ring-2 ring-danger" : t.soon ? "ring-2 ring-warning" : "ring-1 ring-border";
         return (
           <Link
             key={t.station.id}
@@ -93,7 +93,7 @@ export function DayTiles({
         );
       })}
       {next && (
-        <div className="col-span-2 rounded-lg bg-accent-soft px-3 py-2 sm:col-span-4">
+        <div className="col-span-2 rounded-lg bg-brand-soft px-3 py-2 sm:col-span-4">
           <p className="text-xs text-muted">Next on the field</p>
           <p className="font-semibold">
             #{next.order} {next.school}
@@ -133,7 +133,7 @@ export function AttentionList({
               title={`${band.school_name}${band.band_name ? ` (${band.band_name})` : ""}: ${waitingOn(band, check)}`}
               className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 py-1.5 text-sm hover:bg-background"
             >
-              <span aria-hidden className={`h-2 w-2 rounded-full ${check.state === "late" ? "bg-danger" : "bg-accent"}`} />
+              <span aria-hidden className={`h-2 w-2 rounded-full ${check.state === "late" ? "bg-danger" : "bg-warning"}`} />
               <span className="min-w-0">
                 <span className="block truncate font-medium">{band.school_name}</span>
                 {band.band_name && <span className="block truncate text-xs text-muted">{band.band_name}</span>}

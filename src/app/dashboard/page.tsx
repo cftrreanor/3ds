@@ -91,7 +91,7 @@ export default async function DashboardPage() {
     if (count) redirect("/my");
     return (
       <div className="mx-auto max-w-lg">
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome! Let&apos;s set up your organization</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Welcome! Let&apos;s set up your organization</h1>
         <p className="mt-2 leading-7 text-muted">
           This is the group that hosts your contest. You can invite other organizers later.
         </p>
@@ -288,7 +288,7 @@ function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } })
     <CardLink href={`/dashboard/events/${r.events.id}`}>
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-semibold">{r.events.name}</h3>
-        <Badge tone="accent">{ROLE_LABEL[r.role]}</Badge>
+        <Badge tone="info">{ROLE_LABEL[r.role]}</Badge>
       </div>
       <p className="mt-2 text-sm text-muted">{formatDateRange(r.events.starts_on, r.events.ends_on)}</p>
       <p className="mt-1 text-sm text-muted">{where(r.events)}</p>

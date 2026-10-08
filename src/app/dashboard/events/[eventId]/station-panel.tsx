@@ -84,7 +84,7 @@ export function StationPanel({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{station.name}</h3>
             {station.checkpoint_kind && (
-              <Badge tone="accent">
+              <Badge tone="info">
                 Check-in stop {station.checkpoint_order} · {kindLabel(station.checkpoint_kind)}
               </Badge>
             )}

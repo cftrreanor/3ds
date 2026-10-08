@@ -30,7 +30,7 @@ type Slot = {
 };
 type BreakRow = { starts_at: string; minutes: number; label: string };
 
-const BADGE_TONE: Record<Tone, "neutral" | "accent" | "brand"> = { red: "neutral", gold: "accent", green: "brand", neutral: "neutral" };
+const BADGE_TONE: Record<Tone, "neutral" | "warning" | "success"> = { red: "neutral", gold: "warning", green: "success", neutral: "neutral" };
 
 /** Where the band is: needs the day's stops and the check-in path. */
 type Track = { stops: Stop[]; path: Checkpoint[] };
@@ -116,7 +116,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Band schedule</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Band schedule</h1>
       <p className="mt-1 text-sm text-muted">
         All times are {zoneName(tz)}. Only the host can change bands or the schedule.
       </p>
@@ -135,7 +135,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
       )}
 
       <section className="mt-6">
-        <h2 className="text-lg font-semibold">Preliminaries</h2>
+        <h2 className="text-xl font-semibold">Preliminaries</h2>
         {prelims.length > 0 ? (
           <ScheduleRows slots={prelims} byId={byId} breaks={breaks} at={at} round="prelims" track={track} />
         ) : (
@@ -147,7 +147,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
 
       {finals.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">🏆 Finals</h2>
+          <h2 className="text-xl font-semibold">🏆 Finals</h2>
           {!event.finalists_revealed && <p className="mt-1 text-sm text-muted">Finalists are announced by the host.</p>}
           <ScheduleRows slots={finals} byId={byId} breaks={breaks} at={at} round="finals" track={track} />
         </section>
@@ -155,7 +155,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
 
       {unscheduled.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">{prelims.length ? "Not in the order yet" : "Registered bands"}</h2>
+          <h2 className="text-xl font-semibold">{prelims.length ? "Not in the order yet" : "Registered bands"}</h2>
           <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">
             {unscheduled.map((b) => (
               <li key={b.id} className="flex items-start gap-3 px-4 py-3">

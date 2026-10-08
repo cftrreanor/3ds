@@ -111,7 +111,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">Band Registration</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Band Registration</h1>
 
       <section className="mt-6">
         <Card className="space-y-4">
@@ -180,7 +180,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
 
       {access.isHost && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">Performance schedule</h2>
+          <h2 className="text-xl font-semibold">Performance schedule</h2>
           <p className="mt-1 mb-4 text-sm text-muted">
             All times {zoneName(tz)}. Directors and the public only see a round once you publish it from the bar at the
             bottom. Conflicts directors reported are shown with ⚠️.
@@ -208,7 +208,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
 
       {bands.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">Registrations</h2>
+          <h2 className="text-xl font-semibold">Registrations</h2>
           <ul className="mt-4 space-y-3">
             {bands.map((b) => (
               <li key={b.id}>

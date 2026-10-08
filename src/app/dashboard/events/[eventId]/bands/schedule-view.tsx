@@ -180,7 +180,7 @@ export function RowEditor({
       )}
       <TimesEditor value={draft} days={days} breaks={breaks} readyMinutes={readyMinutes} onChange={onChange} />
       {later > 0 && (
-        <div className="rounded-lg border border-accent bg-accent-soft px-3 py-3 text-sm">
+        <div className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-3 text-sm">
           <p className="font-medium">
             ⚠️ Changing this time doesn&apos;t move the {later} {later === 1 ? "band" : "bands"} after it.
           </p>

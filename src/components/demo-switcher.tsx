@@ -75,11 +75,11 @@ export function DemoSwitcher({
   const [leaving, start] = useTransition();
   const label = personas.find((p) => p.value === current)?.label ?? current;
   return (
-    <div className="border-b border-accent bg-accent-soft">
+    <div className="border-b border-warning/40 bg-warning-soft">
       <div className="mx-auto max-w-5xl space-y-1.5 px-4 py-2 sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <p className="min-w-0 truncate text-sm">
-            <span className="mr-2 rounded bg-accent px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide text-[#14213d]">Demo</span>
+            <span className="mr-2 rounded bg-warning px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide text-warning-foreground">Demo</span>
             Viewing as <strong>{label}</strong>
             {eventName && <span className="text-muted"> · {eventName}</span>}
           </p>

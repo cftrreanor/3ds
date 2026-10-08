@@ -111,7 +111,7 @@ export function LeadStations({
         )}
 
         {!eventDay && (
-          <p className="mt-4 rounded-lg bg-accent-soft px-3 py-2 text-sm">
+          <p className="mt-4 rounded-lg bg-brand-soft px-3 py-2 text-sm">
             Phone numbers unlock on event day ({unlockLabel}).
           </p>
         )}
