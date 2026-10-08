@@ -111,17 +111,17 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       </HeaderBar>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <h1 className="text-2xl font-semibold tracking-tight">My shifts</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">My shifts</h1>
         {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
 
         {link === "invalid" && (
-          <Card className="mt-6 bg-accent-soft">
+          <Card className="mt-6 bg-brand-soft">
             <p className="text-sm">That link isn&apos;t valid anymore. Enter your email below and we&apos;ll send a fresh one.</p>
           </Card>
         )}
 
         {mismatch && (
-          <Card className="mt-6 bg-accent-soft">
+          <Card className="mt-6 bg-brand-soft">
             <p className="font-medium">You signed up as {mismatch}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
               This device is signed in as {user!.email}. Open the confirmation email we sent to {mismatch} and tap
@@ -161,7 +161,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           const days = groupBy(items, (r) => utcToZonedDate(r.starts_at, tz));
           return (
             <section key={eventId} className="mt-8">
-              <h2 className="text-lg font-semibold">{items[0].event_name}</h2>
+              <h2 className="text-xl font-semibold">{items[0].event_name}</h2>
               <p className="text-sm text-muted">
                 {[items[0].venue_name, items[0].venue_address].filter(Boolean).join(" · ")}
               </p>
@@ -279,7 +279,7 @@ function SignUpMoreLink({ slug, primary = false }: { slug: string; primary?: boo
     <Link
       href={`/e/${slug}/volunteer`}
       className={`mt-4 inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium ${
-        primary ? "bg-brand text-brand-foreground hover:opacity-90" : "border border-brand text-brand hover:bg-accent-soft"
+        primary ? "bg-brand text-brand-foreground hover:opacity-90" : "border border-brand text-brand hover:bg-brand-soft"
       }`}
     >
       Sign up for more shifts

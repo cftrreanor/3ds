@@ -82,7 +82,7 @@ export function ContestDayCard({
       ) : (
         <>
           {band.equipment_spot != null && (
-            <p className="mt-3 rounded-lg bg-accent-soft px-3 py-2 text-sm">
+            <p className="mt-3 rounded-lg bg-brand-soft px-3 py-2 text-sm">
               Your equipment is in <span className="font-semibold">Spot {band.equipment_spot}</span>.
             </p>
           )}

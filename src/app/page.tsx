@@ -83,7 +83,7 @@ export default function Home() {
         </Link>
         <a
           href={JOIN}
-          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md bg-accent px-4 font-semibold text-[#14213d] hover:opacity-90"
+          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md bg-accent px-4 font-semibold text-accent-foreground transition hover:opacity-90"
         >
           Join the pilot
         </a>
@@ -94,7 +94,7 @@ export default function Home() {
           <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium text-foreground">
             Now inviting host programs to the 2026–27 pilot
           </p>
-          <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
+          <h1 className="mt-6 max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-6xl">
             Contest day, without the clipboards.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">

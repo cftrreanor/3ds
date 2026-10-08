@@ -47,7 +47,7 @@ export function LoginForm({
   if (mode === "link" && linkState.sentTo) {
     return (
       <div className="space-y-4" role="status">
-        <h2 className="text-lg font-semibold">Check your email</h2>
+        <h2 className="text-xl font-semibold">Check your email</h2>
         <p className="leading-7 text-muted">
           We sent a sign-in link to <strong className="text-foreground">{linkState.sentTo}</strong>. Open it on
           this device to finish signing in. It may take a minute to arrive, so check your spam folder too.

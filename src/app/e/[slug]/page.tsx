@@ -148,13 +148,13 @@ export default async function EventPublicPage({ params }: Params) {
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {isEventDay && published && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
-        <Card className="mt-6 bg-accent-soft">
+        <Card className="mt-6 bg-brand-soft">
           <p className="text-sm">Preview: this page isn&apos;t public yet. Only your team can see it.</p>
         </Card>
       )}
 
       <header className="mt-6">
-        <h1 className="text-3xl font-semibold tracking-tight">{event.name}</h1>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{event.name}</h1>
         <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
         <p className="mt-1 text-muted">
           {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
@@ -169,7 +169,7 @@ export default async function EventPublicPage({ params }: Params) {
         <Card
           key={a.id}
           role={a.priority === "emergency" ? "alert" : undefined}
-          className={`mt-6 ${a.priority === "emergency" ? "border-danger bg-danger/5" : "bg-accent-soft"}`}
+          className={`mt-6 ${a.priority === "emergency" ? "border-danger bg-danger/5" : "bg-brand-soft"}`}
         >
           <p className="text-xs font-semibold uppercase tracking-wide">
             {a.priority === "emergency" ? "⚠️ Emergency" : a.priority === "schedule" ? "Schedule update" : "Announcement"} ·{" "}
@@ -292,7 +292,7 @@ function ScheduleList({
                 </span>
               </li>
             ))}
-            <li className={`flex items-center gap-3 px-4 py-3 ${isCurrent ? "bg-accent-soft" : ""}`}>
+            <li className={`flex items-center gap-3 px-4 py-3 ${isCurrent ? "bg-brand-soft" : ""}`}>
               <span className="w-8 shrink-0 text-center text-sm font-semibold text-muted">{r.number}</span>
               <div className="min-w-0 flex-1">
                 <p className={`truncate font-medium ${r.live?.scratched ? "text-muted line-through" : ""}`}>{r.title}</p>

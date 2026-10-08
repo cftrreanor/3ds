@@ -259,7 +259,7 @@ export function ScheduleBuilder({
     touched();
   };
   const updateButton = (
-    <Button type="button" variant={before ? "accent" : "secondary"} disabled={!before} onClick={updateSchedule}>
+    <Button type="button" variant={before ? "primary" : "secondary"} disabled={!before} onClick={updateSchedule}>
       Update schedule
     </Button>
   );
@@ -326,7 +326,7 @@ export function ScheduleBuilder({
           </label>
         )}
         {shiftCount > 0 && breakShiftInfo && (
-          <div className="rounded-lg border border-accent bg-accent-soft px-3 py-3 text-sm">
+          <div className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-3 text-sm">
             <p className="font-medium">
               ⚠️ {shiftCount} {shiftCount === 1 ? "performance is" : "performances are"} scheduled from{" "}
               {displayTime(toTime(breakShiftInfo.pivot))} on. They won&apos;t move unless you say so.
@@ -1173,7 +1173,7 @@ function FinalsEditor({
           >
             <li className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-[#14213d]">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
                   F{i + 1}
                 </span>
                 <Field label={`Finalist ${i + 1}`} className="min-w-0 flex-1">
@@ -1201,7 +1201,7 @@ function ChangeNotice({ names, onSend, onDismiss }: { names: string[]; onSend: (
   const [sending, setSending] = useState(false);
   const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more` : names.join(", ");
   return (
-    <div className="rounded-lg border border-accent bg-accent-soft px-4 py-3" role="status">
+    <div className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3" role="status">
       <p className="text-sm font-medium">
         Times changed for {names.length} {names.length === 1 ? "band" : "bands"}: {list}.
       </p>
@@ -1209,7 +1209,7 @@ function ChangeNotice({ names, onSend, onDismiss }: { names: string[]; onSend: (
       <div className="mt-3 flex flex-wrap gap-3">
         <Button
           type="button"
-          variant="accent"
+          variant="primary"
           className="min-h-9 px-3"
           disabled={sending}
           onClick={async () => {

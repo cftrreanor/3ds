@@ -239,7 +239,7 @@ function Overview({ stations, openTab, ...rowProps }: { stations: DeskStation[];
       </div>
 
       {!eventDay ? (
-        <p className="rounded-lg bg-accent-soft px-3 py-2 text-sm">
+        <p className="rounded-lg bg-brand-soft px-3 py-2 text-sm">
           On contest day, this shows who&apos;s not here yet for shifts that have started, and where walk-ups are needed.
         </p>
       ) : (
@@ -459,7 +459,7 @@ function VolunteerRow({
         <p className="truncate font-medium">
           {v.name}
           {v.minor && <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">Under 18</span>}
-          {v.walkUp && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold">Walk-up</span>}
+          {v.walkUp && <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold">Walk-up</span>}
         </p>
         {v.signedUpBy && <p className="truncate text-xs text-muted">With {v.signedUpBy}</p>}
         {detail && <p className="truncate text-sm text-muted">{detail}</p>}

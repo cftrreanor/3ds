@@ -31,7 +31,7 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
       <Link href={`/dashboard/bands/${bandId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">Edit registration</h1>
+      <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Edit registration</h1>
       <p className="mt-1 text-muted">
         {band.band_name} · {band.school_name}
       </p>

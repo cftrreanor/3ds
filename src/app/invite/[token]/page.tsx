@@ -70,7 +70,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
         <Card>
           {!invite ? (
             <>
-              <h1 className="text-xl font-semibold">Invitation not found</h1>
+              <h1 className="text-2xl font-bold">Invitation not found</h1>
               <p className="mt-2 leading-7 text-muted">
                 This link isn&apos;t valid or was cancelled. Ask the person who invited you for a new one.
               </p>
@@ -78,7 +78,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
           ) : (
             <>
               <p className="text-sm font-medium text-muted">{invite.organization} invited you</p>
-              <h1 className="mt-1 text-xl font-semibold">
+              <h1 className="mt-1 text-2xl font-bold">
                 Join {invite.event_name} as {role?.label}
               </h1>
               <p className="mt-1 text-sm text-muted">

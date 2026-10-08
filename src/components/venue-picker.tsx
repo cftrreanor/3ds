@@ -233,7 +233,7 @@ function VenueSearch({
                   id={`${listId}-${i}`}
                   role="option"
                   aria-selected={i === active}
-                  className={`cursor-pointer px-4 py-2.5 ${i === active ? "bg-accent-soft" : ""}`}
+                  className={`cursor-pointer px-4 py-2.5 ${i === active ? "bg-brand-soft" : ""}`}
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(e) => {
                     e.preventDefault(); // Keep focus so blur doesn't close the list first.

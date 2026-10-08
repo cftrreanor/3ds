@@ -39,7 +39,7 @@ export function RegisterForm({
   return (
     <div className="space-y-6">
       {previous.length > 0 && (
-        <Card className="bg-accent-soft">
+        <Card className="bg-brand-soft">
           <Field label="Start from a previous registration" hint="Copies everything except scheduling conflicts. Check the numbers before you submit.">
             <Select value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
               <option value="">Start from scratch</option>

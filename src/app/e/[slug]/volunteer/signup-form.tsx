@@ -100,7 +100,7 @@ export function SignupForm({
           {/* A full reload brings back a fresh form with up-to-date open spots. */}
           <a
             href={pathname}
-            className="inline-flex min-h-11 items-center rounded-md border border-brand px-4 text-sm font-medium text-brand hover:bg-accent-soft"
+            className="inline-flex min-h-11 items-center rounded-md border border-brand px-4 text-sm font-medium text-brand hover:bg-brand-soft"
           >
             Sign up for more shifts
           </a>
@@ -140,7 +140,7 @@ export function SignupForm({
       </div>
 
       <section aria-labelledby="pick">
-        <h2 id="pick" className="text-lg font-semibold">
+        <h2 id="pick" className="text-xl font-semibold">
           1. Pick your shifts
         </h2>
         <p className="mt-1 text-sm text-muted">
@@ -216,7 +216,7 @@ export function SignupForm({
                         full || adultsOnly
                           ? "cursor-not-allowed border-border opacity-60"
                           : isChosen
-                            ? "border-brand bg-accent-soft"
+                            ? "border-brand bg-brand-soft"
                             : "border-border hover:border-brand"
                       }`}
                     >
@@ -249,7 +249,7 @@ export function SignupForm({
       </section>
 
       <section aria-labelledby="you">
-        <h2 id="you" className="text-lg font-semibold">
+        <h2 id="you" className="text-xl font-semibold">
           2. Your details
         </h2>
         <Card className="mt-4 space-y-4 p-4 sm:p-5">

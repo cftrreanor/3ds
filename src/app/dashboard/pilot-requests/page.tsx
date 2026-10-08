@@ -46,7 +46,7 @@ export default async function PilotRequestsPage() {
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
         ← Dashboard
       </Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">Pilot requests</h1>
+      <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Pilot requests</h1>
       <p className="mt-1 text-muted">
         {requests.length === 0
           ? "No requests yet. They'll show up here, and you'll get an email for each one."
@@ -70,7 +70,7 @@ export default async function PilotRequestsPage() {
                     {r.phone ? ` · ${formatPhone(r.phone)}` : ""}
                   </p>
                 </div>
-                <Badge tone={r.status === "new" ? "accent" : "neutral"}>{LABEL[r.status]}</Badge>
+                <Badge tone={r.status === "new" ? "info" : "neutral"}>{LABEL[r.status]}</Badge>
               </div>
               <p className="text-sm">
                 {[

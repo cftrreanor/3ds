@@ -1,66 +1,149 @@
 @import "tailwindcss";
 
-/* Design tokens. Navy + brass: reads "school spirit / band" without leaning on
-   any one school's colors. Every color in the UI should come from here. */
+/* Design tokens: the Field Command Events design system (docs/DESIGN.md).
+   Royal blue for actions and selection, orange sparingly for event identity,
+   status colors only for real signals. Every color in the UI comes from here.
+   ("brand" is the system's primary color.) */
 :root {
-  --background: #f7f6f2;
+  --background: #f6f8fc;
   --surface: #ffffff;
-  --foreground: #14213d;
-  --muted: #5b6478;
-  --border: #e3e0d6;
-  --brand: #1d3a6e;
+  --raised: #ffffff;
+  --foreground: #172033;
+  --muted: #5b667a;
+  --border: #d9e0ea;
+  --brand: #1749d8;
+  --brand-hover: #123baf;
   --brand-foreground: #ffffff;
-  --accent: #c99a2e;
-  --accent-soft: #f6ecd3;
+  /* Selected rows, current items and info panels. */
+  --brand-soft: #eaf0fd;
+  --accent: #c94716;
+  --accent-foreground: #ffffff;
+  --accent-soft: #fcede6;
+  --success: #16794a;
+  --success-foreground: #ffffff;
+  --success-soft: #e7f4ed;
+  --warning: #854600;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fdf1df;
   --danger: #b42318;
   --danger-foreground: #ffffff;
-  --success: #1e7b3c;
-  --success-foreground: #ffffff;
+  --focus: #1749d8;
   /* Header bar: always dark, so the white logo reads in light and dark mode. */
-  --header: #14213d;
+  --header: #172033;
   --header-foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0d1424;
-    --surface: #141d31;
-    --foreground: #eef1f7;
-    --muted: #a3acc0;
-    --border: #253150;
-    --brand: #8fb0ea;
-    --brand-foreground: #0d1424;
-    --accent: #e3b852;
-    --accent-soft: #2c2716;
-    --danger: #f97066;
-    --danger-foreground: #0d1424;
-    --success: #4cc27a;
-    --success-foreground: #0d1424;
-    --header: #0a1122;
+    --background: #0d1422;
+    --surface: #151f30;
+    --raised: #1c293d;
+    --foreground: #f2f5fa;
+    --muted: #a8b4c7;
+    --border: #2c3a50;
+    --brand: #89a4ff;
+    --brand-hover: #a1b5ff;
+    --brand-foreground: #10192b;
+    --brand-soft: #1b2847;
+    --accent: #ff9872;
+    --accent-foreground: #10192b;
+    --accent-soft: #3a2219;
+    --success: #64d69a;
+    --success-foreground: #10192b;
+    --success-soft: #16322a;
+    --warning: #ffc266;
+    --warning-foreground: #10192b;
+    --warning-soft: #3a2c14;
+    --danger: #ff8a80;
+    --danger-foreground: #10192b;
+    --focus: #a1b5ff;
+    --header: #0a101c;
   }
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-raised: var(--raised);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-accent-soft: var(--accent-soft);
-  --color-danger: var(--danger);
-  --color-danger-foreground: var(--danger-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-header: var(--header);
   --color-header-foreground: var(--header-foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --font-sans: var(--font-public-sans), system-ui, sans-serif;
+  --font-heading: var(--font-barlow), system-ui, sans-serif;
+  --font-display: var(--font-barlow-condensed), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Corners: controls 10px, cards 16px, big panels 24px. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+
+  --shadow-card: 0 2px 8px rgba(23, 32, 51, 0.06), 0 1px 2px rgba(23, 32, 51, 0.04);
+  --shadow-elevated: 0 12px 32px rgba(23, 32, 51, 0.14), 0 4px 10px rgba(23, 32, 51, 0.08);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 15px;
+    line-height: 1.65;
+    letter-spacing: -0.01em;
+    /* Times and counts line up. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Display face for page titles (event names); Barlow for section headings. */
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

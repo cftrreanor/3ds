@@ -88,20 +88,20 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         ← Dashboard
       </Link>
       {registered && (
-        <Card className="mt-4 bg-accent-soft" role="status">
+        <Card className="mt-4 border-success/30 bg-success-soft" role="status">
           <p className="font-medium">You&apos;re registered! 🎺</p>
           <p className="mt-1 text-sm text-muted">We emailed you a copy. We&apos;ll email again when performance times are posted.</p>
         </Card>
       )}
       {saved && (
-        <Card className="mt-4 bg-accent-soft" role="status">
+        <Card className="mt-4 border-success/30 bg-success-soft" role="status">
           <p className="font-medium">Registration updated.</p>
         </Card>
       )}
 
       <header className="mt-4">
         <p className="text-sm font-medium text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{event.name}</h1>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">{event.name}</h1>
         <p className="mt-1 text-muted">
           {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
           <a href={mapUrl} target="_blank" rel="noreferrer" className={linkClass}>
@@ -199,7 +199,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Your registration</h2>
-              <Badge tone={open ? "accent" : "neutral"}>
+              <Badge tone={open ? "success" : "neutral"}>
                 {open
                   ? event.band_registration_deadline
                     ? `Editable until ${formatDate(event.band_registration_deadline, { year: undefined })}`
@@ -302,7 +302,7 @@ function TimesCard({
   ].filter(Boolean) as { label: string; time: string; note: string | null }[];
 
   return (
-    <Card className={`mt-6 ${highlight ? "border-accent" : ""}`}>
+    <Card className={`mt-6 ${highlight ? "border-brand" : ""}`}>
       <h2 className="font-semibold">{title}</h2>
       {t.perform_at ? (
         <p className="mt-3">
