@@ -2121,6 +2121,8 @@ begin
           '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]');
   assert t1 = t2 and (select jsonb_array_length(children) from public.parent_registrations where email = 'rita@example.com') = 1,
          'registering again updates the registration';
+  assert (select calendar_sequence from public.parent_registrations where email = 'rita@example.com') = 1,
+         'registering again bumps the calendar invite version';
   begin
     perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'No Kids', 'nokids@example.com', null, '[]');
     raise exception 'FAIL: registered with no children';

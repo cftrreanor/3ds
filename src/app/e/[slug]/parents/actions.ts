@@ -10,6 +10,8 @@ import { normalizePhone } from "@/lib/phone";
 import { parentEmail, parentLink, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
 
+const EVENT_FIELDS = "name, starts_on, ends_on, window_start, window_end, timezone, venue_name, venue_address";
+
 export type ParentState = ActionState & {
   confirmed?: { email: string; emailSent: boolean; children: Child[] };
   values?: { parentName: string; email: string; phone: string; children: Child[] };
@@ -66,26 +68,43 @@ export async function registerParents(eventId: string, slug: string, _prev: Pare
     return { error: "Something went wrong. Please try again.", values };
   }
 
-  const { data: event } = await admin
-    .from("events")
-    .select("name, starts_on, ends_on, window_start, window_end, timezone, venue_name, venue_address")
-    .eq("id", eventId)
-    .single();
+  const [{ data: event }, { data: reg }] = await Promise.all([
+    admin.from("events").select(EVENT_FIELDS).eq("id", eventId).single(),
+    admin.from("parent_registrations").select("id, calendar_sequence").eq("access_token", token as string).single(),
+  ]);
   let emailSent = false;
-  if (event) {
-    const { subject, html, text } = parentEmail("confirmation", { parent_name: v.parentName, children: v.children }, event, parentLink(await getOrigin(), slug, token as string));
-    emailSent = await sendEmail({ to: v.email, subject, html, text });
+  if (event && reg) {
+    const message = parentEmail(
+      "confirmation",
+      { ...reg, parent_name: v.parentName, email: v.email, children: v.children },
+      event,
+      parentLink(await getOrigin(), slug, token as string),
+    );
+    emailSent = await sendEmail({ to: v.email, ...message });
   }
   return { ok: true, confirmed: { email: v.email, emailSent, children: v.children } };
 }
 
-/** From the parent's own link. */
+/** From the parent's own link. Also removes the calendar invite. */
 export async function cancelParents(token: string, slug: string): Promise<ActionState> {
   if (!/^[0-9a-f-]{36}$/i.test(token)) return { error: "This link isn't valid." };
-  const { error } = await createAdminClient().rpc("cancel_parent_registration", { p_token: token });
+  const admin = createAdminClient();
+  const { data: reg } = await admin
+    .from("parent_registrations")
+    .select("id, event_id, parent_name, email, children, calendar_sequence")
+    .eq("access_token", token)
+    .maybeSingle();
+  const { error } = await admin.rpc("cancel_parent_registration", { p_token: token });
   if (error) {
     console.error("cancel_parent_registration failed", error);
     return { error: "Something went wrong. Please try again." };
+  }
+  if (reg) {
+    const { data: event } = await admin.from("events").select(EVENT_FIELDS).eq("id", reg.event_id).single();
+    if (event) {
+      const message = parentEmail("canceled", { ...reg, children: reg.children as Child[] }, event, `${await getOrigin()}/e/${slug}/parents`);
+      await sendEmail({ to: reg.email, ...message });
+    }
   }
   redirect(`/e/${slug}/parents?canceled=1`);
 }

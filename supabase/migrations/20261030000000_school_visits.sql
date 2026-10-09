@@ -26,6 +26,8 @@ create table public.parent_registrations (
   checked_in_at  timestamptz,
   checked_in_by  uuid references public.profiles (id) on delete set null,
   reminded_at    timestamptz,
+  -- The calendar invite's version: re-registering sends an update (higher number).
+  calendar_sequence integer not null default 0,
   created_at     timestamptz not null default now(),
   unique (event_id, email)
 );
@@ -87,7 +89,8 @@ begin
           (select jsonb_agg(jsonb_build_object('name', trim(k ->> 'name'), 'teacher', trim(k ->> 'teacher'), 'grade', trim(k ->> 'grade')))
              from jsonb_array_elements(p_children) k))
   on conflict (event_id, email) do update
-    set parent_name = excluded.parent_name, phone = excluded.phone, children = excluded.children
+    set parent_name = excluded.parent_name, phone = excluded.phone, children = excluded.children,
+        calendar_sequence = parent_registrations.calendar_sequence + 1
   returning access_token into token;
   return token;
 end;

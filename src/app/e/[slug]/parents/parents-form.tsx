@@ -39,7 +39,7 @@ export function ParentsForm({
         <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">🪪 {idReminder}</p>
         <p className="text-sm text-muted">
           {state.confirmed.emailSent
-            ? `We emailed a copy to ${state.confirmed.email}, with a link to change or cancel. We'll remind you the day before.`
+            ? `We emailed a calendar invite to ${state.confirmed.email}: add it to your calendar so you don't forget. It has a link to change or cancel, and we'll remind you the day before.`
             : "We couldn't send the confirmation email, but you're registered."}
         </p>
       </Card>

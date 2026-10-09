@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   for (const event of tomorrow) {
     const { data: regs } = await admin
       .from("parent_registrations")
-      .select("id, parent_name, email, children, access_token")
+      .select("id, parent_name, email, children, access_token, calendar_sequence")
       .eq("event_id", event.id)
       .is("reminded_at", null);
     for (const r of regs ?? []) {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       }
       const { subject, html, text } = parentEmail(
         "reminder",
-        { parent_name: r.parent_name, children: r.children as Child[] },
+        { ...r, children: r.children as Child[] },
         event,
         parentLink(origin, event.slug, r.access_token),
       );
