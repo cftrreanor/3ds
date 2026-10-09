@@ -22,6 +22,7 @@ export function RegisterForm({
   chaperoneLimit,
   blank,
   previous,
+  kind = "band",
 }: {
   action: Action;
   /** One-tap registration from a saved band (bound to the event). */
@@ -30,6 +31,7 @@ export function RegisterForm({
   chaperoneLimit: number;
   blank: BandFormValues;
   previous: PreviousBand[];
+  kind?: "band" | "group";
 }) {
   // Which form is open: a saved band being edited, a blank one, or none yet.
   const [open, setOpen] = useState<string | null>(previous.length ? null : "new");
@@ -48,11 +50,11 @@ export function RegisterForm({
     <div className="space-y-3">
       {source && (
         <p className="text-sm text-muted">
-          Editing {source.band_name}&apos;s saved details. Changes apply to this contest only.
+          Editing {source.band_name}&apos;s saved details. Changes apply to this event only.
         </p>
       )}
       {/* Re-mount when the source changes so every box picks up the copied values. */}
-      <BandForm key={open ?? ""} action={action} classifications={classifications} chaperoneLimit={chaperoneLimit} submitLabel="Register band" initial={initial} />
+      <BandForm key={open ?? ""} action={action} classifications={classifications} chaperoneLimit={chaperoneLimit} submitLabel={`Register ${kind}`} initial={initial} kind={kind} />
     </div>
   );
 
@@ -66,6 +68,7 @@ export function RegisterForm({
         </h2>
         {previous.map((p) => (
           <SavedBand
+            kind={kind}
             key={p.id}
             band={p}
             classifications={classifications}
@@ -81,13 +84,13 @@ export function RegisterForm({
       ) : open === "new" ? (
         <section aria-labelledby="new-heading" className="space-y-3">
           <h2 id="new-heading" className="text-xl font-semibold">
-            A different band
+            A different {kind}
           </h2>
           {form}
         </section>
       ) : (
         <Button type="button" variant="secondary" onClick={() => setOpen("new")}>
-          + Register a different band
+          + Register a different {kind}
         </Button>
       )}
     </div>
@@ -101,7 +104,9 @@ function SavedBand({
   register,
   editing,
   onEdit,
+  kind,
 }: {
+  kind: "band" | "group";
   band: PreviousBand;
   classifications: string[];
   chaperoneLimit: number;
@@ -112,9 +117,9 @@ function SavedBand({
   // Things this contest needs changed before a one-tap registration works.
   const problems = [
     b.classification && !classifications.includes(b.classification)
-      ? `This contest doesn't have a ${b.classification} classification. Pick one in Review & edit.`
+      ? `This event doesn't have a ${b.classification} classification. Pick one in Review & edit.`
       : null,
-    (b.chaperone_count ?? 0) > chaperoneLimit ? `This contest allows ${chaperoneLimit} chaperones per band.` : null,
+    (b.chaperone_count ?? 0) > chaperoneLimit ? `This event allows ${chaperoneLimit} chaperones per ${kind}.` : null,
   ].filter((x): x is string => Boolean(x));
   const vehicles = [
     [b.bus_count, "bus", "buses"],
@@ -135,10 +140,10 @@ function SavedBand({
       <p className="text-muted">{b.school_name}</p>
       <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         <Detail label="Classification" value={b.classification} />
-        <Detail label="People" value={`${b.student_count ?? 0} students · ${b.chaperone_count ?? 0} chaperones`} />
+        <Detail label="People" value={`${b.student_count ?? 0} ${kind === "group" ? "participants" : "students"} · ${b.chaperone_count ?? 0} chaperones`} />
         <Detail label="Vehicles" value={vehicles || "None"} />
         <Detail label="Head director" value={[b.head_director_name, b.head_director_phone].filter(Boolean).join(" · ")} />
-        <Detail label="Band contact email" value={b.contact_email} />
+        <Detail label={kind === "group" ? "Group contact email" : "Band contact email"} value={b.contact_email} />
         <Detail label="School address" value={b.school_address} />
       </dl>
       {problems.length > 0 && (

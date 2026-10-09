@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { updateBand, withdrawBand } from "@/app/dashboard/band-actions";
 import { BandForm } from "@/components/band-form";
+import { hasRooms } from "@/lib/event-types";
 import { BAND_COLUMNS, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
@@ -19,7 +20,7 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
   if (!band) missing();
   const { data: event } = await supabase
     .from("events")
-    .select("name, status, timezone, band_registration_open, band_registration_deadline, chaperone_limit, classifications")
+    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, chaperone_limit, classifications")
     .eq("id", band.event_id)
     .single();
   if (!event) missing();
@@ -40,6 +41,7 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
           action={updateBand.bind(null, bandId)}
           classifications={event.classifications}
           chaperoneLimit={event.chaperone_limit}
+          kind={hasRooms(event.event_type) ? "group" : "band"}
           submitLabel="Save changes"
           initial={{ ...band, head_director_phone: formatPhone(band.head_director_phone) }}
         />

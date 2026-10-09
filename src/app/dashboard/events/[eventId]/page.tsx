@@ -23,7 +23,7 @@ import { type Shift } from "./station-panel";
 import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
-import { eventTypeLabel, hasBands, hasParents } from "@/lib/event-types";
+import { eventTypeLabel, groupWords, hasBands, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
@@ -59,6 +59,10 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     .maybeSingle();
   if (!event) missing();
   const bandsHere = hasBands(event.event_type);
+  // Band contests and group events both take registrations; groups move through rooms.
+  const groupsHere = hasEnsembles(event.event_type);
+  const roomsHere = hasRooms(event.event_type);
+  const words = groupWords(event.event_type);
 
   const access = await getEventAccess(eventId);
   const [
@@ -511,37 +515,53 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             <FileLinks files={files} details={uploaded} className="mt-3" />
           ) : (
             <p className="mt-1 text-sm text-muted">
-              {bandsHere
-                ? "Share a stadium map, parking map or director packet with the public, band directors, volunteers or your team."
+              {groupsHere
+                ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
                 : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
             </p>
           )}
         </section>
       )}
 
-      {bandsHere && (
+      {groupsHere && (
       <section className="mt-10" aria-labelledby="bands-heading">
         <h2 id="bands-heading" className="text-xl font-semibold">
-          {access.isHost ? "Band registration" : "Bands"}
+          {access.isHost ? `${words.One} registration` : words.Many}
         </h2>
         <Card className="mt-4 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm leading-6 text-muted">
               {bands.length
-                ? `${bands.length} band${bands.length === 1 ? "" : "s"} registered.`
-                : "No bands registered yet."}{" "}
-              {access.isHost
-                ? "Registration, the performance schedule and finals."
-                : "See the performance order and each band's status on the day."}
+                ? `${bands.length} ${bands.length === 1 ? words.one : words.many} registered.`
+                : `No ${words.many} registered yet.`}{" "}
+              {roomsHere
+                ? access.isHost
+                  ? "Registration, rooms and each group's schedule."
+                  : "See each group's times in every room."
+                : access.isHost
+                  ? "Registration, the performance schedule and finals."
+                  : "See the performance order and each band's status on the day."}
             </p>
-            <Link
-              href={`/dashboard/events/${eventId}/${access.isHost ? "bands" : "schedule"}`}
-              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-            >
-              {access.isHost ? "Manage bands" : "Band schedule"}
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              {roomsHere && (
+                <Link
+                  href={`/dashboard/events/${eventId}/rooms`}
+                  className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium ${access.isHost ? "border border-border bg-surface hover:bg-background" : "bg-brand text-brand-foreground hover:opacity-90"}`}
+                >
+                  {access.isHost ? "Rooms & schedule" : "Room schedule"}
+                </Link>
+              )}
+              {(access.isHost || !roomsHere) && (
+                <Link
+                  href={`/dashboard/events/${eventId}/${access.isHost ? "bands" : "schedule"}`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                >
+                  {access.isHost ? `Manage ${words.many}` : "Band schedule"}
+                </Link>
+              )}
+            </div>
           </div>
-          {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} />}
+          {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
         </Card>
       </section>
       )}
@@ -597,17 +617,17 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             <p className="text-sm leading-6 text-muted">
               See this event the way each person does, without switching emails. Tap a role and this browser signs in as
               a demo person in that role: a co-host, a Volunteer Lead, a Section Lead (of the first stations),
-              {bandsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift, or a parent
+              {groupsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift, or a parent
               looking at the public page.
               A bar at the top switches roles; <strong className="text-foreground">Back to me</strong> emails you a
               sign-in link to get back to your own account.
             </p>
             <p className="text-sm leading-6 text-muted">
               Use a practice event: the demo people really are on this event (in its lists and counts), and as Host
-              you can do anything a host can, including emailing its {bandsHere ? "bands and volunteers" : "volunteers"}. Demo people never get
+              you can do anything a host can, including emailing its {groupsHere ? `${words.many} and volunteers` : "volunteers"}. Demo people never get
               emails.
             </p>
-            <DemoStart eventId={eventId} personas={bandsHere ? PERSONAS : PERSONAS.filter((p) => p.value !== "director")} active={demo.active} />
+            <DemoStart eventId={eventId} personas={groupsHere ? PERSONAS : PERSONAS.filter((p) => p.value !== "director")} active={demo.active} />
           </Card>
         </section>
       )}
@@ -715,7 +735,7 @@ function ParentNumbers({ stats, eventDay }: { stats: ParentStats; eventDay: bool
 }
 
 /** Headcounts and vehicles across every registered band, for parking and planning. */
-function LogisticsTotals({ bands }: { bands: BandTotals[] }) {
+function LogisticsTotals({ bands, noTrucks = false }: { bands: BandTotals[]; noTrucks?: boolean }) {
   const total = (k: Exclude<keyof BandTotals, "classification">) => bands.reduce((n, b) => n + Number(b[k] ?? 0), 0);
   const byClass = bands.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.classification]: (acc[b.classification] ?? 0) + 1 }), {});
   return (
@@ -724,12 +744,17 @@ function LogisticsTotals({ bands }: { bands: BandTotals[] }) {
       <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {(
           [
-            ["Students", total("student_count")],
+            [noTrucks ? "Participants" : "Students", total("student_count")],
             ["Chaperones", total("chaperone_count")],
             ["Buses", total("bus_count")],
-            ["Box trucks", total("box_truck_count")],
-            ["Truck + trailers", total("truck_trailer_count")],
-            ["Semi trucks", total("semi_truck_count")],
+            // Group events don't ask about trucks.
+            ...(noTrucks
+              ? []
+              : ([
+                  ["Box trucks", total("box_truck_count")],
+                  ["Truck + trailers", total("truck_trailer_count")],
+                  ["Semi trucks", total("semi_truck_count")],
+                ] as const)),
           ] as const
         ).map(([label, value]) => (
           <div key={label} className="rounded-lg bg-background px-3 py-2">

@@ -15,7 +15,7 @@ export const FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"] as cons
 
 export const AUDIENCES = [
   { value: "public", label: "Everyone", hint: "On the public event page" },
-  { value: "directors", label: "Band directors", hint: "Directors of registered bands" },
+  { value: "directors", label: "Directors", hint: "Directors of registered bands or groups" },
   { value: "volunteers", label: "Volunteers", hint: "People signed up for shifts" },
   { value: "team", label: "The team", hint: "Co-hosts, Volunteer Leads and Section Leads" },
 ] as const;

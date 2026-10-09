@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { hasBands } from "@/lib/event-types";
+import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
 import { registerAgain, registerBand } from "@/app/dashboard/band-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
@@ -27,30 +27,35 @@ async function loadEvent(slug: string) {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const event = await loadEvent((await params).slug);
-  return { title: event ? `Band registration: ${event.name}` : "Band registration" };
+  const w = groupWords(event?.event_type);
+  return { title: event ? `${w.One} registration: ${event.name}` : "Registration" };
 }
 
 export default async function BandRegistrationPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
   if (!event) missing();
-  // A volunteer event doesn't take band registrations.
-  if (!hasBands(event.event_type)) redirect(`/e/${slug}`);
+  // Only band contests and group events take registrations.
+  if (!hasEnsembles(event.event_type)) redirect(`/e/${slug}`);
+  const w = groupWords(event.event_type);
+  const kind = hasRooms(event.event_type) ? "group" : "band";
   const user = await getUser();
   const supabase = await createClient();
 
   const [{ data: myBandData }, { data: profile }] = user
     ? await Promise.all([
-        supabase.from("bands").select(`${BAND_COLUMNS}, events(name)`).eq("director_user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("bands").select(`${BAND_COLUMNS}, events(name, event_type)`).eq("director_user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
       ])
     : [{ data: [] }, { data: null }];
-  const myBands = (myBandData ?? []) as unknown as (BandRow & { events: { name: string } | null })[];
+  const myBands = (myBandData ?? []) as unknown as (BandRow & { events: { name: string; event_type: string | null } | null })[];
   const mine = myBands.filter((b) => b.event_id === event.id);
   // The latest registration of each of the director's bands, to copy from.
   // (Not ones already registered for this contest.)
   const seen = new Set<string>(mine.map((b) => `${b.band_name}|${b.school_name}`.toLowerCase()));
   const previous: PreviousBand[] = myBands
+    // Groups copy from groups, bands from bands.
+    .filter((b) => hasRooms(b.events?.event_type) === hasRooms(event.event_type))
     .filter((b) => {
       const k = `${b.band_name}|${b.school_name}`.toLowerCase();
       if (seen.has(k)) return false;
@@ -60,7 +65,7 @@ export default async function BandRegistrationPage({ params }: Params) {
     .map((b) => ({
       ...b,
       head_director_phone: formatPhone(b.head_director_phone),
-      from: b.events?.name ?? "an earlier contest",
+      from: b.events?.name ?? "an earlier event",
     }));
 
   const open = registrationIsOpen(event);
@@ -72,6 +77,7 @@ export default async function BandRegistrationPage({ params }: Params) {
       classifications={event.classifications}
       chaperoneLimit={event.chaperone_limit}
       previous={previous}
+      kind={kind}
       blank={{
         head_director_name: profile?.full_name ?? "",
         head_director_email: user.email,
@@ -86,7 +92,7 @@ export default async function BandRegistrationPage({ params }: Params) {
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       <header className="mt-6">
-        <p className="text-sm font-medium text-muted">Band registration</p>
+        <p className="text-sm font-medium text-muted">{w.One} registration</p>
         <h1 className="mt-1 text-4xl font-bold tracking-tight sm:text-5xl">{event.name}</h1>
         <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
         <p className="mt-1 text-muted">{[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}</p>
@@ -113,7 +119,7 @@ export default async function BandRegistrationPage({ params }: Params) {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-sm text-muted">Open a band to see your times or change your registration.</p>
+          <p className="mt-2 text-sm text-muted">Open a {w.one} to see your times or change your registration.</p>
         </Card>
       )}
 
@@ -124,13 +130,13 @@ export default async function BandRegistrationPage({ params }: Params) {
               {event.status !== "published"
                 ? "Preview: this page isn't public yet."
                 : deadlinePassed(event) && event.band_registration_open
-                  ? `Band registration closed on ${formatDate(event.band_registration_deadline!)}.`
-                  : "Band registration is closed."}
+                  ? `${w.One} registration closed on ${formatDate(event.band_registration_deadline!)}.`
+                  : `${w.One} registration is closed.`}
             </p>
             <p className="mt-1 text-sm text-muted">
               {event.status === "published"
                 ? "Please contact the host if you need to make a change."
-                : "Publish the event and open band registration to accept registrations."}
+                : `Publish the event and open ${w.one} registration to accept registrations.`}
             </p>
           </Card>
         ) : !user ? (
@@ -138,7 +144,7 @@ export default async function BandRegistrationPage({ params }: Params) {
             <h2 className="font-semibold">Directors: sign in to register</h2>
             <p className="mt-2 leading-7 text-muted">
               We&apos;ll email you a sign-in link, no password needed. Your registration is saved to your account so
-              you can update it and see your performance time when it&apos;s posted.
+              you can update it and see your {kind === "group" ? "schedule" : "performance time"} when it&apos;s posted.
             </p>
             <Link
               href={`/login?next=${encodeURIComponent(here)}`}

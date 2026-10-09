@@ -29,6 +29,7 @@ export function StationForm({
   leads,
   submitLabel = "Add station",
   bands = true,
+  locations = [],
 }: {
   action: Action;
   initial?: StationValues;
@@ -36,6 +37,8 @@ export function StationForm({
   submitLabel?: string;
   /** A band contest: stations can be stops on the bands' check-in path. */
   bands?: boolean;
+  /** Suggestions for Location: a group event's rooms. */
+  locations?: string[];
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
   return (
@@ -76,7 +79,19 @@ export function StationForm({
         </Field>
       )}
       <Field label="Location" hint="Optional. Where volunteers should report." className="sm:col-span-2">
-        <Input name="location" defaultValue={initial?.location ?? ""} placeholder="e.g. North lot, by the ticket booth" />
+        <Input
+          name="location"
+          defaultValue={initial?.location ?? ""}
+          placeholder={locations.length ? `e.g. ${locations[0]}` : "e.g. North lot, by the ticket booth"}
+          list={locations.length ? "room-locations" : undefined}
+        />
+        {locations.length > 0 && (
+          <datalist id="room-locations">
+            {locations.map((l) => (
+              <option key={l} value={l} />
+            ))}
+          </datalist>
+        )}
       </Field>
       <Field label="Instructions for volunteers" hint="Optional. What to wear, bring and do." className="sm:col-span-2">
         <Textarea name="instructions" defaultValue={initial?.instructions ?? ""} />

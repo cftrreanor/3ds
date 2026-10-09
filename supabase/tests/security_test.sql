@@ -2292,4 +2292,134 @@ end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000c1';
 
+-- ---------------------------------------------------------------------------
+-- Group events: groups register like bands; rooms and each group's times
+-- ---------------------------------------------------------------------------
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end,
+                           venue_address, band_registration_open)
+values ('10000000-0000-0000-0000-0000000000d1',
+        (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a'),
+        'Spring Choir Festival', 'spring-choir', 'published', 'group_event', current_date + 5, current_date + 5,
+        now() + interval '5 days', now() + interval '5 days 8 hours', '1 School Rd', true);
+set role authenticated;
+-- A director registers a choir (registration is open on a choir festival).
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('40000000-0000-0000-0000-0000000000d1', '10000000-0000-0000-0000-0000000000d1', auth.uid(), 'Central HS',
+        'Varsity Treble', '5A', 'addr', 'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 40, 4);
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('40000000-0000-0000-0000-0000000000d2', '10000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000002',
+        'West HS', 'Chamber Singers', '5A', 'addr', 'w@example.com', 'Dee Director', 'director@example.com', '+15125550106', 24, 2);
+do $$
+declare
+  ev    uuid := '10000000-0000-0000-0000-0000000000d1';
+  t0    timestamptz := date_trunc('hour', now()) + interval '5 days';
+  warm  uuid; stage uuid; sight uuid;
+begin
+  perform public.save_rooms(ev, '[
+    {"name":"Warm-up","note":"Choir room, Room 112","on_path":true,"minutes":20},
+    {"name":"Main Stage","note":"Auditorium","on_path":true,"minutes":15},
+    {"name":"Sight-reading","note":"Black box","on_path":true,"minutes":20},
+    {"name":"Hospitality","on_path":false}]');
+  select id into warm from public.rooms where event_id = ev and name = 'Warm-up';
+  select id into stage from public.rooms where event_id = ev and name = 'Main Stage';
+  select id into sight from public.rooms where event_id = ev and name = 'Sight-reading';
+  assert (select path_order from public.rooms where id = sight) = 3
+     and (select path_order from public.rooms where event_id = ev and name = 'Hospitality') is null,
+         'rooms on the path are numbered in order; others are just listed';
+
+  perform public.save_room_schedule(ev, t0, 20, 5, jsonb_build_array(
+    jsonb_build_object('band_id', '40000000-0000-0000-0000-0000000000d1'),
+    jsonb_build_object('band_id', '40000000-0000-0000-0000-0000000000d2', 'skipped_room_ids', jsonb_build_array(sight),
+                       'extra_minutes_before', 10)));
+  assert (select count(*) from public.room_slots where event_id = ev) = 5, 'three stops for one choir, two for the one skipping a room';
+  assert (select starts_at from public.room_slots where room_id = stage and band_id = '40000000-0000-0000-0000-0000000000d1')
+         = t0 + interval '25 minutes', 'the next room starts after the last one plus passing time';
+  assert (select starts_at from public.room_slots where room_id = warm and band_id = '40000000-0000-0000-0000-0000000000d2')
+         = t0 + interval '30 minutes', 'the next choir starts one interval later, plus its break';
+  assert not exists (select 1 from public.room_slots where room_id = sight and band_id = '40000000-0000-0000-0000-0000000000d2'),
+         'a skipped room has no time';
+
+  -- Renaming or retiming a room updates everyone's times.
+  perform public.save_rooms(ev, jsonb_build_array(
+    jsonb_build_object('id', warm, 'name', 'Warm-up', 'on_path', true, 'minutes', 30),
+    jsonb_build_object('id', stage, 'name', 'Main Stage', 'on_path', true, 'minutes', 15),
+    jsonb_build_object('id', sight, 'name', 'Sight-reading', 'on_path', true, 'minutes', 20)));
+  assert (select starts_at from public.room_slots where room_id = stage and band_id = '40000000-0000-0000-0000-0000000000d1')
+         = t0 + interval '35 minutes', 'room changes rebuild the times';
+  assert not exists (select 1 from public.rooms where event_id = ev and name = 'Hospitality'), 'a room left out is removed';
+
+  begin
+    update public.events set event_type = 'volunteer' where id = ev;
+    raise exception 'FAIL: switched a choir festival with choirs registered';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    insert into public.stations (event_id, name, checkpoint_kind, checkpoint_order) values (ev, 'Gate', 'gate', 1);
+    raise exception 'FAIL: a band check-in station on a choir festival';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+
+-- The team sees the working schedule before it's posted.
+reset role;
+insert into public.event_staff (event_id, user_id, role)
+values ('10000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000003', 'section_lead');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.room_slots) = 5, 'the team sees every choir''s times before they''re posted';
+  assert (select count(*) from public.group_order) = 0, 'but not the host''s working order';
+end $$;
+-- Not posted yet: directors and the public see no times.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert (select count(*) from public.room_slots) = 0, 'a director sees no times before the schedule is posted';
+  assert (select count(*) from public.group_order) = 0, 'and never the host''s working order';
+  begin
+    perform public.save_rooms('10000000-0000-0000-0000-0000000000d1', '[]');
+    raise exception 'FAIL: a director changed the rooms';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.save_room_schedule('10000000-0000-0000-0000-0000000000d1', now(), 20, 5, '[]');
+    raise exception 'FAIL: a director changed the schedule';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  assert (select count(*) from public.public_room_schedule('spring-choir')) = 0, 'nothing public before it''s posted';
+  assert (select count(*) from public.rooms where event_id = '10000000-0000-0000-0000-0000000000d1') = 3, 'room names are public';
+  begin
+    perform 1 from public.room_slots;
+    raise exception 'FAIL: the public read room_slots directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+update public.events set performance_order_published = true where id = '10000000-0000-0000-0000-0000000000d1';
+set role anon;
+do $$ begin
+  assert (select count(*) from public.public_room_schedule('spring-choir')) = 5, 'the posted schedule is public';
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert (select count(*) from public.room_slots) = 3, 'once posted, a director sees only their own choir''s times';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.room_slots) = 0, 'a stranger reads no times directly';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
+
 \echo 'All database security tests passed.'

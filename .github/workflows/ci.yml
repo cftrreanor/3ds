@@ -21,7 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # The same official image, from AWS's mirror: Docker Hub rate-limits CI pulls.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]

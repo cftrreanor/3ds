@@ -9,10 +9,10 @@ const count = (label: string, max = 1000) =>
 
 export const bandSchema = z.object({
   schoolName: z.string().trim().min(2, "School name is required").max(150),
-  bandName: z.string().trim().min(2, "Band name is required").max(150),
+  bandName: z.string().trim().min(2, "Ensemble name is required").max(150),
   classification: z.string().trim().min(1, "Pick a classification"),
   schoolAddress: z.string().trim().min(5, "School address is required").max(300),
-  contactEmail: z.string().trim().toLowerCase().email("Band contact email isn't valid"),
+  contactEmail: z.string().trim().toLowerCase().email("Contact email isn't valid"),
   headDirectorName: z.string().trim().min(2, "Head director's name is required").max(150),
   headDirectorEmail: z.string().trim().toLowerCase().email("Head director's email isn't valid"),
   headDirectorPhone: z
@@ -33,7 +33,7 @@ export const bandSchema = z.object({
         .filter(Boolean)
         .slice(0, 20),
     ),
-  studentCount: count("Students", 1000),
+  studentCount: count("Performers", 1000),
   chaperoneCount: count("Chaperones", 500),
   busCount: count("Buses", 50),
   boxTruckCount: count("Box trucks", 20),

@@ -11,7 +11,8 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { readPass } from "@/lib/volunteer-pass";
-import { hasBands, hasParents } from "@/lib/event-types";
+import { groupWords, hasBands, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
+import { RoomSchedule, type ScheduleRoom, type ScheduleSlot } from "@/components/room-schedule";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { AutoRefresh } from "./auto-refresh";
@@ -106,6 +107,16 @@ export default async function EventPublicPage({ params }: Params) {
       .limit(3),
     supabase.rpc("public_progress", { p_slug: slug }),
   ]);
+  // Group events: the posted schedule, room by room.
+  const roomsHere = hasRooms(event.event_type);
+  const [{ data: roomData }, { data: roomSlotData }] = roomsHere
+    ? await Promise.all([
+        supabase.from("rooms").select("id, name, note, path_order").eq("event_id", event.id),
+        supabase.rpc("public_room_schedule", { p_slug: slug }),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const rooms = (roomData ?? []) as ScheduleRoom[];
+  const roomSlots = (roomSlotData ?? []) as ScheduleSlot[];
   const progress = (progressData ?? []) as ProgressRow[];
   const liveOf = (round: ProgressRow["round"], n: number) => {
     const p = progress.find((x) => x.round === round && x.number === n);
@@ -131,7 +142,8 @@ export default async function EventPublicPage({ params }: Params) {
   const files = event.status === "published" ? await filesFor([event.id], ["public"], () => event.timezone) : [];
   const published = event.performance_order_published || event.finals_published;
   const bandsHere = hasBands(event.event_type);
-  const bandsOpen = bandsHere && registrationIsOpen(event);
+  const words = groupWords(event.event_type);
+  const bandsOpen = hasEnsembles(event.event_type) && registrationIsOpen(event);
   // A volunteer event's page is mostly about signing up.
   const signUp = !bandsHere && event.volunteer_signup_open && !isVolunteer;
   const parentsClosed = hasParents(event.event_type) ? parentRegistrationClosed(event) : "draft";
@@ -153,9 +165,9 @@ export default async function EventPublicPage({ params }: Params) {
   return (
     <>
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
-    {bandsHere && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
+    {(bandsHere || roomsHere) && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      {isEventDay && published && <AutoRefresh seconds={30} />}
+      {isEventDay && (published || roomSlots.length > 0) && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
         <Card className="mt-6 bg-brand-soft">
           <p className="text-sm">Preview: this page isn&apos;t public yet. Only your team can see it.</p>
@@ -233,8 +245,10 @@ export default async function EventPublicPage({ params }: Params) {
           {bandsOpen && (
             <Link href={`/e/${slug}/bands`} className="block">
               <Card className="h-full transition hover:border-brand">
-                <p className="font-semibold">Band directors</p>
-                <p className="mt-1 text-sm text-muted">Register your ensemble for this contest.</p>
+                <p className="font-semibold">{words.One} directors</p>
+                <p className="mt-1 text-sm text-muted">
+                  {roomsHere ? "Register your group for this festival." : "Register your ensemble for this contest."}
+                </p>
               </Card>
             </Link>
           )}
@@ -247,6 +261,25 @@ export default async function EventPublicPage({ params }: Params) {
             Maps &amp; info
           </h2>
           <FileLinks files={files} className="mt-3" />
+        </section>
+      )}
+
+      {roomsHere && (
+        <section className="mt-10" aria-labelledby="rooms-heading">
+          <h2 id="rooms-heading" className="text-xl font-semibold">
+            Schedule
+          </h2>
+          {roomSlots.length === 0 ? (
+            <p className="mt-2 text-muted">The schedule hasn&apos;t been posted yet. Check back soon.</p>
+          ) : (
+            <>
+              <p className="mt-1 mb-4 text-sm text-muted">
+                Room by room. All times {zoneName(tz)}
+                {isEventDay && " · updates automatically"}
+              </p>
+              <RoomSchedule rooms={rooms} slots={roomSlots} timezone={tz} live={isEventDay} columns={1} />
+            </>
+          )}
         </section>
       )}
 
