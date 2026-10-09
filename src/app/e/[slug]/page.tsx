@@ -49,7 +49,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at, parent_registration_open, parent_registration_closes_at")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at, parent_registration_open, parent_registration_closes_at, parent_walk_ins_allowed")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -134,7 +134,10 @@ export default async function EventPublicPage({ params }: Params) {
   const bandsOpen = bandsHere && registrationIsOpen(event);
   // A volunteer event's page is mostly about signing up.
   const signUp = !bandsHere && event.volunteer_signup_open && !isVolunteer;
-  const parentsOpen = hasParents(event.event_type) && !parentRegistrationClosed(event);
+  const parentsClosed = hasParents(event.event_type) ? parentRegistrationClosed(event) : "draft";
+  const parentsOpen = hasParents(event.event_type) && !parentsClosed;
+  // Registration has closed, but parents who didn't register can still come with an ID.
+  const parentWalkIns = (parentsClosed === "closed" || parentsClosed === "deadline") && event.parent_walk_ins_allowed;
   const tz = event.timezone;
   const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
   const { current, next, live } = liveNowAndNext([...schedule, ...finals]);
@@ -185,8 +188,18 @@ export default async function EventPublicPage({ params }: Params) {
         </Card>
       ))}
 
-      {(isVolunteer || bandsOpen || signUp || parentsOpen) && event.status === "published" && (
+      {(isVolunteer || bandsOpen || signUp || parentsOpen || parentWalkIns) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {parentWalkIns && (
+            <Link href={`/e/${slug}/parents`} className="block">
+              <Card className="h-full border-brand transition hover:bg-brand-soft">
+                <p className="font-semibold text-brand">Parents: you can still attend</p>
+                <p className="mt-1 text-sm text-muted">
+                  Registration is closed, but you can come during the event with a valid government-issued photo ID.
+                </p>
+              </Card>
+            </Link>
+          )}
           {parentsOpen && (
             <Link href={`/e/${slug}/parents`} className="block">
               <Card className="h-full border-brand transition hover:bg-brand-soft">

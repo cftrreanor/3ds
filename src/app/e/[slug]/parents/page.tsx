@@ -17,7 +17,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, public_notes, parent_registration_open, parent_registration_closes_at")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, public_notes, parent_registration_open, parent_registration_closes_at, parent_walk_ins_allowed")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -72,6 +72,19 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
               )}
               <ParentsForm action={registerParents.bind(null, event.id, slug)} grades={GRADES} idReminder={ID_REMINDER} />
             </>
+          ) : (closed === "closed" || closed === "deadline") && event.parent_walk_ins_allowed ? (
+            <Card className="space-y-3">
+              <p className="text-lg font-semibold">Registration is closed, but you can still attend.</p>
+              <p className="leading-7">
+                Come during the event, {formatDateRange(event.starts_on, event.ends_on)},{" "}
+                {formatTimeRange(event.window_start, event.window_end, event.timezone)}
+                {event.venue_name ? ` at ${event.venue_name}` : ""}, and check in at the door.
+              </p>
+              <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">
+                🪪 Every adult must bring a valid government-issued photo ID (driver&apos;s license, state ID or passport).
+                You won&apos;t be let in without it.
+              </p>
+            </Card>
           ) : (
             <Card>
               <p className="font-medium">
