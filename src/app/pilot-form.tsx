@@ -36,18 +36,18 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
           <Input name="email" type="email" required maxLength={254} autoComplete="email" />
         </Field>
         <Field label="School or booster program">
-          <Input name="organization" required maxLength={200} placeholder="e.g. Lakeside HS Band Boosters" />
+          <Input name="organization" required maxLength={200} placeholder="e.g. Oak Elementary PTA" />
         </Field>
         <Field label="Phone" hint="Optional">
           <Input name="phone" type="tel" maxLength={30} autoComplete="tel" />
         </Field>
-        <Field label="Contest name" hint="Optional">
-          <Input name="contestName" maxLength={200} placeholder="e.g. Lakeside Marching Invitational" />
+        <Field label="Event name" hint="Optional">
+          <Input name="contestName" maxLength={200} placeholder="e.g. Fall Festival" />
         </Field>
         <Field label="When is it?" hint="Optional">
           <Input name="contestWhen" maxLength={100} placeholder="e.g. October 2026" />
         </Field>
-        <Field label="About how many bands?" hint="Optional">
+        <Field label="About how many bands?" hint="Optional, for band contests">
           <NumberInput name="bands" maxLength={3} />
         </Field>
         <Field label="About how many volunteers?" hint="Optional">
@@ -55,7 +55,7 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
         </Field>
       </div>
       <Field label="Anything else we should know?" hint="Optional">
-        <Textarea name="notes" rows={3} maxLength={2000} placeholder="What's hardest about contest day for you today?" />
+        <Textarea name="notes" rows={3} maxLength={2000} placeholder="What kind of events do you run? What's hardest about event day today?" />
       </Field>
       <SubmitButton variant="accent" pendingText="Sending…" className="w-full sm:w-auto">
         Request a pilot spot

@@ -12,11 +12,11 @@ const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subset
 
 export const metadata: Metadata = {
   title: {
-    default: `${brand.name} — band competition management`,
+    default: `${brand.name} — school event management`,
     template: `%s · ${brand.name}`,
   },
   description:
-    "Volunteer shifts, band registration, live performance order and announcements for marching band contests, in one place.",
+    "Band contests, volunteer events and school visitor days in one place: sign-ups, registration, check-in on any phone and announcements, with privacy built in.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
