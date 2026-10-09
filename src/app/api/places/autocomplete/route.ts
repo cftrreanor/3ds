@@ -9,10 +9,12 @@ export async function GET(request: NextRequest) {
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const session = request.nextUrl.searchParams.get("session") ?? "";
+  // The event's time zone: suggestions favor that part of the country.
+  const timezone = request.nextUrl.searchParams.get("tz") ?? undefined;
   if (q.length < 3 || q.length > 200 || !session) return NextResponse.json({ suggestions: [] });
 
   try {
-    return NextResponse.json({ suggestions: await autocomplete(q, session) });
+    return NextResponse.json({ suggestions: await autocomplete(q, session, timezone) });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "lookup_failed" }, { status: 502 });

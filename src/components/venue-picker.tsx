@@ -21,7 +21,16 @@ const newSession = () => crypto.randomUUID();
  * Maps suggestions. Submits venueName, venueAddress, venuePlaceId, venueLat and
  * venueLng. Falls back to plain text fields if search isn't available.
  */
-export function VenuePicker({ searchEnabled, initial }: { searchEnabled: boolean; initial?: VenueValue }) {
+export function VenuePicker({
+  searchEnabled,
+  initial,
+  timezone,
+}: {
+  searchEnabled: boolean;
+  initial?: VenueValue;
+  /** The event's time zone: suggestions favor that part of the country. */
+  timezone?: string;
+}) {
   const [mode, setMode] = useState<"search" | "selected" | "manual">(
     initial?.address ? (initial.placeId ? "selected" : "manual") : searchEnabled ? "search" : "manual",
   );
@@ -89,6 +98,7 @@ export function VenuePicker({ searchEnabled, initial }: { searchEnabled: boolean
 
   return (
     <VenueSearch
+      timezone={timezone}
       onSelect={(p) => {
         setPlace(p);
         setMode("selected");
@@ -103,10 +113,12 @@ export function VenuePicker({ searchEnabled, initial }: { searchEnabled: boolean
 }
 
 function VenueSearch({
+  timezone,
   onSelect,
   onUnavailable,
   onManual,
 }: {
+  timezone?: string;
   onSelect: (place: Place) => void;
   onUnavailable: (message: string) => void;
   onManual: () => void;
@@ -132,7 +144,7 @@ function VenueSearch({
       setLoading(true);
       try {
         const res = await fetch(
-          `/api/places/autocomplete?q=${encodeURIComponent(q)}&session=${session.current}`,
+          `/api/places/autocomplete?q=${encodeURIComponent(q)}&session=${session.current}${timezone ? `&tz=${encodeURIComponent(timezone)}` : ""}`,
           { signal: controller.signal },
         );
         if (!res.ok) {
@@ -155,7 +167,7 @@ function VenueSearch({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [query, timezone]);
 
   async function choose(s: Suggestion) {
     setOpen(false);

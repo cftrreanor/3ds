@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Select } from "@/components/ui";
@@ -36,6 +37,8 @@ export function EventForm({
   /** For a new event: what kind it is (chosen before the form). */
   eventType?: string;
 }) {
+  // Venue search favors the part of the country in the event's time zone.
+  const [timezone, setTimezone] = useState(initial.timezone);
   return (
     <ActionForm action={action} className="space-y-6" resetOnSuccess={false}>
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -68,7 +71,7 @@ export function EventForm({
           hint="Where the event happens. Every time on volunteer pages, emails and calendar invites uses this zone, whatever someone's phone is set to."
           className="sm:col-span-2"
         >
-          <Select name="timezone" defaultValue={initial.timezone}>
+          <Select name="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
             {US_TIMEZONES.map((tz) => (
               <option key={tz.value} value={tz.value}>
                 {tz.label}
@@ -80,7 +83,7 @@ export function EventForm({
 
       <fieldset className="grid gap-4">
         <legend className="mb-3 text-sm font-medium">Where</legend>
-        <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} />
+        <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} />
       </fieldset>
 
       <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
