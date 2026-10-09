@@ -9,10 +9,9 @@ import { hasRooms } from "@/lib/event-types";
 import type { GroupPlan, Room } from "@/lib/rooms";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { eachDate, formatTime, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
+import { eachDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { ActionButton } from "../forms";
-import { pushRoomScheduleBack, saveRooms, saveRoomSchedule, setRoomSchedulePosted } from "./actions";
-import { RoomPushBackForm } from "./push-back-form";
+import { saveRooms, saveRoomSchedule, setRoomSchedulePosted } from "./actions";
 import { RoomsEditor } from "./rooms-editor";
 import { ScheduleEditor, type ScheduleGroup } from "./schedule-editor";
 
@@ -73,17 +72,6 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
     extraMinutes: o.extra_minutes_before,
   }));
 
-  // For "Push the schedule back": the saved order, each with its first time. The default
-  // is the first group that hasn't started yet.
-  const firstSlot = (bandId: string) => (slotData ?? []).filter((s) => s.band_id === bandId).sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0];
-  const nowIso = new Date().toISOString();
-  const pushGroups = order.flatMap((o, i) => {
-    const b = bandById.get(o.bandId);
-    const first = firstSlot(o.bandId);
-    return b && first ? [{ id: o.bandId, label: `${i + 1}. ${b.band_name} · ${formatTime(first.starts_at, tz)}`, startsAt: first.starts_at }] : [];
-  });
-  const pushDefault = (pushGroups.find((g) => g.startsAt > nowIso) ?? pushGroups.at(-1))?.id ?? "";
-
   return (
     <div>
       {isEventDay && event.performance_order_published && <AutoRefresh seconds={30} />}
@@ -97,23 +85,18 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
         </Badge>
       </div>
 
-      {access.isHost && pushGroups.length > 0 && (
-        <Card className="mt-6 p-4">
-          <details>
-            <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Moves every room time for the group you pick and every group after them. Groups before them stay as they are.
-              The minutes are added to that group&apos;s break below, so you can undo it there.
-            </p>
-            <div className="mt-3">
-              <RoomPushBackForm
-                action={pushRoomScheduleBack.bind(null, eventId)}
-                groups={pushGroups.map(({ id, label }) => ({ id, label }))}
-                defaultGroup={pushDefault}
-                posted={event.performance_order_published}
-              />
-            </div>
-          </details>
+      {slots.length > 0 && (
+        <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm leading-6 text-muted">
+            On the day, use <span className="font-medium text-foreground">Event day</span> to check groups in, see who&apos;s
+            running over{access.isHost ? " and push the schedule back" : ""}.
+          </p>
+          <Link
+            href={`/dashboard/events/${eventId}/event-day`}
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+          >
+            Open event day
+          </Link>
         </Card>
       )}
 

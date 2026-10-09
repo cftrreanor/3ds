@@ -2419,6 +2419,71 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":
 do $$ begin
   assert (select count(*) from public.room_slots) = 0, 'a stranger reads no times directly';
 end $$;
+-- On the day: the team taps groups in ("Arrived", then "Done" per room).
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$
+declare
+  stage uuid := (select id from public.rooms where event_id = '10000000-0000-0000-0000-0000000000d1' and name = 'Main Stage');
+begin
+  perform public.group_checkin('40000000-0000-0000-0000-0000000000d1', null, true);
+  perform public.group_checkin('40000000-0000-0000-0000-0000000000d1', null, true);
+  assert (select count(*) from public.group_checkins) = 1, 'a Section Lead marks a group arrived (twice is still once)';
+  perform public.group_checkin('40000000-0000-0000-0000-0000000000d2', stage, true);
+  assert (select count(*) from public.group_checkins where band_id = '40000000-0000-0000-0000-0000000000d2') = 2,
+         'a room done also marks the group arrived';
+  assert (select actor_name from public.group_checkins where room_id = stage) is not null, 'taps say who';
+  perform public.group_checkin('40000000-0000-0000-0000-0000000000d2', stage, false);
+  assert not exists (select 1 from public.group_checkins where room_id = stage), 'a tap can be taken back';
+  perform public.group_checkin('40000000-0000-0000-0000-0000000000d2', stage, true);
+  begin
+    perform public.group_checkin('40000000-0000-0000-0000-0000000000d1',
+      (select id from public.rooms where event_id <> '10000000-0000-0000-0000-0000000000d1' limit 1), true);
+    raise exception 'FAIL: checked a group into another event''s room';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.group_checkin('40000000-0000-0000-0000-000000000001', null, true);
+    raise exception 'FAIL: group check-in on a band contest';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    insert into public.group_checkins (event_id, band_id) values ('10000000-0000-0000-0000-0000000000d1', '40000000-0000-0000-0000-0000000000d1');
+    raise exception 'FAIL: wrote group_checkins directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+-- A director sees their own group's taps, can't tap; a stranger sees and taps nothing.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert (select count(*) from public.group_checkins) = 1, 'a director sees only their own group''s taps';
+  begin
+    perform public.group_checkin('40000000-0000-0000-0000-0000000000d1', null, false);
+    raise exception 'FAIL: a director took back a check-in';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select count(*) from public.group_checkins) = 2, 'the other director sees their group''s arrival and room';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.group_checkins) = 0, 'a stranger reads no taps';
+  begin
+    perform public.group_checkin('40000000-0000-0000-0000-0000000000d1', null, true);
+    raise exception 'FAIL: a stranger checked a group in';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.group_checkins;
+    raise exception 'FAIL: the public read group_checkins';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
 
