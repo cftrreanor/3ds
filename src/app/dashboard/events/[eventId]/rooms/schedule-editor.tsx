@@ -4,19 +4,19 @@ import { useMemo, useState, useTransition } from "react";
 import { NumberInput } from "@/components/number-input";
 import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { pathRooms, roomTimes, tooLongRooms, type ChoirPlan, type Room } from "@/lib/rooms";
+import { pathRooms, roomTimes, tooLongRooms, type GroupPlan, type Room } from "@/lib/rooms";
 import { formatDate, formatTime, zonedToUtc } from "@/lib/time";
 import type { ScheduleInput } from "./actions";
 
-export type ScheduleChoir = { id: string; name: string; school: string; classification: string; conflicts: string | null };
+export type ScheduleGroup = { id: string; name: string; school: string; classification: string; conflicts: string | null };
 
 /**
- * Choirs in order. Each starts the path one interval after the one before
+ * Groups in order. Each starts the path one interval after the one before
  * (plus any break), and every room's time follows from the room lengths and
  * the passing time, previewed here as you go.
  */
 export function ScheduleEditor({
-  choirs,
+  groups,
   rooms,
   initialOrder,
   initialDate,
@@ -29,9 +29,9 @@ export function ScheduleEditor({
   posted,
   save,
 }: {
-  choirs: ScheduleChoir[];
+  groups: ScheduleGroup[];
   rooms: Room[];
-  initialOrder: ChoirPlan[];
+  initialOrder: GroupPlan[];
   initialDate: string;
   initialTime: string;
   initialInterval: number;
@@ -42,10 +42,10 @@ export function ScheduleEditor({
   posted: boolean;
   save: (input: ScheduleInput) => Promise<ActionState>;
 }) {
-  // The saved order first, then choirs that registered since.
-  const [order, setOrder] = useState<ChoirPlan[]>(() => [
-    ...initialOrder.filter((o) => choirs.some((c) => c.id === o.bandId)),
-    ...choirs.filter((c) => !initialOrder.some((o) => o.bandId === c.id)).map((c) => ({ bandId: c.id, skipped: [], extraMinutes: 0 })),
+  // The saved order first, then groups that registered since.
+  const [order, setOrder] = useState<GroupPlan[]>(() => [
+    ...initialOrder.filter((o) => groups.some((c) => c.id === o.bandId)),
+    ...groups.filter((c) => !initialOrder.some((o) => o.bandId === c.id)).map((c) => ({ bandId: c.id, skipped: [], extraMinutes: 0 })),
   ]);
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime);
@@ -57,7 +57,7 @@ export function ScheduleEditor({
 
   const path = pathRooms(rooms);
   const unsaved = initialOrder.length !== order.length || order.some((o, i) => initialOrder[i]?.bandId !== o.bandId);
-  const byId = new Map(choirs.map((c) => [c.id, c]));
+  const byId = new Map(groups.map((c) => [c.id, c]));
   const roomName = new Map(rooms.map((r) => [r.id, r.name]));
   const iv = Number(interval) || 0;
   const pass = Number(passing) || 0;
@@ -67,7 +67,7 @@ export function ScheduleEditor({
   );
   const overlong = tooLongRooms(rooms, iv);
 
-  const set = (i: number, patch: Partial<ChoirPlan>) => setOrder((list) => list.map((o, j) => (j === i ? { ...o, ...patch } : o)));
+  const set = (i: number, patch: Partial<GroupPlan>) => setOrder((list) => list.map((o, j) => (j === i ? { ...o, ...patch } : o)));
   const move = (i: number, by: number) =>
     setOrder((list) => {
       const next = [...list];
@@ -79,14 +79,14 @@ export function ScheduleEditor({
   if (!path.length) {
     return (
       <Card>
-        <p className="text-muted">Add the rooms every choir visits (above) first; then put the choirs in order here.</p>
+        <p className="text-muted">Add the rooms every group visits (above) first; then put the groups in order here.</p>
       </Card>
     );
   }
-  if (!choirs.length) {
+  if (!groups.length) {
     return (
       <Card>
-        <p className="text-muted">No choirs have registered yet. They&apos;ll appear here, ready to put in order.</p>
+        <p className="text-muted">No groups have registered yet. They&apos;ll appear here, ready to put in order.</p>
       </Card>
     );
   }
@@ -104,10 +104,10 @@ export function ScheduleEditor({
               ))}
             </Select>
           </Field>
-          <Field label="First choir starts">
+          <Field label="First group starts">
             <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </Field>
-          <Field label="Minutes between choirs">
+          <Field label="Minutes between groups">
             <NumberInput value={interval} onChange={(e) => setIntervalMinutes(e.target.value)} maxLength={3} />
           </Field>
           <Field label="Passing time (minutes)" hint="Walking between rooms.">
@@ -120,7 +120,7 @@ export function ScheduleEditor({
         {overlong.length > 0 && (
           <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm" role="alert">
             {overlong.map((r) => r.name).join(" and ")} {overlong.length === 1 ? "takes" : "take"} longer than the {iv} minutes
-            between choirs, so two choirs would be in {overlong.length === 1 ? "it" : "them"} at once. Make the gap at least{" "}
+            between groups, so two groups would be in {overlong.length === 1 ? "it" : "them"} at once. Make the gap at least{" "}
             {Math.max(...overlong.map((r) => r.minutes))} minutes.
           </p>
         )}
@@ -171,7 +171,7 @@ export function ScheduleEditor({
                           type="button"
                           onClick={() => set(i, { skipped: skipped ? o.skipped.filter((x) => x !== r.id) : [...o.skipped, r.id] })}
                           aria-pressed={!skipped}
-                          title={skipped ? `Add ${r.name} back` : `Skip ${r.name} for this choir`}
+                          title={skipped ? `Add ${r.name} back` : `Skip ${r.name} for this group`}
                           className={`flex min-h-11 flex-col items-start rounded-md border px-3 py-1 text-left text-sm ${skipped ? "border-dashed border-border text-muted line-through" : "border-border bg-background"}`}
                         >
                           <span className="font-medium">{r.name}</span>
@@ -183,7 +183,7 @@ export function ScheduleEditor({
                 </ul>
                 <div className="mt-3 flex items-center gap-2 text-sm">
                   <label htmlFor={`break-${o.bandId}`} className="text-muted">
-                    Break before this choir
+                    Break before this group
                   </label>
                   <div className="w-20">
                     <NumberInput
@@ -201,7 +201,7 @@ export function ScheduleEditor({
           );
         })}
       </ol>
-      <p className="text-sm text-muted">Tap a room to skip it for that choir (for example, a choir not sight-reading).</p>
+      <p className="text-sm text-muted">Tap a room to skip it for that group (for example, a group that isn&apos;t sight-reading).</p>
 
       <div className="sticky bottom-0 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
         <FormMessage error={state.error} success={state.ok ? state.message : null} />
@@ -232,7 +232,7 @@ export function ScheduleEditor({
               Email directors whose times change
             </label>
           )}
-          {unsaved && !pending && <span className="text-sm text-muted">New choirs aren&apos;t scheduled until you save.</span>}
+          {unsaved && !pending && <span className="text-sm text-muted">New groups aren&apos;t scheduled until you save.</span>}
         </div>
       </div>
     </div>

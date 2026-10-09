@@ -59,9 +59,9 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     .maybeSingle();
   if (!event) missing();
   const bandsHere = hasBands(event.event_type);
-  // Band contests and choir festivals both take registrations; choirs move through rooms.
+  // Band contests and group events both take registrations; groups move through rooms.
   const groupsHere = hasEnsembles(event.event_type);
-  const choirsHere = hasRooms(event.event_type);
+  const roomsHere = hasRooms(event.event_type);
   const words = groupWords(event.event_type);
 
   const access = await getEventAccess(eventId);
@@ -534,16 +534,16 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               {bands.length
                 ? `${bands.length} ${bands.length === 1 ? words.one : words.many} registered.`
                 : `No ${words.many} registered yet.`}{" "}
-              {choirsHere
+              {roomsHere
                 ? access.isHost
-                  ? "Registration, rooms and each choir's schedule."
-                  : "See each choir's times in every room."
+                  ? "Registration, rooms and each group's schedule."
+                  : "See each group's times in every room."
                 : access.isHost
                   ? "Registration, the performance schedule and finals."
                   : "See the performance order and each band's status on the day."}
             </p>
             <div className="flex flex-wrap gap-2">
-              {choirsHere && (
+              {roomsHere && (
                 <Link
                   href={`/dashboard/events/${eventId}/rooms`}
                   className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium ${access.isHost ? "border border-border bg-surface hover:bg-background" : "bg-brand text-brand-foreground hover:opacity-90"}`}
@@ -551,7 +551,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                   {access.isHost ? "Rooms & schedule" : "Room schedule"}
                 </Link>
               )}
-              {(access.isHost || !choirsHere) && (
+              {(access.isHost || !roomsHere) && (
                 <Link
                   href={`/dashboard/events/${eventId}/${access.isHost ? "bands" : "schedule"}`}
                   className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
@@ -561,7 +561,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               )}
             </div>
           </div>
-          {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} choirs={choirsHere} />}
+          {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
         </Card>
       </section>
       )}
@@ -735,7 +735,7 @@ function ParentNumbers({ stats, eventDay }: { stats: ParentStats; eventDay: bool
 }
 
 /** Headcounts and vehicles across every registered band, for parking and planning. */
-function LogisticsTotals({ bands, choirs = false }: { bands: BandTotals[]; choirs?: boolean }) {
+function LogisticsTotals({ bands, noTrucks = false }: { bands: BandTotals[]; noTrucks?: boolean }) {
   const total = (k: Exclude<keyof BandTotals, "classification">) => bands.reduce((n, b) => n + Number(b[k] ?? 0), 0);
   const byClass = bands.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.classification]: (acc[b.classification] ?? 0) + 1 }), {});
   return (
@@ -744,11 +744,11 @@ function LogisticsTotals({ bands, choirs = false }: { bands: BandTotals[]; choir
       <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {(
           [
-            [choirs ? "Singers" : "Students", total("student_count")],
+            [noTrucks ? "Participants" : "Students", total("student_count")],
             ["Chaperones", total("chaperone_count")],
             ["Buses", total("bus_count")],
-            // Choirs don't bring trucks.
-            ...(choirs
+            // Group events don't ask about trucks.
+            ...(noTrucks
               ? []
               : ([
                   ["Box trucks", total("box_truck_count")],

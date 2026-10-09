@@ -12,7 +12,7 @@ export type ScheduleSlot = {
 };
 
 /**
- * A choir festival's schedule, room by room: who's in each room and when.
+ * A group event's schedule, room by room: who's in each room and when.
  * On the day, each room shows who's in it now and who's next.
  */
 export function RoomSchedule({
@@ -50,7 +50,7 @@ export function RoomSchedule({
               </div>
             )}
             {list.length === 0 ? (
-              <p className="mt-3 text-sm text-muted">No choirs scheduled here yet.</p>
+              <p className="mt-3 text-sm text-muted">No groups scheduled here yet.</p>
             ) : (
               <ol className="mt-3 divide-y divide-border">
                 {list.map((s) => {

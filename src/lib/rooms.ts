@@ -1,31 +1,31 @@
-// Choir festivals: rooms, the path every choir follows, and each choir's
+// Group events: rooms, the path every group follows, and each group's
 // times. The same arithmetic as rebuild_room_slots() in
-// supabase/migrations/20261103000000_choir_festivals.sql, so the schedule
+// supabase/migrations/20261103000000_group_events.sql, so the schedule
 // builder can preview times before saving.
 
 export type Room = { id: string; name: string; note: string | null; path_order: number | null; minutes: number };
 
-export type ChoirPlan = {
+export type GroupPlan = {
   bandId: string;
-  /** Rooms on the path this choir doesn't visit. */
+  /** Rooms on the path this group doesn't visit. */
   skipped: string[];
-  /** A break before this choir (pushes it and everyone after it later). */
+  /** A break before this group (pushes it and everyone after it later). */
   extraMinutes: number;
 };
 
 export type RoomTime = { roomId: string; startsAt: Date; endsAt: Date };
 
-/** The rooms every choir visits, in order. */
+/** The rooms every group visits, in order. */
 export const pathRooms = (rooms: Room[]) =>
   rooms.filter((r) => r.path_order != null).sort((a, b) => a.path_order! - b.path_order!);
 
-/** Each choir's time in each room, in path order. */
+/** Each group's time in each room, in path order. */
 export function roomTimes(
   start: Date,
   intervalMinutes: number,
   passingMinutes: number,
   rooms: Room[],
-  order: ChoirPlan[],
+  order: GroupPlan[],
 ): Map<string, RoomTime[]> {
   const path = pathRooms(rooms);
   const out = new Map<string, RoomTime[]>();
@@ -51,6 +51,6 @@ export function roomTimes(
   return out;
 }
 
-/** Choirs start one interval apart; a room longer than that would hold two choirs at once. */
+/** Groups start one interval apart; a room longer than that would hold two groups at once. */
 export const tooLongRooms = (rooms: Room[], intervalMinutes: number) =>
   pathRooms(rooms).filter((r) => r.minutes > intervalMinutes);

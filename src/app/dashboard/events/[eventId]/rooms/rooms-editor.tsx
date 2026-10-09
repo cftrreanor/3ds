@@ -14,7 +14,7 @@ const blank = (onPath: boolean): Row => ({ key: `new-${nextKey++}`, name: "", no
 
 /**
  * The festival's rooms. A room is a name plus an optional note (a room
- * number, "east hallway"); rooms on the path are visited by every choir, in
+ * number, "east hallway"); rooms on the path are visited by every group, in
  * this order, each for its number of minutes.
  */
 export function RoomsEditor({ rooms, save }: { rooms: Room[]; save: (rooms: RoomInput[]) => Promise<ActionState> }) {
@@ -80,7 +80,7 @@ export function RoomsEditor({ rooms, save }: { rooms: Room[]; save: (rooms: Room
                   onChange={(e) => set(i, { onPath: e.target.checked })}
                   className="h-5 w-5 accent-[var(--brand)]"
                 />
-                Every choir visits this room
+                Every group visits this room
               </label>
               <button type="button" className="min-h-9 text-muted hover:text-foreground disabled:opacity-40" disabled={i === 0} onClick={() => move(i, -1)}>
                 ↑ Earlier
@@ -106,7 +106,7 @@ export function RoomsEditor({ rooms, save }: { rooms: Room[]; save: (rooms: Room
         </Button>
       </div>
       <p className="text-sm text-muted">
-        Numbered rooms are each choir&apos;s path, in order. Rooms without a number (a hospitality room, say) are just listed
+        Numbered rooms are each group&apos;s path, in order. Rooms without a number (a hospitality room, say) are just listed
         for everyone.
       </p>
       <FormMessage error={state.error} success={state.ok ? state.message : null} />

@@ -44,7 +44,7 @@ export function EventForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       {eventType && <input type="hidden" name="eventType" value={eventType} />}
       <Field label="Event name">
-        <Input name="name" required defaultValue={initial.name} placeholder={eventType === "volunteer" ? "e.g. Fall Festival Concessions" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "choir_festival" ? "e.g. Spring Choir Festival" : "e.g. Cedar Ridge Marching Invitational"} />
+        <Input name="name" required defaultValue={initial.name} placeholder={eventType === "volunteer" ? "e.g. Fall Festival Concessions" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "group_event" ? "e.g. Spring Arts Festival" : "e.g. Cedar Ridge Marching Invitational"} />
       </Field>
 
       <fieldset className="grid gap-4 sm:grid-cols-2">

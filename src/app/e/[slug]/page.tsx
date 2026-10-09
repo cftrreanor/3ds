@@ -107,9 +107,9 @@ export default async function EventPublicPage({ params }: Params) {
       .limit(3),
     supabase.rpc("public_progress", { p_slug: slug }),
   ]);
-  // Choir festivals: the posted schedule, room by room.
-  const choirsHere = hasRooms(event.event_type);
-  const [{ data: roomData }, { data: roomSlotData }] = choirsHere
+  // Group events: the posted schedule, room by room.
+  const roomsHere = hasRooms(event.event_type);
+  const [{ data: roomData }, { data: roomSlotData }] = roomsHere
     ? await Promise.all([
         supabase.from("rooms").select("id, name, note, path_order").eq("event_id", event.id),
         supabase.rpc("public_room_schedule", { p_slug: slug }),
@@ -165,7 +165,7 @@ export default async function EventPublicPage({ params }: Params) {
   return (
     <>
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
-    {(bandsHere || choirsHere) && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
+    {(bandsHere || roomsHere) && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {isEventDay && (published || roomSlots.length > 0) && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
@@ -247,7 +247,7 @@ export default async function EventPublicPage({ params }: Params) {
               <Card className="h-full transition hover:border-brand">
                 <p className="font-semibold">{words.One} directors</p>
                 <p className="mt-1 text-sm text-muted">
-                  {choirsHere ? "Register your choir for this festival." : "Register your ensemble for this contest."}
+                  {roomsHere ? "Register your group for this festival." : "Register your ensemble for this contest."}
                 </p>
               </Card>
             </Link>
@@ -264,7 +264,7 @@ export default async function EventPublicPage({ params }: Params) {
         </section>
       )}
 
-      {choirsHere && (
+      {roomsHere && (
         <section className="mt-10" aria-labelledby="rooms-heading">
           <h2 id="rooms-heading" className="text-xl font-semibold">
             Schedule

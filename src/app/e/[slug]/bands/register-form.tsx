@@ -31,7 +31,7 @@ export function RegisterForm({
   chaperoneLimit: number;
   blank: BandFormValues;
   previous: PreviousBand[];
-  kind?: "band" | "choir";
+  kind?: "band" | "group";
 }) {
   // Which form is open: a saved band being edited, a blank one, or none yet.
   const [open, setOpen] = useState<string | null>(previous.length ? null : "new");
@@ -106,7 +106,7 @@ function SavedBand({
   onEdit,
   kind,
 }: {
-  kind: "band" | "choir";
+  kind: "band" | "group";
   band: PreviousBand;
   classifications: string[];
   chaperoneLimit: number;
@@ -140,10 +140,10 @@ function SavedBand({
       <p className="text-muted">{b.school_name}</p>
       <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         <Detail label="Classification" value={b.classification} />
-        <Detail label="People" value={`${b.student_count ?? 0} ${kind === "choir" ? "singers" : "students"} · ${b.chaperone_count ?? 0} chaperones`} />
+        <Detail label="People" value={`${b.student_count ?? 0} ${kind === "group" ? "participants" : "students"} · ${b.chaperone_count ?? 0} chaperones`} />
         <Detail label="Vehicles" value={vehicles || "None"} />
         <Detail label="Head director" value={[b.head_director_name, b.head_director_phone].filter(Boolean).join(" · ")} />
-        <Detail label={kind === "choir" ? "Choir contact email" : "Band contact email"} value={b.contact_email} />
+        <Detail label={kind === "group" ? "Group contact email" : "Band contact email"} value={b.contact_email} />
         <Detail label="School address" value={b.school_address} />
       </dl>
       {problems.length > 0 && (

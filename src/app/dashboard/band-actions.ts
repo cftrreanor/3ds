@@ -93,21 +93,21 @@ async function createRegistration(
   }
 
   const { data: event } = await supabase.from("events").select("name, starts_on, ends_on, event_type").eq("id", eventId).single();
-  const choir = hasRooms(event?.event_type);
+  const group = hasRooms(event?.event_type);
   const origin = await getOrigin();
   after(async () => {
     const { html, text } = emailLayout({
       heading: `${v.band_name} is registered`,
       paragraphs: [
         `Thanks! ${v.school_name} is registered for ${event?.name ?? "the event"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
-        `You can review or change your registration while registration is open. We'll email you when ${choir ? "the schedule and your choir's times in each room are" : "the performance order and your times are"} posted.`,
+        `You can review or change your registration while registration is open. We'll email you when ${group ? "the schedule and your group's times in each room are" : "the performance order and your times are"} posted.`,
       ],
       rows: [
         { title: "Classification", detail: v.classification },
-        { title: "People", detail: `${v.student_count} ${choir ? "singers" : "students"} · ${v.chaperone_count} chaperones` },
+        { title: "People", detail: `${v.student_count} ${group ? "participants" : "students"} · ${v.chaperone_count} chaperones` },
         {
           title: "Vehicles",
-          detail: choir
+          detail: group
             ? `${v.bus_count} ${v.bus_count === 1 ? "bus" : "buses"}`
             : `${v.bus_count} buses · ${v.box_truck_count} box trucks · ${v.truck_trailer_count} truck/trailers · ${v.semi_truck_count} semis`,
         },

@@ -51,7 +51,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     .maybeSingle();
   if (!event) missing();
   if (!hasEnsembles(event.event_type)) redirect(`/dashboard/events/${eventId}`);
-  const choirs = hasRooms(event.event_type);
+  const roomsHere = hasRooms(event.event_type);
   const w = groupWords(event.event_type);
 
   const user = await requireUser();
@@ -200,8 +200,8 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         </Card>
       </section>
 
-      {/* Past directors are band directors so far; choir festivals start fresh. */}
-      {!choirs && pastDirectors.length > 0 && (
+      {/* Past directors are band directors so far; group events start fresh. */}
+      {!roomsHere && pastDirectors.length > 0 && (
         <section className="mt-10" aria-labelledby="invite-heading">
           <h2 id="invite-heading" className="text-xl font-semibold">
             Invite bands from your past events
@@ -216,12 +216,12 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
-      {access.isHost && choirs && (
+      {access.isHost && roomsHere && (
         <section className="mt-10">
           <h2 className="text-xl font-semibold">Rooms &amp; schedule</h2>
           <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm leading-6 text-muted">
-              Set up your rooms and the path every choir follows, then put the choirs in order. Each choir&apos;s times
+              Set up your rooms and the path every group follows, then put the groups in order. Each group&apos;s times
               are worked out for you.
             </p>
             <Link
@@ -234,7 +234,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
-      {access.isHost && !choirs && (
+      {access.isHost && !roomsHere && (
         <section className="mt-10">
           <h2 className="text-xl font-semibold">Performance schedule</h2>
           <p className="mt-1 mb-4 text-sm text-muted">
@@ -273,7 +273,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                     <span className="font-semibold">{b.band_name}</span>
                     <span className="text-muted">
                       {" "}
-                      · {b.school_name} · {b.classification} · {b.student_count} {choirs ? "singers" : "students"}
+                      · {b.school_name} · {b.classification} · {b.student_count} {roomsHere ? "participants" : "students"}
                     </span>
                   </summary>
                   <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
@@ -291,10 +291,10 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                     <Detail label={`${w.One} contact`}>{b.contact_email}</Detail>
                     <Detail label="School address">{b.school_address}</Detail>
                     <Detail label="People">
-                      {b.student_count} {choirs ? "singers" : "students"} · {b.chaperone_count} chaperones
+                      {b.student_count} {roomsHere ? "participants" : "students"} · {b.chaperone_count} chaperones
                     </Detail>
                     <Detail label="Vehicles">
-                      {choirs
+                      {roomsHere
                         ? `${b.bus_count} ${b.bus_count === 1 ? "bus" : "buses"}`
                         : `${b.bus_count} buses · ${b.box_truck_count} box trucks · ${b.truck_trailer_count} truck/trailers · ${b.semi_truck_count} semis`}
                     </Detail>

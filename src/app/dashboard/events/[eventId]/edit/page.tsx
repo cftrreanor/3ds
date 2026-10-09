@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "Edit event" };
 
 const TYPE_SUMMARY = {
   band_contest: "Bands register, get performance times and are checked in on contest day, alongside your volunteers.",
-  choir_festival: "Choirs register and move through your rooms (warm-up, main stage, sight-reading) on a schedule worked out for them, alongside your volunteers.",
+  group_event: "Groups (choirs, orchestras, teams and more) register and move through your rooms on a schedule worked out for them, alongside your volunteers.",
   volunteer: "Volunteers, shifts, check-in and your team only. No band registration or performance schedule.",
   school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers. Children's details are seen only by your team and permanently deleted 30 days after the event.",
 };
@@ -27,7 +27,7 @@ const TYPE_SUMMARY = {
 // What switching to each kind adds or removes.
 const SWITCH_NOTE = {
   band_contest: "Band registration, the performance schedule and contest day check-in are added.",
-  choir_festival: "Choir registration, rooms and each choir's room schedule are added; the single performance order and band check-in stations go away.",
+  group_event: "Group registration, rooms and each group's room schedule are added; the single performance order and band check-in stations go away.",
   volunteer: "Band registration, parent registration and the performance schedule go away; band check-in stations become ordinary stations.",
   school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
 };

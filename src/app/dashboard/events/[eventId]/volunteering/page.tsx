@@ -37,7 +37,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
-  // Choir festivals: the rooms, suggested as station locations.
+  // Group events: the rooms, suggested as station locations.
   const { data: roomData } = hasRooms(event.event_type)
     ? await supabase.from("rooms").select("name, note").eq("event_id", eventId).order("name")
     : { data: [] };

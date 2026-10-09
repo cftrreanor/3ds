@@ -6,18 +6,18 @@ import { RoomSchedule, type ScheduleSlot } from "@/components/room-schedule";
 import { Badge, Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { hasRooms } from "@/lib/event-types";
-import type { ChoirPlan, Room } from "@/lib/rooms";
+import type { GroupPlan, Room } from "@/lib/rooms";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { eachDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { ActionButton } from "../forms";
 import { saveRooms, saveRoomSchedule, setRoomSchedulePosted } from "./actions";
 import { RoomsEditor } from "./rooms-editor";
-import { ScheduleEditor, type ScheduleChoir } from "./schedule-editor";
+import { ScheduleEditor, type ScheduleGroup } from "./schedule-editor";
 
 export const metadata: Metadata = { title: "Rooms & schedule" };
 
-/** Choir festivals: hosts set up the rooms and the choirs' order; the team sees the schedule. */
+/** Group events: hosts set up the rooms and the groups' order; the team sees the schedule. */
 export default async function RoomsPage({ params }: PageProps<"/dashboard/events/[eventId]/rooms">) {
   const { eventId } = await params;
   const supabase = await createClient();
@@ -39,7 +39,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
     supabase.from("rooms").select("id, name, note, path_order, minutes").eq("event_id", eventId).order("created_at"),
     supabase.from("room_slots").select("room_id, band_id, starts_at, ends_at").eq("event_id", eventId).order("starts_at"),
     access.isHost
-      ? supabase.from("choir_order").select("band_id, position, skipped_room_ids, extra_minutes_before").eq("event_id", eventId).order("position")
+      ? supabase.from("group_order").select("band_id, position, skipped_room_ids, extra_minutes_before").eq("event_id", eventId).order("position")
       : Promise.resolve({ data: [] }),
     // Hosts read every registration; the team gets names only.
     access.isHost
@@ -59,14 +59,14 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
   const start = event.room_schedule_start ?? event.window_start;
   const today = utcToZonedDate(new Date().toISOString(), tz);
   const isEventDay = today >= event.starts_on && today <= event.ends_on;
-  const choirs: ScheduleChoir[] = bands.map((b) => ({
+  const groups: ScheduleGroup[] = bands.map((b) => ({
     id: b.id,
     name: b.band_name,
     school: b.school_name,
     classification: b.classification,
     conflicts: b.contest_day_conflicts ?? null,
   }));
-  const order: ChoirPlan[] = ((orderData ?? []) as { band_id: string; skipped_room_ids: string[]; extra_minutes_before: number }[]).map((o) => ({
+  const order: GroupPlan[] = ((orderData ?? []) as { band_id: string; skipped_room_ids: string[]; extra_minutes_before: number }[]).map((o) => ({
     bandId: o.band_id,
     skipped: o.skipped_room_ids,
     extraMinutes: o.extra_minutes_before,
@@ -99,15 +99,15 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
 
           <section className="mt-10" aria-labelledby="order-heading">
             <h2 id="order-heading" className="text-xl font-semibold">
-              Choir order
+              Group order
             </h2>
             <p className="mt-1 mb-4 text-sm text-muted">
-              Every choir follows the path in order. Choirs start one gap apart, so a room is never double-booked. Directors&apos;
+              Every group follows the path in order. Groups start one gap apart, so a room is never double-booked. Directors&apos;
               scheduling conflicts are marked ⚠️.
             </p>
             <ScheduleEditor
               key={`${order.map((o) => o.bandId).join(",")}|${bands.length}|${rooms.length}`}
-              choirs={choirs}
+              groups={groups}
               rooms={rooms}
               initialOrder={order}
               initialDate={utcToZonedDate(start, tz)}
@@ -129,7 +129,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
                   ? "The schedule is on the public page and on each director's page."
                   : event.status !== "published"
                     ? "Publish the event from its main page, then post the schedule."
-                    : "When it looks right, post it: it goes on the public page and each director gets their choir's times by email."}
+                    : "When it looks right, post it: it goes on the public page and each director gets their group's times by email."}
               </p>
               {event.status === "published" && (
                 <ActionButton
@@ -139,7 +139,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
                   confirmMessage={
                     event.performance_order_published
                       ? "Hide the schedule? Directors and the public won't see times until you post it again."
-                      : "Post the schedule? It goes on the public page and every director is emailed their choir's times."
+                      : "Post the schedule? It goes on the public page and every director is emailed their group's times."
                   }
                 >
                   {event.performance_order_published ? "Hide the schedule" : "Post the schedule"}

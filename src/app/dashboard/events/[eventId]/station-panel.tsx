@@ -74,7 +74,7 @@ export function StationPanel({
   canManage: boolean;
   leadNames: string[];
   leadOptions: LeadOption[];
-  /** A choir festival's rooms, suggested for a station's location. */
+  /** A group event's rooms, suggested for a station's location. */
   locations?: string[];
   /** Only for the station's lead: who has signed up. */
   roster?: RosterEntry[];

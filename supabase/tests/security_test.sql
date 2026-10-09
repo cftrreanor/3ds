@@ -2293,13 +2293,13 @@ reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000c1';
 
 -- ---------------------------------------------------------------------------
--- Choir festivals: choirs register like bands; rooms and each choir's times
+-- Group events: groups register like bands; rooms and each group's times
 -- ---------------------------------------------------------------------------
 insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end,
                            venue_address, band_registration_open)
 values ('10000000-0000-0000-0000-0000000000d1',
         (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a'),
-        'Spring Choir Festival', 'spring-choir', 'published', 'choir_festival', current_date + 5, current_date + 5,
+        'Spring Choir Festival', 'spring-choir', 'published', 'group_event', current_date + 5, current_date + 5,
         now() + interval '5 days', now() + interval '5 days 8 hours', '1 School Rd', true);
 set role authenticated;
 -- A director registers a choir (registration is open on a choir festival).
@@ -2374,13 +2374,13 @@ set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
 do $$ begin
   assert (select count(*) from public.room_slots) = 5, 'the team sees every choir''s times before they''re posted';
-  assert (select count(*) from public.choir_order) = 0, 'but not the host''s working order';
+  assert (select count(*) from public.group_order) = 0, 'but not the host''s working order';
 end $$;
 -- Not posted yet: directors and the public see no times.
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
 do $$ begin
   assert (select count(*) from public.room_slots) = 0, 'a director sees no times before the schedule is posted';
-  assert (select count(*) from public.choir_order) = 0, 'and never the host''s working order';
+  assert (select count(*) from public.group_order) = 0, 'and never the host''s working order';
   begin
     perform public.save_rooms('10000000-0000-0000-0000-0000000000d1', '[]');
     raise exception 'FAIL: a director changed the rooms';

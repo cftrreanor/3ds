@@ -41,7 +41,7 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
           action={updateBand.bind(null, bandId)}
           classifications={event.classifications}
           chaperoneLimit={event.chaperone_limit}
-          kind={hasRooms(event.event_type) ? "choir" : "band"}
+          kind={hasRooms(event.event_type) ? "group" : "band"}
           submitLabel="Save changes"
           initial={{ ...band, head_director_phone: formatPhone(band.head_director_phone) }}
         />

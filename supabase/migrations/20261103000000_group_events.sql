@@ -1,28 +1,28 @@
 -- =============================================================================
--- Choir festivals: a fourth kind of event. Choirs register like bands (same
+-- Group events: a fourth kind of event. Groups register like bands (same
 -- table, same form, no trucks), and the day runs through several rooms at
 -- one address: e.g. Warm-up Room → Main Stage → Sight-reading (Black Box).
 --
 --   * rooms: the event's rooms. A room is a name plus an optional note
 --     ("Room 112, east hallway"); never an address. Rooms with a
---     path_order make up the path every choir follows, each taking
+--     path_order make up the path every group follows, each taking
 --     `minutes`; other rooms (hospitality, etc.) are just listed.
---   * choir_order: the order choirs start the path, rooms a choir skips,
---     and any extra break before a choir (lunch).
---   * room_slots: each choir's time in each room, worked out by
---     save_room_schedule() from the start time, minutes between choirs and
+--   * group_order: the order groups start the path, rooms a group skips,
+--     and any extra break before a group (lunch).
+--   * room_slots: each group's time in each room, worked out by
+--     save_room_schedule() from the start time, minutes between groups and
 --     passing time between rooms. Public once the schedule is posted.
 -- =============================================================================
 
-alter type public.event_type add value if not exists 'choir_festival';
+alter type public.event_type add value if not exists 'group_event';
 
--- How the room schedule is laid out (choir festivals).
+-- How the room schedule is laid out (group events).
 alter table public.events
   add column room_schedule_start   timestamptz,
   add column room_interval_minutes integer not null default 20 check (room_interval_minutes between 5 and 240),
   add column room_passing_minutes  integer not null default 5 check (room_passing_minutes between 0 and 60);
 
--- Choirs register like bands. (event_type is compared as text so this file
+-- Groups register like bands. (event_type is compared as text so this file
 -- can add the new value and use it in one go.)
 create or replace function public.band_registration_is_open(ev uuid)
 returns boolean
@@ -31,7 +31,7 @@ as $$
   select exists (
     select 1 from events e
      where e.id = ev
-       and e.event_type::text in ('band_contest', 'choir_festival')
+       and e.event_type::text in ('band_contest', 'group_event')
        and e.status = 'published'
        and e.band_registration_open
        and (e.band_registration_deadline is null
@@ -44,23 +44,23 @@ returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  if (select event_type::text from events where id = new.event_id) not in ('band_contest', 'choir_festival') then
-    raise exception 'This event doesn''t take band or choir registrations.' using errcode = 'P0001';
+  if (select event_type::text from events where id = new.event_id) not in ('band_contest', 'group_event') then
+    raise exception 'This event doesn''t take band or group registrations.' using errcode = 'P0001';
   end if;
   return new;
 end;
 $$;
 
--- Switching type: an event with registered bands or choirs keeps its type.
+-- Switching type: an event with registered bands or groups keeps its type.
 create or replace function public.events_type_change()
 returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  if old.event_type::text in ('band_contest', 'choir_festival') and new.event_type::text <> old.event_type::text
+  if old.event_type::text in ('band_contest', 'group_event') and new.event_type::text <> old.event_type::text
      and exists (select 1 from bands where event_id = new.id) then
     raise exception 'Groups have registered for this event, so it has to stay a %.',
-      case old.event_type::text when 'choir_festival' then 'choir festival' else 'band contest' end
+      case old.event_type::text when 'group_event' then 'group event' else 'band contest' end
       using errcode = 'P0001';
   end if;
   if old.event_type::text = 'band_contest' and new.event_type::text <> 'band_contest' then
@@ -68,7 +68,7 @@ begin
     update stations set checkpoint_kind = null, checkpoint_order = null, due_minutes_before_warm_up = null
      where event_id = new.id and checkpoint_kind is not null;
   end if;
-  if new.event_type::text not in ('band_contest', 'choir_festival') then
+  if new.event_type::text not in ('band_contest', 'group_event') then
     new.band_registration_open := false;
   end if;
   if old.event_type::text = 'school_visit' and new.event_type::text <> 'school_visit'
@@ -87,7 +87,7 @@ create table public.rooms (
   event_id    uuid not null references public.events (id) on delete cascade,
   name        text not null check (length(trim(name)) between 1 and 80),
   note        text check (note is null or length(note) <= 200),
-  -- Position on every choir's path (1 = first stop); null = not on the path.
+  -- Position on every group's path (1 = first stop); null = not on the path.
   path_order  integer check (path_order is null or path_order between 1 and 20),
   minutes     integer not null default 20 check (minutes between 5 and 240),
   created_at  timestamptz not null default now(),
@@ -95,20 +95,20 @@ create table public.rooms (
 );
 create index on public.rooms (event_id);
 
--- The order choirs go through the path.
-create table public.choir_order (
+-- The order groups go through the path.
+create table public.group_order (
   band_id               uuid primary key references public.bands (id) on delete cascade,
   event_id              uuid not null references public.events (id) on delete cascade,
   position              integer not null check (position > 0),
-  -- Rooms on the path this choir doesn't visit.
+  -- Rooms on the path this group doesn't visit.
   skipped_room_ids      uuid[] not null default '{}',
-  -- A break before this choir starts (pushes it and everyone after it later).
+  -- A break before this group starts (pushes it and everyone after it later).
   extra_minutes_before  integer not null default 0 check (extra_minutes_before between 0 and 600),
   unique (event_id, position) deferrable initially deferred
 );
-create index on public.choir_order (event_id);
+create index on public.group_order (event_id);
 
--- Each choir's time in each room it visits.
+-- Each group's time in each room it visits.
 create table public.room_slots (
   room_id    uuid not null references public.rooms (id) on delete cascade,
   band_id    uuid not null references public.bands (id) on delete cascade,
@@ -121,9 +121,9 @@ create index on public.room_slots (event_id, starts_at);
 create index on public.room_slots (band_id);
 
 alter table public.rooms enable row level security;
-alter table public.choir_order enable row level security;
+alter table public.group_order enable row level security;
 alter table public.room_slots enable row level security;
-revoke all on public.rooms, public.choir_order, public.room_slots from anon, authenticated;
+revoke all on public.rooms, public.group_order, public.room_slots from anon, authenticated;
 
 -- Room names are public once the event is; the team always sees them.
 grant select on public.rooms to anon, authenticated;
@@ -135,11 +135,11 @@ create policy "rooms: team read" on public.rooms
 -- Hosts write through save_rooms(); nothing else writes.
 
 -- The order is the hosts' working copy.
-grant select on public.choir_order to authenticated;
-create policy "choir order: hosts read" on public.choir_order
+grant select on public.group_order to authenticated;
+create policy "group order: hosts read" on public.group_order
   for select to authenticated using (public.is_event_admin(event_id));
 
--- Times: hosts and the team always; a director sees their own choir's once
+-- Times: hosts and the team always; a director sees their own group's once
 -- posted. (Everyone else reads the posted schedule through public_room_schedule().)
 grant select on public.room_slots to authenticated;
 create policy "room slots: team read" on public.room_slots
@@ -151,7 +151,7 @@ create policy "room slots: director reads own when posted" on public.room_slots
                     and e.status = 'published' and e.performance_order_published));
 
 -- -----------------------------------------------------------------------------
--- Work out every choir's times from the order and the rooms.
+-- Work out every group's times from the order and the rooms.
 -- -----------------------------------------------------------------------------
 create function public.rebuild_room_slots(p_event uuid)
 returns void
@@ -170,7 +170,7 @@ begin
   if ev.room_schedule_start is null then
     return;
   end if;
-  for ch in select * from choir_order where event_id = p_event order by position loop
+  for ch in select * from group_order where event_id = p_event order by position loop
     breaks := breaks + ch.extra_minutes_before;
     base := ev.room_schedule_start
             + make_interval(mins => (ch.position - 1) * ev.room_interval_minutes + breaks);
@@ -205,8 +205,8 @@ begin
   if not public.is_event_admin(p_event) then
     raise exception 'Only the event''s host can change rooms.' using errcode = '42501';
   end if;
-  if (select event_type::text from events where id = p_event) <> 'choir_festival' then
-    raise exception 'Rooms are for choir festivals.' using errcode = 'P0001';
+  if (select event_type::text from events where id = p_event) <> 'group_event' then
+    raise exception 'Rooms are for group events.' using errcode = 'P0001';
   end if;
   if jsonb_typeof(p_rooms) <> 'array' or jsonb_array_length(p_rooms) > 30 then
     raise exception 'Up to 30 rooms.' using errcode = 'P0001';
@@ -240,7 +240,7 @@ begin
 end;
 $$;
 
--- The schedule: start time, spacing, and the choirs in order.
+-- The schedule: start time, spacing, and the groups in order.
 -- p_order: [{band_id, skipped_room_ids: [...], extra_minutes_before}, …]
 create function public.save_room_schedule(p_event uuid, p_start timestamptz, p_interval integer, p_passing integer, p_order jsonb)
 returns void
@@ -253,19 +253,19 @@ begin
   if not public.is_event_admin(p_event) then
     raise exception 'Only the event''s host can change the schedule.' using errcode = '42501';
   end if;
-  if (select event_type::text from events where id = p_event) <> 'choir_festival' then
-    raise exception 'Room schedules are for choir festivals.' using errcode = 'P0001';
+  if (select event_type::text from events where id = p_event) <> 'group_event' then
+    raise exception 'Room schedules are for group events.' using errcode = 'P0001';
   end if;
   update events
      set room_schedule_start = p_start, room_interval_minutes = p_interval, room_passing_minutes = p_passing
    where id = p_event;
-  delete from choir_order where event_id = p_event;
+  delete from group_order where event_id = p_event;
   for o in select * from jsonb_array_elements(coalesce(p_order, '[]')) loop
     if not exists (select 1 from bands where id = (o ->> 'band_id')::uuid and event_id = p_event) then
-      raise exception 'That choir isn''t registered for this event.' using errcode = 'P0001';
+      raise exception 'That group isn''t registered for this event.' using errcode = 'P0001';
     end if;
     pos := pos + 1;
-    insert into choir_order (band_id, event_id, position, skipped_room_ids, extra_minutes_before)
+    insert into group_order (band_id, event_id, position, skipped_room_ids, extra_minutes_before)
     values ((o ->> 'band_id')::uuid, p_event, pos,
             coalesce((select array_agg(x::uuid) from jsonb_array_elements_text(o -> 'skipped_room_ids') x), '{}'),
             coalesce((o ->> 'extra_minutes_before')::integer, 0));

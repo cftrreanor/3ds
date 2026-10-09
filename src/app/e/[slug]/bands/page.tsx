@@ -35,10 +35,10 @@ export default async function BandRegistrationPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
   if (!event) missing();
-  // Only band contests and choir festivals take registrations.
+  // Only band contests and group events take registrations.
   if (!hasEnsembles(event.event_type)) redirect(`/e/${slug}`);
   const w = groupWords(event.event_type);
-  const kind = hasRooms(event.event_type) ? "choir" : "band";
+  const kind = hasRooms(event.event_type) ? "group" : "band";
   const user = await getUser();
   const supabase = await createClient();
 
@@ -54,7 +54,7 @@ export default async function BandRegistrationPage({ params }: Params) {
   // (Not ones already registered for this contest.)
   const seen = new Set<string>(mine.map((b) => `${b.band_name}|${b.school_name}`.toLowerCase()));
   const previous: PreviousBand[] = myBands
-    // Choirs copy from choirs, bands from bands.
+    // Groups copy from groups, bands from bands.
     .filter((b) => hasRooms(b.events?.event_type) === hasRooms(event.event_type))
     .filter((b) => {
       const k = `${b.band_name}|${b.school_name}`.toLowerCase();
@@ -144,7 +144,7 @@ export default async function BandRegistrationPage({ params }: Params) {
             <h2 className="font-semibold">Directors: sign in to register</h2>
             <p className="mt-2 leading-7 text-muted">
               We&apos;ll email you a sign-in link, no password needed. Your registration is saved to your account so
-              you can update it and see your {kind === "choir" ? "schedule" : "performance time"} when it&apos;s posted.
+              you can update it and see your {kind === "group" ? "schedule" : "performance time"} when it&apos;s posted.
             </p>
             <Link
               href={`/login?next=${encodeURIComponent(here)}`}

@@ -54,13 +54,13 @@ export async function saveRooms(eventId: string, rooms: RoomInput[]): Promise<Ac
   return { ok: true, message: changed ? `Saved. Emailing ${changed} director${changed === 1 ? "" : "s"} their new times.` : "Rooms saved." };
 }
 
-/** Start time, spacing and the choirs in order. */
+/** Start time, spacing and the groups in order. */
 export async function saveRoomSchedule(eventId: string, input: ScheduleInput): Promise<ActionState> {
   await requireUser();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !/^\d{2}:\d{2}$/.test(input.time)) {
-    return { error: "Pick the day and the time the first choir starts." };
+    return { error: "Pick the day and the time the first group starts." };
   }
-  if (!whole(input.interval, 5, 240)) return { error: "Minutes between choirs: 5 to 240." };
+  if (!whole(input.interval, 5, 240)) return { error: "Minutes between groups: 5 to 240." };
   if (!whole(input.passing, 0, 60)) return { error: "Passing time between rooms: 0 to 60 minutes." };
   if (input.order.some((o) => !whole(o.extraMinutes, 0, 600))) return { error: "A break can be up to 600 minutes." };
 
@@ -91,7 +91,7 @@ export async function setRoomSchedulePosted(eventId: string, posted: boolean): P
   const supabase = await createClient();
   if (posted) {
     const { count } = await supabase.from("room_slots").select("band_id", { count: "exact", head: true }).eq("event_id", eventId);
-    if (!count) return { error: "Save a schedule with at least one choir first." };
+    if (!count) return { error: "Save a schedule with at least one group first." };
   }
   const { data, error } = await supabase
     .from("events")
@@ -105,7 +105,7 @@ export async function setRoomSchedulePosted(eventId: string, posted: boolean): P
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return {
     ok: true,
-    message: posted ? `Posted. Emailing ${sent} director${sent === 1 ? "" : "s"} their choir's schedule.` : "The schedule is hidden again.",
+    message: posted ? `Posted. Emailing ${sent} director${sent === 1 ? "" : "s"} their group's schedule.` : "The schedule is hidden again.",
   };
 }
 
@@ -115,7 +115,7 @@ async function loadSlots(eventId: string) {
   return (data ?? []) as SlotRow[];
 }
 
-/** After a change to a posted schedule: email the choirs whose times moved. */
+/** After a change to a posted schedule: email the groups whose times moved. */
 async function emailIfPosted(eventId: string, before: SlotRow[]) {
   const supabase = await createClient();
   const { data: ev } = await supabase.from("events").select("performance_order_published").eq("id", eventId).single();
@@ -134,7 +134,7 @@ async function emailIfPosted(eventId: string, before: SlotRow[]) {
   return emailItineraries(eventId, changed, "changed");
 }
 
-/** Each choir's rooms and times, emailed to its directors (in the background). Returns how many choirs. */
+/** Each group's rooms and times, emailed to its directors (in the background). Returns how many groups. */
 async function emailItineraries(eventId: string, bandIds: string[] | null, kind: "posted" | "changed") {
   const supabase = await createClient();
   const [{ data: event }, { data: rooms }, { data: slots }, { data: bands }] = await Promise.all([

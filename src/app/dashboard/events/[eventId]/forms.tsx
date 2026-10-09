@@ -37,7 +37,7 @@ export function StationForm({
   submitLabel?: string;
   /** A band contest: stations can be stops on the bands' check-in path. */
   bands?: boolean;
-  /** Suggestions for Location: a choir festival's rooms. */
+  /** Suggestions for Location: a group event's rooms. */
   locations?: string[];
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
