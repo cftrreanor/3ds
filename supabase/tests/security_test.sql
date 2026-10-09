@@ -2123,6 +2123,18 @@ begin
          'registering again updates the registration';
   assert (select calendar_sequence from public.parent_registrations where email = 'rita@example.com') = 1,
          'registering again bumps the calendar invite version';
+  assert (select adult_count from public.parent_registrations where email = 'rita@example.com') = 1,
+         'one adult when not given';
+  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
+          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', 3);
+  assert (select adult_count from public.parent_registrations where email = 'rita@example.com') = 3,
+         'registering again updates how many adults are coming';
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Big Group', 'big@example.com', null,
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', 7);
+    raise exception 'FAIL: registered 7 adults';
+  exception when sqlstate 'P0001' then null;
+  end;
   begin
     perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'No Kids', 'nokids@example.com', null, '[]');
     raise exception 'FAIL: registered with no children';

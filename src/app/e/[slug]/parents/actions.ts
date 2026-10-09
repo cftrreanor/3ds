@@ -14,7 +14,7 @@ const EVENT_FIELDS = "name, starts_on, ends_on, window_start, window_end, timezo
 
 export type ParentState = ActionState & {
   confirmed?: { email: string; emailSent: boolean; children: Child[] };
-  values?: { parentName: string; email: string; phone: string; children: Child[] };
+  values?: { parentName: string; email: string; phone: string; adults: string; children: Child[] };
 };
 
 const childSchema = z.object({
@@ -27,6 +27,11 @@ const schema = z.object({
   parentName: z.string().trim().min(2, "Please enter your first and last name.").max(200),
   email: z.string().trim().toLowerCase().email("Please enter a valid email address."),
   phone: z.string().trim().max(30),
+  adults: z.coerce
+    .number({ message: "Please enter how many adults are coming." })
+    .int("Please enter how many adults are coming.")
+    .min(1, "At least one adult needs to come.")
+    .max(6, "Up to 6 adults can come on one registration."),
   children: z.array(childSchema).min(1, "Add at least one child.").max(8, "You can register up to 8 children."),
   idAgreed: z.literal(true, { message: "Please confirm you'll bring a government-issued photo ID." }),
 });
@@ -46,6 +51,7 @@ export async function registerParents(eventId: string, slug: string, _prev: Pare
     parentName: String(formData.get("parentName") ?? ""),
     email: String(formData.get("email") ?? ""),
     phone: String(formData.get("phone") ?? ""),
+    adults: String(formData.get("adults") ?? "1"),
     children,
   };
   const parsed = schema.safeParse({ ...values, idAgreed: formData.get("idAgreed") === "on" });
@@ -61,6 +67,7 @@ export async function registerParents(eventId: string, slug: string, _prev: Pare
     p_email: v.email,
     p_phone: phone,
     p_children: v.children,
+    p_adults: v.adults,
   });
   if (error || !token) {
     if (error?.code === "P0001") return { error: error.message, values };
@@ -76,7 +83,7 @@ export async function registerParents(eventId: string, slug: string, _prev: Pare
   if (event && reg) {
     const message = parentEmail(
       "confirmation",
-      { ...reg, parent_name: v.parentName, email: v.email, children: v.children },
+      { ...reg, parent_name: v.parentName, email: v.email, children: v.children, adult_count: v.adults },
       event,
       parentLink(await getOrigin(), slug, token as string),
     );
@@ -91,7 +98,7 @@ export async function cancelParents(token: string, slug: string): Promise<Action
   const admin = createAdminClient();
   const { data: reg } = await admin
     .from("parent_registrations")
-    .select("id, event_id, parent_name, email, children, calendar_sequence")
+    .select("id, event_id, parent_name, email, children, adult_count, calendar_sequence")
     .eq("access_token", token)
     .maybeSingle();
   const { error } = await admin.rpc("cancel_parent_registration", { p_token: token });

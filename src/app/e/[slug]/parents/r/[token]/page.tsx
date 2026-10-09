@@ -19,7 +19,7 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
   const { data: reg } = valid
     ? await admin
         .from("parent_registrations")
-        .select("event_id, parent_name, email, children, checked_in_at")
+        .select("event_id, parent_name, email, children, adult_count, checked_in_at")
         .eq("access_token", token)
         .maybeSingle()
     : { data: null };
@@ -61,6 +61,10 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
                 <div>
                   <dt className="inline text-muted">Parent: </dt>
                   <dd className="inline font-medium">{reg.parent_name}</dd>
+                </div>
+                <div>
+                  <dt className="inline text-muted">Adults coming: </dt>
+                  <dd className="inline">{reg.adult_count}</dd>
                 </div>
                 <div>
                   <dt className="inline text-muted">Email: </dt>

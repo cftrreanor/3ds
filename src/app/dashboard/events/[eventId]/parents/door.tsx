@@ -11,6 +11,7 @@ export type DoorParent = {
   phone: string | null;
   phoneDisplay: string | null;
   children: { name: string; teacher: string; grade: string }[];
+  adults: number;
   checkedIn: boolean;
 };
 
@@ -28,6 +29,8 @@ export function Door({
     state.map((p) => (p.id === change.id ? { ...p, checkedIn: change.checkedIn } : p)),
   );
   const here = optimistic.filter((p) => p.checkedIn).length;
+  const adultsHere = optimistic.filter((p) => p.checkedIn).reduce((n, p) => n + p.adults, 0);
+  const adults = optimistic.reduce((n, p) => n + p.adults, 0);
 
   function onToggle(p: DoorParent) {
     if (p.checkedIn && !window.confirm(`Undo ${p.name}'s check-in?`)) return;
@@ -63,7 +66,10 @@ export function Door({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm font-medium">
             <span className="text-2xl font-semibold tabular-nums">{here}</span>
-            <span className="text-muted"> / {optimistic.length} checked in</span>
+            <span className="text-muted"> / {optimistic.length} families checked in</span>
+            <span className="block text-xs text-muted">
+              {adultsHere} of {adults} adults
+            </span>
           </p>
           <Input
             type="search"
@@ -92,7 +98,14 @@ export function Door({
           {shown.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-3">
               <div className="min-w-0">
-                <p className="font-semibold">{p.name}</p>
+                <p className="font-semibold">
+                  {p.name}
+                  {p.adults > 1 && (
+                    <span className="ml-2 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold ring-1 ring-warning/40">
+                      {p.adults} adults · {p.adults} IDs
+                    </span>
+                  )}
+                </p>
                 <ul className="mt-0.5 text-sm">
                   {p.children.map((c, i) => (
                     <li key={i}>
@@ -110,7 +123,7 @@ export function Door({
                 type="button"
                 onClick={() => onToggle(p)}
                 aria-pressed={p.checkedIn}
-                aria-label={p.checkedIn ? `${p.name} is checked in. Tap to undo.` : `ID checked: check in ${p.name}`}
+                aria-label={p.checkedIn ? `${p.name} is checked in. Tap to undo.` : `ID checked: check in ${p.name}${p.adults > 1 ? ` and ${p.adults - 1} more` : ""}`}
                 className={`flex min-h-12 min-w-36 shrink-0 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
                   p.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:opacity-90"
                 }`}
