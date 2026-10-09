@@ -4,38 +4,54 @@ import { brand } from "@/lib/brand";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
 
-const roles = [
+// The three kinds of event (src/lib/event-types.ts), as the page's main pitch.
+const kinds = [
   {
-    title: "Contest hosts",
-    body: "One command center for every event: schedule, team, bands and announcements. On contest day, see at a glance whether you're on schedule.",
+    icon: "🎺",
+    title: "Band contests",
+    examples: "Marching invitationals, jazz festivals, solo & ensemble",
+    points: [
+      "Band registration with saved details, one-tap for returning directors",
+      "Performance schedule, finals and a live order for families",
+      "Check bands through parking, warm-up and the gate",
+    ],
   },
   {
-    title: "Volunteer Leads",
-    body: "Build shifts in minutes. Signups fill themselves, capacity is enforced, and you can run contest day alongside the host.",
+    icon: "🙋",
+    title: "Volunteer events",
+    examples: "Concessions, carnivals, fundraisers, field day",
+    points: [
+      "Shifts and stations that fill themselves",
+      "A check-in desk on any phone, with walk-ups and no-shows",
+      "Leads who know exactly who's coming to their station",
+    ],
   },
   {
-    title: "Section Leads",
-    body: "See who's coming to your station and check bands in with one tap. Contact details unlock on event day, and only then.",
-  },
-  {
-    title: "Volunteers",
-    body: "Sign up with just a name, email and phone. Get one agenda for every shift you picked.",
-  },
-  {
-    title: "Band directors",
-    body: "Register once: personnel, vehicles and conflicts. On contest day, see your next step, your equipment spot and your times.",
-  },
-  {
-    title: "Families & fans",
-    body: "A live performance order: who's on the field now and who's next. On any phone, with no app and no login.",
+    icon: "🏫",
+    title: "School visitor events",
+    examples: "Family lunches, open houses, performances, award days",
+    points: [
+      "Parents register ahead with each child, teacher and grade",
+      "Reminders to bring a photo ID, and a calendar invite",
+      "Every adult checked in at the door, one by one",
+    ],
   },
 ];
 
+const features = [
+  { title: "Sign-ups that run themselves", body: "Share one link or QR code. Capacity is enforced, confirmations and calendar invites go out on their own." },
+  { title: "Check-in on any phone", body: "Your team checks people in at the door or the desk with one tap. No app, no laptop, no printed lists." },
+  { title: "Your whole team, with the right access", body: "Hosts, Volunteer Leads and Section Leads each see what they need, and nothing they don't." },
+  { title: "Numbers at a glance", body: "Who's registered, who's arrived and who's still to come, broken down the way you need it." },
+  { title: "Announcements, maps & documents", body: "Post updates and share parking maps or packets with exactly the people who need them." },
+  { title: "Registration on your schedule", body: "Open and close it by hand, or set a date and time for it to close on its own." },
+];
+
 const steps = [
-  { n: "1", title: "Set up the event", body: "Dates, venue, check-in stations and volunteer shifts." },
-  { n: "2", title: "Share two links", body: "One for volunteers, one for visiting bands." },
-  { n: "3", title: "Publish the order", body: "Post performance times when you're ready." },
-  { n: "4", title: "Run the day", body: "Check bands through parking, warm-up and the gate, and push the schedule back if you need to." },
+  { n: "1", title: "Pick the kind of event", body: "Band contest, volunteer event or school visitor event." },
+  { n: "2", title: "Set it up", body: "Dates, venue, stations and shifts, or registration questions." },
+  { n: "3", title: "Share a link or QR code", body: "Volunteers, bands and parents sign up on their own phones." },
+  { n: "4", title: "Run the day", body: "Check everyone in, see who's here, and post updates as things change." },
 ];
 
 const pilot = [
@@ -43,7 +59,7 @@ const pilot = [
     title: "What you get",
     items: [
       "Everything, free for the 2026–27 school year",
-      "Unlimited events, volunteers and bands",
+      "Unlimited events of every kind, volunteers and registrations",
       "Help setting up your first event",
       "Direct support from the people building it",
     ],
@@ -51,7 +67,7 @@ const pilot = [
   {
     title: "What we ask",
     items: [
-      "Run at least one real contest with it",
+      "Run at least one real event with it",
       "A short call before and after your event",
       "Tell us what's clunky, so we can fix it",
     ],
@@ -92,19 +108,20 @@ export default function Home() {
       <main className="flex-1">
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-16 sm:px-6 sm:pt-24">
           <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium text-foreground">
-            Now inviting host programs to the 2026–27 pilot
+            Now inviting schools and booster clubs to the 2026–27 pilot
           </p>
           <h1 className="mt-6 max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-6xl">
-            Contest day, without the clipboards.
+            School events, without the clipboards.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-            Replace the spreadsheets, signup forms, group texts and walkie-talkie chatter with one
-            place for volunteers, visiting bands and spectators, and keep everyone&apos;s personal
-            information private while you do it.
+            Band contests, volunteer events and school visitor days, all in one place. Replace the
+            spreadsheets, signup forms, group texts and paper sign-in sheets with simple links your
+            volunteers, visiting bands and parents use on their own phones, and keep everyone&apos;s
+            personal information private while you do it.
           </p>
           <p className="mt-4 max-w-2xl text-muted">
-            Built for marching band contests and other school competitions. Free for pilot hosts all school
-            year; spots are limited.
+            One tool for the whole school year, for band programs, booster clubs, PTAs and front offices.
+            Free for pilot schools all year; spots are limited.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a href={JOIN} className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:opacity-90">
@@ -121,41 +138,77 @@ export default function Home() {
 
         <section className="border-y border-border bg-surface">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Built for everyone on the field</h2>
-            <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {roles.map((r) => (
-                <li key={r.title} className="rounded-xl border border-border bg-background p-6">
-                  <h3 className="font-semibold">{r.title}</h3>
-                  <p className="mt-2 leading-7 text-muted">{r.body}</p>
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">One platform for every kind of school event</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-muted">
+              Choose what kind of event you&apos;re running and {brand.name} gives you exactly the tools it needs.
+            </p>
+            <ul className="mt-10 grid gap-6 lg:grid-cols-3">
+              {kinds.map((k) => (
+                <li key={k.title} className="flex flex-col rounded-xl border border-border bg-background p-6">
+                  <span aria-hidden className="text-3xl">
+                    {k.icon}
+                  </span>
+                  <h3 className="mt-3 text-lg font-semibold">{k.title}</h3>
+                  <p className="mt-1 text-sm text-muted">{k.examples}</p>
+                  <ul className="mt-4 space-y-2 leading-7">
+                    {k.points.map((point) => (
+                      <li key={point} className="flex gap-2">
+                        <span aria-hidden className="text-success">
+                          ✓
+                        </span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               ))}
             </ul>
           </div>
         </section>
 
-        <section id="how" className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">How it works</h2>
-          <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((s) => (
-              <li key={s.n}>
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand font-semibold text-brand-foreground">
-                  {s.n}
-                </span>
-                <h3 className="mt-4 font-semibold">{s.title}</h3>
-                <p className="mt-1 leading-7 text-muted">{s.body}</p>
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Everything event day needs</h2>
+          <ul className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((f) => (
+              <li key={f.title}>
+                <h3 className="font-semibold">{f.title}</h3>
+                <p className="mt-1 leading-7 text-muted">{f.body}</p>
               </li>
             ))}
-          </ol>
+          </ul>
+        </section>
+
+        <section id="how" className="scroll-mt-20 border-t border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">How it works</h2>
+            <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {steps.map((s) => (
+                <li key={s.n}>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand font-semibold text-brand-foreground">
+                    {s.n}
+                  </span>
+                  <h3 className="mt-4 font-semibold">{s.title}</h3>
+                  <p className="mt-1 leading-7 text-muted">{s.body}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
           <div className="rounded-2xl bg-brand p-8 text-brand-foreground sm:p-12">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Privacy by default</h2>
-            <p className="mt-4 max-w-2xl leading-7 opacity-90">
-              Section leads see who&apos;s assigned to them right away, but phone numbers and emails
-              unlock only on event day and lock again at midnight. We never collect student names, just
-              headcounts.
-            </p>
+            <ul className="mt-4 max-w-3xl space-y-3 leading-7 opacity-90">
+              <li>
+                Section Leads see who&apos;s assigned to them right away, but phone numbers and emails unlock only on
+                event day and lock again at midnight.
+              </li>
+              <li>
+                Band contests never collect student names, just headcounts. For school visitor events, children&apos;s
+                names are seen only by your event team and are permanently deleted 30 days after the event.
+              </li>
+              <li>Families and spectators never need an account or an app.</li>
+            </ul>
           </div>
         </section>
 
@@ -164,8 +217,8 @@ export default function Home() {
             <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium">Limited spots</p>
             <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">Join the 2026–27 pilot</h2>
             <p className="mt-3 max-w-2xl leading-7 text-muted">
-              We&apos;re working closely with a small group of contest hosts this school year. It&apos;s free, and
-              we keep the group small so we can support every host on contest day.
+              We&apos;re working closely with a small group of schools and booster clubs this school year. It&apos;s
+              free, and we keep the group small so we can support every host on event day.
             </p>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
               {pilot.map((col) => (
