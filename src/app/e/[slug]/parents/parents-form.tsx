@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ParentState } from "./actions";
@@ -21,6 +20,7 @@ export function ParentsForm({
 }) {
   const [state, formAction] = useActionState(action, {});
   const [children, setChildren] = useState<Child[]>(() => state.values?.children ?? [blankChild()]);
+  const [adults, setAdults] = useState<string[]>(() => state.values?.otherAdults ?? []);
   const set = (i: number, patch: Partial<Child>) => setChildren((list) => list.map((c, j) => (j === i ? { ...c, ...patch } : c)));
 
   if (state.confirmed) {
@@ -50,6 +50,7 @@ export function ParentsForm({
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="children" value={JSON.stringify(children)} />
+      <input type="hidden" name="otherAdults" value={JSON.stringify(adults)} />
       <Card className="space-y-4">
         <h2 className="text-xl font-semibold">You</h2>
         <Field label="Your name">
@@ -63,9 +64,41 @@ export function ParentsForm({
             <Input name="phone" type="tel" inputMode="tel" autoComplete="tel" defaultValue={state.values?.phone} />
           </Field>
         </div>
-        <Field label="How many adults are coming?" hint="Including you. Everyone needs their own photo ID.">
-          <NumberInput name="adults" required maxLength={1} defaultValue={state.values?.adults ?? "1"} className="max-w-24" />
-        </Field>
+<div className="space-y-3 border-t border-border pt-4">
+          <div>
+            <p className="text-sm font-medium">Other adults coming with you</p>
+            <p className="text-sm text-muted">
+              A spouse, grandparent or anyone else coming for the same {children.length > 1 ? "children" : "child"}. Each
+              adult needs their own photo ID, and the name here must match it.
+            </p>
+          </div>
+          {adults.map((name, i) => (
+            <div key={i} className="flex items-end gap-2">
+              <Field label={`Adult ${i + 2}`} className="flex-1">
+                <Input
+                  value={name}
+                  onChange={(e) => setAdults((list) => list.map((a, j) => (j === i ? e.target.value : a)))}
+                  required
+                  placeholder="First and last name"
+                  autoComplete="off"
+                />
+              </Field>
+              <button
+                type="button"
+                className="min-h-11 px-2 text-sm font-medium text-danger hover:underline"
+                onClick={() => setAdults((list) => list.filter((_, j) => j !== i))}
+                aria-label={`Remove ${name || `adult ${i + 2}`}`}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          {adults.length < 5 && (
+            <Button type="button" variant="secondary" onClick={() => setAdults((list) => [...list, ""])}>
+              + Add another adult
+            </Button>
+          )}
+        </div>
       </Card>
 
       <Card className="space-y-4">

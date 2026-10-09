@@ -28,10 +28,8 @@ type ParentEvent = {
   venue_name: string | null;
   venue_address: string;
 };
-type Registration = { id: string; parent_name: string; email: string; children: Child[]; adult_count: number; calendar_sequence: number };
+type Registration = { id: string; parent_name: string; email: string; children: Child[]; other_adults: string[]; calendar_sequence: number };
 
-/** "1 adult", "3 adults". */
-export const adultsLabel = (n: number) => `${n} ${n === 1 ? "adult" : "adults"}`;
 
 /** The visit as a calendar event, with the photo ID reminder in it. */
 function toIcsEvent(r: Registration, event: ParentEvent, link: string): IcsEvent {
@@ -45,7 +43,7 @@ function toIcsEvent(r: Registration, event: ParentEvent, link: string): IcsEvent
     location: [event.venue_name, event.venue_address].filter(Boolean).join(", "),
     description: [
       `Registered: ${r.children.map(childLine).join("; ")}`,
-      `Adults coming: ${r.adult_count}`,
+      `Adults: ${[r.parent_name, ...r.other_adults].join(", ")} (each needs a photo ID)`,
       ID_REMINDER,
       `View or cancel: ${link}`,
     ].join("\n"),
@@ -100,10 +98,9 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled", r: R
       ],
       rows: [
         ...r.children.map((c, i) => ({ title: r.children.length > 1 ? `Child ${i + 1}` : "Your child", detail: childLine(c) })),
-        {
-          title: "Adults coming",
-          detail: r.adult_count > 1 ? `${adultsLabel(r.adult_count)}. Each of you needs a photo ID.` : "Just you",
-        },
+        ...(r.other_adults.length
+          ? [{ title: "Also coming", detail: `${r.other_adults.join(", ")}. Each adult needs their own photo ID.` }]
+          : []),
       ],
       button: { label: "View or cancel my registration", url: link },
       footer,

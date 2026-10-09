@@ -2126,13 +2126,20 @@ begin
   assert (select adult_count from public.parent_registrations where email = 'rita@example.com') = 1,
          'one adult when not given';
   perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
-          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', 3);
-  assert (select adult_count from public.parent_registrations where email = 'rita@example.com') = 3,
-         'registering again updates how many adults are coming';
+          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '[" Marco Lopez ", "Rosa Diaz"]');
+  assert (select adult_count = 3 and other_adults = '["Marco Lopez", "Rosa Diaz"]'::jsonb
+            from public.parent_registrations where email = 'rita@example.com'),
+         'other adults are named, and counted with the parent';
   begin
     perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Big Group', 'big@example.com', null,
-              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', 7);
-    raise exception 'FAIL: registered 7 adults';
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', '["A One","B Two","C Three","D Four","E Five","F Six"]');
+    raise exception 'FAIL: registered 6 other adults';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Blank Adult', 'blank@example.com', null,
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', '[" "]');
+    raise exception 'FAIL: registered an adult with no name';
   exception when sqlstate 'P0001' then null;
   end;
   begin
@@ -2164,6 +2171,8 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":
 do $$ begin
   assert public.can_check_in_parents('10000000-0000-0000-0000-0000000000c1'), 'a Section Lead can work the door';
   assert (select count(*) from public.parent_registrations) = 1, 'the team sees registrations';
+  assert (select adult_count = 3 and jsonb_array_length(other_adults) = 2 from public.parent_registrations),
+         'the team sees the other adults coming';
   begin
     perform access_token from public.parent_registrations;
     raise exception 'FAIL: a browser read a parent''s private link';

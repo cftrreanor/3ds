@@ -11,7 +11,9 @@ export type DoorParent = {
   phone: string | null;
   phoneDisplay: string | null;
   children: { name: string; teacher: string; grade: string }[];
+  /** The parent plus everyone named below (or a count from before adults were named). */
   adults: number;
+  otherAdults: string[];
   checkedIn: boolean;
 };
 
@@ -52,7 +54,7 @@ export function Door({
     () =>
       q
         ? optimistic.filter((p) =>
-            [p.name, p.email, p.phone ?? "", p.phoneDisplay ?? "", ...p.children.flatMap((c) => [c.name, c.teacher])].some((x) =>
+            [p.name, ...p.otherAdults, p.email, p.phone ?? "", p.phoneDisplay ?? "", ...p.children.flatMap((c) => [c.name, c.teacher])].some((x) =>
               x.toLowerCase().includes(q),
             ),
           )
@@ -73,7 +75,7 @@ export function Door({
           </p>
           <Input
             type="search"
-            placeholder="Parent, child or teacher"
+            placeholder="Adult, child or teacher"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="sm:max-w-xs"
@@ -106,6 +108,7 @@ export function Door({
                     </span>
                   )}
                 </p>
+                {p.otherAdults.length > 0 && <p className="text-sm font-medium">+ {p.otherAdults.join(", ")}</p>}
                 <ul className="mt-0.5 text-sm">
                   {p.children.map((c, i) => (
                     <li key={i}>

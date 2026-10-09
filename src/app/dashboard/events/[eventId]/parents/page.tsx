@@ -35,7 +35,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
 
   const { data } = await supabase
     .from("parent_registrations")
-    .select("id, parent_name, email, phone, children, adult_count, checked_in_at")
+    .select("id, parent_name, email, phone, children, adult_count, other_adults, checked_in_at")
     .eq("event_id", eventId)
     .order("parent_name");
   const parents: DoorParent[] = (data ?? []).map((r) => ({
@@ -46,6 +46,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
     phoneDisplay: r.phone ? formatPhone(r.phone) : null,
     children: (r.children ?? []) as Child[],
     adults: r.adult_count ?? 1,
+    otherAdults: (r.other_adults ?? []) as string[],
     checkedIn: Boolean(r.checked_in_at),
   }));
   const childCount = parents.reduce((n, p) => n + p.children.length, 0);
