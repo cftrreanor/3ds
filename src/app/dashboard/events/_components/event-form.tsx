@@ -44,7 +44,7 @@ export function EventForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       {eventType && <input type="hidden" name="eventType" value={eventType} />}
       <Field label="Event name">
-        <Input name="name" required defaultValue={initial.name} placeholder={eventType === "volunteer" ? "e.g. Fall Festival Concessions" : "e.g. Cedar Ridge Marching Invitational"} />
+        <Input name="name" required defaultValue={initial.name} placeholder={eventType === "volunteer" ? "e.g. Fall Festival Concessions" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : "e.g. Cedar Ridge Marching Invitational"} />
       </Field>
 
       <fieldset className="grid gap-4 sm:grid-cols-2">
@@ -85,6 +85,14 @@ export function EventForm({
         <legend className="mb-3 text-sm font-medium">Where</legend>
         <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} />
       </fieldset>
+
+      {eventType === "school_visit" && (
+        <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
+          🔒 <strong>Student privacy:</strong> parents enter their children&apos;s names, teachers and grades. Only your
+          event team can see them, and they&apos;re permanently deleted 30 days after the event ends. Parents are told
+          this when they register.
+        </p>
+      )}
 
       <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
     </ActionForm>

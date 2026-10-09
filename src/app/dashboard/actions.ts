@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isEventType } from "@/lib/event-types";
+import { eventTypeLabel, isEventType } from "@/lib/event-types";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
@@ -591,7 +591,7 @@ export async function deleteShift(eventId: string, shiftId: string): Promise<Act
   return { ok: true };
 }
 
-/** Switch an event between a band contest and a volunteer event (the database checks no bands have registered). */
+/** Change the kind of event (the database checks no bands, or parents, have registered). */
 export async function setEventType(eventId: string, type: string): Promise<ActionState> {
   await requireUser();
   if (!isEventType(type)) return { error: "Pick a kind of event." };
@@ -601,5 +601,5 @@ export async function setEventType(eventId: string, type: string): Promise<Actio
   if (!data?.length) return { error: "Only the event's host can change this." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   revalidatePath("/dashboard");
-  return { ok: true, message: `Done: this is now a ${type === "volunteer" ? "volunteer event" : "band contest"}.` };
+  return { ok: true, message: `Done: this is now a ${eventTypeLabel(type).toLowerCase()}.` };
 }

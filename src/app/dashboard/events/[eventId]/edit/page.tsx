@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
-import { eventTypeLabel, hasBands } from "@/lib/event-types";
+import { EVENT_TYPES, eventTypeLabel, hasBands, hasParents } from "@/lib/event-types";
 import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
@@ -16,6 +16,19 @@ import { FilesManager } from "./files-manager";
 import { EventForm } from "../../_components/event-form";
 
 export const metadata: Metadata = { title: "Edit event" };
+
+const TYPE_SUMMARY = {
+  band_contest: "Bands register, get performance times and are checked in on contest day, alongside your volunteers.",
+  volunteer: "Volunteers, shifts, check-in and your team only. No band registration or performance schedule.",
+  school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers. Children's details are seen only by your team and permanently deleted 30 days after the event.",
+};
+
+// What switching to each kind adds or removes.
+const SWITCH_NOTE = {
+  band_contest: "Band registration, the performance schedule and contest day check-in are added.",
+  volunteer: "Band registration, parent registration and the performance schedule go away; band check-in stations become ordinary stations.",
+  school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
+};
 
 export default async function EditEventPage({ params }: PageProps<"/dashboard/events/[eventId]/edit">) {
   const { eventId } = await params;
@@ -31,7 +44,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
-  const [{ count }, { data: fileData }, { count: bandCount }] = await Promise.all([
+  const [{ count }, { data: fileData }, { count: bandCount }, { count: parentCount }] = await Promise.all([
     supabase.from("shifts").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase
       .from("event_files")
@@ -39,6 +52,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
       .eq("event_id", eventId)
       .order("created_at"),
     supabase.from("bands").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+    supabase.from("parent_registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId),
   ]);
   const bandsHere = hasBands(event.event_type);
   const fileRows = (fileData ?? []) as (EventFile & { uploaded_by: string | null; uploaded_at: string })[];
@@ -92,28 +106,29 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
         <Card className="mt-4 space-y-3">
           <p>
             This is a <strong>{eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
-            <span className="text-muted">
-              {bandsHere
-                ? "Bands register, get performance times and are checked in on contest day, alongside your volunteers."
-                : "Volunteers, shifts, check-in and your team only. No band registration or performance schedule."}
-            </span>
+            <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
           </p>
           {bandsHere && (bandCount ?? 0) > 0 ? (
             <p className="text-sm text-muted">
               {bandCount} band{bandCount === 1 ? " has" : "s have"} registered, so this has to stay a band contest.
             </p>
+          ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
+            <p className="text-sm text-muted">
+              {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
+            </p>
           ) : (
-            <ActionButton
-              action={setEventType.bind(null, eventId, bandsHere ? "volunteer" : "band_contest")}
-              variant="secondary"
-              confirmMessage={
-                bandsHere
-                  ? "Make this a volunteer event? Band registration and the performance schedule go away, and band check-in stations become ordinary stations. Volunteers and shifts stay as they are."
-                  : "Make this a band contest? Band registration, the performance schedule and contest day check-in are added. Volunteers and shifts stay as they are."
-              }
-            >
-              {bandsHere ? "Make it a volunteer event" : "Make it a band contest"}
-            </ActionButton>
+            <div className="flex flex-wrap gap-2">
+              {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest")).map((t) => (
+                <ActionButton
+                  key={t.value}
+                  action={setEventType.bind(null, eventId, t.value)}
+                  variant="secondary"
+                  confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value]} Volunteers and shifts stay as they are.`}
+                >
+                  Make it a {t.label.toLowerCase()}
+                </ActionButton>
+              ))}
+            </div>
           )}
         </Card>
       </section>

@@ -106,7 +106,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261026000000_demo_mode.sql` | Demo mode: FieldCommand admins can view an event as each role | ✅ run |
 | `20261027000000_band_invitations.sql` | Band registration: invite directors from your past events; they register in one tap with their saved band | ✅ run |
 | `20261028000000_admin_dashboard.sql` | Admin dashboard: set each organization's plan and the last day of its free pilot; admin activity log | run this first, if you haven't |
-| `20261029000000_event_types.sql` | Event types: a band contest, or a volunteer-only event (no bands) | run this next |
+| `20261029000000_event_types.sql` | Event types: a band contest, or a volunteer-only event (no bands) | run this first, if you haven't |
+| `20261030000000_school_visits.sql` | School visitor events: parents register (child, teacher, grade), are reminded to bring a photo ID, and are checked in at the door; children's details deleted 30 days after the event | run this next |
 
 ## Pilot requests
 
@@ -192,6 +193,19 @@ form simply shows plain venue name and address boxes.
    email alerts, so you're told long before any real cost.
 8. In **Vercel → Settings → Environment Variables**, add `GOOGLE_MAPS_API_KEY` with
    the key (turn on **Sensitive**), then **Deployments → ⋯ → Redeploy**.
+
+## Daily job (parent ID reminders and clean-up)
+Once a day Vercel runs a small job (set up in `vercel.json`, nothing to click). It emails
+parents the day before a school visitor event to remind them to bring their photo ID, and
+deletes parent registrations 30 days after their event. It needs a password so no one else
+can run it:
+
+1. Make up a long random password: for example, open **passwordsgenerator.net** (or your
+   password manager) and make one of 32+ letters and numbers. Don't paste it anywhere else.
+2. In **Vercel → Settings → Environment Variables**, add `CRON_SECRET` with that password
+   (turn on **Sensitive**), then **Deployments → ⋯ → Redeploy**.
+3. To check it's running: **Vercel → Settings → Cron Jobs** lists `/api/cron/daily`, and
+   its **View logs** shows each day's run.
 
 ---
 

@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useRef } from "react";
 import { EVENT_TYPES } from "@/lib/event-types";
 
-/** The two choices, as large cards that start a new event of that kind. */
+/** The choices, as large cards that start a new event of that kind. */
 export function EventTypeChoices() {
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
+    <ul className="grid gap-3 sm:grid-cols-3">
       {EVENT_TYPES.map((t) => (
         <li key={t.value}>
           <Link
@@ -44,7 +44,7 @@ export function NewEventButton({ className }: { className?: string }) {
       <dialog
         ref={dialog}
         aria-labelledby="new-event-title"
-        className="m-auto w-[calc(100%-2rem)] max-w-2xl rounded-2xl border border-border bg-background p-0 text-foreground shadow-elevated backdrop:bg-[#0d1422]/60"
+        className="m-auto w-[calc(100%-2rem)] max-w-3xl rounded-2xl border border-border bg-background p-0 text-foreground shadow-elevated backdrop:bg-[#0d1422]/60"
         onClick={(e) => {
           // A click on the backdrop closes it.
           if (e.target === e.currentTarget) dialog.current?.close();
@@ -56,7 +56,7 @@ export function NewEventButton({ className }: { className?: string }) {
               <h2 id="new-event-title" className="text-2xl font-semibold">
                 What kind of event is this?
               </h2>
-              <p className="mt-1 text-sm text-muted">You can change this later, as long as no bands have registered.</p>
+              <p className="mt-1 text-sm text-muted">You can change this later, as long as no one has registered yet.</p>
             </div>
             <button
               type="button"

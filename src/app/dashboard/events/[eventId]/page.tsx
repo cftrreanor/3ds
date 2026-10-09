@@ -23,7 +23,7 @@ import { type Shift } from "./station-panel";
 import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
-import { hasBands } from "@/lib/event-types";
+import { eventTypeLabel, hasBands, hasParents } from "@/lib/event-types";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 
 export const metadata: Metadata = { title: "Event setup" };
@@ -51,7 +51,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -217,6 +217,16 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           : Promise.resolve({ data: [] }),
       ])
     : [{ count: 0 }, { data: [] }];
+  // School visitor events: parents registered and checked in at the door.
+  const parentsHere = hasParents(event.event_type);
+  const parentRows = parentsHere
+    ? ((await supabase.from("parent_registrations").select("checked_in_at, children").eq("event_id", eventId)).data ?? [])
+    : [];
+  const parentStats = {
+    parents: parentRows.length,
+    children: parentRows.reduce((n, r) => n + ((r.children as unknown[] | null)?.length ?? 0), 0),
+    in: parentRows.filter((r) => r.checked_in_at).length,
+  };
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
   // The emptiest shifts first: where to send the next volunteers.
   const needsPeople = ((shifts ?? []) as Shift[])
@@ -260,7 +270,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             <Badge tone={event.status === "published" ? "brand" : "neutral"}>
               {event.status === "published" ? "Published" : "Draft: only your team can see this"}
             </Badge>
-            {!bandsHere && <Badge tone="info">Volunteer event</Badge>}
+            {!bandsHere && <Badge tone="info">{eventTypeLabel(event.event_type)}</Badge>}
             {access.isHost &&
               (event.status !== "published" ? (
                 <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
@@ -288,6 +298,40 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           )}
         </div>
       </div>
+
+      {parentsHere && (
+        <section className="mt-10" aria-labelledby="parents-heading">
+          <h2 id="parents-heading" className="text-xl font-semibold">
+            Parent registration
+          </h2>
+          <Card className="mt-4">
+            {isEventDay && <AutoRefresh seconds={30} />}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1 text-sm leading-6">
+                <p className="font-medium">
+                  {isEventDay
+                    ? `${parentStats.in} of ${parentStats.parents} parents checked in.`
+                    : `${parentStats.parents} ${parentStats.parents === 1 ? "parent" : "parents"} registered, for ${parentStats.children} ${parentStats.children === 1 ? "child" : "children"}.`}
+                </p>
+                <p className="text-muted">
+                  {event.status !== "published"
+                    ? "Parents can register once the event is published."
+                    : event.parent_registration_open
+                      ? "Registration is open. Parents are reminded to bring a photo ID."
+                      : "Registration is closed."}
+                </p>
+                <p className="text-muted">🔒 Children&apos;s details are seen only by your team and deleted 30 days after the event.</p>
+              </div>
+              <Link
+                href={`/dashboard/events/${eventId}/parents`}
+                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+              >
+                {access.isHost ? "Registration & door check-in" : "Open door check-in"}
+              </Link>
+            </div>
+          </Card>
+        </section>
+      )}
 
       {!bandsHere && (access.canManage || myStations.length > 0) && (
         <section className="mt-10" aria-labelledby="day-heading">

@@ -14,13 +14,22 @@ export const EVENT_TYPES = [
     icon: "🙋",
     blurb: "Shifts, sign-ups, a check-in desk and your team. Run everything else your own way.",
   },
+  {
+    value: "school_visit",
+    label: "School visitor event",
+    icon: "🏫",
+    blurb: "Parents register ahead (child, teacher and grade), are reminded to bring a photo ID, and are checked in at the door. Student details are deleted 30 days after.",
+  },
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number]["value"];
 
 export const isEventType = (v: unknown): v is EventType => EVENT_TYPES.some((t) => t.value === v);
 
-/** Bands, schedules and the band check-in path. Anything but a volunteer event. */
-export const hasBands = (type: string | null | undefined) => type !== "volunteer";
+/** Bands, schedules and the band check-in path: band contests only. */
+export const hasBands = (type: string | null | undefined) => !type || type === "band_contest";
+
+/** Parent registration and door check-in: school visitor events. */
+export const hasParents = (type: string | null | undefined) => type === "school_visit";
 
 /** "Contest day" for band contests, "Event day" otherwise. */
 export const dayLabel = (type: string | null | undefined) => (hasBands(type) ? "Contest day" : "Event day");

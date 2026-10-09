@@ -1,0 +1,2 @@
+/** Grades parents pick from when registering for a school visitor event. */
+export const GRADES = ["Pre-K", "K", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"] as const;
