@@ -85,6 +85,52 @@ export async function saveRoomSchedule(eventId: string, input: ScheduleInput): P
   };
 }
 
+/**
+ * Running behind: move the chosen group and everyone after them later. The
+ * minutes go on that group's break, so the schedule editor shows them too.
+ */
+export async function pushRoomScheduleBack(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const bandId = String(formData.get("bandId") ?? "");
+  const minutes = String(formData.get("minutes") ?? "").trim();
+  if (!/^\d{1,3}$/.test(minutes) || Number(minutes) < 1) return { error: "Enter how many minutes." };
+  const by = Number(minutes);
+  if (by > 240) return { error: "Push back at most 240 minutes (4 hours)." };
+
+  const supabase = await createClient();
+  const [{ data: event }, { data: orderData }] = await Promise.all([
+    supabase.from("events").select("room_schedule_start, room_interval_minutes, room_passing_minutes").eq("id", eventId).single(),
+    supabase.from("group_order").select("band_id, skipped_room_ids, extra_minutes_before").eq("event_id", eventId).order("position"),
+  ]);
+  const order = orderData ?? [];
+  const from = order.findIndex((o) => o.band_id === bandId);
+  if (!event?.room_schedule_start || from < 0) return { error: "Pick a group on the saved schedule." };
+  if (order[from].extra_minutes_before + by > 600) return { error: "That group's break would go over 600 minutes." };
+
+  const before = await loadSlots(eventId);
+  const { error } = await supabase.rpc("save_room_schedule", {
+    p_event: eventId,
+    p_start: event.room_schedule_start,
+    p_interval: event.room_interval_minutes,
+    p_passing: event.room_passing_minutes,
+    p_order: order.map((o, i) => ({
+      band_id: o.band_id,
+      skipped_room_ids: o.skipped_room_ids,
+      extra_minutes_before: o.extra_minutes_before + (i === from ? by : 0),
+    })),
+  });
+  if (error) return { error: friendlyDbError(error) };
+  const emailed = formData.get("email") === "on" ? await emailIfPosted(eventId, before) : 0;
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  const moved = order.length - from;
+  return {
+    ok: true,
+    message:
+      `Moved ${moved} group${moved === 1 ? "" : "s"} ${by} minutes later.` +
+      (emailed ? ` Emailing ${emailed} director${emailed === 1 ? "" : "s"} their new times.` : ""),
+  };
+}
+
 /** Post the schedule (directors get their times) or take it down. */
 export async function setRoomSchedulePosted(eventId: string, posted: boolean): Promise<ActionState> {
   await requireUser();
