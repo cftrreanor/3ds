@@ -11,7 +11,7 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { readPass } from "@/lib/volunteer-pass";
-import { hasBands } from "@/lib/event-types";
+import { hasBands, hasParents } from "@/lib/event-types";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { AutoRefresh } from "./auto-refresh";
 
@@ -48,7 +48,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at, parent_registration_open")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -133,6 +133,8 @@ export default async function EventPublicPage({ params }: Params) {
   const bandsOpen = bandsHere && registrationIsOpen(event);
   // A volunteer event's page is mostly about signing up.
   const signUp = !bandsHere && event.volunteer_signup_open && !isVolunteer;
+  const parentsOpen =
+    hasParents(event.event_type) && event.parent_registration_open && utcToZonedDate(new Date().toISOString(), event.timezone) <= event.ends_on;
   const tz = event.timezone;
   const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
   const { current, next, live } = liveNowAndNext([...schedule, ...finals]);
@@ -183,8 +185,16 @@ export default async function EventPublicPage({ params }: Params) {
         </Card>
       ))}
 
-      {(isVolunteer || bandsOpen || signUp) && event.status === "published" && (
+      {(isVolunteer || bandsOpen || signUp || parentsOpen) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {parentsOpen && (
+            <Link href={`/e/${slug}/parents`} className="block">
+              <Card className="h-full border-brand transition hover:bg-brand-soft">
+                <p className="font-semibold text-brand">Parents: register to attend</p>
+                <p className="mt-1 text-sm text-muted">Register before you come, and bring a government-issued photo ID.</p>
+              </Card>
+            </Link>
+          )}
           {signUp && (
             <Link href={`/e/${slug}/volunteer`} className="block">
               <Card className="h-full border-brand transition hover:bg-brand-soft">

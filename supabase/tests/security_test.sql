@@ -2100,4 +2100,132 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- School visitor events: parent registration, the door, 30-day erasing
+-- ---------------------------------------------------------------------------
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000c1',
+        (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a'),
+        'Open House', 'open-house', 'published', 'school_visit', current_date + 3, current_date + 3,
+        now() + interval '3 days', now() + interval '3 days 3 hours', '1 School Rd');
+insert into public.event_staff (event_id, user_id, role)
+values ('10000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000003', 'section_lead');
+set role service_role;
+do $$
+declare t1 uuid; t2 uuid;
+begin
+  t1 := public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'Rita@example.com', '+15125550170',
+          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"},{"name":"Leo Lopez","teacher":"Jones","grade":"K"}]');
+  -- Registering again with the same email updates it, keeping the same link.
+  t2 := public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
+          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]');
+  assert t1 = t2 and (select jsonb_array_length(children) from public.parent_registrations where email = 'rita@example.com') = 1,
+         'registering again updates the registration';
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'No Kids', 'nokids@example.com', null, '[]');
+    raise exception 'FAIL: registered with no children';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Half Filled', 'half@example.com', null,
+              '[{"name":"Mia","teacher":"","grade":"2nd"}]');
+    raise exception 'FAIL: registered a child without a teacher';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-00000000000a', 'Wrong Event', 'wrong@example.com', null,
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]');
+    raise exception 'FAIL: parent registration on a band contest';
+  exception when sqlstate 'P0001' then null;
+  end;
+  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Sam Second', 'sam@example.com', null,
+            '[{"name":"Noah Kim","teacher":"Lee","grade":"5th"}]');
+  assert public.cancel_parent_registration((select access_token from public.parent_registrations where email = 'sam@example.com'))
+         = '10000000-0000-0000-0000-0000000000c1', 'a parent cancels with their link';
+end $$;
+reset role;
+set role authenticated;
+-- The host and the team see registrations (never the links) and check parents in.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert public.can_check_in_parents('10000000-0000-0000-0000-0000000000c1'), 'a Section Lead can work the door';
+  assert (select count(*) from public.parent_registrations) = 1, 'the team sees registrations';
+  begin
+    perform access_token from public.parent_registrations;
+    raise exception 'FAIL: a browser read a parent''s private link';
+  exception when insufficient_privilege then null;
+  end;
+  perform public.set_parent_checked_in((select id from public.parent_registrations), true);
+  assert (select checked_in_at is not null and checked_in_by = auth.uid() from public.parent_registrations), 'checked in, and by whom';
+  begin
+    update public.parent_registrations set parent_name = 'Changed';
+    raise exception 'FAIL: a browser edited a registration';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.parent_registrations) = 0, 'a stranger sees no registrations';
+  begin
+    perform public.set_parent_checked_in((select id from public.parent_registrations limit 1), false);
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select checked_in_at is not null from public.parent_registrations where email = 'rita@example.com'),
+         'a stranger couldn''t undo a check-in';
+end $$;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.parent_registrations;
+    raise exception 'FAIL: a visitor read parent registrations';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Direct', 'direct@example.com', null,
+              '[{"name":"X","teacher":"Y","grade":"1st"}]');
+    raise exception 'FAIL: a browser registered without going through the server';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+-- No bands on a school visitor event, and it keeps its type once parents register.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    update public.events set event_type = 'volunteer' where id = '10000000-0000-0000-0000-0000000000c1';
+    raise exception 'FAIL: switched a school visitor event with registrations';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    insert into public.stations (event_id, name, checkpoint_kind, checkpoint_order)
+    values ('10000000-0000-0000-0000-0000000000c1', 'Gate', 'gate', 1);
+    raise exception 'FAIL: a band check-in station on a school visitor event';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+reset role;
+
+-- 30 days after the event: hidden, then erased.
+update public.events set starts_on = current_date - 31, ends_on = current_date - 31,
+       window_start = now() - interval '31 days', window_end = now() - interval '31 days' + interval '3 hours'
+ where id = '10000000-0000-0000-0000-0000000000c1';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select count(*) from public.parent_registrations) = 0, 'registrations are hidden 30 days after the event';
+end $$;
+reset role;
+set role service_role;
+do $$ begin
+  assert public.purge_parent_registrations() = 1, 'and erased by the clean-up';
+  assert not exists (select 1 from public.parent_registrations), 'nothing left';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000c1';
+
 \echo 'All database security tests passed.'
