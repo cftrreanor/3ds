@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
+import { hasRooms } from "@/lib/event-types";
 import { CollapsibleInfo } from "./collapsible-info";
 import { ContestDayCard, type ProgressRow } from "./contest-day-card";
 
@@ -37,7 +38,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase
       .from("events")
       .select(
-        "name, slug, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed, schedule_updated_at",
+        "name, slug, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed, schedule_updated_at",
       )
       .eq("id", band.event_id)
       .single(),
@@ -56,6 +57,15 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   ]);
   if (!event) missing();
   const open = registrationIsOpen(event);
+  // Choir festivals: the choir's time in each room (readable once posted).
+  const choir = hasRooms(event.event_type);
+  const [{ data: myRooms }, { data: roomData }] = choir
+    ? await Promise.all([
+        supabase.from("room_slots").select("room_id, starts_at, ends_at").eq("band_id", bandId).order("starts_at"),
+        supabase.from("rooms").select("id, name, note").eq("event_id", band.event_id),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const roomById = new Map((roomData ?? []).map((r) => [r.id, r]));
   const files = await filesFor([band.event_id], ["public", "directors"], () => event.timezone);
   const origin = await getOrigin();
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
@@ -75,7 +85,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const hasContact = contact && (contact.name || contact.has_phone || contact.email);
   const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
   const contestDay =
-    eventPhase(event, new Date()) === "day" && event.performance_order_published && slot && day && (progress ?? []).length > 0;
+    !choir && eventPhase(event, new Date()) === "day" && event.performance_order_published && slot && day && (progress ?? []).length > 0;
+  const people = `${band.student_count} ${choir ? "singers" : "students"} · ${band.chaperone_count} chaperones`;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -89,8 +100,10 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       </Link>
       {registered && (
         <Card className="mt-4 border-success/30 bg-success-soft" role="status">
-          <p className="font-medium">You&apos;re registered! 🎺</p>
-          <p className="mt-1 text-sm text-muted">We emailed you a copy. We&apos;ll email again when performance times are posted.</p>
+          <p className="font-medium">You&apos;re registered! {choir ? "🎶" : "🎺"}</p>
+          <p className="mt-1 text-sm text-muted">
+            We emailed you a copy. We&apos;ll email again when {choir ? "the schedule is" : "performance times are"} posted.
+          </p>
         </Card>
       )}
       {saved && (
@@ -113,7 +126,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           </Link>
         </p>
         {(hasContact || event.director_info) && (
-          <CollapsibleInfo initialOpen={infoOpen}>
+          <CollapsibleInfo initialOpen={infoOpen} label={choir ? "Festival info" : "Contest info"}>
             {hasContact && (
               <p className="mt-2 flex flex-wrap gap-x-3 text-muted">
                 <span>{contact.name || "Host contact"}</span>
@@ -139,7 +152,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           </CollapsibleInfo>
         )}
         <p className="mt-4">
-          <span aria-hidden="true">🎺</span> <span className="font-semibold">{band.band_name}</span>{" "}
+          <span aria-hidden="true">{choir ? "🎶" : "🎺"}</span> <span className="font-semibold">{band.band_name}</span>{" "}
           <span className="text-muted">· {band.school_name}</span>
         </p>
       </header>
@@ -167,7 +180,39 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         </Card>
       )}
 
-      {event.finalists_revealed && finalsSlot && (
+      {choir &&
+        (event.performance_order_published && (myRooms ?? []).length > 0 ? (
+          <Card className="mt-6 border-brand">
+            <h2 className="font-semibold">Your schedule</h2>
+            <ol className="mt-3 divide-y divide-border">
+              {(myRooms ?? []).map((s) => {
+                const room = roomById.get(s.room_id);
+                return (
+                  <li key={s.room_id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
+                    <span>
+                      <span className="font-semibold">{room?.name ?? "Room"}</span>
+                      {room?.note && <span className="text-sm text-muted"> · {room.note}</span>}
+                    </span>
+                    <span className="tabular-nums">
+                      {event.starts_on !== event.ends_on && `${formatDate(utcToZonedDate(s.starts_at, event.timezone), { year: undefined })}, `}
+                      {formatTime(s.starts_at, event.timezone)}–{formatTime(s.ends_at, event.timezone)}{" "}
+                      {zoneAbbreviation(s.starts_at, event.timezone)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </Card>
+        ) : (
+          <Card className="mt-6">
+            <h2 className="font-semibold">Your schedule</h2>
+            <p className="mt-2 text-sm text-muted">
+              The host hasn&apos;t posted the schedule yet. We&apos;ll email you your choir&apos;s times in each room when it&apos;s ready.
+            </p>
+          </Card>
+        ))}
+
+      {!choir && event.finalists_revealed && finalsSlot && (
         <TimesCard
           title={`🏆 Finals · #${finalsSlot.slot_number}`}
           times={finalsSlot}
@@ -177,7 +222,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           highlight
         />
       )}
-      {event.performance_order_published && slot ? (
+      {choir ? null : event.performance_order_published && slot ? (
         <TimesCard
           title={`Your times · #${slot.performance_order} in the order`}
           times={slot}
@@ -208,7 +253,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted">
-              {band.classification} · {band.student_count} students · {band.chaperone_count} chaperones
+              {band.classification} · {people}
             </p>
           </div>
           <span className="shrink-0 text-sm font-medium text-brand">
@@ -222,9 +267,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
             <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
               <Item label="Classification">{band.classification}</Item>
-              <Item label="People">
-                {band.student_count} students · {band.chaperone_count} chaperones
-              </Item>
+              <Item label="People">{people}</Item>
               <Item label="Vehicles">
                 {[
                   [band.bus_count, "bus", "buses"],
@@ -240,7 +283,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
                 {band.head_director_name} · {formatPhone(band.head_director_phone)}
               </Item>
               {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
-              <Item label="Band contact email">{band.contact_email}</Item>
+              <Item label={choir ? "Choir contact email" : "Band contact email"}>{band.contact_email}</Item>
               <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
               <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
             </dl>

@@ -62,6 +62,7 @@ export function StationPanel({
   leadNames,
   leadOptions,
   roster,
+  locations = [],
 }: {
   eventId: string;
   station: Station;
@@ -73,6 +74,8 @@ export function StationPanel({
   canManage: boolean;
   leadNames: string[];
   leadOptions: LeadOption[];
+  /** A choir festival's rooms, suggested for a station's location. */
+  locations?: string[];
   /** Only for the station's lead: who has signed up. */
   roster?: RosterEntry[];
 }) {
@@ -118,6 +121,7 @@ export function StationPanel({
                 leads={leadOptions}
                 submitLabel="Save station"
                 bands={hasBands(event.event_type)}
+                locations={locations}
               />
             </div>
           </details>

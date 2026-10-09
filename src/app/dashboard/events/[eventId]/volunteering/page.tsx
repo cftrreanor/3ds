@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { eachDate, formatTimeRange } from "@/lib/time";
 import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, StationForm, type LeadOption } from "../forms";
-import { hasBands } from "@/lib/event-types";
+import { hasBands, hasRooms } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
@@ -37,6 +37,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
+  // Choir festivals: the rooms, suggested as station locations.
+  const { data: roomData } = hasRooms(event.event_type)
+    ? await supabase.from("rooms").select("name, note").eq("event_id", eventId).order("name")
+    : { data: [] };
+  const locations = (roomData ?? []).map((r) => [r.name, r.note].filter(Boolean).join(" · "));
 
   const [{ data: stationData }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
     supabase
@@ -281,6 +286,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               windowLabel={windowLabel}
               userId={user.id}
               canManage
+              locations={locations}
               leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
               leadOptions={leadOptions}
               roster={roster}
@@ -293,7 +299,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   ? "Start with your first station, like Parking, Concessions or a Warm-Up area. You'll set up its shifts next."
                   : "It gets its own tab and shift schedule."}
               </p>
-              <StationForm action={createStation.bind(null, eventId)} bands={hasBands(event.event_type)} />
+              <StationForm action={createStation.bind(null, eventId)} bands={hasBands(event.event_type)} locations={locations} />
             </Card>
           )}
         </div>

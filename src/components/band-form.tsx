@@ -26,7 +26,7 @@ export type BandFormValues = Partial<{
   special_needs: string | null;
 }>;
 
-/** The band registration form, used to register and to edit. */
+/** The band (or choir) registration form, used to register and to edit. Choirs don't bring trucks. */
 export function BandForm({
   action,
   classifications,
@@ -34,6 +34,7 @@ export function BandForm({
   initial = {},
   submitLabel,
   disabled = false,
+  kind = "band",
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   classifications: string[];
@@ -41,7 +42,9 @@ export function BandForm({
   initial?: BandFormValues;
   submitLabel: string;
   disabled?: boolean;
+  kind?: "band" | "choir";
 }) {
+  const choir = kind === "choir";
   const num = (v: number | undefined) => (v === undefined ? "" : String(v));
   return (
     <ActionForm action={action} className="space-y-6" resetOnSuccess={false}>
@@ -52,8 +55,13 @@ export function BandForm({
             <Field label="School name">
               <Input name="schoolName" required defaultValue={initial.school_name} placeholder="e.g. Cedar Ridge High School" />
             </Field>
-            <Field label="Band name">
-              <Input name="bandName" required defaultValue={initial.band_name} placeholder="e.g. Raider Regiment" />
+            <Field label={choir ? "Choir name" : "Band name"}>
+              <Input
+                name="bandName"
+                required
+                defaultValue={initial.band_name}
+                placeholder={choir ? "e.g. Varsity Treble Choir" : "e.g. Raider Regiment"}
+              />
             </Field>
             <Field label="Classification">
               <Select name="classification" required defaultValue={initial.classification ?? ""}>
@@ -67,7 +75,7 @@ export function BandForm({
                 ))}
               </Select>
             </Field>
-            <Field label="Band contact email" hint="Where the host should send updates.">
+            <Field label={choir ? "Choir contact email" : "Band contact email"} hint="Where the host should send updates.">
               <Input name="contactEmail" type="email" required defaultValue={initial.contact_email} />
             </Field>
             <Field label="School address" className="sm:col-span-2">
@@ -97,7 +105,7 @@ export function BandForm({
         <Card className="space-y-4">
           <h2 className="font-semibold">Who&apos;s coming</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Student performers">
+            <Field label={choir ? "Singers" : "Student performers"}>
               <NumberInput name="studentCount" required defaultValue={num(initial.student_count)} />
             </Field>
             <Field label="Chaperones" hint={`Up to ${chaperoneLimit} for this event.`}>
@@ -119,27 +127,38 @@ export function BandForm({
             <Field label="Buses">
               <NumberInput name="busCount" defaultValue={num(initial.bus_count ?? 0)} />
             </Field>
-            <Field label="Box trucks">
-              <NumberInput name="boxTruckCount" defaultValue={num(initial.box_truck_count ?? 0)} />
-            </Field>
-            <Field label="Truck + trailer">
-              <NumberInput name="truckTrailerCount" defaultValue={num(initial.truck_trailer_count ?? 0)} />
-            </Field>
-            <Field label="Semi trucks (18-wheelers)">
-              <NumberInput name="semiTruckCount" defaultValue={num(initial.semi_truck_count ?? 0)} />
-            </Field>
+            {!choir && (
+              <>
+                <Field label="Box trucks">
+                  <NumberInput name="boxTruckCount" defaultValue={num(initial.box_truck_count ?? 0)} />
+                </Field>
+                <Field label="Truck + trailer">
+                  <NumberInput name="truckTrailerCount" defaultValue={num(initial.truck_trailer_count ?? 0)} />
+                </Field>
+                <Field label="Semi trucks (18-wheelers)">
+                  <NumberInput name="semiTruckCount" defaultValue={num(initial.semi_truck_count ?? 0)} />
+                </Field>
+              </>
+            )}
           </div>
         </Card>
 
         <Card className="space-y-4">
-          <h2 className="font-semibold">Contest day</h2>
+          <h2 className="font-semibold">{choir ? "Festival day" : "Contest day"}</h2>
           <Field
             label="Scheduling conflicts"
-            hint="Optional. E.g. ACT testing until noon, cross country meet, homecoming that night."
+            hint={
+              choir
+                ? "Optional. E.g. can't arrive before 10 AM, another performance that afternoon."
+                : "Optional. E.g. ACT testing until noon, cross country meet, homecoming that night."
+            }
           >
             <Textarea name="contestDayConflicts" defaultValue={initial.contest_day_conflicts ?? ""} />
           </Field>
-          <Field label="Accessibility or staging needs" hint="Optional. ADA needs, pit equipment, power, anything we should know.">
+          <Field
+            label="Accessibility or staging needs"
+            hint={choir ? "Optional. ADA needs, risers, piano, accompanist, anything we should know." : "Optional. ADA needs, pit equipment, power, anything we should know."}
+          >
             <Textarea name="specialNeeds" defaultValue={initial.special_needs ?? ""} />
           </Field>
         </Card>

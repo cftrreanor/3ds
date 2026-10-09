@@ -110,7 +110,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261030000000_school_visits.sql` | School visitor events: parents register (child, teacher, grade), are reminded to bring a photo ID, and are checked in at the door; children's details deleted 30 days after the event | ✅ run |
 | `20261031000000_parent_adults.sql` | Parent registration: how many adults are coming on each registration | ✅ run |
 | `20261101000000_parent_other_adults.sql` | Parent registration: name the other adults coming for the same children (spouse, grandparent); each adult is checked in on their own at the door; hosts can set a date and time when registration closes on its own | ✅ run |
-| `20261102000000_parent_walk_ins.sql` | Parent registration: say whether parents who didn't register can still come with a photo ID | run this next |
+| `20261102000000_parent_walk_ins.sql` | Parent registration: say whether parents who didn't register can still come with a photo ID | ✅ run |
+| `20261103000000_choir_festivals.sql` | Choir festivals: a fourth kind of event; choirs register (no trucks), rooms at one address, each choir's path and times, posted schedule by room | run this next |
 
 ## Pilot requests
 

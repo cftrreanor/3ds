@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth";
 import { BAND_COLUMNS, bandColumns, parseBand, readyAt, warmUpEndAt, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
+import { hasRooms } from "@/lib/event-types";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zonedToUtc } from "@/lib/time";
@@ -41,7 +42,7 @@ export async function registerAgain(eventId: string, sourceBandId: string): Prom
     return { error: `This contest doesn't have a ${b.classification} classification. Tap “Review & edit” to pick one.` };
   }
   if (b.chaperone_count > event.chaperone_limit) {
-    return { error: `This contest allows ${event.chaperone_limit} chaperones per band. Tap “Review & edit” to change the number.` };
+    return { error: `This event allows ${event.chaperone_limit} chaperones per group. Tap “Review & edit” to change the number.` };
   }
   return createRegistration(eventId, user, {
     school_name: b.school_name,
@@ -79,7 +80,7 @@ async function createRegistration(
     .eq("director_user_id", user.id)
     .ilike("band_name", v.band_name.replace(/[%_\\]/g, "\\$&"));
   if (same?.length) {
-    return { error: `You've already registered ${v.band_name} for this contest. Open it from your dashboard to make changes.` };
+    return { error: `You've already registered ${v.band_name} for this event. Open it from your dashboard to make changes.` };
   }
   const { data, error } = await supabase
     .from("bands")
@@ -87,30 +88,33 @@ async function createRegistration(
     .select("id")
     .single();
   if (error) {
-    if (error.code === "42501") return { error: "Band registration for this contest is closed. Please contact the host." };
+    if (error.code === "42501") return { error: "Registration for this event is closed. Please contact the host." };
     return { error: friendlyDbError(error) };
   }
 
-  const { data: event } = await supabase.from("events").select("name, starts_on, ends_on").eq("id", eventId).single();
+  const { data: event } = await supabase.from("events").select("name, starts_on, ends_on, event_type").eq("id", eventId).single();
+  const choir = hasRooms(event?.event_type);
   const origin = await getOrigin();
   after(async () => {
     const { html, text } = emailLayout({
       heading: `${v.band_name} is registered`,
       paragraphs: [
-        `Thanks! ${v.school_name} is registered for ${event?.name ?? "the contest"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
-        "You can review or change your registration while registration is open. We'll email you when the performance order and your times are posted.",
+        `Thanks! ${v.school_name} is registered for ${event?.name ?? "the event"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
+        `You can review or change your registration while registration is open. We'll email you when ${choir ? "the schedule and your choir's times in each room are" : "the performance order and your times are"} posted.`,
       ],
       rows: [
         { title: "Classification", detail: v.classification },
-        { title: "People", detail: `${v.student_count} students · ${v.chaperone_count} chaperones` },
+        { title: "People", detail: `${v.student_count} ${choir ? "singers" : "students"} · ${v.chaperone_count} chaperones` },
         {
           title: "Vehicles",
-          detail: `${v.bus_count} buses · ${v.box_truck_count} box trucks · ${v.truck_trailer_count} truck/trailers · ${v.semi_truck_count} semis`,
+          detail: choir
+            ? `${v.bus_count} ${v.bus_count === 1 ? "bus" : "buses"}`
+            : `${v.bus_count} buses · ${v.box_truck_count} box trucks · ${v.truck_trailer_count} truck/trailers · ${v.semi_truck_count} semis`,
         },
       ],
       button: { label: "View my registration", url: `${origin}/dashboard/bands/${data.id}` },
     });
-    await sendEmail({ to: user.email, subject: `Registered: ${v.band_name} at ${event?.name ?? "the contest"}`, html, text });
+    await sendEmail({ to: user.email, subject: `Registered: ${v.band_name} at ${event?.name ?? "the event"}`, html, text });
   });
 
   revalidatePath("/dashboard");

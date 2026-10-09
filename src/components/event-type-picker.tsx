@@ -7,7 +7,7 @@ import { EVENT_TYPES } from "@/lib/event-types";
 /** The choices, as large cards that start a new event of that kind. */
 export function EventTypeChoices() {
   return (
-    <ul className="grid gap-3 sm:grid-cols-3">
+    <ul className="grid gap-3 sm:grid-cols-2">
       {EVENT_TYPES.map((t) => (
         <li key={t.value}>
           <Link

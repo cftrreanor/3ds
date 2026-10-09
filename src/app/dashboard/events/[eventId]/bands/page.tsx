@@ -15,7 +15,7 @@ import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
 import { InvitePastBands, type PastDirector } from "./invite-past-bands";
-import { hasBands } from "@/lib/event-types";
+import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
 import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
@@ -26,7 +26,7 @@ import { ActionButton, CopyLinkButton } from "../forms";
 import { ScheduleBuilder, type FinalsSlot, type OrderBand, type ScheduleBreak } from "./schedule-builder";
 import { BandSettingsForm } from "./settings-form";
 
-export const metadata: Metadata = { title: "Band Registration" };
+export const metadata: Metadata = { title: "Registration" };
 
 type Slot = {
   band_id: string;
@@ -50,7 +50,9 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
-  if (!hasBands(event.event_type)) redirect(`/dashboard/events/${eventId}`);
+  if (!hasEnsembles(event.event_type)) redirect(`/dashboard/events/${eventId}`);
+  const choirs = hasRooms(event.event_type);
+  const w = groupWords(event.event_type);
 
   const user = await requireUser();
   const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: contact }, { data: contactPhone }, { data: profile }] = await Promise.all([
@@ -131,7 +133,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Band Registration</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{w.One} Registration</h1>
 
       <section className="mt-6">
         <Card className="space-y-4">
@@ -146,7 +148,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                     : "Registration closed"}
             </Badge>
             <span className="text-sm text-muted">
-              {bands.length} band{bands.length === 1 ? "" : "s"} registered
+              {bands.length} {bands.length === 1 ? w.one : w.many} registered
             </span>
           </div>
           {event.status !== "published" && (
@@ -160,7 +162,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             </p>
           )}
           <div>
-            <p className="text-sm font-medium">Link for band directors</p>
+            <p className="text-sm font-medium">Link for {w.one} directors</p>
             <p className="mt-1 break-all text-sm text-muted">{registrationUrl}</p>
             <div className="mt-2">
               <CopyLinkButton url={registrationUrl} label="Copy link" />
@@ -190,15 +192,16 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             <ActionButton
               action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
               variant={event.band_registration_open ? "stop" : "go"}
-              confirmMessage={event.band_registration_open ? "Close band registration? Directors won't be able to register or make changes." : undefined}
+              confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
             >
-              {event.band_registration_open ? "Close band registration" : "Open band registration"}
+              {event.band_registration_open ? `Close ${w.one} registration` : `Open ${w.one} registration`}
             </ActionButton>
           )}
         </Card>
       </section>
 
-      {pastDirectors.length > 0 && (
+      {/* Past directors are band directors so far; choir festivals start fresh. */}
+      {!choirs && pastDirectors.length > 0 && (
         <section className="mt-10" aria-labelledby="invite-heading">
           <h2 id="invite-heading" className="text-xl font-semibold">
             Invite bands from your past events
@@ -213,7 +216,25 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
-      {access.isHost && (
+      {access.isHost && choirs && (
+        <section className="mt-10">
+          <h2 className="text-xl font-semibold">Rooms &amp; schedule</h2>
+          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm leading-6 text-muted">
+              Set up your rooms and the path every choir follows, then put the choirs in order. Each choir&apos;s times
+              are worked out for you.
+            </p>
+            <Link
+              href={`/dashboard/events/${eventId}/rooms`}
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+            >
+              Rooms &amp; schedule
+            </Link>
+          </Card>
+        </section>
+      )}
+
+      {access.isHost && !choirs && (
         <section className="mt-10">
           <h2 className="text-xl font-semibold">Performance schedule</h2>
           <p className="mt-1 mb-4 text-sm text-muted">
@@ -252,7 +273,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                     <span className="font-semibold">{b.band_name}</span>
                     <span className="text-muted">
                       {" "}
-                      · {b.school_name} · {b.classification} · {b.student_count} students
+                      · {b.school_name} · {b.classification} · {b.student_count} {choirs ? "singers" : "students"}
                     </span>
                   </summary>
                   <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
@@ -267,14 +288,15 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                       </a>
                     </Detail>
                     <Detail label="Assistant directors">{b.assistant_directors.join(", ") || "None listed"}</Detail>
-                    <Detail label="Band contact">{b.contact_email}</Detail>
+                    <Detail label={`${w.One} contact`}>{b.contact_email}</Detail>
                     <Detail label="School address">{b.school_address}</Detail>
                     <Detail label="People">
-                      {b.student_count} students · {b.chaperone_count} chaperones
+                      {b.student_count} {choirs ? "singers" : "students"} · {b.chaperone_count} chaperones
                     </Detail>
                     <Detail label="Vehicles">
-                      {b.bus_count} buses · {b.box_truck_count} box trucks · {b.truck_trailer_count} truck/trailers ·{" "}
-                      {b.semi_truck_count} semis
+                      {choirs
+                        ? `${b.bus_count} ${b.bus_count === 1 ? "bus" : "buses"}`
+                        : `${b.bus_count} buses · ${b.box_truck_count} box trucks · ${b.truck_trailer_count} truck/trailers · ${b.semi_truck_count} semis`}
                     </Detail>
                     <Detail label="Conflicts">{b.contest_day_conflicts ?? "None"}</Detail>
                     <Detail label="Accessibility / staging">{b.special_needs ?? "None"}</Detail>

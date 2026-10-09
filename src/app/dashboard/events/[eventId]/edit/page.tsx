@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
-import { EVENT_TYPES, eventTypeLabel, hasBands, hasParents } from "@/lib/event-types";
+import { EVENT_TYPES, eventTypeLabel, groupWords, hasBands, hasEnsembles, hasParents } from "@/lib/event-types";
 import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
@@ -19,6 +19,7 @@ export const metadata: Metadata = { title: "Edit event" };
 
 const TYPE_SUMMARY = {
   band_contest: "Bands register, get performance times and are checked in on contest day, alongside your volunteers.",
+  choir_festival: "Choirs register and move through your rooms (warm-up, main stage, sight-reading) on a schedule worked out for them, alongside your volunteers.",
   volunteer: "Volunteers, shifts, check-in and your team only. No band registration or performance schedule.",
   school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers. Children's details are seen only by your team and permanently deleted 30 days after the event.",
 };
@@ -26,6 +27,7 @@ const TYPE_SUMMARY = {
 // What switching to each kind adds or removes.
 const SWITCH_NOTE = {
   band_contest: "Band registration, the performance schedule and contest day check-in are added.",
+  choir_festival: "Choir registration, rooms and each choir's room schedule are added; the single performance order and band check-in stations go away.",
   volunteer: "Band registration, parent registration and the performance schedule go away; band check-in stations become ordinary stations.",
   school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
 };
@@ -55,6 +57,8 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
     supabase.from("parent_registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId),
   ]);
   const bandsHere = hasBands(event.event_type);
+  const groupsHere = hasEnsembles(event.event_type);
+  const words = groupWords(event.event_type);
   const fileRows = (fileData ?? []) as (EventFile & { uploaded_by: string | null; uploaded_at: string })[];
   const uploaded = await uploadedLines(fileRows, event.timezone);
   const files = fileRows.map((f) => ({
@@ -108,9 +112,10 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
             This is a <strong>{eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
             <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
           </p>
-          {bandsHere && (bandCount ?? 0) > 0 ? (
+          {groupsHere && (bandCount ?? 0) > 0 ? (
             <p className="text-sm text-muted">
-              {bandCount} band{bandCount === 1 ? " has" : "s have"} registered, so this has to stay a band contest.
+              {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
+              {eventTypeLabel(event.event_type).toLowerCase()}.
             </p>
           ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
             <p className="text-sm text-muted">
@@ -138,14 +143,14 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
           Maps &amp; documents
         </h2>
         <p className="mt-1 text-sm text-muted">
-          {bandsHere
-            ? "Share a stadium map, parking map or director packet. Choose who sees each one: the public page, band directors, volunteers or your team."
+          {groupsHere
+            ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers or your team.`
             : "Share a site map, parking map or volunteer guide. Choose who sees each one: the public page, volunteers or your team."}
         </p>
         <Card className="mt-4">
           <FilesManager
             files={files}
-            audiences={bandsHere ? AUDIENCES : AUDIENCES.filter((a) => a.value !== "directors")}
+            audiences={groupsHere ? AUDIENCES : AUDIENCES.filter((a) => a.value !== "directors")}
             prepareUpload={prepareUpload.bind(null, eventId)}
             saveFile={saveFile.bind(null, eventId)}
             deleteFile={deleteFile.bind(null, eventId)}
