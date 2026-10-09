@@ -24,6 +24,7 @@ import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
 import { eventTypeLabel, hasBands, hasParents } from "@/lib/event-types";
+import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 
 export const metadata: Metadata = { title: "Event setup" };
@@ -220,13 +221,9 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   // School visitor events: parents registered and checked in at the door.
   const parentsHere = hasParents(event.event_type);
   const parentRows = parentsHere
-    ? ((await supabase.from("parent_registrations").select("checked_in_at, children").eq("event_id", eventId)).data ?? [])
+    ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, children").eq("event_id", eventId)).data ?? [])
     : [];
-  const parentStats = {
-    parents: parentRows.length,
-    children: parentRows.reduce((n, r) => n + ((r.children as unknown[] | null)?.length ?? 0), 0),
-    in: parentRows.filter((r) => r.checked_in_at).length,
-  };
+  const parentNumbers = parentStats(parentRows);
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
   // The emptiest shifts first: where to send the next volunteers.
   const needsPeople = ((shifts ?? []) as Shift[])
@@ -310,8 +307,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               <div className="space-y-1 text-sm leading-6">
                 <p className="font-medium">
                   {isEventDay
-                    ? `${parentStats.in} of ${parentStats.parents} parents checked in.`
-                    : `${parentStats.parents} ${parentStats.parents === 1 ? "parent" : "parents"} registered, for ${parentStats.children} ${parentStats.children === 1 ? "child" : "children"}.`}
+                    ? `${parentNumbers.familiesArrived} of ${parentNumbers.families} families checked in.`
+                    : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
                 </p>
                 <p className="text-muted">
                   {event.status !== "published"
@@ -329,6 +326,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                 {access.isHost ? "Registration & door check-in" : "Open door check-in"}
               </Link>
             </div>
+            {parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
           </Card>
         </section>
       )}
@@ -677,6 +675,43 @@ type BandTotals = {
   truck_trailer_count: number;
   semi_truck_count: number;
 };
+
+/** The Parent registration card's numbers. On the event day, who's arrived and who's still to come. */
+function ParentNumbers({ stats, eventDay }: { stats: ParentStats; eventDay: boolean }) {
+  const tiles: [string, string | number][] = eventDay
+    ? [
+        ["Families checked in", `${stats.familiesArrived} / ${stats.families}`],
+        ["Adults arrived", `${stats.adultsArrived} / ${stats.adults}`],
+        ["Families still to arrive", stats.families - stats.familiesArrived],
+        ["Children", stats.children],
+      ]
+    : [
+        ["Families", stats.families],
+        ["Adults coming", stats.adults],
+        ["Children", stats.children],
+        ["New this week", stats.newThisWeek],
+      ];
+  return (
+    <div className="mt-5 border-t border-border pt-4">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {tiles.map(([label, value]) => (
+          <div key={label} className="rounded-lg bg-background px-3 py-2">
+            <dt className="text-xs text-muted">{label}</dt>
+            <dd className="text-xl font-semibold tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-sm">
+        <span className="text-muted">{eventDay ? "Arrived by grade: " : "Children by grade: "}</span>
+        {stats.byGrade.map((g) => `${g.grade}: ${eventDay ? `${g.arrived} of ${g.children}` : g.children}`).join(" · ")}
+      </p>
+      <p className="mt-1 text-sm">
+        <span className="text-muted">Children by teacher: </span>
+        {stats.byTeacher.map((t) => `${t.name}: ${t.children}`).join(" · ")}
+      </p>
+    </div>
+  );
+}
 
 /** Headcounts and vehicles across every registered band, for parking and planning. */
 function LogisticsTotals({ bands }: { bands: BandTotals[] }) {

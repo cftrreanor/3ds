@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ParentState } from "./actions";
@@ -62,6 +63,9 @@ export function ParentsForm({
             <Input name="phone" type="tel" inputMode="tel" autoComplete="tel" defaultValue={state.values?.phone} />
           </Field>
         </div>
+        <Field label="How many adults are coming?" hint="Including you. Everyone needs their own photo ID.">
+          <NumberInput name="adults" required maxLength={1} defaultValue={state.values?.adults ?? "1"} className="max-w-24" />
+        </Field>
       </Card>
 
       <Card className="space-y-4">

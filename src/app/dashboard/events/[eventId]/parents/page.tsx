@@ -35,7 +35,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
 
   const { data } = await supabase
     .from("parent_registrations")
-    .select("id, parent_name, email, phone, children, checked_in_at")
+    .select("id, parent_name, email, phone, children, adult_count, checked_in_at")
     .eq("event_id", eventId)
     .order("parent_name");
   const parents: DoorParent[] = (data ?? []).map((r) => ({
@@ -45,9 +45,11 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
     phone: r.phone,
     phoneDisplay: r.phone ? formatPhone(r.phone) : null,
     children: (r.children ?? []) as Child[],
+    adults: r.adult_count ?? 1,
     checkedIn: Boolean(r.checked_in_at),
   }));
   const childCount = parents.reduce((n, p) => n + p.children.length, 0);
+  const adultCount = parents.reduce((n, p) => n + p.adults, 0);
 
   const today = utcToZonedDate(new Date().toISOString(), event.timezone);
   const over = today > event.ends_on;
@@ -84,7 +86,8 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                         : "Registration closed"}
                 </Badge>
                 <span className="text-sm text-muted">
-                  {parents.length} {parents.length === 1 ? "parent" : "parents"} · {childCount} {childCount === 1 ? "child" : "children"}
+                  {parents.length} {parents.length === 1 ? "family" : "families"} · {adultCount} {adultCount === 1 ? "adult" : "adults"} · {childCount}{" "}
+                  {childCount === 1 ? "child" : "children"}
                 </span>
               </div>
               <div>
