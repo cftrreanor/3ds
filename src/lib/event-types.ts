@@ -18,7 +18,7 @@ export const EVENT_TYPES = [
     value: "school_visit",
     label: "School visitor event",
     icon: "🏫",
-    blurb: "Parents register ahead (child, teacher and grade), are reminded to bring a photo ID, and are checked in at the door.",
+    blurb: "Parents register ahead (child, teacher and grade), are reminded to bring a photo ID, and are checked in at the door. Student details are deleted 30 days after.",
   },
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number]["value"];

@@ -20,14 +20,14 @@ export const metadata: Metadata = { title: "Edit event" };
 const TYPE_SUMMARY = {
   band_contest: "Bands register, get performance times and are checked in on contest day, alongside your volunteers.",
   volunteer: "Volunteers, shifts, check-in and your team only. No band registration or performance schedule.",
-  school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers.",
+  school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers. Children's details are seen only by your team and permanently deleted 30 days after the event.",
 };
 
 // What switching to each kind adds or removes.
 const SWITCH_NOTE = {
   band_contest: "Band registration, the performance schedule and contest day check-in are added.",
   volunteer: "Band registration, parent registration and the performance schedule go away; band check-in stations become ordinary stations.",
-  school_visit: "Parent registration and door check-in are added; band registration and the performance schedule go away.",
+  school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
 };
 
 export default async function EditEventPage({ params }: PageProps<"/dashboard/events/[eventId]/edit">) {

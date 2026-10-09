@@ -320,6 +320,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                       ? "Registration is open. Parents are reminded to bring a photo ID."
                       : "Registration is closed."}
                 </p>
+                <p className="text-muted">🔒 Children&apos;s details are seen only by your team and deleted 30 days after the event.</p>
               </div>
               <Link
                 href={`/dashboard/events/${eventId}/parents`}

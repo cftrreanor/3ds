@@ -86,6 +86,14 @@ export function EventForm({
         <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} />
       </fieldset>
 
+      {eventType === "school_visit" && (
+        <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
+          🔒 <strong>Student privacy:</strong> parents enter their children&apos;s names, teachers and grades. Only your
+          event team can see them, and they&apos;re permanently deleted 30 days after the event ends. Parents are told
+          this when they register.
+        </p>
+      )}
+
       <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
     </ActionForm>
   );
