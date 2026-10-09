@@ -2127,7 +2127,9 @@ begin
          'one adult when not given';
   perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
           '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '[" Marco Lopez ", "Rosa Diaz"]');
-  assert (select adult_count = 3 and other_adults = '["Marco Lopez", "Rosa Diaz"]'::jsonb
+  assert (select adult_count = 3
+                 and other_adults = '[{"name": "Marco Lopez", "checked_in_at": null, "checked_in_by": null},
+                                      {"name": "Rosa Diaz", "checked_in_at": null, "checked_in_by": null}]'::jsonb
             from public.parent_registrations where email = 'rita@example.com'),
          'other adults are named, and counted with the parent';
   begin
@@ -2180,6 +2182,22 @@ do $$ begin
   end;
   perform public.set_parent_checked_in((select id from public.parent_registrations), true);
   assert (select checked_in_at is not null and checked_in_by = auth.uid() from public.parent_registrations), 'checked in, and by whom';
+  -- Each adult is checked in on their own.
+  assert (select other_adults -> 0 ->> 'checked_in_at' is null from public.parent_registrations),
+         'checking in the parent leaves the other adults waiting';
+  perform public.set_parent_checked_in((select id from public.parent_registrations), true, 2);
+  assert (select other_adults -> 1 ->> 'checked_in_at' is not null
+             and other_adults -> 1 ->> 'checked_in_by' = auth.uid()::text
+             and other_adults -> 0 ->> 'checked_in_at' is null from public.parent_registrations),
+         'a grandparent checks in separately';
+  perform public.set_parent_checked_in((select id from public.parent_registrations), false, 2);
+  assert (select other_adults -> 1 ->> 'checked_in_at' is null from public.parent_registrations), 'one adult''s check-in can be undone';
+  perform public.set_parent_checked_in((select id from public.parent_registrations), true, 1);
+  begin
+    perform public.set_parent_checked_in((select id from public.parent_registrations), true, 3);
+    raise exception 'FAIL: checked in an adult who isn''t on the registration';
+  exception when sqlstate 'P0001' then null;
+  end;
   begin
     update public.parent_registrations set parent_name = 'Changed';
     raise exception 'FAIL: a browser edited a registration';
@@ -2195,6 +2213,14 @@ do $$ begin
   end;
 end $$;
 reset role;
+-- Editing a registration keeps anyone already checked in as checked in.
+do $$ begin
+  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
+          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '["marco lopez", "New Uncle"]');
+  assert (select other_adults -> 0 ->> 'checked_in_at' is not null and other_adults -> 1 ->> 'checked_in_at' is null
+            from public.parent_registrations where email = 'rita@example.com'),
+         're-registering keeps check-ins of adults still on the list';
+end $$;
 do $$ begin
   assert (select checked_in_at is not null from public.parent_registrations where email = 'rita@example.com'),
          'a stranger couldn''t undo a check-in';

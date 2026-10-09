@@ -3,7 +3,7 @@ import { GRADES } from "./grades";
 // Totals for a school visitor event's Parent registration card. Only counts:
 // no child's name leaves the door check-in list.
 
-type Row = { created_at: string; checked_in_at: string | null; adult_count: number | null; children: unknown };
+type Row = { created_at: string; checked_in_at: string | null; adult_count: number | null; other_adults: unknown; children: unknown };
 type Kid = { name?: string; teacher?: string; grade?: string };
 
 export type ParentStats = ReturnType<typeof parentStats>;
@@ -11,8 +11,11 @@ export type ParentStats = ReturnType<typeof parentStats>;
 export function parentStats(rows: Row[], now = new Date()) {
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const kids = (r: Row) => (Array.isArray(r.children) ? (r.children as Kid[]) : []);
-  const adults = (r: Row) => r.adult_count ?? 1;
-  const arrived = rows.filter((r) => r.checked_in_at);
+  const others = (r: Row) => (Array.isArray(r.other_adults) ? (r.other_adults as { checked_in_at?: string | null }[]) : []);
+  const adults = (r: Row) => Math.max(r.adult_count ?? 1, 1 + others(r).length);
+  // Each adult checks in on their own; a family has arrived once any of them has.
+  const adultsIn = (r: Row) => (r.checked_in_at ? 1 : 0) + others(r).filter((a) => a?.checked_in_at).length;
+  const arrived = rows.filter((r) => adultsIn(r) > 0);
 
   // Children per grade (in school order), and how many of them have a parent checked in.
   const grades = new Map<string, { children: number; arrived: number }>();
@@ -20,7 +23,7 @@ export function parentStats(rows: Row[], now = new Date()) {
     for (const k of kids(r)) {
       const g = grades.get(k.grade ?? "") ?? { children: 0, arrived: 0 };
       g.children++;
-      if (r.checked_in_at) g.arrived++;
+      if (adultsIn(r) > 0) g.arrived++;
       grades.set(k.grade ?? "", g);
     }
   }
@@ -50,7 +53,7 @@ export function parentStats(rows: Row[], now = new Date()) {
     children: rows.reduce((n, r) => n + kids(r).length, 0),
     newThisWeek: rows.filter((r) => r.created_at >= weekAgo).length,
     familiesArrived: arrived.length,
-    adultsArrived: arrived.reduce((n, r) => n + adults(r), 0),
+    adultsArrived: rows.reduce((n, r) => n + adultsIn(r), 0),
     byGrade: [...grades.entries()]
       .sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))
       .map(([grade, g]) => ({ grade, ...g })),

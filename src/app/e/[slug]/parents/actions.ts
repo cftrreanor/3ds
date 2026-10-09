@@ -7,7 +7,7 @@ import { getOrigin } from "@/lib/data";
 import { sendEmail } from "@/lib/email";
 import { GRADES } from "@/lib/grades";
 import { normalizePhone } from "@/lib/phone";
-import { parentEmail, parentLink, type Child } from "@/lib/parents";
+import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
 
 const EVENT_FIELDS = "name, starts_on, ends_on, window_start, window_end, timezone, venue_name, venue_address";
@@ -109,7 +109,7 @@ export async function cancelParents(token: string, slug: string): Promise<Action
   if (reg) {
     const { data: event } = await admin.from("events").select(EVENT_FIELDS).eq("id", reg.event_id).single();
     if (event) {
-      const message = parentEmail("canceled", { ...reg, children: reg.children as Child[], other_adults: reg.other_adults as string[] }, event, `${await getOrigin()}/e/${slug}/parents`);
+      const message = parentEmail("canceled", { ...reg, children: reg.children as Child[], other_adults: adultNames(reg.other_adults) }, event, `${await getOrigin()}/e/${slug}/parents`);
       await sendEmail({ to: reg.email, ...message });
     }
   }

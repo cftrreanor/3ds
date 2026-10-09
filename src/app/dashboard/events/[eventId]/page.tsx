@@ -221,7 +221,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   // School visitor events: parents registered and checked in at the door.
   const parentsHere = hasParents(event.event_type);
   const parentRows = parentsHere
-    ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, children").eq("event_id", eventId)).data ?? [])
+    ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, other_adults, children").eq("event_id", eventId)).data ?? [])
     : [];
   const parentNumbers = parentStats(parentRows);
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
@@ -307,7 +307,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               <div className="space-y-1 text-sm leading-6">
                 <p className="font-medium">
                   {isEventDay
-                    ? `${parentNumbers.familiesArrived} of ${parentNumbers.families} families checked in.`
+                    ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
                     : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
                 </p>
                 <p className="text-muted">
@@ -680,9 +680,9 @@ type BandTotals = {
 function ParentNumbers({ stats, eventDay }: { stats: ParentStats; eventDay: boolean }) {
   const tiles: [string, string | number][] = eventDay
     ? [
-        ["Families checked in", `${stats.familiesArrived} / ${stats.families}`],
-        ["Adults arrived", `${stats.adultsArrived} / ${stats.adults}`],
-        ["Families still to arrive", stats.families - stats.familiesArrived],
+        ["Adults checked in", `${stats.adultsArrived} / ${stats.adults}`],
+        ["Adults still to arrive", stats.adults - stats.adultsArrived],
+        ["Families here", `${stats.familiesArrived} / ${stats.families}`],
         ["Children", stats.children],
       ]
     : [

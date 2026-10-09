@@ -10,6 +10,13 @@ import { formatDateRange, formatTimeRange } from "@/lib/time";
 
 export type Child = { name: string; teacher: string; grade: string };
 
+/** An adult coming with the registering parent, checked in on their own at the door. */
+export type OtherAdult = { name: string; checked_in_at: string | null };
+
+/** The other adults' names, from the stored list. */
+export const adultNames = (raw: unknown): string[] =>
+  Array.isArray(raw) ? raw.map((a) => (typeof a === "string" ? a : String((a as OtherAdult)?.name ?? ""))).filter(Boolean) : [];
+
 export const ID_REMINDER =
   "Bring a valid government-issued photo ID (driver's license, state ID or passport). You won't be let in without it.";
 

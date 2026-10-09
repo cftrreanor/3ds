@@ -1,7 +1,10 @@
 -- =============================================================================
 -- Parent registration: the other adults coming for the same children (a
--- spouse, a grandparent) are named, so the door team can match each photo ID
--- to a name. adult_count is now 1 (the parent) + the other adults.
+-- spouse, a grandparent) are named, and each is checked in on their own (mom
+-- may arrive before dad). adult_count is now 1 (the parent) + the others.
+--
+-- other_adults: [{ "name": "Marco Lopez", "checked_in_at": null, "checked_in_by": null }, …]
+-- The registering parent's own check-in stays in checked_in_at / checked_in_by.
 -- =============================================================================
 
 alter table public.parent_registrations
@@ -49,11 +52,18 @@ begin
   values (p_event, trim(p_name), lower(trim(p_email)), nullif(trim(coalesce(p_phone, '')), ''),
           (select jsonb_agg(jsonb_build_object('name', trim(k ->> 'name'), 'teacher', trim(k ->> 'teacher'), 'grade', trim(k ->> 'grade')))
              from jsonb_array_elements(p_children) k),
-          (select coalesce(jsonb_agg(to_jsonb(trim(a #>> '{}'))), '[]') from jsonb_array_elements(p_other_adults) a),
+          (select coalesce(jsonb_agg(jsonb_build_object('name', trim(a #>> '{}'), 'checked_in_at', null, 'checked_in_by', null)), '[]')
+             from jsonb_array_elements(p_other_adults) a),
           1 + jsonb_array_length(p_other_adults))
   on conflict (event_id, email) do update
     set parent_name = excluded.parent_name, phone = excluded.phone, children = excluded.children,
-        other_adults = excluded.other_adults, adult_count = excluded.adult_count,
+        -- Anyone already checked in stays checked in when the list is edited.
+        other_adults = (
+          select coalesce(jsonb_agg(
+                   coalesce((select o from jsonb_array_elements(parent_registrations.other_adults) o
+                              where lower(o ->> 'name') = lower(n ->> 'name') limit 1), n)), '[]')
+            from jsonb_array_elements(excluded.other_adults) n),
+        adult_count = excluded.adult_count,
         calendar_sequence = parent_registrations.calendar_sequence + 1
   returning access_token into token;
   return token;
@@ -62,3 +72,40 @@ $$;
 
 revoke execute on function public.register_parents(uuid, text, text, text, jsonb, jsonb) from public, anon, authenticated;
 grant execute on function public.register_parents(uuid, text, text, text, jsonb, jsonb) to service_role;
+
+-- The door: check in one adult on a registration (0 = the registering
+-- parent, 1… = the other adults in order), after looking at their ID; or undo.
+drop function public.set_parent_checked_in(uuid, boolean);
+create function public.set_parent_checked_in(p_id uuid, p_in boolean, p_adult integer default 0)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  reg parent_registrations;
+begin
+  select * into reg from parent_registrations where id = p_id for update;
+  if not found or not public.can_check_in_parents(reg.event_id) or not public.parent_data_kept(reg.event_id) then
+    raise exception 'You don''t have permission to do that.' using errcode = '42501';
+  end if;
+  if p_adult is null or p_adult < 0 or p_adult > jsonb_array_length(reg.other_adults) then
+    raise exception 'That adult isn''t on this registration.' using errcode = 'P0001';
+  end if;
+  if p_adult = 0 then
+    update parent_registrations
+       set checked_in_at = case when p_in then coalesce(checked_in_at, now()) end,
+           checked_in_by = case when p_in then coalesce(checked_in_by, auth.uid()) end
+     where id = p_id;
+  else
+    update parent_registrations
+       set other_adults = jsonb_set(other_adults, array[(p_adult - 1)::text],
+             (other_adults -> (p_adult - 1)) || case
+               when not p_in then jsonb_build_object('checked_in_at', null, 'checked_in_by', null)
+               when other_adults -> (p_adult - 1) ->> 'checked_in_at' is not null then '{}'::jsonb
+               else jsonb_build_object('checked_in_at', now(), 'checked_in_by', auth.uid())
+             end)
+     where id = p_id;
+  end if;
+end;
+$$;
+revoke execute on function public.set_parent_checked_in(uuid, boolean, integer) from public, anon;
+grant execute on function public.set_parent_checked_in(uuid, boolean, integer) to authenticated;

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
-import { parentEmail, parentLink, type Child } from "@/lib/parents";
+import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
 import { utcToZonedDate } from "@/lib/time";
 
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       }
       const { subject, html, text } = parentEmail(
         "reminder",
-        { ...r, children: r.children as Child[], other_adults: r.other_adults as string[] },
+        { ...r, children: r.children as Child[], other_adults: adultNames(r.other_adults) },
         event,
         parentLink(origin, event.slug, r.access_token),
       );

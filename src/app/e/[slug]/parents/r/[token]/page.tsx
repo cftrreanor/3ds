@@ -4,7 +4,7 @@ import { ActionForm } from "@/components/action-form";
 import { HeaderBar } from "@/components/logo";
 import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
-import { ID_REMINDER, type Child } from "@/lib/parents";
+import { adultNames, ID_REMINDER, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDateRange, formatTimeRange } from "@/lib/time";
 import { cancelParents } from "../../actions";
@@ -62,10 +62,10 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
                   <dt className="inline text-muted">Parent: </dt>
                   <dd className="inline font-medium">{reg.parent_name}</dd>
                 </div>
-                {(reg.other_adults as string[]).length > 0 && (
+                {adultNames(reg.other_adults).length > 0 && (
                   <div>
                     <dt className="inline text-muted">Also coming: </dt>
-                    <dd className="inline">{(reg.other_adults as string[]).join(", ")}</dd>
+                    <dd className="inline">{adultNames(reg.other_adults).join(", ")}</dd>
                   </div>
                 )}
                 <div>

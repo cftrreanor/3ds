@@ -7,7 +7,7 @@ import { Badge, Card } from "@/components/ui";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { hasParents } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
-import type { Child } from "@/lib/parents";
+import type { Child, OtherAdult } from "@/lib/parents";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
@@ -35,22 +35,23 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
 
   const { data } = await supabase
     .from("parent_registrations")
-    .select("id, parent_name, email, phone, children, adult_count, other_adults, checked_in_at")
+    .select("id, parent_name, email, phone, children, other_adults, checked_in_at")
     .eq("event_id", eventId)
     .order("parent_name");
   const parents: DoorParent[] = (data ?? []).map((r) => ({
     id: r.id,
-    name: r.parent_name,
     email: r.email,
     phone: r.phone,
     phoneDisplay: r.phone ? formatPhone(r.phone) : null,
     children: (r.children ?? []) as Child[],
-    adults: r.adult_count ?? 1,
-    otherAdults: (r.other_adults ?? []) as string[],
-    checkedIn: Boolean(r.checked_in_at),
+    // The registering parent first, then everyone they named, each checked in on their own.
+    adults: [
+      { index: 0, name: r.parent_name, checkedIn: Boolean(r.checked_in_at) },
+      ...((r.other_adults ?? []) as OtherAdult[]).map((a, i) => ({ index: i + 1, name: a.name, checkedIn: Boolean(a.checked_in_at) })),
+    ],
   }));
   const childCount = parents.reduce((n, p) => n + p.children.length, 0);
-  const adultCount = parents.reduce((n, p) => n + p.adults, 0);
+  const adultCount = parents.reduce((n, p) => n + p.adults.length, 0);
 
   const today = utcToZonedDate(new Date().toISOString(), event.timezone);
   const over = today > event.ends_on;
@@ -139,9 +140,10 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       )}
 
       <p className="mt-6 mb-4 leading-7 text-muted">
-        Find the parent, check their <strong className="text-foreground">government-issued photo ID</strong> matches the
-        name, then tap <strong className="text-foreground">Check in</strong>. Anyone who isn&apos;t on the list goes
-        through the school&apos;s usual visitor process.
+        Find the family, check each adult&apos;s <strong className="text-foreground">government-issued photo ID</strong>{" "}
+        matches their name, then tap <strong className="text-foreground">Check in</strong> beside that person. Adults in a
+        family can arrive at different times. Anyone who isn&apos;t on the list goes through the school&apos;s usual
+        visitor process.
       </p>
       <Door parents={parents} toggle={setParentCheckedIn.bind(null, eventId)} />
     </div>
