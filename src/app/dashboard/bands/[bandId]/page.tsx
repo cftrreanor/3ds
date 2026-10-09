@@ -19,6 +19,8 @@ import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { hasRooms } from "@/lib/event-types";
 import { CollapsibleInfo } from "./collapsible-info";
+import { DayStatusBanner } from "@/components/day-status";
+import { dayStatus, groupSteps } from "@/lib/director-day";
 import { ContestDayCard, type ProgressRow } from "./contest-day-card";
 
 export const metadata: Metadata = { title: "Contest" };
@@ -90,6 +92,15 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
   const contestDay =
     !group && eventPhase(event, new Date()) === "day" && event.performance_order_published && slot && day && (progress ?? []).length > 0;
+  // Group events on the day: arrive, then each room, at a glance.
+  const groupDay =
+    group && eventPhase(event, new Date()) === "day" && event.performance_order_published && (myRooms ?? []).length > 0
+      ? dayStatus(
+          groupSteps({ slots: myRooms ?? [], rooms: roomById, checkins: checkinData ?? [], time: (iso) => formatTime(iso, event.timezone) }),
+          new Date(),
+          (iso) => formatTime(iso, event.timezone),
+        )
+      : null;
   const people = `${band.student_count} ${group ? "participants" : "students"} · ${band.chaperone_count} chaperones`;
 
   return (
@@ -172,7 +183,21 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             readyMinutes={event.ready_minutes_before}
             finalsReadyMinutes={event.finals_ready_minutes_before}
             time={(iso) => formatTime(iso, event.timezone)}
+            phone={phone}
           />
+        </>
+      )}
+
+      {groupDay && (
+        <>
+          <AutoRefresh seconds={30} />
+          <Card className="mt-6 border-brand">
+            <h2 className="font-semibold">Event day</h2>
+            <div className="mt-3">
+              <DayStatusBanner status={groupDay} phone={phone} doneText="You've finished every room. Thank you! 🎉" />
+            </div>
+            <p className="mt-3 text-xs text-muted">Updates as the host&apos;s team checks you in. Your times are below.</p>
+          </Card>
         </>
       )}
 
