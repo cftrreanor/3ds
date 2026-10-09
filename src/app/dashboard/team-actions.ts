@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { sendEmail } from "@/lib/email";
 import { invitationEmail, type InvitationDetails } from "@/lib/invitation-email";
+import { hasBands } from "@/lib/event-types";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 const inviteSchema = z.object({
@@ -84,10 +85,15 @@ async function sendInvitation(invitationId: string): Promise<boolean | string> {
   if (error) return friendlyDbError(error);
   const details = data as InvitationDetails;
   // The secret key is only readable with the server's private key.
-  const { data: key } = await createAdminClient().from("invitations").select("email_token").eq("id", invitationId).single();
+  const { data: key } = await createAdminClient()
+    .from("invitations")
+    .select("email_token, events(event_type)")
+    .eq("id", invitationId)
+    .single();
   if (!key) return false;
   const url = `${await getOrigin()}/invite/${details.token}?k=${key.email_token}`;
-  const { subject, html, text } = invitationEmail(details, url);
+  const eventType = (key.events as unknown as { event_type: string } | null)?.event_type;
+  const { subject, html, text } = invitationEmail(details, url, hasBands(eventType));
   return sendEmail({ to: details.email, subject, html, text });
 }
 

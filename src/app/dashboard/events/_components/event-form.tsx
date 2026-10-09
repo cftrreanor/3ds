@@ -25,6 +25,7 @@ export function EventForm({
   venueSearchEnabled,
   submitLabel,
   hasShifts = false,
+  eventType,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -32,12 +33,15 @@ export function EventForm({
   venueSearchEnabled: boolean;
   submitLabel: string;
   hasShifts?: boolean;
+  /** For a new event: what kind it is (chosen before the form). */
+  eventType?: string;
 }) {
   return (
     <ActionForm action={action} className="space-y-6" resetOnSuccess={false}>
       <input type="hidden" name="organizationId" value={organizationId} />
+      {eventType && <input type="hidden" name="eventType" value={eventType} />}
       <Field label="Event name">
-        <Input name="name" required defaultValue={initial.name} placeholder="e.g. Cedar Ridge Marching Invitational" />
+        <Input name="name" required defaultValue={initial.name} placeholder={eventType === "volunteer" ? "e.g. Fall Festival Concessions" : "e.g. Cedar Ridge Marching Invitational"} />
       </Field>
 
       <fieldset className="grid gap-4 sm:grid-cols-2">

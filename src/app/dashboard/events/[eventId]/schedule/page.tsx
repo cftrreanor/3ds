@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { hasBands } from "@/lib/event-types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Fragment } from "react";
@@ -52,10 +53,11 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
   if (!onTeam) redirect(`/dashboard/events/${eventId}`);
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, timezone, starts_on, ends_on, performance_order_published, finals_published, finalists_revealed")
+    .select("id, slug, name, event_type, timezone, starts_on, ends_on, performance_order_published, finals_published, finalists_revealed")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
+  if (!hasBands(event.event_type)) redirect(`/dashboard/events/${eventId}`);
 
   // Each read only returns what this person may see: drafts stay with the hosts.
   const [

@@ -23,6 +23,7 @@ import { type Shift } from "./station-panel";
 import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
+import { hasBands } from "@/lib/event-types";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 
 export const metadata: Metadata = { title: "Event setup" };
@@ -50,11 +51,12 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, ready_minutes_before, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
     )
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
+  const bandsHere = hasBands(event.event_type);
 
   const access = await getEventAccess(eventId);
   const [
@@ -258,6 +260,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             <Badge tone={event.status === "published" ? "brand" : "neutral"}>
               {event.status === "published" ? "Published" : "Draft: only your team can see this"}
             </Badge>
+            {!bandsHere && <Badge tone="info">Volunteer event</Badge>}
             {access.isHost &&
               (event.status !== "published" ? (
                 <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
@@ -286,7 +289,61 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         </div>
       </div>
 
-      {(access.canManage || myStations.length > 0) && (
+      {!bandsHere && (access.canManage || myStations.length > 0) && (
+        <section className="mt-10" aria-labelledby="day-heading">
+          <h2 id="day-heading" className="text-xl font-semibold">
+            Event day
+          </h2>
+          <Card className="mt-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1 text-sm leading-6">
+                {access.canManage ? (
+                  <p>
+                    {isEventDay ? (
+                      <span className="font-medium">
+                        {checkedIn.done} of {checkedIn.of} volunteers checked in.
+                      </span>
+                    ) : (
+                      <>
+                        <span className="font-medium">Check volunteers in at the desk on {formatDate(event.starts_on, { year: undefined })}.</span>{" "}
+                        <span className="text-muted">Walk-ups can fill open spots, and you can release no-shows.</span>
+                      </>
+                    )}
+                  </p>
+                ) : null}
+                {myStations.length > 0 && (
+                  <p>
+                    <span className="font-medium">You lead {myStations.map((s) => s.name).join(", ")}.</span>{" "}
+                    <span className="text-muted">
+                      {myVolunteers} {myVolunteers === 1 ? "volunteer" : "volunteers"} signed up.
+                    </span>
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {myStations.length > 0 && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/contest-day`}
+                    className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${access.canManage ? "border border-border bg-surface hover:bg-background" : "bg-brand text-brand-foreground hover:bg-brand-hover"}`}
+                  >
+                    My stations
+                  </Link>
+                )}
+                {access.canManage && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/volunteers`}
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+                  >
+                    Open check-in desk
+                  </Link>
+                )}
+              </div>
+            </div>
+          </Card>
+        </section>
+      )}
+
+      {bandsHere && (access.canManage || myStations.length > 0) && (
         <section className="mt-10" aria-labelledby="day-heading">
           <h2 id="day-heading" className="text-xl font-semibold">
             Contest day
@@ -411,12 +468,15 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             <FileLinks files={files} details={uploaded} className="mt-3" />
           ) : (
             <p className="mt-1 text-sm text-muted">
-              Share a stadium map, parking map or director packet with the public, band directors, volunteers or your team.
+              {bandsHere
+                ? "Share a stadium map, parking map or director packet with the public, band directors, volunteers or your team."
+                : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
             </p>
           )}
         </section>
       )}
 
+      {bandsHere && (
       <section className="mt-10" aria-labelledby="bands-heading">
         <h2 id="bands-heading" className="text-xl font-semibold">
           {access.isHost ? "Band registration" : "Bands"}
@@ -441,6 +501,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} />}
         </Card>
       </section>
+      )}
 
       {access.canManage && (
         <section className="mt-10" aria-labelledby="volunteers-heading">
@@ -492,17 +553,18 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           <Card className="mt-4 space-y-3">
             <p className="text-sm leading-6 text-muted">
               See this event the way each person does, without switching emails. Tap a role and this browser signs in as
-              a demo person in that role: a co-host, a Volunteer Lead, a Section Lead (of the first stations), the
-              director of &ldquo;Demo High School&rdquo;, a volunteer with a shift, or a parent looking at the public page.
+              a demo person in that role: a co-host, a Volunteer Lead, a Section Lead (of the first stations),
+              {bandsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift, or a parent
+              looking at the public page.
               A bar at the top switches roles; <strong className="text-foreground">Back to me</strong> emails you a
               sign-in link to get back to your own account.
             </p>
             <p className="text-sm leading-6 text-muted">
               Use a practice event: the demo people really are on this event (in its lists and counts), and as Host
-              you can do anything a host can, including emailing its bands and volunteers. Demo people never get
+              you can do anything a host can, including emailing its {bandsHere ? "bands and volunteers" : "volunteers"}. Demo people never get
               emails.
             </p>
-            <DemoStart eventId={eventId} personas={PERSONAS} active={demo.active} />
+            <DemoStart eventId={eventId} personas={bandsHere ? PERSONAS : PERSONAS.filter((p) => p.value !== "director")} active={demo.active} />
           </Card>
         </section>
       )}

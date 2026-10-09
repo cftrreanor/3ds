@@ -58,7 +58,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
     invite && (invite.as_host || !invite.role)
       ? {
           label: "a co-host",
-          blurb: `You'll have the same access as the host on all of their events, starting with this one: bands, the schedule, volunteers and the team.`,
+          blurb: `You'll have the same access as the host on all of their events, starting with this one.`,
         }
       : invite && ROLE[invite.role!];
 

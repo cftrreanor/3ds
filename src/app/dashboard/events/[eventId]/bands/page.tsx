@@ -15,6 +15,7 @@ import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
 import { InvitePastBands, type PastDirector } from "./invite-past-bands";
+import { hasBands } from "@/lib/event-types";
 import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
@@ -45,10 +46,11 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed")
+    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
+  if (!hasBands(event.event_type)) redirect(`/dashboard/events/${eventId}`);
 
   const user = await requireUser();
   const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: contact }, { data: contactPhone }, { data: profile }] = await Promise.all([

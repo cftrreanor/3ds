@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isEventType } from "@/lib/event-types";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
@@ -136,11 +137,13 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
   const parsed = eventSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
+  const eventType = formData.get("eventType");
 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
     .insert({
+      event_type: isEventType(eventType) ? eventType : "band_contest",
       organization_id: v.organizationId,
       name: v.name,
       slug: slugify(v.name),
@@ -586,4 +589,17 @@ export async function deleteShift(eventId: string, shiftId: string): Promise<Act
   if (error) return { error: friendlyDbError(error) };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
+}
+
+/** Switch an event between a band contest and a volunteer event (the database checks no bands have registered). */
+export async function setEventType(eventId: string, type: string): Promise<ActionState> {
+  await requireUser();
+  if (!isEventType(type)) return { error: "Pick a kind of event." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("events").update({ event_type: type }).eq("id", eventId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's host can change this." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  revalidatePath("/dashboard");
+  return { ok: true, message: `Done: this is now a ${type === "volunteer" ? "volunteer event" : "band contest"}.` };
 }

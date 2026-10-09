@@ -28,6 +28,7 @@ import {
 } from "@/lib/contest-day";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess } from "@/lib/data";
+import { dayLabel, hasBands } from "@/lib/event-types";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatTime } from "@/lib/time";
@@ -83,7 +84,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const [{ data: event }, { data: pathData }, { data: myLeads }] = await Promise.all([
     supabase
       .from("events")
-      .select("id, name, timezone, starts_on, ends_on, equipment_spots, ready_minutes_before, finals_ready_minutes_before, performance_order_published")
+      .select("id, name, event_type, timezone, starts_on, ends_on, equipment_spots, ready_minutes_before, finals_ready_minutes_before, performance_order_published")
       .eq("id", eventId)
       .maybeSingle(),
     supabase
@@ -101,11 +102,16 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const leads = (id: string) => (myLeads ?? []).some((l) => l.station_id === id);
   // Hosts and Volunteer Leads work every check-in station; Section Leads the
   // ones they lead, plus their other stations (like Concessions) for their volunteers.
-  const mine = access.canManage ? path : path.filter((c) => leads(c.id));
-  const myOther = access.canManage ? [] : allStations.filter((s) => !s.checkpoint_kind && leads(s.id));
-  if (mine.length === 0 && myOther.length === 0) redirect(`/dashboard/events/${eventId}`);
+  // A volunteer event has no band path: just the stations someone leads
+  // (hosts and Volunteer Leads run the day from the check-in desk).
+  const bandsHere = hasBands(event.event_type);
+  const mine = !bandsHere ? [] : access.canManage ? path : path.filter((c) => leads(c.id));
+  const myOther = bandsHere && access.canManage ? [] : allStations.filter((s) => !s.checkpoint_kind && leads(s.id));
+  if (mine.length === 0 && myOther.length === 0) {
+    redirect(!bandsHere && access.canManage ? `/dashboard/events/${eventId}/volunteers` : `/dashboard/events/${eventId}`);
+  }
   // Hosts and Volunteer Leads start on the Overview: is every band on track?
-  const overview = access.canManage && (!stationParam || stationParam === "overview");
+  const overview = bandsHere && access.canManage && (!stationParam || stationParam === "overview");
   const other = myOther.find((s) => s.id === stationParam) ?? (mine.length === 0 ? myOther[0] : undefined);
   const station: Checkpoint | undefined = other ? undefined : (mine.find((c) => c.id === stationParam) ?? mine[0]);
   const base = `/dashboard/events/${eventId}/contest-day`;
@@ -119,13 +125,13 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Contest day</h1>
+      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{dayLabel(event.event_type)}</h1>
       <p className="mt-1 text-sm text-muted">Updates every 20 seconds. Tap a button once; it saves right away.</p>
 
-      {(mine.length + myOther.length > 1 || access.canManage) && (
+      {(mine.length + myOther.length > 1 || (bandsHere && access.canManage)) && (
         <nav aria-label="Stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <ul className="flex min-w-max gap-1 border-b border-border">
-            {access.canManage && (
+            {bandsHere && access.canManage && (
               <li>
                 <Link href={`${base}?station=overview`} scroll={false} aria-current={overview ? "page" : undefined} className={tabClass(overview)}>
                   <span className="whitespace-nowrap">Overview</span>

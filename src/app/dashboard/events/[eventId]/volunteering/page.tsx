@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { eachDate, formatTimeRange } from "@/lib/time";
 import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, StationForm, type LeadOption } from "../forms";
+import { hasBands } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
@@ -32,7 +33,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, organization_id, slug, name, status, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end")
+    .select("id, organization_id, slug, name, status, event_type, volunteer_signup_open, timezone, starts_on, ends_on, window_start, window_end")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -181,6 +182,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           Each station is a place or job volunteers are assigned to, like Parking or Concessions, with its own shift schedule.
         </p>
 
+        {hasBands(event.event_type) && (
         <Card className="mt-4 p-4">
           <h3 className="text-sm font-semibold">Band check-in order</h3>
           {checkpoints.length > 0 ? (
@@ -226,6 +228,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             </p>
           )}
         </Card>
+        )}
 
         <nav aria-label="Stations" className="-mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <ul className="flex min-w-max gap-1 border-b border-border">
@@ -290,7 +293,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   ? "Start with your first station, like Parking, Concessions or a Warm-Up area. You'll set up its shifts next."
                   : "It gets its own tab and shift schedule."}
               </p>
-              <StationForm action={createStation.bind(null, eventId)} />
+              <StationForm action={createStation.bind(null, eventId)} bands={hasBands(event.event_type)} />
             </Card>
           )}
         </div>

@@ -28,18 +28,22 @@ export function StationForm({
   initial,
   leads,
   submitLabel = "Add station",
+  bands = true,
 }: {
   action: Action;
   initial?: StationValues;
   leads?: LeadOption[];
   submitLabel?: string;
+  /** A band contest: stations can be stops on the bands' check-in path. */
+  bands?: boolean;
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
   return (
     <ActionForm action={action} className="grid gap-4 sm:grid-cols-2" resetOnSuccess={!initial}>
-      <Field label="Station name" hint="e.g. Spectator Parking, Concessions, Warm-Up Area A">
+      <Field label="Station name" hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}>
         <Input name="name" required defaultValue={initial?.name} />
       </Field>
+      {bands && (
       <Field
         label="Check-in station?"
         hint="Check-in stations are the stops a band goes through on contest day, in the order you set. Their Section Leads tap bands in."
@@ -53,7 +57,8 @@ export function StationForm({
           ))}
         </Select>
       </Field>
-      {(kind === "parking" || kind === "stop") && (
+      )}
+      {bands && (kind === "parking" || kind === "stop") && (
         <Field
           label="Due how many minutes before the band's warm-up?"
           hint={

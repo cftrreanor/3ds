@@ -29,7 +29,7 @@ type Row = {
   } | null;
 };
 
-/** The volunteer desk on contest day: a tab per station, check-in, walk-ups and no-shows. */
+/** The volunteer desk on the day of the event: a tab per station, check-in, walk-ups and no-shows. */
 export default async function VolunteersPage({ params }: PageProps<"/dashboard/events/[eventId]/volunteers">) {
   const { eventId } = await params;
   const access = await getEventAccess(eventId);
