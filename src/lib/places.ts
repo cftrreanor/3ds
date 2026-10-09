@@ -24,13 +24,50 @@ function headers(fieldMask?: string): HeadersInit {
   };
 }
 
-export async function autocomplete(input: string, sessionToken: string): Promise<PlaceSuggestion[]> {
-  const res = await fetch(`${BASE}/places:autocomplete`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ input, sessionToken, includedRegionCodes: ["us"], languageCode: "en" }),
-    cache: "no-store",
-  });
+/**
+ * Roughly where each US time zone is, so suggestions favor the host's own part
+ * of the country (otherwise Google favors wherever our server runs). A bias,
+ * not a limit: a place elsewhere still shows up when it's the best match.
+ */
+const ZONE_AREAS: Record<string, { low: [number, number]; high: [number, number] }> = {
+  "America/New_York": { low: [24.5, -88.0], high: [47.5, -66.9] },
+  "America/Chicago": { low: [25.8, -104.1], high: [49.4, -84.8] },
+  "America/Denver": { low: [31.3, -117.2], high: [49.0, -100.5] },
+  "America/Phoenix": { low: [31.3, -114.9], high: [37.0, -109.0] },
+  "America/Los_Angeles": { low: [32.5, -124.8], high: [49.0, -114.0] },
+  "America/Anchorage": { low: [51.2, -179.9], high: [71.4, -129.9] },
+  "Pacific/Honolulu": { low: [18.9, -160.3], high: [22.3, -154.8] },
+};
+
+export async function autocomplete(input: string, sessionToken: string, timezone?: string): Promise<PlaceSuggestion[]> {
+  const area = timezone ? ZONE_AREAS[timezone] : undefined;
+  const request = (biased: boolean) =>
+    fetch(`${BASE}/places:autocomplete`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        input,
+        sessionToken,
+        includedRegionCodes: ["us"],
+        languageCode: "en",
+        ...(biased &&
+          area && {
+            locationBias: {
+              rectangle: {
+                low: { latitude: area.low[0], longitude: area.low[1] },
+                high: { latitude: area.high[0], longitude: area.high[1] },
+              },
+            },
+          }),
+      }),
+      cache: "no-store",
+    });
+  let res = await request(true);
+  // Never lose search over the area hint: if Google rejects it, ask again without.
+  if (!res.ok && area && res.status === 400) {
+    console.error("Places autocomplete rejected the area hint", await res.text());
+    res = await request(false);
+  }
   if (!res.ok) throw new Error(`Places autocomplete failed: ${res.status} ${await res.text()}`);
   const json = (await res.json()) as {
     suggestions?: {
