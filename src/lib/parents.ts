@@ -2,7 +2,7 @@ import "server-only";
 import { brand } from "@/lib/brand";
 import { emailLayout, type CalendarInvite } from "@/lib/email";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
-import { formatDateRange, formatTimeRange } from "@/lib/time";
+import { formatDate, formatDateRange, formatTime, formatTimeRange, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 
 // School visitor events: parents register their children ahead and are
 // checked in at the door with a government-issued photo ID. Registrations
@@ -10,8 +10,36 @@ import { formatDateRange, formatTimeRange } from "@/lib/time";
 
 export type Child = { name: string; teacher: string; grade: string };
 
+/** An adult coming with the registering parent, checked in on their own at the door. */
+export type OtherAdult = { name: string; checked_in_at: string | null };
+
+/** The other adults' names, from the stored list. */
+export const adultNames = (raw: unknown): string[] =>
+  Array.isArray(raw) ? raw.map((a) => (typeof a === "string" ? a : String((a as OtherAdult)?.name ?? ""))).filter(Boolean) : [];
+
 export const ID_REMINDER =
   "Bring a valid government-issued photo ID (driver's license, state ID or passport). You won't be let in without it.";
+
+type OpenFields = {
+  status: string;
+  timezone: string;
+  ends_on: string;
+  parent_registration_open: boolean;
+  parent_registration_closes_at: string | null;
+};
+
+/** Why parent registration isn't taking sign-ups, or null when it's open. */
+export function parentRegistrationClosed(e: OpenFields, now = new Date()): "draft" | "over" | "closed" | "deadline" | null {
+  if (e.status !== "published") return "draft";
+  if (utcToZonedDate(now.toISOString(), e.timezone) > e.ends_on) return "over";
+  if (!e.parent_registration_open) return "closed";
+  if (e.parent_registration_closes_at && now >= new Date(e.parent_registration_closes_at)) return "deadline";
+  return null;
+}
+
+/** "Thu, Oct 22 at 5:00 PM CDT" */
+export const closesAtLabel = (iso: string, tz: string) =>
+  `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} at ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}`;
 
 /** A link to view or cancel a registration. */
 export const parentLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/parents/r/${token}`;
@@ -28,10 +56,8 @@ type ParentEvent = {
   venue_name: string | null;
   venue_address: string;
 };
-type Registration = { id: string; parent_name: string; email: string; children: Child[]; adult_count: number; calendar_sequence: number };
+type Registration = { id: string; parent_name: string; email: string; children: Child[]; other_adults: string[]; calendar_sequence: number };
 
-/** "1 adult", "3 adults". */
-export const adultsLabel = (n: number) => `${n} ${n === 1 ? "adult" : "adults"}`;
 
 /** The visit as a calendar event, with the photo ID reminder in it. */
 function toIcsEvent(r: Registration, event: ParentEvent, link: string): IcsEvent {
@@ -45,7 +71,7 @@ function toIcsEvent(r: Registration, event: ParentEvent, link: string): IcsEvent
     location: [event.venue_name, event.venue_address].filter(Boolean).join(", "),
     description: [
       `Registered: ${r.children.map(childLine).join("; ")}`,
-      `Adults coming: ${r.adult_count}`,
+      `Adults: ${[r.parent_name, ...r.other_adults].join(", ")} (each needs a photo ID)`,
       ID_REMINDER,
       `View or cancel: ${link}`,
     ].join("\n"),
@@ -100,10 +126,9 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled", r: R
       ],
       rows: [
         ...r.children.map((c, i) => ({ title: r.children.length > 1 ? `Child ${i + 1}` : "Your child", detail: childLine(c) })),
-        {
-          title: "Adults coming",
-          detail: r.adult_count > 1 ? `${adultsLabel(r.adult_count)}. Each of you needs a photo ID.` : "Just you",
-        },
+        ...(r.other_adults.length
+          ? [{ title: "Also coming", detail: `${r.other_adults.join(", ")}. Each adult needs their own photo ID.` }]
+          : []),
       ],
       button: { label: "View or cancel my registration", url: link },
       footer,

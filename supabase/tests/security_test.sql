@@ -2126,13 +2126,22 @@ begin
   assert (select adult_count from public.parent_registrations where email = 'rita@example.com') = 1,
          'one adult when not given';
   perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
-          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', 3);
-  assert (select adult_count from public.parent_registrations where email = 'rita@example.com') = 3,
-         'registering again updates how many adults are coming';
+          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '[" Marco Lopez ", "Rosa Diaz"]');
+  assert (select adult_count = 3
+                 and other_adults = '[{"name": "Marco Lopez", "checked_in_at": null, "checked_in_by": null},
+                                      {"name": "Rosa Diaz", "checked_in_at": null, "checked_in_by": null}]'::jsonb
+            from public.parent_registrations where email = 'rita@example.com'),
+         'other adults are named, and counted with the parent';
   begin
     perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Big Group', 'big@example.com', null,
-              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', 7);
-    raise exception 'FAIL: registered 7 adults';
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', '["A One","B Two","C Three","D Four","E Five","F Six"]');
+    raise exception 'FAIL: registered 6 other adults';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Blank Adult', 'blank@example.com', null,
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', '[" "]');
+    raise exception 'FAIL: registered an adult with no name';
   exception when sqlstate 'P0001' then null;
   end;
   begin
@@ -2164,6 +2173,8 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":
 do $$ begin
   assert public.can_check_in_parents('10000000-0000-0000-0000-0000000000c1'), 'a Section Lead can work the door';
   assert (select count(*) from public.parent_registrations) = 1, 'the team sees registrations';
+  assert (select adult_count = 3 and jsonb_array_length(other_adults) = 2 from public.parent_registrations),
+         'the team sees the other adults coming';
   begin
     perform access_token from public.parent_registrations;
     raise exception 'FAIL: a browser read a parent''s private link';
@@ -2171,6 +2182,22 @@ do $$ begin
   end;
   perform public.set_parent_checked_in((select id from public.parent_registrations), true);
   assert (select checked_in_at is not null and checked_in_by = auth.uid() from public.parent_registrations), 'checked in, and by whom';
+  -- Each adult is checked in on their own.
+  assert (select other_adults -> 0 ->> 'checked_in_at' is null from public.parent_registrations),
+         'checking in the parent leaves the other adults waiting';
+  perform public.set_parent_checked_in((select id from public.parent_registrations), true, 2);
+  assert (select other_adults -> 1 ->> 'checked_in_at' is not null
+             and other_adults -> 1 ->> 'checked_in_by' = auth.uid()::text
+             and other_adults -> 0 ->> 'checked_in_at' is null from public.parent_registrations),
+         'a grandparent checks in separately';
+  perform public.set_parent_checked_in((select id from public.parent_registrations), false, 2);
+  assert (select other_adults -> 1 ->> 'checked_in_at' is null from public.parent_registrations), 'one adult''s check-in can be undone';
+  perform public.set_parent_checked_in((select id from public.parent_registrations), true, 1);
+  begin
+    perform public.set_parent_checked_in((select id from public.parent_registrations), true, 3);
+    raise exception 'FAIL: checked in an adult who isn''t on the registration';
+  exception when sqlstate 'P0001' then null;
+  end;
   begin
     update public.parent_registrations set parent_name = 'Changed';
     raise exception 'FAIL: a browser edited a registration';
@@ -2186,6 +2213,29 @@ do $$ begin
   end;
 end $$;
 reset role;
+-- Editing a registration keeps anyone already checked in as checked in.
+do $$ begin
+  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
+          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '["marco lopez", "New Uncle"]');
+  assert (select other_adults -> 0 ->> 'checked_in_at' is not null and other_adults -> 1 ->> 'checked_in_at' is null
+            from public.parent_registrations where email = 'rita@example.com'),
+         're-registering keeps check-ins of adults still on the list';
+end $$;
+-- Registration closes on its own at the time the host picked.
+do $$ begin
+  update public.events set parent_registration_closes_at = now() - interval '1 minute' where id = '10000000-0000-0000-0000-0000000000c1';
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Too Late', 'late@example.com', null,
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]');
+    raise exception 'FAIL: registered after registration closed';
+  exception when sqlstate 'P0001' then null;
+  end;
+  update public.events set parent_registration_closes_at = now() + interval '1 day' where id = '10000000-0000-0000-0000-0000000000c1';
+  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'On Time', 'ontime@example.com', null,
+            '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]');
+  delete from public.parent_registrations where email = 'ontime@example.com';
+  update public.events set parent_registration_closes_at = null where id = '10000000-0000-0000-0000-0000000000c1';
+end $$;
 do $$ begin
   assert (select checked_in_at is not null from public.parent_registrations where email = 'rita@example.com'),
          'a stranger couldn''t undo a check-in';

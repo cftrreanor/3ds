@@ -4,10 +4,10 @@ import { HeaderBar } from "@/components/logo";
 import { Card } from "@/components/ui";
 import { hasParents } from "@/lib/event-types";
 import { GRADES } from "@/lib/grades";
-import { ID_REMINDER } from "@/lib/parents";
+import { closesAtLabel, ID_REMINDER, parentRegistrationClosed } from "@/lib/parents";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateRange, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { formatDateRange, formatTimeRange } from "@/lib/time";
 import { registerParents } from "./actions";
 import { ParentsForm } from "./parents-form";
 
@@ -17,7 +17,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, public_notes, parent_registration_open")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, public_notes, parent_registration_open, parent_registration_closes_at")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -36,8 +36,7 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
   if (!event) missing();
   if (!hasParents(event.event_type)) redirect(`/e/${slug}`);
 
-  const over = utcToZonedDate(new Date().toISOString(), event.timezone) > event.ends_on;
-  const open = event.status === "published" && event.parent_registration_open && !over;
+  const closed = parentRegistrationClosed(event);
 
   return (
     <>
@@ -60,24 +59,25 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
         )}
 
         <div className="mt-8">
-          {open ? (
+          {!closed ? (
             <>
               <p className="mb-6 leading-7 text-muted">
                 Please register everyone you&apos;re coming for before the event. At the door, a staff member checks your
                 name and your photo ID.
               </p>
+              {event.parent_registration_closes_at && (
+                <p className="mb-6 font-medium">
+                  Registration closes {closesAtLabel(event.parent_registration_closes_at, event.timezone)}.
+                </p>
+              )}
               <ParentsForm action={registerParents.bind(null, event.id, slug)} grades={GRADES} idReminder={ID_REMINDER} />
             </>
           ) : (
             <Card>
               <p className="font-medium">
-                {event.status !== "published"
-                  ? "Preview: this page isn't public yet."
-                  : over
-                    ? "This event is over."
-                    : "Registration is closed."}
+                {closed === "draft" ? "Preview: this page isn't public yet." : closed === "over" ? "This event is over." : "Registration is closed."}
               </p>
-              {event.status === "published" && !over && (
+              {(closed === "closed" || closed === "deadline") && (
                 <p className="mt-1 text-sm text-muted">Please contact the school if you still need to attend.</p>
               )}
             </Card>

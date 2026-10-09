@@ -7,12 +7,13 @@ import { Badge, Card } from "@/components/ui";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { hasParents } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
-import type { Child } from "@/lib/parents";
+import { closesAtLabel, parentRegistrationClosed, type Child, type OtherAdult } from "@/lib/parents";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, utcToZonedDate } from "@/lib/time";
+import { formatDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
-import { setParentCheckedIn, setParentRegistrationOpen } from "./actions";
+import { setParentCheckedIn, setParentRegistrationClosesAt, setParentRegistrationOpen } from "./actions";
+import { ClosesAtForm } from "./closes-at-form";
 import { Door, type DoorParent } from "./door";
 
 export const metadata: Metadata = { title: "Parent check-in" };
@@ -24,7 +25,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
   const [{ data: event }, { data: allowed }, access] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, parent_registration_open")
+      .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, parent_registration_open, parent_registration_closes_at")
       .eq("id", eventId)
       .maybeSingle(),
     supabase.rpc("can_check_in_parents", { ev: eventId }),
@@ -35,27 +36,30 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
 
   const { data } = await supabase
     .from("parent_registrations")
-    .select("id, parent_name, email, phone, children, adult_count, checked_in_at")
+    .select("id, parent_name, email, phone, children, other_adults, checked_in_at")
     .eq("event_id", eventId)
     .order("parent_name");
   const parents: DoorParent[] = (data ?? []).map((r) => ({
     id: r.id,
-    name: r.parent_name,
     email: r.email,
     phone: r.phone,
     phoneDisplay: r.phone ? formatPhone(r.phone) : null,
     children: (r.children ?? []) as Child[],
-    adults: r.adult_count ?? 1,
-    checkedIn: Boolean(r.checked_in_at),
+    // The registering parent first, then everyone they named, each checked in on their own.
+    adults: [
+      { index: 0, name: r.parent_name, checkedIn: Boolean(r.checked_in_at) },
+      ...((r.other_adults ?? []) as OtherAdult[]).map((a, i) => ({ index: i + 1, name: a.name, checkedIn: Boolean(a.checked_in_at) })),
+    ],
   }));
   const childCount = parents.reduce((n, p) => n + p.children.length, 0);
-  const adultCount = parents.reduce((n, p) => n + p.adults, 0);
+  const adultCount = parents.reduce((n, p) => n + p.adults.length, 0);
 
   const today = utcToZonedDate(new Date().toISOString(), event.timezone);
   const over = today > event.ends_on;
   const isEventDay = today >= event.starts_on && !over;
   const link = `${await getOrigin()}/e/${event.slug}/parents`;
-  const open = event.status === "published" && event.parent_registration_open && !over;
+  const closed = parentRegistrationClosed(event);
+  const closesAt = event.parent_registration_closes_at;
   const [qrSvg, qrPng] = access.isHost
     ? await Promise.all([
         QRCode.toString(link, { type: "svg", margin: 1, width: 160 }),
@@ -76,14 +80,16 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={open ? "brand" : "neutral"}>
-                  {event.status !== "published"
+                <Badge tone={!closed ? "brand" : "neutral"}>
+                  {closed === "draft"
                     ? "Event not published"
-                    : over
+                    : closed === "over"
                       ? "Event over"
-                      : event.parent_registration_open
-                        ? "Registration open"
-                        : "Registration closed"}
+                      : closed === "deadline"
+                        ? "Closed automatically"
+                        : closed === "closed"
+                          ? "Registration closed"
+                          : "Registration open"}
                 </Badge>
                 <span className="text-sm text-muted">
                   {parents.length} {parents.length === 1 ? "family" : "families"} · {adultCount} {adultCount === 1 ? "adult" : "adults"} · {childCount}{" "}
@@ -104,18 +110,41 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                   </a>
                 </div>
               </div>
-              {event.status !== "published" ? (
+              {event.status !== "published" && (
                 <p className="text-sm text-muted">Publish the event from its main page and parents can register.</p>
-              ) : (
-                !over && (
-                  <ActionButton
-                    action={setParentRegistrationOpen.bind(null, eventId, !event.parent_registration_open)}
-                    variant={event.parent_registration_open ? "stop" : "go"}
-                    confirmMessage={event.parent_registration_open ? "Close parent registration? Parents won't be able to register." : undefined}
-                  >
-                    {event.parent_registration_open ? "Close registration" : "Open registration"}
-                  </ActionButton>
-                )
+              )}
+              {closed === "deadline" && closesAt && (
+                <p className="text-sm">
+                  Registration closed on its own on {closesAtLabel(closesAt, event.timezone)}. To reopen it, change or remove
+                  the closing time.
+                </p>
+              )}
+              {event.status === "published" && (closed === null || closed === "closed") && (
+                <ActionButton
+                  action={setParentRegistrationOpen.bind(null, eventId, !event.parent_registration_open)}
+                  variant={event.parent_registration_open ? "stop" : "go"}
+                  confirmMessage={event.parent_registration_open ? "Close parent registration? Parents won't be able to register." : undefined}
+                >
+                  {event.parent_registration_open ? "Close registration now" : "Open registration"}
+                </ActionButton>
+              )}
+              {closed !== "over" && (
+                <div className="border-t border-border pt-4">
+                  <p className="text-sm font-medium">
+                    {closesAt
+                      ? `${closed === "deadline" ? "Closed" : "Closes"} automatically ${closesAtLabel(closesAt, event.timezone)}`
+                      : "Close automatically (optional)"}
+                  </p>
+                  <div className="mt-2">
+                    <ClosesAtForm
+                      action={setParentRegistrationClosesAt.bind(null, eventId, event.timezone)}
+                      date={closesAt ? utcToZonedDate(closesAt, event.timezone) : ""}
+                      time={closesAt ? utcToZonedTime(closesAt, event.timezone) : ""}
+                      zone={`All times are ${zoneName(event.timezone)}`}
+                      isSet={Boolean(closesAt)}
+                    />
+                  </div>
+                </div>
               )}
               <p className="text-sm text-muted">
                 Parents get a reminder to bring their photo ID the day before. Children&apos;s details are deleted 30 days after
@@ -138,9 +167,10 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       )}
 
       <p className="mt-6 mb-4 leading-7 text-muted">
-        Find the parent, check their <strong className="text-foreground">government-issued photo ID</strong> matches the
-        name, then tap <strong className="text-foreground">Check in</strong>. Anyone who isn&apos;t on the list goes
-        through the school&apos;s usual visitor process.
+        Find the family, check each adult&apos;s <strong className="text-foreground">government-issued photo ID</strong>{" "}
+        matches their name, then tap <strong className="text-foreground">Check in</strong> beside that person. Adults in a
+        family can arrive at different times. Anyone who isn&apos;t on the list goes through the school&apos;s usual
+        visitor process.
       </p>
       <Door parents={parents} toggle={setParentCheckedIn.bind(null, eventId)} />
     </div>

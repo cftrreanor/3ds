@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
-import { parentEmail, parentLink, type Child } from "@/lib/parents";
+import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
 import { utcToZonedDate } from "@/lib/time";
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   for (const event of tomorrow) {
     const { data: regs } = await admin
       .from("parent_registrations")
-      .select("id, parent_name, email, children, adult_count, access_token, calendar_sequence")
+      .select("id, parent_name, email, children, other_adults, access_token, calendar_sequence")
       .eq("event_id", event.id)
       .is("reminded_at", null);
     for (const r of regs ?? []) {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       }
       const { subject, html, text } = parentEmail(
         "reminder",
-        { ...r, children: r.children as Child[] },
+        { ...r, children: r.children as Child[], other_adults: adultNames(r.other_adults) },
         event,
         parentLink(origin, event.slug, r.access_token),
       );

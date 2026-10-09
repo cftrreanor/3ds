@@ -24,6 +24,7 @@ import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
 import { eventTypeLabel, hasBands, hasParents } from "@/lib/event-types";
+import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 
@@ -52,7 +53,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -221,7 +222,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   // School visitor events: parents registered and checked in at the door.
   const parentsHere = hasParents(event.event_type);
   const parentRows = parentsHere
-    ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, children").eq("event_id", eventId)).data ?? [])
+    ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, other_adults, children").eq("event_id", eventId)).data ?? [])
     : [];
   const parentNumbers = parentStats(parentRows);
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
@@ -307,14 +308,14 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               <div className="space-y-1 text-sm leading-6">
                 <p className="font-medium">
                   {isEventDay
-                    ? `${parentNumbers.familiesArrived} of ${parentNumbers.families} families checked in.`
+                    ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
                     : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
                 </p>
                 <p className="text-muted">
                   {event.status !== "published"
                     ? "Parents can register once the event is published."
-                    : event.parent_registration_open
-                      ? "Registration is open. Parents are reminded to bring a photo ID."
+                    : !parentRegistrationClosed(event)
+                      ? `Registration is open${event.parent_registration_closes_at ? ` until ${closesAtLabel(event.parent_registration_closes_at, event.timezone)}` : ""}. Parents are reminded to bring a photo ID.`
                       : "Registration is closed."}
                 </p>
                 <p className="text-muted">🔒 Children&apos;s details are seen only by your team and deleted 30 days after the event.</p>
@@ -680,9 +681,9 @@ type BandTotals = {
 function ParentNumbers({ stats, eventDay }: { stats: ParentStats; eventDay: boolean }) {
   const tiles: [string, string | number][] = eventDay
     ? [
-        ["Families checked in", `${stats.familiesArrived} / ${stats.families}`],
-        ["Adults arrived", `${stats.adultsArrived} / ${stats.adults}`],
-        ["Families still to arrive", stats.families - stats.familiesArrived],
+        ["Adults checked in", `${stats.adultsArrived} / ${stats.adults}`],
+        ["Adults still to arrive", stats.adults - stats.adultsArrived],
+        ["Families here", `${stats.familiesArrived} / ${stats.families}`],
         ["Children", stats.children],
       ]
     : [

@@ -4,7 +4,7 @@ import { ActionForm } from "@/components/action-form";
 import { HeaderBar } from "@/components/logo";
 import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
-import { ID_REMINDER, type Child } from "@/lib/parents";
+import { adultNames, ID_REMINDER, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDateRange, formatTimeRange } from "@/lib/time";
 import { cancelParents } from "../../actions";
@@ -19,7 +19,7 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
   const { data: reg } = valid
     ? await admin
         .from("parent_registrations")
-        .select("event_id, parent_name, email, children, adult_count, checked_in_at")
+        .select("event_id, parent_name, email, children, other_adults, checked_in_at")
         .eq("access_token", token)
         .maybeSingle()
     : { data: null };
@@ -62,10 +62,12 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
                   <dt className="inline text-muted">Parent: </dt>
                   <dd className="inline font-medium">{reg.parent_name}</dd>
                 </div>
-                <div>
-                  <dt className="inline text-muted">Adults coming: </dt>
-                  <dd className="inline">{reg.adult_count}</dd>
-                </div>
+                {adultNames(reg.other_adults).length > 0 && (
+                  <div>
+                    <dt className="inline text-muted">Also coming: </dt>
+                    <dd className="inline">{adultNames(reg.other_adults).join(", ")}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="inline text-muted">Email: </dt>
                   <dd className="inline">{reg.email}</dd>
