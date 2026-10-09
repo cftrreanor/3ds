@@ -1,7 +1,7 @@
 import "server-only";
 import { brand } from "@/lib/brand";
 import { emailLayout, type CalendarInvite } from "@/lib/email";
-import { buildIcs, googleCalendarUrl, type IcsEvent } from "@/lib/ics";
+import { buildIcs, type IcsEvent } from "@/lib/ics";
 import { formatDateRange, formatTimeRange } from "@/lib/time";
 
 // School visitor events: parents register their children ahead and are
@@ -57,7 +57,7 @@ const invite = (method: "REQUEST" | "CANCEL", r: Registration, event: ParentEven
 });
 
 const CALENDAR_TIP =
-  "This email is a calendar invite: tap \u201cAdd to calendar\u201d (or \u201cYes\u201d in Gmail) and your calendar will remind you to bring your photo ID.";
+  "A calendar invite is attached, so you can add the visit to your calendar with a reminder to bring your photo ID.";
 
 /**
  * The confirmation (a calendar invite; registering again updates it), the
@@ -85,7 +85,6 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled", r: R
     };
   }
 
-  const ics = toIcsEvent(r, event, link);
   return {
     subject: kind === "confirmation" ? `You're registered: ${event.name}` : `Tomorrow: ${event.name}. Bring your photo ID`,
     ...emailLayout({
@@ -95,12 +94,7 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled", r: R
         ID_REMINDER,
         ...(kind === "confirmation" ? [CALENDAR_TIP] : []),
       ],
-      rows: [
-        ...r.children.map((c, i) => ({ title: r.children.length > 1 ? `Child ${i + 1}` : "Your child", detail: childLine(c) })),
-        ...(kind === "confirmation"
-          ? [{ title: "Calendar", detail: "No \u201cAdd to calendar\u201d button?", links: [{ label: "Add to Google Calendar", url: googleCalendarUrl(ics) }] }]
-          : []),
-      ],
+      rows: r.children.map((c, i) => ({ title: r.children.length > 1 ? `Child ${i + 1}` : "Your child", detail: childLine(c) })),
       button: { label: "View or cancel my registration", url: link },
       footer,
     }),
