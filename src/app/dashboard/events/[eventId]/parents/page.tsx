@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import QRCode from "qrcode";
 import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import { Badge, Card } from "@/components/ui";
@@ -53,6 +54,12 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
   const isEventDay = today >= event.starts_on && !over;
   const link = `${await getOrigin()}/e/${event.slug}/parents`;
   const open = event.status === "published" && event.parent_registration_open && !over;
+  const [qrSvg, qrPng] = access.isHost
+    ? await Promise.all([
+        QRCode.toString(link, { type: "svg", margin: 1, width: 160 }),
+        QRCode.toDataURL(link, { margin: 2, width: 1024 }),
+      ])
+    : ["", ""];
 
   return (
     <div>
@@ -63,52 +70,67 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Parent check-in</h1>
 
       {access.isHost && (
-        <Card className="mt-6 space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={open ? "brand" : "neutral"}>
-              {event.status !== "published"
-                ? "Event not published"
-                : over
-                  ? "Event over"
-                  : event.parent_registration_open
-                    ? "Registration open"
-                    : "Registration closed"}
-            </Badge>
-            <span className="text-sm text-muted">
-              {parents.length} {parents.length === 1 ? "parent" : "parents"} · {childCount} {childCount === 1 ? "child" : "children"}
-            </span>
-          </div>
-          <div>
-            <p className="text-sm font-medium">Registration link</p>
-            <p className="mt-1 break-all text-sm text-muted">{link}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <CopyLinkButton url={link} label="Copy link" />
-              <a
-                href={`/e/${event.slug}/parents`}
-                target="_blank"
-                className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
-              >
-                Preview page
+        <Card className="mt-6">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1 space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={open ? "brand" : "neutral"}>
+                  {event.status !== "published"
+                    ? "Event not published"
+                    : over
+                      ? "Event over"
+                      : event.parent_registration_open
+                        ? "Registration open"
+                        : "Registration closed"}
+                </Badge>
+                <span className="text-sm text-muted">
+                  {parents.length} {parents.length === 1 ? "parent" : "parents"} · {childCount} {childCount === 1 ? "child" : "children"}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Registration link</p>
+                <p className="mt-1 break-all text-sm text-muted">{link}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <CopyLinkButton url={link} label="Copy link" />
+                  <a
+                    href={`/e/${event.slug}/parents`}
+                    target="_blank"
+                    className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                  >
+                    Preview page
+                  </a>
+                </div>
+              </div>
+              {event.status !== "published" ? (
+                <p className="text-sm text-muted">Publish the event from its main page and parents can register.</p>
+              ) : (
+                !over && (
+                  <ActionButton
+                    action={setParentRegistrationOpen.bind(null, eventId, !event.parent_registration_open)}
+                    variant={event.parent_registration_open ? "stop" : "go"}
+                    confirmMessage={event.parent_registration_open ? "Close parent registration? Parents won't be able to register." : undefined}
+                  >
+                    {event.parent_registration_open ? "Close registration" : "Open registration"}
+                  </ActionButton>
+                )
+              )}
+              <p className="text-sm text-muted">
+                Parents get a reminder to bring their photo ID the day before. Children&apos;s details are deleted 30 days after
+                the event{over ? `, on ${formatDate(addDays(event.ends_on, 31), { year: undefined })}` : ""}.
+              </p>
+            </div>
+            <div className="flex flex-col items-center gap-2 self-center sm:self-start">
+              <div
+                className="rounded-lg border border-border bg-white p-2"
+                aria-label="QR code for the registration link"
+                role="img"
+                dangerouslySetInnerHTML={{ __html: qrSvg }}
+              />
+              <a href={qrPng} download={`${event.slug}-parent-registration-qr.png`} className="text-xs font-medium text-brand underline-offset-4 hover:underline">
+                Download QR code
               </a>
             </div>
           </div>
-          {event.status !== "published" ? (
-            <p className="text-sm text-muted">Publish the event from its main page and parents can register.</p>
-          ) : (
-            !over && (
-              <ActionButton
-                action={setParentRegistrationOpen.bind(null, eventId, !event.parent_registration_open)}
-                variant={event.parent_registration_open ? "stop" : "go"}
-                confirmMessage={event.parent_registration_open ? "Close parent registration? Parents won't be able to register." : undefined}
-              >
-                {event.parent_registration_open ? "Close registration" : "Open registration"}
-              </ActionButton>
-            )
-          )}
-          <p className="text-sm text-muted">
-            Parents get a reminder to bring their photo ID the day before. Children&apos;s details are deleted 30 days after
-            the event{over ? `, on ${formatDate(addDays(event.ends_on, 31), { year: undefined })}` : ""}.
-          </p>
         </Card>
       )}
 
