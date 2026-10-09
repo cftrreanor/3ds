@@ -108,8 +108,9 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261028000000_admin_dashboard.sql` | Admin dashboard: set each organization's plan and the last day of its free pilot; admin activity log | ✅ run |
 | `20261029000000_event_types.sql` | Event types: a band contest, or a volunteer-only event (no bands) | ✅ run |
 | `20261030000000_school_visits.sql` | School visitor events: parents register (child, teacher, grade), are reminded to bring a photo ID, and are checked in at the door; children's details deleted 30 days after the event | ✅ run |
-| `20261031000000_parent_adults.sql` | Parent registration: how many adults are coming on each registration | run this first, if you haven't |
-| `20261101000000_parent_other_adults.sql` | Parent registration: name the other adults coming for the same children (spouse, grandparent); each adult is checked in on their own at the door; hosts can set a date and time when registration closes on its own | run this next |
+| `20261031000000_parent_adults.sql` | Parent registration: how many adults are coming on each registration | ✅ run |
+| `20261101000000_parent_other_adults.sql` | Parent registration: name the other adults coming for the same children (spouse, grandparent); each adult is checked in on their own at the door; hosts can set a date and time when registration closes on its own | ✅ run |
+| `20261102000000_parent_walk_ins.sql` | Parent registration: say whether parents who didn't register can still come with a photo ID | run this next |
 
 ## Pilot requests
 

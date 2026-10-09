@@ -57,3 +57,14 @@ export async function setParentRegistrationClosesAt(
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: closesAt ? "Saved. Registration will close on its own then." : "Removed. Registration stays open until you close it." };
 }
+
+/** Hosts say whether parents who didn't register can still come (with a photo ID). */
+export async function setParentWalkInsAllowed(eventId: string, allowed: boolean): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("events").update({ parent_walk_ins_allowed: allowed }).eq("id", eventId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's host can change this." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true };
+}

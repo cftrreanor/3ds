@@ -12,7 +12,7 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
-import { setParentCheckedIn, setParentRegistrationClosesAt, setParentRegistrationOpen } from "./actions";
+import { setParentCheckedIn, setParentRegistrationClosesAt, setParentRegistrationOpen, setParentWalkInsAllowed } from "./actions";
 import { ClosesAtForm } from "./closes-at-form";
 import { Door, type DoorParent } from "./door";
 
@@ -25,7 +25,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
   const [{ data: event }, { data: allowed }, access] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, parent_registration_open, parent_registration_closes_at")
+      .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, parent_registration_open, parent_registration_closes_at, parent_walk_ins_allowed")
       .eq("id", eventId)
       .maybeSingle(),
     supabase.rpc("can_check_in_parents", { ev: eventId }),
@@ -146,6 +146,33 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                   </div>
                 </div>
               )}
+              {closed !== "over" && (
+                <div className="border-t border-border pt-4">
+                  <p className="text-sm font-medium">Can parents who didn&apos;t register still attend?</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {event.parent_walk_ins_allowed
+                      ? "Yes. Once registration closes, the registration page tells parents they can still come with a valid government-issued photo ID during the event."
+                      : "No. Once registration closes, the registration page tells parents to contact the school."}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Walk-in parents">
+                    {[true, false].map((allowed) =>
+                      allowed === event.parent_walk_ins_allowed ? (
+                        <span
+                          key={String(allowed)}
+                          className="inline-flex min-h-11 items-center rounded-md border-2 border-brand bg-brand-soft px-4 text-sm font-semibold"
+                          aria-current="true"
+                        >
+                          ✓ {allowed ? "Yes, walk-ins can attend" : "No, registered parents only"}
+                        </span>
+                      ) : (
+                        <ActionButton key={String(allowed)} action={setParentWalkInsAllowed.bind(null, eventId, allowed)} variant="secondary">
+                          {allowed ? "Yes, walk-ins can attend" : "No, registered parents only"}
+                        </ActionButton>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
               <p className="text-sm text-muted">
                 Parents get a reminder to bring their photo ID the day before. Children&apos;s details are deleted 30 days after
                 the event{over ? `, on ${formatDate(addDays(event.ends_on, 31), { year: undefined })}` : ""}.
@@ -169,8 +196,10 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       <p className="mt-6 mb-4 leading-7 text-muted">
         Find the family, check each adult&apos;s <strong className="text-foreground">government-issued photo ID</strong>{" "}
         matches their name, then tap <strong className="text-foreground">Check in</strong> beside that person. Adults in a
-        family can arrive at different times. Anyone who isn&apos;t on the list goes through the school&apos;s usual
-        visitor process.
+        family can arrive at different times.{" "}
+        {event.parent_walk_ins_allowed
+          ? "Walk-ins are allowed at this event: anyone who isn't on the list goes through the school's usual visitor process with their photo ID."
+          : "Anyone who isn't on the list goes through the school's usual visitor process."}
       </p>
       <Door parents={parents} toggle={setParentCheckedIn.bind(null, eventId)} />
     </div>
