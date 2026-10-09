@@ -11,6 +11,7 @@ import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { OnboardingForm } from "./onboarding-form";
+import { NewEventButton } from "@/components/event-type-picker";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -95,7 +96,7 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-lg">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Welcome! Let&apos;s set up your organization</h1>
         <p className="mt-2 leading-7 text-muted">
-          This is the group that hosts your contest. You can invite other organizers later.
+          This is the group that hosts your events. You can invite other organizers later.
         </p>
         <Card className="mt-8">
           <OnboardingForm />
@@ -122,22 +123,15 @@ export default async function DashboardPage() {
         <Section
           icon="🏟️"
           title="Hosting"
-          description={`Contests ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`}
-          action={
-            <Link
-              href="/dashboard/events/new"
-              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-            >
-              New event
-            </Link>
-          }
+          description={`Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`}
+          action={<NewEventButton />}
           notice={org && <PlanNotice org={org} />}
           items={hosted.map((e) => ({ key: e.id, past: isPast(e), node: <HostedCard event={e} /> }))}
           empty={
             <Card className="text-center">
               <h3 className="font-semibold">No events yet</h3>
               <p className="mx-auto mt-2 max-w-md leading-7 text-muted">
-                Create your first contest. It stays a private draft until you publish it, so you can set everything
+                Create your first event. It stays a private draft until you publish it, so you can set everything
                 up at your own pace.
               </p>
             </Card>
@@ -158,14 +152,14 @@ export default async function DashboardPage() {
         <Section
           icon="🙋"
           title="Helping run"
-          description="Contests where you're on the host's team."
+          description="Events where you're on the host's team."
           items={helping.map((r) => ({ key: `${r.events.id}-${r.role}`, past: isPast(r.events), node: <HelpingCard row={r} /> }))}
         />
       )}
 
       {!org && (
         <p className="text-sm text-muted">
-          Hosting your own contest?{" "}
+          Hosting your own event?{" "}
           <Link href="/dashboard/setup" className="font-medium text-brand underline-offset-4 hover:underline">
             Set up your organization
           </Link>

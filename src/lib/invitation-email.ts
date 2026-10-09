@@ -20,7 +20,8 @@ export type InvitationDetails = {
 };
 
 /** A different email for co-hosts, Volunteer Leads and Section Leads, with a one-tap accept link. */
-export function invitationEmail(inv: InvitationDetails, acceptUrl: string) {
+/** `bands`: the event is a band contest (a volunteer event has no bands). */
+export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true) {
   const who = inv.inviter_name ? `${inv.inviter_name} from ${inv.organization}` : inv.organization;
   const when = `${formatDateRange(inv.starts_on, inv.ends_on)}${inv.venue_name ? ` at ${inv.venue_name}` : ""}`;
   const station = inv.station_name ?? "a station";
@@ -28,10 +29,12 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string) {
   const { subject, heading, paragraphs } = inv.as_host
     ? {
         subject: `You're invited to co-host ${inv.organization} on ${brand.name}`,
-        heading: `Co-host ${inv.organization}'s contests`,
+        heading: `Co-host ${inv.organization}'s events`,
         paragraphs: [
-          `${who} invited you to co-host their contests on ${brand.name}, starting with ${inv.event_name} (${when}).`,
-          "Co-hosts have the same access as the host on every event: bands, the schedule, volunteers, the team and contest day.",
+          `${who} invited you to co-host their events on ${brand.name}, starting with ${inv.event_name} (${when}).`,
+          bands
+            ? "Co-hosts have the same access as the host on every event: bands, the schedule, volunteers, the team and contest day."
+            : "Co-hosts have the same access as the host on every event: stations, shifts, volunteers, the team and the event day.",
         ],
       }
     : inv.role === "volunteer_director"
@@ -40,7 +43,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string) {
           heading: "You're invited to be a Volunteer Lead",
           paragraphs: [
             `${who} invited you to help run volunteers for ${inv.event_name} (${when}).`,
-            "As a Volunteer Lead you'll set up stations and shifts, see who's signed up, check people in, and help run contest day.",
+            `As a Volunteer Lead you'll set up stations and shifts, see who's signed up, check people in, and help run ${bands ? "contest day" : "the event day"}.`,
           ],
         }
       : {
@@ -48,7 +51,9 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string) {
           heading: "You're invited to be a Section Lead",
           paragraphs: [
             `${who} asked you to lead ${station} at ${inv.event_name} (${when}).`,
-            "You'll see who's on your station's shifts and check bands in on contest day. Volunteers' phone numbers unlock on the day.",
+            bands
+              ? "You'll see who's on your station's shifts and check bands in on contest day. Volunteers' phone numbers unlock on the day."
+              : "You'll see who's on your station's shifts, and their phone numbers unlock on the day of the event.",
           ],
         };
 

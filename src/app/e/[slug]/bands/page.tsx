@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { hasBands } from "@/lib/event-types";
 import { registerAgain, registerBand } from "@/app/dashboard/band-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
@@ -17,7 +19,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, starts_on, ends_on, venue_name, venue_address, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
+    .select("id, name, status, event_type, starts_on, ends_on, venue_name, venue_address, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -32,6 +34,8 @@ export default async function BandRegistrationPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
   if (!event) missing();
+  // A volunteer event doesn't take band registrations.
+  if (!hasBands(event.event_type)) redirect(`/e/${slug}`);
   const user = await getUser();
   const supabase = await createClient();
 

@@ -1,5 +1,6 @@
 import { Badge, Card } from "@/components/ui";
 import { kindLabel, type CheckpointKind } from "@/lib/contest-day";
+import { hasBands } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
@@ -65,7 +66,7 @@ export function StationPanel({
   eventId: string;
   station: Station;
   stationShifts: Shift[];
-  event: { timezone: string; starts_on: string; ends_on: string };
+  event: { timezone: string; starts_on: string; ends_on: string; event_type?: string };
   days: string[];
   windowLabel: string;
   userId: string;
@@ -116,6 +117,7 @@ export function StationPanel({
                 initial={station}
                 leads={leadOptions}
                 submitLabel="Save station"
+                bands={hasBands(event.event_type)}
               />
             </div>
           </details>

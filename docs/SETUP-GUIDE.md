@@ -105,7 +105,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261025000000_event_file_uploader.sql` | Maps & documents: who uploaded each file, and when | ✅ run |
 | `20261026000000_demo_mode.sql` | Demo mode: FieldCommand admins can view an event as each role | ✅ run |
 | `20261027000000_band_invitations.sql` | Band registration: invite directors from your past events; they register in one tap with their saved band | ✅ run |
-| `20261028000000_admin_dashboard.sql` | Admin dashboard: set each organization's plan and the last day of its free pilot; admin activity log | run this next |
+| `20261028000000_admin_dashboard.sql` | Admin dashboard: set each organization's plan and the last day of its free pilot; admin activity log | run this first, if you haven't |
+| `20261029000000_event_types.sql` | Event types: a band contest, or a volunteer-only event (no bands) | run this next |
 
 ## Pilot requests
 

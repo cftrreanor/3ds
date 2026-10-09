@@ -11,6 +11,7 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { readPass } from "@/lib/volunteer-pass";
+import { hasBands } from "@/lib/event-types";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { AutoRefresh } from "./auto-refresh";
 
@@ -47,7 +48,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -128,7 +129,10 @@ export default async function EventPublicPage({ params }: Params) {
   const breaks = (breakData ?? []) as BreakRow[];
   const files = event.status === "published" ? await filesFor([event.id], ["public"], () => event.timezone) : [];
   const published = event.performance_order_published || event.finals_published;
-  const bandsOpen = registrationIsOpen(event);
+  const bandsHere = hasBands(event.event_type);
+  const bandsOpen = bandsHere && registrationIsOpen(event);
+  // A volunteer event's page is mostly about signing up.
+  const signUp = !bandsHere && event.volunteer_signup_open && !isVolunteer;
   const tz = event.timezone;
   const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
   const { current, next, live } = liveNowAndNext([...schedule, ...finals]);
@@ -144,7 +148,7 @@ export default async function EventPublicPage({ params }: Params) {
   return (
     <>
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
-    {event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
+    {bandsHere && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {isEventDay && published && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
@@ -179,8 +183,16 @@ export default async function EventPublicPage({ params }: Params) {
         </Card>
       ))}
 
-      {(isVolunteer || bandsOpen) && event.status === "published" && (
+      {(isVolunteer || bandsOpen || signUp) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {signUp && (
+            <Link href={`/e/${slug}/volunteer`} className="block">
+              <Card className="h-full border-brand transition hover:bg-brand-soft">
+                <p className="font-semibold text-brand">Sign up to volunteer</p>
+                <p className="mt-1 text-sm text-muted">Pick a shift that works for you. It takes about a minute.</p>
+              </Card>
+            </Link>
+          )}
           {isVolunteer && (
             <Link href="/my" className="block">
               <Card className="h-full transition hover:border-brand">
@@ -211,6 +223,7 @@ export default async function EventPublicPage({ params }: Params) {
         </section>
       )}
 
+      {bandsHere && (
       <section className="mt-10">
         <h2 className="text-xl font-semibold">Performance schedule</h2>
         {schedule.length === 0 && finals.length === 0 ? (
@@ -255,6 +268,7 @@ export default async function EventPublicPage({ params }: Params) {
           </>
         )}
       </section>
+      )}
     </main>
     </>
   );

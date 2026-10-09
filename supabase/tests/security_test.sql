@@ -2041,4 +2041,63 @@ reset role;
 delete from public.platform_admins;
 update public.organizations set subscription_status = 'comped', free_until = null;
 
+-- ---------------------------------------------------------------------------
+-- Event types: volunteer events have no bands
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare
+  org uuid := (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a');
+  vol uuid;
+  plain uuid;
+begin
+  assert (select event_type from public.events where id = '10000000-0000-0000-0000-00000000000a') = 'band_contest',
+         'existing events are band contests';
+
+  insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+  values (org, 'Fall Fundraiser', 'fall-fundraiser', 'volunteer', current_date + 20, current_date + 20,
+          now() + interval '20 days', now() + interval '20 days 6 hours', '1 Main St')
+  returning id into vol;
+  insert into public.stations (event_id, name) values (vol, 'Concessions');
+  begin
+    insert into public.stations (event_id, name, checkpoint_kind, checkpoint_order) values (vol, 'Bus parking', 'parking', 1);
+    raise exception 'FAIL: a band check-in station on a volunteer event';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                              contact_email, head_director_name, head_director_email, head_director_phone,
+                              student_count, chaperone_count)
+    values (vol, auth.uid(), 'Central HS', 'Mighty Marching', '5A', 'addr', 'band@example.com', 'Bo Band',
+            'band@example.com', '+15125550105', 10, 1);
+    raise exception 'FAIL: a band on a volunteer event';
+  exception when sqlstate 'P0001' then null;
+  end;
+  update public.events set band_registration_open = true where id = vol;
+  assert not public.band_registration_is_open(vol), 'band registration never opens on a volunteer event';
+
+  -- A band contest with bands can't become a volunteer event.
+  begin
+    update public.events set event_type = 'volunteer' where id = '10000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: switched a contest with bands to a volunteer event';
+  exception when sqlstate 'P0001' then null;
+  end;
+
+  -- One without bands can; its check-in stations become plain stations.
+  insert into public.events (organization_id, name, slug, starts_on, ends_on, window_start, window_end, venue_address)
+  values (org, 'Maybe Contest', 'maybe-contest', current_date + 30, current_date + 30,
+          now() + interval '30 days', now() + interval '30 days 6 hours', '1 Main St')
+  returning id into plain;
+  insert into public.stations (event_id, name, checkpoint_kind, checkpoint_order) values (plain, 'Gate', 'gate', 1);
+  update public.events set event_type = 'volunteer', band_registration_open = true where id = plain;
+  assert (select event_type from public.events where id = plain) = 'volunteer', 'switched to a volunteer event';
+  assert (select checkpoint_kind is null from public.stations where event_id = plain), 'its check-in station became a plain station';
+  assert not (select band_registration_open from public.events where id = plain), 'and band registration closed';
+  update public.events set event_type = 'band_contest' where id = plain;
+  assert (select event_type from public.events where id = plain) = 'band_contest', 'and back to a band contest';
+  delete from public.events where id in (vol, plain);
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

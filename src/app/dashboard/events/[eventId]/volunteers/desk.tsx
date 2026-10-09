@@ -240,7 +240,7 @@ function Overview({ stations, openTab, ...rowProps }: { stations: DeskStation[];
 
       {!eventDay ? (
         <p className="rounded-lg bg-brand-soft px-3 py-2 text-sm">
-          On contest day, this shows who&apos;s not here yet for shifts that have started, and where walk-ups are needed.
+          On the day of the event, this shows who&apos;s not here yet for shifts that have started, and where walk-ups are needed.
         </p>
       ) : (
         <>
