@@ -5,7 +5,11 @@
 --
 -- other_adults: [{ "name": "Marco Lopez", "checked_in_at": null, "checked_in_by": null }, …]
 -- The registering parent's own check-in stays in checked_in_at / checked_in_by.
+--
+-- Also: hosts can pick a date and time when parent registration closes on its own.
 -- =============================================================================
+
+alter table public.events add column parent_registration_closes_at timestamptz;
 
 alter table public.parent_registrations
   add column other_adults jsonb not null default '[]'
@@ -25,7 +29,8 @@ declare
 begin
   select * into ev from events where id = p_event;
   if not found or ev.event_type::text <> 'school_visit' or ev.status <> 'published' or not ev.parent_registration_open
-     or (now() at time zone ev.timezone)::date > ev.ends_on then
+     or (now() at time zone ev.timezone)::date > ev.ends_on
+     or now() >= coalesce(ev.parent_registration_closes_at, 'infinity') then
     raise exception 'Registration for this event is closed.' using errcode = 'P0001';
   end if;
   if jsonb_typeof(p_children) <> 'array' or jsonb_array_length(p_children) not between 1 and 8 then

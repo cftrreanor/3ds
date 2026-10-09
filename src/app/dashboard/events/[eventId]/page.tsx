@@ -24,6 +24,7 @@ import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
 import { eventTypeLabel, hasBands, hasParents } from "@/lib/event-types";
+import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 
@@ -52,7 +53,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -313,8 +314,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                 <p className="text-muted">
                   {event.status !== "published"
                     ? "Parents can register once the event is published."
-                    : event.parent_registration_open
-                      ? "Registration is open. Parents are reminded to bring a photo ID."
+                    : !parentRegistrationClosed(event)
+                      ? `Registration is open${event.parent_registration_closes_at ? ` until ${closesAtLabel(event.parent_registration_closes_at, event.timezone)}` : ""}. Parents are reminded to bring a photo ID.`
                       : "Registration is closed."}
                 </p>
                 <p className="text-muted">🔒 Children&apos;s details are seen only by your team and deleted 30 days after the event.</p>

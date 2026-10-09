@@ -2221,6 +2221,21 @@ do $$ begin
             from public.parent_registrations where email = 'rita@example.com'),
          're-registering keeps check-ins of adults still on the list';
 end $$;
+-- Registration closes on its own at the time the host picked.
+do $$ begin
+  update public.events set parent_registration_closes_at = now() - interval '1 minute' where id = '10000000-0000-0000-0000-0000000000c1';
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Too Late', 'late@example.com', null,
+              '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]');
+    raise exception 'FAIL: registered after registration closed';
+  exception when sqlstate 'P0001' then null;
+  end;
+  update public.events set parent_registration_closes_at = now() + interval '1 day' where id = '10000000-0000-0000-0000-0000000000c1';
+  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'On Time', 'ontime@example.com', null,
+            '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]');
+  delete from public.parent_registrations where email = 'ontime@example.com';
+  update public.events set parent_registration_closes_at = null where id = '10000000-0000-0000-0000-0000000000c1';
+end $$;
 do $$ begin
   assert (select checked_in_at is not null from public.parent_registrations where email = 'rita@example.com'),
          'a stranger couldn''t undo a check-in';

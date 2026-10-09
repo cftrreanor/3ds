@@ -2,7 +2,7 @@ import "server-only";
 import { brand } from "@/lib/brand";
 import { emailLayout, type CalendarInvite } from "@/lib/email";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
-import { formatDateRange, formatTimeRange } from "@/lib/time";
+import { formatDate, formatDateRange, formatTime, formatTimeRange, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 
 // School visitor events: parents register their children ahead and are
 // checked in at the door with a government-issued photo ID. Registrations
@@ -19,6 +19,27 @@ export const adultNames = (raw: unknown): string[] =>
 
 export const ID_REMINDER =
   "Bring a valid government-issued photo ID (driver's license, state ID or passport). You won't be let in without it.";
+
+type OpenFields = {
+  status: string;
+  timezone: string;
+  ends_on: string;
+  parent_registration_open: boolean;
+  parent_registration_closes_at: string | null;
+};
+
+/** Why parent registration isn't taking sign-ups, or null when it's open. */
+export function parentRegistrationClosed(e: OpenFields, now = new Date()): "draft" | "over" | "closed" | "deadline" | null {
+  if (e.status !== "published") return "draft";
+  if (utcToZonedDate(now.toISOString(), e.timezone) > e.ends_on) return "over";
+  if (!e.parent_registration_open) return "closed";
+  if (e.parent_registration_closes_at && now >= new Date(e.parent_registration_closes_at)) return "deadline";
+  return null;
+}
+
+/** "Thu, Oct 22 at 5:00 PM CDT" */
+export const closesAtLabel = (iso: string, tz: string) =>
+  `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} at ${formatTime(iso, tz)} ${zoneAbbreviation(iso, tz)}`;
 
 /** A link to view or cancel a registration. */
 export const parentLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/parents/r/${token}`;
