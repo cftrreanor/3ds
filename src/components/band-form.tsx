@@ -78,8 +78,8 @@ export function BandForm({
             <Field label={group ? "Group contact email" : "Band contact email"} hint="Where the host should send updates.">
               <Input name="contactEmail" type="email" required defaultValue={initial.contact_email} />
             </Field>
-            <Field label="School address" className="sm:col-span-2">
-              <Input name="schoolAddress" required defaultValue={initial.school_address} autoComplete="street-address" />
+            <Field label="School address (optional)" hint="If the host needs it, for example to mail a receipt." className="sm:col-span-2">
+              <Input name="schoolAddress" defaultValue={initial.school_address} autoComplete="street-address" />
             </Field>
           </div>
         </Card>
