@@ -19,6 +19,8 @@ import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { hasRooms } from "@/lib/event-types";
 import { CollapsibleInfo } from "./collapsible-info";
+import { DayStatusBanner } from "@/components/day-status";
+import { dayStatus, groupSteps } from "@/lib/director-day";
 import { ContestDayCard, type ProgressRow } from "./contest-day-card";
 
 export const metadata: Metadata = { title: "Contest" };
@@ -59,13 +61,17 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const open = registrationIsOpen(event);
   // Group events: the group's time in each room (readable once posted).
   const group = hasRooms(event.event_type);
-  const [{ data: myRooms }, { data: roomData }] = group
+  const [{ data: myRooms }, { data: roomData }, { data: checkinData }] = group
     ? await Promise.all([
         supabase.from("room_slots").select("room_id, starts_at, ends_at").eq("band_id", bandId).order("starts_at"),
         supabase.from("rooms").select("id, name, note").eq("event_id", band.event_id),
+        // On the day: the team's taps for this group ("Arrived", "Done" per room).
+        supabase.from("group_checkins").select("room_id, created_at").eq("band_id", bandId),
       ])
-    : [{ data: [] }, { data: [] }];
+    : [{ data: [] }, { data: [] }, { data: [] }];
   const roomById = new Map((roomData ?? []).map((r) => [r.id, r]));
+  const tapped = (roomId: string | null) => (checkinData ?? []).find((c) => c.room_id === roomId);
+  const arrived = tapped(null);
   const files = await filesFor([band.event_id], ["public", "directors"], () => event.timezone);
   const origin = await getOrigin();
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
@@ -86,6 +92,15 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
   const contestDay =
     !group && eventPhase(event, new Date()) === "day" && event.performance_order_published && slot && day && (progress ?? []).length > 0;
+  // Group events on the day: arrive, then each room, at a glance.
+  const groupDay =
+    group && eventPhase(event, new Date()) === "day" && event.performance_order_published && (myRooms ?? []).length > 0
+      ? dayStatus(
+          groupSteps({ slots: myRooms ?? [], rooms: roomById, checkins: checkinData ?? [], time: (iso) => formatTime(iso, event.timezone) }),
+          new Date(),
+          (iso) => formatTime(iso, event.timezone),
+        )
+      : null;
   const people = `${band.student_count} ${group ? "participants" : "students"} · ${band.chaperone_count} chaperones`;
 
   return (
@@ -168,7 +183,21 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             readyMinutes={event.ready_minutes_before}
             finalsReadyMinutes={event.finals_ready_minutes_before}
             time={(iso) => formatTime(iso, event.timezone)}
+            phone={phone}
           />
+        </>
+      )}
+
+      {groupDay && (
+        <>
+          <AutoRefresh seconds={30} />
+          <Card className="mt-6 border-brand">
+            <h2 className="font-semibold">Event day</h2>
+            <div className="mt-3">
+              <DayStatusBanner status={groupDay} phone={phone} doneText="You've finished every room. Thank you! 🎉" />
+            </div>
+            <p className="mt-3 text-xs text-muted">Updates as the host&apos;s team checks you in. Your times are below.</p>
+          </Card>
         </>
       )}
 
@@ -184,14 +213,21 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         (event.performance_order_published && (myRooms ?? []).length > 0 ? (
           <Card className="mt-6 border-brand">
             <h2 className="font-semibold">Your schedule</h2>
+            {arrived && (
+              <p className="mt-1 text-sm font-medium text-success">
+                ✓ Checked in at {formatTime(arrived.created_at, event.timezone)}
+              </p>
+            )}
             <ol className="mt-3 divide-y divide-border">
               {(myRooms ?? []).map((s) => {
                 const room = roomById.get(s.room_id);
+                const done = tapped(s.room_id);
                 return (
                   <li key={s.room_id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
-                    <span>
+                    <span className={done ? "text-muted" : undefined}>
                       <span className="font-semibold">{room?.name ?? "Room"}</span>
                       {room?.note && <span className="text-sm text-muted"> · {room.note}</span>}
+                      {done && <span className="text-sm font-medium text-success"> · ✓ Done</span>}
                     </span>
                     <span className="tabular-nums">
                       {event.starts_on !== event.ends_on && `${formatDate(utcToZonedDate(s.starts_at, event.timezone), { year: undefined })}, `}

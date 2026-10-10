@@ -24,6 +24,7 @@ import { DemoStart } from "@/components/demo-switcher";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
 import { eventTypeLabel, groupWords, hasBands, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
+import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
@@ -215,6 +216,16 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   ];
   const today = utcToZonedDate(new Date().toISOString(), tz);
   const isEventDay = today >= event.starts_on && today <= event.ends_on;
+  // Group events: who's arrived and who's running over (the Event day page has the details).
+  const groupStatus = roomsHere
+    ? await Promise.all([
+        supabase.from("room_slots").select("room_id, band_id, starts_at, ends_at").eq("event_id", eventId),
+        supabase.from("group_checkins").select("band_id, room_id, created_at, actor_name").eq("event_id", eventId),
+      ]).then(([{ data: gs }, { data: gc }]) =>
+        (gs ?? []).length ? groupDaySummary(groupDay((gs ?? []) as GroupSlot[], (gc ?? []) as GroupCheckin[], now, isEventDay)) : null,
+      )
+    : null;
+  const groupName = (id: string) => dayBands.find((b) => b.id === id)?.band_name ?? "A group";
   const [{ count: volunteerCount }, { data: checkins }] = access.canManage
     ? await Promise.all([
         supabase.from("volunteers").select("id", { count: "exact", head: true }).eq("event_id", eventId),
@@ -564,6 +575,38 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
         </Card>
       </section>
+      )}
+
+      {roomsHere && groupStatus && (
+        <section className="mt-10" aria-labelledby="group-day-heading">
+          <h2 id="group-day-heading" className="text-xl font-semibold">
+            Event day
+          </h2>
+          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            {isEventDay && <AutoRefresh seconds={30} />}
+            <div className="space-y-1 text-sm leading-6">
+              <p>
+                <span className="font-medium">
+                  {groupStatus.here} of {groupStatus.total} groups here
+                </span>
+                {groupStatus.finished > 0 && <span className="text-muted"> · {groupStatus.finished} finished every room</span>}
+              </p>
+              {groupStatus.late.length > 0 && (
+                <p className="text-danger">Not here yet: {groupStatus.late.map((d) => groupName(d.bandId)).join(", ")}</p>
+              )}
+              {groupStatus.behind.length > 0 && (
+                <p className="text-danger">Running over: {[...new Set(groupStatus.behind.map((b) => groupName(b.bandId)))].join(", ")}</p>
+              )}
+              {!isEventDay && <p className="text-muted">Check groups in and track each room on {formatDate(event.starts_on, { year: undefined })}.</p>}
+            </div>
+            <Link
+              href={`/dashboard/events/${eventId}/event-day`}
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+            >
+              Open event day
+            </Link>
+          </Card>
+        </section>
       )}
 
       {access.canManage && (

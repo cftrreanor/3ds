@@ -10,6 +10,11 @@ import { freeStatus } from "@/lib/admin";
 import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
+import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { DayStatusPill } from "@/components/day-status";
+import { eventPhase, type BandDay } from "@/lib/contest-day";
+import { bandSteps, dayStatus, groupSteps, type DayStatus, type ProgressRow } from "@/lib/director-day";
+import { hasRooms } from "@/lib/event-types";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
 
@@ -31,7 +36,15 @@ type MyBand = {
   band_name: string;
   school_name: string;
   events:
-    | (EventSummary & { band_registration_open: boolean; band_registration_deadline: string | null; performance_order_published: boolean; finalists_revealed: boolean })
+    | (EventSummary & {
+        event_type: string | null;
+        band_registration_open: boolean;
+        band_registration_deadline: string | null;
+        performance_order_published: boolean;
+        finalists_revealed: boolean;
+        ready_minutes_before: number;
+        finals_ready_minutes_before: number;
+      })
     | null;
   // Only readable once the host publishes, so these double as "times are posted".
   performance_slots: { perform_at: string | null } | { perform_at: string | null }[] | null;
@@ -59,7 +72,7 @@ export default async function DashboardPage() {
       .from("bands")
       .select(
         `id, band_name, school_name,
-         events(${EVENT_COLUMNS}, band_registration_open, band_registration_deadline, performance_order_published, finalists_revealed),
+         events(${EVENT_COLUMNS}, event_type, band_registration_open, band_registration_deadline, performance_order_published, finalists_revealed, ready_minutes_before, finals_ready_minutes_before),
          performance_slots(perform_at), finals_slots(perform_at)`,
       )
       .eq("director_user_id", user.id),
@@ -67,6 +80,17 @@ export default async function DashboardPage() {
   const myBands = ((bandRows ?? []) as unknown as MyBand[])
     .filter((b): b is MyBand & { events: NonNullable<MyBand["events"]> } => b.events != null)
     .sort((a, b) => a.events.starts_on.localeCompare(b.events.starts_on) || a.band_name.localeCompare(b.band_name));
+  // On the day: each band's status at a glance (on track, coming up, running late).
+  const now = new Date();
+  const live = new Map(
+    (
+      await Promise.all(
+        myBands
+          .filter((b) => b.events.performance_order_published && eventPhase(b.events, now) === "day")
+          .map(async (b) => [b.id, await liveStatus(b, now)] as const),
+      )
+    ).filter((x): x is readonly [string, DayStatus] => x[1] != null),
+  );
   const helping = ((staffRows ?? []) as unknown as StaffEvent[])
     .filter((r): r is StaffEvent & { events: EventSummary } => r.events != null)
     .sort((a, b) => a.events.starts_on.localeCompare(b.events.starts_on));
@@ -139,12 +163,13 @@ export default async function DashboardPage() {
         />
       )}
 
+      {live.size > 0 && <AutoRefresh seconds={30} />}
       {myBands.length > 0 && (
         <Section
           icon="🎺"
           title="Competing"
           description="Your bands' registrations at contests."
-          items={myBands.map((b) => ({ key: b.id, past: isPast(b.events), node: <BandCard band={b} /> }))}
+          items={myBands.map((b) => ({ key: b.id, past: isPast(b.events), node: <BandCard band={b} live={live.get(b.id)} /> }))}
         />
       )}
 
@@ -265,7 +290,46 @@ function bandStatus(b: MyBand & { events: NonNullable<MyBand["events"]> }): { te
   return { text: registrationIsOpen(e) ? "Registered · times not posted yet" : "Registration closed · times not posted yet", tone: "neutral" };
 }
 
-function BandCard({ band: b }: { band: MyBand & { events: NonNullable<MyBand["events"]> } }) {
+/** A band's (or group's) steps today, from the host team's taps. Null when there's nothing to track. */
+async function liveStatus(b: MyBand & { events: NonNullable<MyBand["events"]> }, now: Date): Promise<DayStatus | null> {
+  const supabase = await createClient();
+  const e = b.events;
+  const time = (iso: string) => formatTime(iso, e.timezone);
+  if (hasRooms(e.event_type)) {
+    const [{ data: slots }, { data: rooms }, { data: checkins }] = await Promise.all([
+      supabase.from("room_slots").select("room_id, starts_at, ends_at").eq("band_id", b.id),
+      supabase.from("rooms").select("id, name, note").eq("event_id", e.id),
+      supabase.from("group_checkins").select("room_id, created_at").eq("band_id", b.id),
+    ]);
+    const steps = groupSteps({ slots: slots ?? [], rooms: new Map((rooms ?? []).map((r) => [r.id, r])), checkins: checkins ?? [], time });
+    return steps.length ? dayStatus(steps, now, time) : null;
+  }
+  const [{ data: day }, { data: prelims }, { data: finals }, { data: rows }] = await Promise.all([
+    supabase
+      .from("bands")
+      .select("id, bus_count, box_truck_count, truck_trailer_count, semi_truck_count, buses_at, equipment_at, equipment_spot, away_at, left_at, scratched_at")
+      .eq("id", b.id)
+      .maybeSingle(),
+    supabase.from("performance_slots").select("warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", b.id).maybeSingle(),
+    e.finalists_revealed
+      ? supabase.from("finals_slots").select("warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("band_id", b.id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.rpc("my_band_progress", { p_band_id: b.id }),
+  ]);
+  if (!day || day.scratched_at || !prelims || !(rows ?? []).length) return null;
+  const { steps } = bandSteps({
+    band: day as BandDay,
+    rows: rows as ProgressRow[],
+    prelims,
+    finals,
+    readyMinutes: e.ready_minutes_before,
+    finalsReadyMinutes: e.finals_ready_minutes_before,
+    time,
+  });
+  return dayStatus(steps, now, time);
+}
+
+function BandCard({ band: b, live }: { band: MyBand & { events: NonNullable<MyBand["events"]> }; live?: DayStatus }) {
   const status = bandStatus(b);
   return (
     <CardLink href={`/dashboard/bands/${b.id}`}>
@@ -276,7 +340,11 @@ function BandCard({ band: b }: { band: MyBand & { events: NonNullable<MyBand["ev
         <span className="font-medium">{b.band_name}</span> <span className="text-muted">· {b.school_name}</span>
       </p>
       <div className="mt-3">
-        <Badge tone={status.tone}>{status.text}</Badge>
+        {live ? (
+          <DayStatusPill status={live} doneText={hasRooms(b.events.event_type) ? "Finished every room 🎉" : "Performed 🎉"} />
+        ) : (
+          <Badge tone={status.tone}>{status.text}</Badge>
+        )}
       </div>
     </CardLink>
   );
