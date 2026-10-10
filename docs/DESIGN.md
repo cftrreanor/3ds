@@ -96,6 +96,16 @@ Three canvases: an indigo hero with a soft violet-and-sky glow (`.hero-sky`)
 and one pill CTA; white body sections; and a deep-teal closing band with one
 white button. One call to action per band.
 
+## Admin (back office)
+
+The admin dashboard (`/admin`) is a desk tool for FieldCommand staff, styled like a CRM rather
+than the customer app: an indigo sidebar, a search bar, then dense sortable tables and record
+pages (a main column with a timeline, a 20rem side column of panels). Its pieces live in
+`src/app/admin/kit.tsx`: small headers, flat panels with uppercase labels, tables with
+sticky headers, square-cornered tags, and health dots (green healthy, indigo new, amber watch,
+red at risk, always with a word). Controls are 32px tall there, since it's used at a desk; the
+customer app keeps its 44px touch targets. Same tokens, fonts and dark theme.
+
 ## Dark theme
 
 Background `#0E0C1F`, surface `#17152F`, raised `#211E3D`, border `#3F3A52`,

@@ -1,41 +1,54 @@
 import type { Metadata } from "next";
-import { Card } from "@/components/ui";
 import { ADMIN_LOG_COLUMNS, describeAdminLog, requirePlatformAdmin, type AdminLogRow } from "@/lib/admin";
+import { stamp } from "@/lib/admin-crm";
 import { createAdminClient } from "@/lib/supabase/server";
-import { formatTime, utcToZonedDate, formatDate } from "@/lib/time";
+import { EmptyRow, PageHeader, RecordLink, Table, Td, Th, Tr } from "../kit";
 
-export const metadata: Metadata = { title: "Admin activity" };
+export const metadata: Metadata = { title: "Activity" };
 
-const TZ = "America/Chicago";
+type Row = AdminLogRow & { organization_id: string | null };
 
 /** Every change made from the admin dashboard, newest first. */
 export default async function AdminActivityPage() {
   await requirePlatformAdmin();
-  const { data } = await createAdminClient().from("admin_log").select(ADMIN_LOG_COLUMNS).order("created_at", { ascending: false }).limit(200);
-  const rows = (data ?? []) as unknown as AdminLogRow[];
+  const { data } = await createAdminClient()
+    .from("admin_log")
+    .select(`organization_id, ${ADMIN_LOG_COLUMNS}`)
+    .order("created_at", { ascending: false })
+    .limit(300);
+  const rows = (data ?? []) as unknown as Row[];
   return (
     <div>
-      <h2 className="text-2xl font-semibold">Admin activity</h2>
-      <p className="mt-1 text-muted">Every change made from this dashboard, newest first.</p>
-      {rows.length === 0 ? (
-        <p className="mt-6 text-muted">Nothing yet. Plan changes will show up here.</p>
-      ) : (
-        <Card className="mt-6 p-0 sm:p-0">
-          <ul className="divide-y divide-border">
-            {rows.map((r) => (
-              <li key={r.id} className="px-4 py-3 sm:px-6">
-                <p className="font-medium">{r.organization?.name ?? "Deleted organization"}</p>
-                <p className="text-sm">{describeAdminLog(r)}</p>
-                {r.details.note && <p className="mt-1 text-sm text-muted">“{r.details.note}”</p>}
-                <p className="mt-1 text-xs text-muted">
-                  {r.admin?.full_name || r.admin?.email || "Unknown admin"} ·{" "}
-                  {formatDate(utcToZonedDate(r.created_at, TZ), { year: undefined })}, {formatTime(r.created_at, TZ)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <PageHeader title="Activity" sub="Every change made from the admin dashboard (plans, host invitations), newest first." />
+      <Table>
+        <thead>
+          <tr>
+            <Th>When</Th>
+            <Th>Account</Th>
+            <Th>Change</Th>
+            <Th>Note</Th>
+            <Th>By</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <Tr key={r.id}>
+              <Td className="whitespace-nowrap text-muted">{stamp(r.created_at)}</Td>
+              <Td className="whitespace-nowrap">
+                {r.organization && r.organization_id ? (
+                  <RecordLink href={`/admin/accounts/${r.organization_id}`}>{r.organization.name}</RecordLink>
+                ) : (
+                  <span className="text-muted">—</span>
+                )}
+              </Td>
+              <Td>{describeAdminLog(r)}</Td>
+              <Td className="text-muted">{r.details.note ? `“${r.details.note}”` : ""}</Td>
+              <Td className="whitespace-nowrap text-muted">{r.admin?.full_name || r.admin?.email || "Unknown admin"}</Td>
+            </Tr>
+          ))}
+          {rows.length === 0 && <EmptyRow cols={5}>Nothing yet. Plan changes and host invitations show up here.</EmptyRow>}
+        </tbody>
+      </Table>
     </div>
   );
 }

@@ -116,6 +116,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261105000000_security_fixes.sql` | Security fixes: people join a team only by accepting an invitation; hosts can't register a band in someone else's name; Section Leads see children's details on event day only; registering again with a parent's email no longer replaces their registration (parents change it from their own link) | ✅ run |
 | `20261106000000_host_invitations.sql` | Hosts by invitation: only emails you invite (Admin → Pilot requests → "Approve as host") can set up an organization; directors, team members, volunteers and parents are unaffected | ✅ run |
 | `20261107000000_volunteer_retention.sql` | Volunteers' names and contact details (under-18 helpers too) are deleted 10 days after the event, by the daily job; shift totals stay | ✅ run |
+| `20261108000000_admin_crm.sql` | Admin dashboard as a CRM: pilot pipeline stages (new → contacted → invited → set up → active), private notes and follow-ups, a log of emails sent, and sign-in history | ⬜ |
 
 ## Pilot requests
 
@@ -230,9 +231,12 @@ select id from auth.users where email = 'the-email-you-sign-in-with@example.com'
 ```
 
 It should say "1 row". Your dashboard then shows a **FieldCommand admin** box at the top. It opens
-the admin dashboard (`/admin`): Overview, Organizations (each one's plan and the last day of its
-free pilot), Pilot requests and Admin activity. Pilot requests lists every request with a status you can set (new, contacted, accepted, declined). Only admins can see
-the requests: hosts, volunteers and directors can't.
+the admin dashboard (`/admin`), laid out like a CRM with a sidebar: Home (what's due today and
+which accounts need attention), Follow-ups, Accounts (each host organization's health, plan and
+the last day of its free pilot), People (anyone with an account: roles, sign-ins and the emails
+we sent them), Pipeline (pilot requests as a board you drag cards across) and Activity. Any
+account, person or pilot request can have private notes; give a note a date to make it a
+follow-up. Only admins can see any of it: hosts, volunteers and directors can't.
 
 Being an admin also turns on **demo mode** (needs `20261026000000_demo_mode.sql`). Open any event
 and scroll to **Demo this event** at the bottom. Tap a role (Host, Volunteer Lead, Section Lead,

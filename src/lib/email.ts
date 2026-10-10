@@ -2,11 +2,27 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { brand } from "@/lib/brand";
 import { isDemoEmail } from "@/lib/demo-email";
+import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
 // Without RESEND_API_KEY, emails are skipped and logged, so the app still works.
 
 const FROM = process.env.EMAIL_FROM ?? `${brand.name} <no-reply@fieldcommandevents.com>`;
+
+/**
+ * Notes each email in email_log, for the admin dashboard's person and account
+ * pages ("did they get it?"). Never stops an email from going out.
+ */
+async function logEmail(to: string, subject: string, status: "sent" | "failed" | "skipped", error?: string) {
+  try {
+    const { error: dbError } = await createAdminClient()
+      .from("email_log")
+      .insert({ to_email: to, subject: subject.slice(0, 300), status, error: error ? error.slice(0, 500) : null });
+    if (dbError) console.error("email_log insert failed", dbError.message);
+  } catch (err) {
+    console.error("email_log insert failed", err);
+  }
+}
 
 export type EmailAttachment = { filename: string; content: string; contentType: string };
 
@@ -51,6 +67,7 @@ async function sendInvite(message: Parameters<typeof inviteMessage>[0]): Promise
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn("RESEND_API_KEY not set; skipped email:", message.subject);
+    await logEmail(message.to, message.subject, "skipped", "Email isn't set up (RESEND_API_KEY)");
     return false;
   }
   try {
@@ -61,9 +78,11 @@ async function sendInvite(message: Parameters<typeof inviteMessage>[0]): Promise
       auth: { user: "resend", pass: key },
     });
     await transport.sendMail(inviteMessage(message));
+    await logEmail(message.to, message.subject, "sent");
     return true;
   } catch (err) {
     console.error("Invite email failed", err);
+    await logEmail(message.to, message.subject, "failed", err instanceof Error ? err.message : String(err));
     return false;
   }
 }
@@ -91,6 +110,7 @@ export async function sendEmail({
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn("RESEND_API_KEY not set; skipped email:", subject);
+    await logEmail(to, subject, "skipped", "Email isn't set up (RESEND_API_KEY)");
     return false;
   }
   const send = (withAttachments: boolean) =>
@@ -123,12 +143,16 @@ export async function sendEmail({
       res = await send(false);
     }
     if (!res.ok) {
-      console.error("Resend send failed", res.status, await res.text());
+      const body = await res.text();
+      console.error("Resend send failed", res.status, body);
+      await logEmail(to, subject, "failed", `${res.status} ${body}`);
       return false;
     }
+    await logEmail(to, subject, "sent");
     return true;
   } catch (err) {
     console.error("Resend send failed", err);
+    await logEmail(to, subject, "failed", err instanceof Error ? err.message : String(err));
     return false;
   }
 }

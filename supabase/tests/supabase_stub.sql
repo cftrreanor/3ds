@@ -13,7 +13,17 @@ create schema auth;
 create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
-  raw_user_meta_data jsonb default '{}'::jsonb
+  raw_user_meta_data jsonb default '{}'::jsonb,
+  created_at timestamptz default now(),
+  email_confirmed_at timestamptz,
+  last_sign_in_at timestamptz
+);
+create table auth.audit_log_entries (
+  instance_id uuid,
+  id uuid primary key default gen_random_uuid(),
+  payload json,
+  created_at timestamptz default now(),
+  ip_address varchar(64) not null default ''
 );
 create function auth.jwt() returns jsonb language sql stable as $$
   select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb

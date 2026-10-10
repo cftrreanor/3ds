@@ -2,26 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
-import { requireUser } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/admin";
 import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, sendEmail } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
-
-const STATUSES = ["new", "contacted", "accepted", "declined"] as const;
-
-/** Platform admins only (the database enforces it). */
-export async function setPilotStatus(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireUser();
-  const status = String(formData.get("status") ?? "");
-  if (!STATUSES.includes(status as (typeof STATUSES)[number])) return { error: "Pick a status." };
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("pilot_requests").update({ status }).eq("id", id).select("id");
-  if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "You don't have permission to do that." };
-  revalidatePath("/admin", "layout");
-  return { ok: true, message: "Saved." };
-}
 
 /**
  * Invite someone to host: they can then sign in with this email and set up
@@ -29,7 +14,7 @@ export async function setPilotStatus(id: string, _prev: ActionState, formData: F
  * Platform admins only (admin_invite_host() checks).
  */
 export async function inviteHost(pilotRequestId: string | null, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireUser();
+  await requirePlatformAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const supabase = await createClient();
