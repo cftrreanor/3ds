@@ -2,7 +2,8 @@ import "server-only";
 import { cache } from "react";
 import { planLabel } from "@/lib/admin";
 import { accountHealth, type HealthLevel } from "@/lib/admin-crm";
-import { firstName, type MergeVars } from "@/lib/merge-fields";
+import { getOrigin } from "@/lib/data";
+import { firstName, siteLinks, type MergeVars } from "@/lib/merge-fields";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 
@@ -109,6 +110,20 @@ export type EmailTarget = { organizationId?: string; profileId?: string; pilotRe
  * account's hosts, a person, or whoever sent a pilot request.
  */
 export async function emailRecipients(target: EmailTarget): Promise<Recipient[]> {
+  const origin = await siteOrigin();
+  return (await recipientsWithoutLinks(target)).map((r) => ({ ...r, vars: { ...r.vars, ...siteLinks(origin, r.email) } }));
+}
+
+/**
+ * The site's address for links in emails: its main address on Vercel (not a
+ * preview copy), otherwise wherever this page is being served from.
+ */
+export async function siteOrigin() {
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  return production ? `https://${production}` : await getOrigin();
+}
+
+async function recipientsWithoutLinks(target: EmailTarget): Promise<Recipient[]> {
   const admin = createAdminClient();
   if (target.organizationId) {
     const account = await loadAccount(target.organizationId);

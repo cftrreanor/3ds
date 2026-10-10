@@ -2,7 +2,7 @@
 
 import { useMemo, type RefObject } from "react";
 import { renderEmail } from "@/lib/email-format";
-import { fillTemplate, MERGE_FIELDS, type MergeVars } from "@/lib/merge-fields";
+import { fillTemplate, MERGE_FIELDS, QUICK_BUTTONS, type MergeVars } from "@/lib/merge-fields";
 import { brand } from "@/lib/brand";
 
 export const editorField =
@@ -94,6 +94,22 @@ export function FormatBar({
       <button type="button" className={tool} onClick={() => edit(() => ({ text: "\n---\n" }))} title="Divider line">
         Divider
       </button>
+      <select
+        aria-label="Quick button"
+        value=""
+        onChange={(e) => {
+          const b = QUICK_BUTTONS.find((q) => q.label === e.target.value);
+          if (b) edit(() => ({ text: `\n${b.markup}\n` }));
+        }}
+        className="h-7 rounded-sm border border-border bg-surface px-1 text-xs font-semibold"
+      >
+        <option value="">Quick button…</option>
+        {QUICK_BUTTONS.map((q) => (
+          <option key={q.label} value={q.label}>
+            {q.label}
+          </option>
+        ))}
+      </select>
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
       <label className="flex items-center gap-1 text-xs text-muted">
         Insert field

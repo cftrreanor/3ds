@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/admin";
 import { ago, stamp } from "@/lib/admin-crm";
-import { MERGE_FIELDS } from "@/lib/merge-fields";
-import { loadTemplates } from "../data";
+import { MERGE_FIELDS, siteLinks } from "@/lib/merge-fields";
+import { loadTemplates, siteOrigin } from "../data";
 import { deleteTemplate, saveTemplate } from "../email-actions";
 import { EmptyRow, PageHeader, Panel, secondarySmall, Table, Td, Th, Tr } from "../kit";
 import { TemplateBuilder } from "./template-form";
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Email templates" };
 export default async function TemplatesPage({ searchParams }: PageProps<"/admin/templates">) {
   await requirePlatformAdmin();
   const { edit } = await searchParams;
-  const templates = await loadTemplates();
+  const [templates, origin] = await Promise.all([loadTemplates(), siteOrigin()]);
   const editing = typeof edit === "string" ? templates.find((t) => t.id === edit) : undefined;
 
   return (
@@ -69,6 +69,7 @@ export default async function TemplatesPage({ searchParams }: PageProps<"/admin/
             action={saveTemplate}
             template={editing}
             onDelete={editing ? deleteTemplate.bind(null, editing.id) : undefined}
+            sampleLinks={siteLinks(origin, "jordan@example.com")}
           />
         </Panel>
       </section>
@@ -82,7 +83,7 @@ export default async function TemplatesPage({ searchParams }: PageProps<"/admin/
             </div>
           ))}
         </dl>
-        <p className="mt-2 text-xs text-muted">Plan, free-through date and next event come from the account, so they&apos;re blank when emailing a person or a pilot request.</p>
+        <p className="mt-2 text-xs text-muted">Plan, free-through date and next event come from the account, so they&apos;re blank when emailing a person or a pilot request. The sign-in link fills in each person&apos;s email and takes them to their dashboard. Use the toolbar&apos;s &ldquo;Quick button&rdquo; menu to add any link as a button.</p>
       </Panel>
     </div>
   );
