@@ -1,56 +1,89 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/admin";
-import { ago } from "@/lib/admin-crm";
+import { ago, stamp } from "@/lib/admin-crm";
 import { MERGE_FIELDS } from "@/lib/merge-fields";
 import { loadTemplates } from "../data";
 import { deleteTemplate, saveTemplate } from "../email-actions";
-import { PageHeader, Panel } from "../kit";
-import { TemplateForm } from "./template-form";
+import { EmptyRow, PageHeader, Panel, secondarySmall, Table, Td, Th, Tr } from "../kit";
+import { TemplateBuilder } from "./template-form";
 
 export const metadata: Metadata = { title: "Email templates" };
 
-/** Reusable emails for the "Email" box on account, person and pilot request pages. */
-export default async function TemplatesPage() {
+/**
+ * Reusable emails: every template in a table, and the builder underneath
+ * (a new template, or the one picked with "Edit").
+ */
+export default async function TemplatesPage({ searchParams }: PageProps<"/admin/templates">) {
   await requirePlatformAdmin();
+  const { edit } = await searchParams;
   const templates = await loadTemplates();
+  const editing = typeof edit === "string" ? templates.find((t) => t.id === edit) : undefined;
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Email templates"
-        sub="Start an email from one of these on any account, person or pilot request page. Merge fields like {{first_name}} are filled in for each person."
+        sub="Start an email from one of these on any account, person or pilot request page. Fields like {{first_name}} are filled in for each person."
+        actions={
+          editing && (
+            <Link href="/admin/templates#builder" className={secondarySmall}>
+              New template
+            </Link>
+          )
+        }
       />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0 space-y-3">
+
+      <Table>
+        <thead>
+          <tr>
+            <Th>Name</Th>
+            <Th>Subject</Th>
+            <Th>Last edited</Th>
+            <Th />
+          </tr>
+        </thead>
+        <tbody>
           {templates.map((t) => (
-            <details key={t.id} className="rounded-md border border-border bg-surface">
-              <summary className="flex cursor-pointer items-baseline justify-between gap-3 px-3 py-2">
-                <span className="font-semibold">{t.name}</span>
-                <span className="text-xs text-muted">Edited {ago(t.updated_at)}</span>
-              </summary>
-              <div className="border-t border-border p-3">
-                <TemplateForm action={saveTemplate} template={t} onDelete={deleteTemplate.bind(null, t.id)} />
-              </div>
-            </details>
+            <Tr key={t.id} className={editing?.id === t.id ? "bg-brand-soft hover:bg-brand-soft" : ""}>
+              <Td className="font-medium">{t.name}</Td>
+              <Td className="text-muted">{t.subject}</Td>
+              <Td className="whitespace-nowrap text-muted" title={stamp(t.updated_at)}>
+                {ago(t.updated_at)}
+              </Td>
+              <Td className="text-right">
+                <Link href={`/admin/templates?edit=${t.id}#builder`} className="text-sm font-semibold text-brand hover:underline">
+                  {editing?.id === t.id ? "Editing" : "Edit"}
+                </Link>
+              </Td>
+            </Tr>
           ))}
-          {templates.length === 0 && <p className="text-sm text-muted">No templates yet. Make one on the right, or write an email on any record page and choose “Save as template”.</p>}
-        </div>
-        <div className="space-y-4">
-          <Panel title="New template">
-            <TemplateForm action={saveTemplate} />
-          </Panel>
-          <Panel title="Merge fields">
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
-              {MERGE_FIELDS.map((f) => (
-                <div key={f.key} className="contents">
-                  <dt className="font-mono text-xs leading-5">{`{{${f.key}}}`}</dt>
-                  <dd className="text-muted">{f.label}</dd>
-                </div>
-              ))}
-            </dl>
-            <p className="mt-2 text-xs text-muted">Plan, free-through date and next event come from the account, so they&apos;re blank when emailing a person or a pilot request.</p>
-          </Panel>
-        </div>
-      </div>
+          {templates.length === 0 && <EmptyRow cols={4}>No templates yet. Build your first one below.</EmptyRow>}
+        </tbody>
+      </Table>
+
+      <section id="builder" className="scroll-mt-16">
+        <Panel title={editing ? `Editing “${editing.name}”` : "New template"}>
+          <TemplateBuilder
+            key={editing?.id ?? "new"}
+            action={saveTemplate}
+            template={editing}
+            onDelete={editing ? deleteTemplate.bind(null, editing.id) : undefined}
+          />
+        </Panel>
+      </section>
+
+      <Panel title="Fields you can use">
+        <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {MERGE_FIELDS.map((f) => (
+            <div key={f.key} className="flex gap-2">
+              <dt className="font-mono text-xs leading-5">{`{{${f.key}}}`}</dt>
+              <dd className="text-muted">{f.label}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-2 text-xs text-muted">Plan, free-through date and next event come from the account, so they&apos;re blank when emailing a person or a pilot request.</p>
+      </Panel>
     </div>
   );
 }

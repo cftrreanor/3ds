@@ -6,12 +6,12 @@ import { SubmitButton } from "@/components/submit-button";
 import { FormMessage } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { fillTemplate, MERGE_FIELDS, type MergeVars } from "@/lib/merge-fields";
+import { EmailPreview, editorField, FormatBar, FormatHelp } from "./email-editor";
 
 type Recipient = { email: string; label: string; vars: MergeVars };
 type Template = { id: string; name: string; subject: string; body: string };
 
-const field =
-  "w-full rounded-sm border border-border bg-surface px-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
+const field = editorField;
 
 /**
  * Write an email from a record page: pick recipients, start from a template
@@ -72,19 +72,6 @@ export function EmailComposer({
     }
   };
 
-  const insertField = (key: string) => {
-    const el = bodyRef.current;
-    const token = `{{${key}}}`;
-    if (!el) return setBody((b) => b + token);
-    const start = el.selectionStart ?? body.length;
-    const end = el.selectionEnd ?? body.length;
-    setBody(body.slice(0, start) + token + body.slice(end));
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + token.length, start + token.length);
-    });
-  };
-
   return (
     <div className="space-y-3">
       <ActionForm action={send} resetOnSuccess={false} onSuccess={clear} className="space-y-3">
@@ -120,43 +107,27 @@ export function EmailComposer({
 
         <input name="subject" required maxLength={300} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" className={`${field} h-8`} />
         {preview ? (
-          <div className="rounded-sm border border-border bg-background p-3 text-sm">
-            <p className="text-xs text-muted">
-              Preview for {first?.label ?? "the first recipient"}
-            </p>
-            <p className="mt-1 font-semibold">{filledSubject.text || "(no subject)"}</p>
-            <p className="mt-2 whitespace-pre-line">{filledBody.text || "(empty)"}</p>
+          <>
+            <EmailPreview subject={subject} body={body} vars={vars} note={`Preview for ${first?.label ?? "the first recipient"}`} />
             <input type="hidden" name="body" value={body} />
-          </div>
+          </>
         ) : (
-          <textarea
-            ref={bodyRef}
-            name="body"
-            required
-            maxLength={10000}
-            rows={8}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={"Hi {{first_name}},\n\n…"}
-            aria-label="Message"
-            className={`${field} py-2`}
-          />
-        )}
-        {!preview && (
-          <p className="flex flex-wrap items-center gap-1 text-xs text-muted">
-            Insert:
-            {MERGE_FIELDS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => insertField(f.key)}
-                className="rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-[11px] text-foreground hover:border-brand"
-                title={`Adds {{${f.key}}}`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </p>
+          <div className="space-y-1">
+            <FormatBar areaRef={bodyRef} value={body} onChange={setBody} />
+            <textarea
+              ref={bodyRef}
+              name="body"
+              required
+              maxLength={10000}
+              rows={12}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder={"Hi {{first_name}},\n\n…"}
+              aria-label="Message"
+              className={`${field} py-2 font-mono text-[13px] leading-6`}
+            />
+            <FormatHelp />
+          </div>
         )}
         {blank.length > 0 && (
           <p className="text-xs text-warning">
