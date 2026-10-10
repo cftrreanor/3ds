@@ -204,6 +204,7 @@ export default function Home() {
                 Band contests never collect student names, just headcounts. For school visitor events, children&apos;s
                 names are seen only by your event team and are permanently deleted 30 days after the event.
               </li>
+              <li>Volunteers&apos; names and contact details, including under-18 helpers, are deleted 10 days after the event.</li>
               <li>Families and spectators never need an account or an app.</li>
             </ul>
           </div>

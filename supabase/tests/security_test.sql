@@ -2630,4 +2630,50 @@ do $$ begin
 end $$;
 delete from public.organizations where slug = 'newlead-boosters';
 
+-- Volunteer records are deleted 10 days after the event (companions too); shift totals stay.
+reset role;
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+values
+  ('10000000-0000-0000-0000-0000000000e1', :'org_id', 'Long Ago Fair', 'long-ago', 'published',
+   current_date - 12, current_date - 12, now() - interval '12 days', now() - interval '12 days' + interval '5 hours', '1 Old Rd'),
+  ('10000000-0000-0000-0000-0000000000e2', :'org_id', 'Last Week Fair', 'last-week', 'published',
+   current_date - 9, current_date - 9, now() - interval '9 days', now() - interval '9 days' + interval '5 hours', '2 Old Rd');
+insert into public.stations (id, event_id, name, station_type)
+values ('20000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000e1', 'Tickets', 'passive');
+insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity, registered_count)
+values ('30000000-0000-0000-0000-0000000000e1', '20000000-0000-0000-0000-0000000000e1', 'Morning',
+        now() - interval '12 days', now() - interval '12 days' + interval '2 hours', 5, 2);
+insert into public.volunteers (id, event_id, full_name, email, phone)
+values ('50000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000e1', 'Old Volunteer', 'old@example.com', '+15125550101'),
+       ('50000000-0000-0000-0000-0000000000e3', '10000000-0000-0000-0000-0000000000e2', 'Recent Volunteer', 'recent@example.com', '+15125550103');
+insert into public.volunteers (id, event_id, full_name, email, phone, contact_id)
+values ('50000000-0000-0000-0000-0000000000e2', '10000000-0000-0000-0000-0000000000e1', 'Kid V.', 'old+kid@example.com', '+15125550101',
+        '50000000-0000-0000-0000-0000000000e1');
+insert into public.volunteer_assignments (shift_id, volunteer_id)
+values ('30000000-0000-0000-0000-0000000000e1', '50000000-0000-0000-0000-0000000000e1'),
+       ('30000000-0000-0000-0000-0000000000e1', '50000000-0000-0000-0000-0000000000e2');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform public.purge_volunteers();
+    raise exception 'FAIL: a browser ran the volunteer clean-up';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role service_role;
+do $$ begin
+  assert public.purge_volunteers() = 2, 'an event over 10 days ago loses its volunteer and their under-18 helper';
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.volunteers where event_id = '10000000-0000-0000-0000-0000000000e1'), 'no names, emails or phones left';
+  assert not exists (select 1 from public.volunteer_assignments where shift_id = '30000000-0000-0000-0000-0000000000e1'), 'nor their sign-ups';
+  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-0000000000e1') = 2, 'the shift total stays';
+  assert exists (select 1 from public.volunteers where id = '50000000-0000-0000-0000-0000000000e3'), 'an event 9 days ago keeps its volunteers';
+  assert exists (select 1 from public.volunteers where event_id = '10000000-0000-0000-0000-00000000000a'), 'upcoming events keep theirs';
+end $$;
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000e2');
+
 \echo 'All database security tests passed.'

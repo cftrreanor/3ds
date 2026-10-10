@@ -121,6 +121,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer Registration</h1>
+      <p className="mt-1 text-sm text-muted">
+        🔒 Volunteers&apos; names and contact details (under-18 helpers too) are deleted 10 days after the event. Shift totals stay.
+      </p>
 
       <Card className="mt-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
