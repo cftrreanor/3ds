@@ -2151,22 +2151,33 @@ declare t1 uuid; t2 uuid;
 begin
   t1 := public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'Rita@example.com', '+15125550170',
           '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"},{"name":"Leo Lopez","teacher":"Jones","grade":"K"}]');
-  -- Registering again with the same email updates it, keeping the same link.
-  t2 := public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
-          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]');
-  assert t1 = t2 and (select jsonb_array_length(children) from public.parent_registrations where email = 'rita@example.com') = 1,
-         'registering again updates the registration';
-  assert (select calendar_sequence from public.parent_registrations where email = 'rita@example.com') = 1,
-         'registering again bumps the calendar invite version';
+  -- Registering again with the same email changes nothing (someone who only
+  -- knows a parent's email can't replace their children); the server emails
+  -- that parent their own link instead.
+  t2 := public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Someone Else', 'rita@example.com', null,
+          '[{"name":"Other Kid","teacher":"X","grade":"3rd"}]');
+  assert t2 is null and (select parent_name = 'Rita Parent' and jsonb_array_length(children) = 2
+                           from public.parent_registrations where email = 'rita@example.com'),
+         'registering again with a known email changes nothing';
   assert (select adult_count from public.parent_registrations where email = 'rita@example.com') = 1,
          'one adult when not given';
-  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
-          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '[" Marco Lopez ", "Rosa Diaz"]');
+  -- The parent edits from their own link: same link, calendar invite version bumped.
+  assert public.update_parent_registration(t1, 'Rita Parent', null,
+           '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '[" Marco Lopez ", "Rosa Diaz"]')
+         = '10000000-0000-0000-0000-0000000000c1', 'a parent edits with their link';
+  assert (select jsonb_array_length(children) = 1 and calendar_sequence = 1 and phone is null
+            from public.parent_registrations where access_token = t1),
+         'editing replaces the children and bumps the calendar invite version';
   assert (select adult_count = 3
                  and other_adults = '[{"name": "Marco Lopez", "checked_in_at": null, "checked_in_by": null},
                                       {"name": "Rosa Diaz", "checked_in_at": null, "checked_in_by": null}]'::jsonb
             from public.parent_registrations where email = 'rita@example.com'),
          'other adults are named, and counted with the parent';
+  begin
+    perform public.update_parent_registration(gen_random_uuid(), 'Rita Parent', null, '[{"name":"A B","teacher":"X","grade":"1st"}]');
+    raise exception 'FAIL: edited a registration without its link';
+  exception when sqlstate 'P0001' then null;
+  end;
   begin
     perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Big Group', 'big@example.com', null,
               '[{"name":"Mia","teacher":"Lee","grade":"2nd"}]', '["A One","B Two","C Three","D Four","E Five","F Six"]');
@@ -2264,6 +2275,11 @@ do $$ begin
 end $$;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
 do $$ begin
+  begin
+    perform public.update_parent_registration(gen_random_uuid(), 'X Y', null, '[]');
+    raise exception 'FAIL: a browser called update_parent_registration';
+  exception when insufficient_privilege then null;
+  end;
   assert (select count(*) from public.parent_registrations) = 0, 'a stranger sees no registrations';
   begin
     perform public.set_parent_checked_in((select id from public.parent_registrations limit 1), false);
@@ -2275,11 +2291,11 @@ update public.events set starts_on = current_date + 3, ends_on = current_date + 
  where id = '10000000-0000-0000-0000-0000000000c1';
 -- Editing a registration keeps anyone already checked in as checked in.
 do $$ begin
-  perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
-          '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '["marco lopez", "New Uncle"]');
+  perform public.update_parent_registration((select access_token from public.parent_registrations where email = 'rita@example.com'),
+          'Rita Parent', null, '[{"name":"Ava Lopez","teacher":"Smith","grade":"3rd"}]', '["marco lopez", "New Uncle"]');
   assert (select other_adults -> 0 ->> 'checked_in_at' is not null and other_adults -> 1 ->> 'checked_in_at' is null
             from public.parent_registrations where email = 'rita@example.com'),
-         're-registering keeps check-ins of adults still on the list';
+         'editing keeps check-ins of adults still on the list';
 end $$;
 -- Registration closes on its own at the time the host picked.
 do $$ begin

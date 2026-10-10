@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { EMAIL_LINK_DAYS, emailLinkCutoff } from "@/lib/email-link-age";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
@@ -167,13 +168,17 @@ export async function joinFromEmail(token: string, key: string, _prev: ActionSta
   const admin = createAdminClient();
   const { data: inv } = await admin
     .from("invitations")
-    .select("email, expires_at, accepted_at")
+    .select("email, expires_at, accepted_at, sent_at")
     .eq("token", token)
     .eq("email_token", key)
     .maybeSingle();
   if (!inv) return { error: "This link has been replaced by a newer email, or the invitation was cancelled. Use the newest email, or ask for a new invitation." };
   if (inv.accepted_at) return { error: "This invitation has already been accepted. Sign in to continue." };
   if (new Date(inv.expires_at) < new Date()) return { error: "This invitation has expired. Ask for a new one." };
+  // The one-tap sign-in works for a week after the email; after that, sign in normally.
+  if (!inv.sent_at || inv.sent_at < emailLinkCutoff()) {
+    return { error: `For your security, this email's join button only works for ${EMAIL_LINK_DAYS} days. Sign in with ${inv.email} to accept instead.` };
+  }
 
   // Sign in as the invited email: an existing account, or a new one.
   let link = await admin.auth.admin.generateLink({ type: "magiclink", email: inv.email });

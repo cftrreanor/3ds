@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { findBandInvite } from "@/lib/band-invites";
+import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 
 export const metadata: Metadata = { title: "You're invited" };
 
@@ -56,14 +57,15 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
               ) : (
                 <>
                   <p className="mt-3 leading-7 text-muted">
-                    Band registration for this contest is closed, so this link no longer signs you in. Please contact the
-                    host if you need to make a change.
+                    {invite.blocked === "closed"
+                      ? "Band registration for this contest is closed, so this link no longer signs you in. Please contact the host if you need to make a change."
+                      : `For your security, this email's sign-in button works once, within ${EMAIL_LINK_DAYS} days${invite.blocked === "used" ? ", and it's been used" : ", and it has expired"}. Sign in with ${invite.email} to continue: your band's details are still saved.`}
                   </p>
                   <Link
-                    href={here}
+                    href={invite.blocked === "closed" ? here : `/login?next=${encodeURIComponent(here)}&email=${encodeURIComponent(invite.email)}`}
                     className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
                   >
-                    See the contest&apos;s registration page
+                    {invite.blocked === "closed" ? "See the contest's registration page" : "Sign in"}
                   </Link>
                 </>
               )}

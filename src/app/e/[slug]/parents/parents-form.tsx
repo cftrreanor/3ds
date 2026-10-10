@@ -8,25 +8,45 @@ import type { ParentState } from "./actions";
 type Child = { name: string; teacher: string; grade: string };
 const blankChild = (): Child => ({ name: "", teacher: "", grade: "" });
 
-/** Parent registration: the parent, each child (name, teacher, grade), and the photo ID promise. */
+/**
+ * Parent registration: the parent, each child (name, teacher, grade), and the
+ * photo ID promise. With `initial`, the parent is changing their registration
+ * from their own link (the email can't change).
+ */
 export function ParentsForm({
   action,
   grades,
   idReminder,
+  initial,
 }: {
   action: (prev: ParentState, formData: FormData) => Promise<ParentState>;
   grades: readonly string[];
   idReminder: string;
+  initial?: NonNullable<ParentState["values"]>;
 }) {
-  const [state, formAction] = useActionState(action, {});
+  const editing = Boolean(initial);
+  const [state, formAction] = useActionState(action, initial ? { values: initial } : {});
+  const [startedAt] = useState(() => Date.now());
   const [children, setChildren] = useState<Child[]>(() => state.values?.children ?? [blankChild()]);
   const [adults, setAdults] = useState<string[]>(() => state.values?.otherAdults ?? []);
   const set = (i: number, patch: Partial<Child>) => setChildren((list) => list.map((c, j) => (j === i ? { ...c, ...patch } : c)));
 
+  if (state.confirmed?.existing) {
+    return (
+      <Card className="space-y-3" role="status">
+        <h2 className="text-2xl font-semibold">Check your email</h2>
+        <p className="leading-7">
+          This email is already registered for this event, so nothing was changed. We&apos;ve emailed{" "}
+          <span className="font-medium">{state.confirmed.email}</span> a link to see, change or cancel that registration.
+        </p>
+        <p className="text-sm text-muted">Don&apos;t see it? Check your spam folder. We send it at most once every 10 minutes.</p>
+      </Card>
+    );
+  }
   if (state.confirmed) {
     return (
       <Card className="space-y-4 border-success/30 bg-success-soft" role="status">
-        <h2 className="text-2xl font-semibold">You&apos;re registered</h2>
+        <h2 className="text-2xl font-semibold">{state.confirmed.updated ? "Changes saved" : "You're registered"}</h2>
         <ul className="space-y-1">
           {state.confirmed.children.map((c, i) => (
             <li key={i}>
@@ -40,8 +60,12 @@ export function ParentsForm({
         <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">🪪 {idReminder}</p>
         <p className="text-sm text-muted">
           {state.confirmed.emailSent
-            ? `We emailed a calendar invite to ${state.confirmed.email}: add it to your calendar so you don't forget. It has a link to change or cancel, and we'll remind you the day before.`
-            : "We couldn't send the confirmation email, but you're registered."}
+            ? state.confirmed.updated
+              ? `We emailed an updated calendar invite to ${state.confirmed.email}.`
+              : `We emailed a calendar invite to ${state.confirmed.email}: add it to your calendar so you don't forget. It has a link to change or cancel, and we'll remind you the day before.`
+            : state.confirmed.updated
+              ? "Saved. We couldn't send the email, but your changes are in."
+              : "We couldn't send the confirmation email, but you're registered."}
         </p>
       </Card>
     );
@@ -51,14 +75,21 @@ export function ParentsForm({
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="children" value={JSON.stringify(children)} />
       <input type="hidden" name="otherAdults" value={JSON.stringify(adults)} />
+      <input type="hidden" name="startedAt" value={startedAt} />
+      {/* Left empty by people; bots fill it in. */}
+      <div aria-hidden className="hidden">
+        <label>
+          Website <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+        </label>
+      </div>
       <Card className="space-y-4">
         <h2 className="text-xl font-semibold">You</h2>
         <Field label="Your name">
           <Input name="parentName" required autoComplete="name" defaultValue={state.values?.parentName} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Email" hint="Your confirmation and reminder go here.">
-            <Input name="email" type="email" required autoComplete="email" defaultValue={state.values?.email} />
+          <Field label="Email" hint={editing ? "To use a different email, cancel and register again." : "Your confirmation and reminder go here."}>
+            <Input name="email" type="email" required autoComplete="email" defaultValue={state.values?.email} readOnly={editing} />
           </Field>
           <Field label="Mobile phone (optional)">
             <Input name="phone" type="tel" inputMode="tel" autoComplete="tel" defaultValue={state.values?.phone} />
@@ -150,8 +181,8 @@ export function ParentsForm({
       </Card>
 
       <FormMessage error={state.error} />
-      <SubmitButton pendingText="Registering…" className="w-full sm:w-auto">
-        Register
+      <SubmitButton pendingText={editing ? "Saving…" : "Registering…"} className="w-full sm:w-auto">
+        {editing ? "Save changes" : "Register"}
       </SubmitButton>
       <p className="text-xs text-muted">
         Only the school&apos;s event team sees these details, and they&apos;re deleted 30 days after the event.

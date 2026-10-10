@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { emailLinkCutoff } from "@/lib/email-link-age";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
 import { acceptInvitation, joinFromEmail } from "@/app/dashboard/team-actions";
@@ -47,7 +48,14 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
     key && invite && !invite.accepted && !invite.expired
       ? await (async () => {
           const admin = createAdminClient();
-          const { data: match } = await admin.from("invitations").select("id").eq("token", token).eq("email_token", key).maybeSingle();
+          // The email's one-tap join works for a week after it was sent; after that, sign in normally.
+          const { data: match } = await admin
+            .from("invitations")
+            .select("id")
+            .eq("token", token)
+            .eq("email_token", key)
+            .gte("sent_at", emailLinkCutoff())
+            .maybeSingle();
           if (!match) return null;
           const { data: profile } = await admin.from("profiles").select("full_name").eq("email", invite.email).maybeSingle();
           return { needsName: !profile?.full_name };

@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { ActionState } from "@/lib/action-state";
 import { getUser, requireUser } from "@/lib/auth";
 import { findBandInvite } from "@/lib/band-invites";
+import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 import { registrationIsOpen } from "@/lib/bands";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
@@ -70,7 +71,7 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
           ...(event.band_registration_deadline ? [`Registration closes at the end of ${formatDate(event.band_registration_deadline)}.`] : []),
         ],
         button: { label: "Review and register", url: `${origin}/e/${event.slug}/bands/invite/${row.token}` },
-        footer: `This button signs you in as ${row.email} while registration is open, so please don't forward this email.`,
+        footer: `This button signs you in as ${row.email} once, within ${EMAIL_LINK_DAYS} days, so please don't forward this email.`,
       });
       await sendEmail({ to: row.email, subject: `You're invited: ${event.name}`, html, text });
       await pause();
@@ -91,8 +92,14 @@ export async function acceptBandInvite(token: string): Promise<ActionState> {
   if (!invite.usable) redirect(`/login?next=${encodeURIComponent(next)}&email=${encodeURIComponent(invite.email)}`);
 
   const admin = createAdminClient();
-  // Note when it was last used (it keeps working while registration is open).
-  await admin.from("band_invitations").update({ used_at: new Date().toISOString() }).eq("token", token);
+  // One use: claim the link before signing in (two taps can't both get through).
+  const { data: claimed } = await admin
+    .from("band_invitations")
+    .update({ used_at: new Date().toISOString() })
+    .eq("token", token)
+    .is("used_at", null)
+    .select("id");
+  if (!claimed?.length) redirect(`/login?next=${encodeURIComponent(next)}&email=${encodeURIComponent(invite.email)}`);
 
   const link = await admin.auth.admin.generateLink({ type: "magiclink", email: invite.email });
   if (link.error) {

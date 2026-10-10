@@ -93,11 +93,27 @@ const CALENDAR_TIP =
  * The confirmation (a calendar invite; registering again updates it), the
  * reminder the day before, and the cancellation (removes the invite).
  */
-export function parentEmail(kind: "confirmation" | "reminder" | "canceled", r: Registration, event: ParentEvent, link: string) {
+export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "already", r: Registration, event: ParentEvent, link: string) {
   const when = `${formatDateRange(event.starts_on, event.ends_on)}, ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`;
   const where = [event.venue_name, event.venue_address].filter(Boolean).join(", ");
   const first = r.parent_name.split(" ")[0];
   const footer = `Sent by ${brand.name}. Your children's details are deleted 30 days after the event.`;
+
+  // Someone registered again with this email: nothing changed; here's the parent's own link.
+  if (kind === "already") {
+    return {
+      subject: `Your registration: ${event.name}`,
+      ...emailLayout({
+        heading: "You're already registered",
+        paragraphs: [
+          `Hi ${first}, someone (we hope it was you) tried to register this email again for ${event.name} (${when}). Nothing was changed.`,
+          "To see, change or cancel your registration, use the button below. If this wasn't you, you can ignore this email.",
+        ],
+        button: { label: "View or change my registration", url: link },
+        footer,
+      }),
+    };
+  }
 
   if (kind === "canceled") {
     return {
@@ -130,7 +146,7 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled", r: R
           ? [{ title: "Also coming", detail: `${r.other_adults.join(", ")}. Each adult needs their own photo ID.` }]
           : []),
       ],
-      button: { label: "View or cancel my registration", url: link },
+      button: { label: "View, change or cancel my registration", url: link },
       footer,
     }),
     ...(kind === "confirmation" ? { invite: invite("REQUEST", r, event, link) } : {}),
