@@ -1,4 +1,5 @@
 import "server-only";
+import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 import { brand } from "@/lib/brand";
 import { emailLayout } from "@/lib/email";
 import { formatDate, formatDateRange } from "@/lib/time";
@@ -66,7 +67,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
         `Tap the button to accept. There's no password: it signs you in as ${inv.email}, and sets up your account if you don't have one yet.`,
       ],
       button: { label: "Accept invitation", url: acceptUrl },
-      footer: `This invitation is for ${inv.email} and works until ${formatDate(inv.expires_at.slice(0, 10))}. If you weren't expecting it, you can ignore this email.`,
+      footer: `This invitation is for ${inv.email} and works until ${formatDate(inv.expires_at.slice(0, 10))}. The button signs you in for the first ${EMAIL_LINK_DAYS} days; after that, sign in with this email to accept. Please don't forward it. If you weren't expecting it, you can ignore this email.`,
     }),
   };
 }

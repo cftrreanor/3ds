@@ -3,6 +3,7 @@ import { HeaderBar } from "@/components/logo";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
+import { safeNext as safePath } from "@/lib/safe-next";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { LoginForm } from "./login-form";
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: "Sign in" };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { error, next, email, sent } = await searchParams;
-  const safeNext = typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
+  const safeNext = safePath(next) ?? undefined;
   if (isSupabaseConfigured && (await getUser())) redirect(safeNext ?? "/dashboard");
 
   return (

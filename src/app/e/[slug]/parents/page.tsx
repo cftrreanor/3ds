@@ -70,7 +70,7 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
                   Registration closes {closesAtLabel(event.parent_registration_closes_at, event.timezone)}.
                 </p>
               )}
-              <ParentsForm action={registerParents.bind(null, event.id, slug)} grades={GRADES} idReminder={ID_REMINDER} />
+              <ParentsForm action={registerParents.bind(null, event.id)} grades={GRADES} idReminder={ID_REMINDER} />
             </>
           ) : (closed === "closed" || closed === "deadline") && event.parent_walk_ins_allowed ? (
             <Card className="space-y-3">
