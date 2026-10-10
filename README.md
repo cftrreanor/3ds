@@ -1,4 +1,4 @@
-# FieldCommand
+# Field Command Events
 
 A web platform for hosting marching band contests and other school competitions:
 volunteer shifts, band registration, live performance order and announcements.

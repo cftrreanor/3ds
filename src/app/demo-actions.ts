@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ActionState } from "@/lib/action-state";
+import { brand } from "@/lib/brand";
 import { isSchemaError } from "@/lib/schema-check";
 import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
@@ -34,7 +35,7 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
   if (mine) {
     ownerId = mine.owner_id;
     const { data: stillAdmin } = await admin.from("platform_admins").select("user_id").eq("user_id", ownerId).maybeSingle();
-    if (!stillAdmin) return { error: "Demo mode is only for FieldCommand admins." };
+    if (!stillAdmin) return { error: `Demo mode is only for ${brand.name} admins.` };
     const { data: on } = await admin
       .from("demo_events")
       .select("event_id")
@@ -43,7 +44,7 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
       .maybeSingle();
     if (!on) return { error: "Demo mode is off for this event. Go back to your own account to turn it on." };
   } else {
-    if (!(await supabase.rpc("is_platform_admin")).data) return { error: "Only FieldCommand admins can use demo mode." };
+    if (!(await supabase.rpc("is_platform_admin")).data) return { error: `Only ${brand.name} admins can use demo mode.` };
     ownerId = user.id;
     const { error } = await admin
       .from("demo_events")
@@ -185,7 +186,7 @@ export async function backToMe(): Promise<void> {
 export async function endDemo(eventId: string): Promise<ActionState> {
   const user = await requireUser();
   const supabase = await createClient();
-  if (!(await supabase.rpc("is_platform_admin")).data) return { error: "Only FieldCommand admins can use demo mode." };
+  if (!(await supabase.rpc("is_platform_admin")).data) return { error: `Only ${brand.name} admins can use demo mode.` };
   const { error } = await createAdminClient().rpc("demo_leave", { p_owner: user.id, p_event: eventId });
   if (error) {
     console.error("demo_leave failed", error);

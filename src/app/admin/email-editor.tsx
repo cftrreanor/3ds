@@ -67,7 +67,7 @@ export function FormatBar({
   const button = () => {
     const url = window.prompt("Where should the button go? (starts with https://)", "https://");
     if (!url || url === "https://") return;
-    const label = window.prompt("Button text", "Open FieldCommand") || "Open";
+    const label = window.prompt("Button text", `Open ${brand.name}`) || "Open";
     edit(() => ({ text: `\n[[${label.trim()}|${url.trim()}]]\n` }));
   };
 
@@ -121,7 +121,8 @@ export function FormatBar({
 export function EmailPreview({ subject, body, vars, note }: { subject: string; body: string; vars: MergeVars; note?: string }) {
   const filledSubject = fillTemplate(subject, vars).text;
   const filledBody = fillTemplate(body, vars).text;
-  const html = useMemo(() => renderEmail(filledBody).html, [filledBody]);
+  // The preview loads the logo from this site (sent emails use the site's full address).
+  const html = useMemo(() => renderEmail(filledBody, { logoUrl: "/logo.png" }).html, [filledBody]);
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="border-b border-border px-3 py-2 text-sm">

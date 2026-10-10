@@ -1,3 +1,4 @@
+import { brand } from "@/lib/brand";
 import { zonedStamp } from "./time";
 
 // iCalendar (RFC 5545) files for volunteer shifts. Email apps recognize these
@@ -114,7 +115,7 @@ function fold(line: string) {
   return out.join("\r\n ");
 }
 
-export function buildIcs(method: IcsMethod, event: IcsEvent, organizerName = "FieldCommand") {
+export function buildIcs(method: IcsMethod, event: IcsEvent, organizerName = brand.name) {
   const lines = [
     "BEGIN:VCALENDAR",
     "PRODID:-//FieldCommand//Volunteer Shifts//EN",

@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-state";
+import { brand } from "@/lib/brand";
 import { EmailPreview, editorField, FormatBar, FormatHelp, SAMPLE_VARS } from "../email-editor";
 
 /**
@@ -45,7 +46,7 @@ export function TemplateBuilder({
             maxLength={300}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="e.g. Welcome to FieldCommand, {{first_name}}"
+            placeholder={`e.g. Welcome to ${brand.name}, {{first_name}}`}
             className={`${editorField} h-9`}
           />
         </label>

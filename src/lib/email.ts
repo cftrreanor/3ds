@@ -2,6 +2,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { brand } from "@/lib/brand";
 import { isDemoEmail } from "@/lib/demo-email";
+import { brandBar } from "@/lib/email-format";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
@@ -32,6 +33,17 @@ async function logEmail(to: string, subject: string, status: "sent" | "failed" |
 
 /** For emails written by a person (the admin dashboard): who, and what it said. */
 export type EmailAuthor = { userId: string; body: string };
+
+/**
+ * The logo's web address for emails (email apps fetch it from the site).
+ * Uses the site's main address on Vercel; otherwise the given origin, if any.
+ * Null means "show the name instead".
+ */
+export function emailLogoUrl(origin?: string | null) {
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (production) return `https://${production}/logo.png`;
+  return origin && !origin.includes("localhost") ? `${origin}/logo.png` : null;
+}
 
 export type EmailAttachment = { filename: string; content: string; contentType: string };
 
@@ -207,7 +219,7 @@ export function emailLayout({
     ? `<p style="margin:0 0 24px"><a href="${escape(button.url)}" style="background:#1749d8;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:bold;display:inline-block">${escape(button.label)}</a></p>`
     : "";
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#172033">
-<p style="font-size:18px;font-weight:bold;margin:0 0 20px">${escape(brand.name)}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr>${brandBar(emailLogoUrl())}</tr></table>
 <h1 style="font-size:22px;line-height:28px;margin:0 0 16px">${escape(heading)}</h1>
 ${paragraphs.map(p).join("")}${list}${btn}
 <p style="font-size:13px;line-height:20px;color:#5b667a;margin:24px 0 0">${escape(footer ?? `Sent by ${brand.name}.`)}</p>

@@ -132,14 +132,26 @@ function bodyText(blocks: Block[]) {
     .join("\n\n");
 }
 
-/** A finished email: brand bar, white card with the message, quiet footer. */
-export function renderEmail(body: string) {
+/**
+ * The brand bar: the (white) logo on indigo, or the name in white when
+ * there's no address for the logo. Email apps that block images show the
+ * name instead (the alt text), still white on indigo.
+ */
+export function brandBar(logoUrl: string | null | undefined) {
+  const inner = logoUrl
+    ? `<img src="${escape(logoUrl)}" alt="${escape(brand.name)}" width="78" height="48" style="display:block;height:48px;width:78px;border:0;outline:none;color:#ffffff;font-size:18px;font-weight:bold">`
+    : escape(brand.name);
+  return `<td style="background:${BRAND};border-radius:12px 12px 0 0;padding:${logoUrl ? "14px 28px" : "18px 28px"};font-size:18px;font-weight:bold;letter-spacing:0.3px;color:#ffffff">${inner}</td>`;
+}
+
+/** A finished email: brand bar (with the logo), white card with the message, quiet footer. */
+export function renderEmail(body: string, { logoUrl }: { logoUrl?: string | null } = {}) {
   const blocks = parse(body);
   const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f4f2ee">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ee;padding:24px 12px">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;font-family:Helvetica,Arial,sans-serif">
-<tr><td style="background:${BRAND};border-radius:12px 12px 0 0;padding:18px 28px;font-size:18px;font-weight:bold;letter-spacing:0.3px;color:#ffffff">${escape(brand.name)}</td></tr>
+<tr>${brandBar(logoUrl)}</tr>
 <tr><td style="background:#ffffff;border:1px solid ${LINE};border-top:0;border-radius:0 0 12px 12px;padding:28px">
 ${bodyHtml(blocks)}
 </td></tr>
