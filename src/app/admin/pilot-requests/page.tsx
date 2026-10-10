@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
-import { Badge, Card, Select } from "@/components/ui";
+import { Badge, Card, Field, Input, Select } from "@/components/ui";
 import { requirePlatformAdmin } from "@/lib/admin";
 import { formatPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/time";
-import { setPilotStatus } from "./actions";
+import { inviteHost, setPilotStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Pilot requests" };
 
@@ -31,8 +31,25 @@ const LABEL = { new: "New", contacted: "Contacted", accepted: "Accepted", declin
 export default async function PilotRequestsPage() {
   await requirePlatformAdmin();
   const supabase = await createClient();
-  const { data } = await supabase.from("pilot_requests").select("*").order("created_at", { ascending: false });
+  const [{ data }, { data: invData }] = await Promise.all([
+    supabase.from("pilot_requests").select("*").order("created_at", { ascending: false }),
+    supabase.from("host_invitations").select("email, invited_at, used_at, expires_at"),
+  ]);
   const requests = (data ?? []) as Request[];
+  // Host invitations by email: who's been invited, and who has set up their organization.
+  const invites = new Map(
+    ((invData ?? []) as { email: string; invited_at: string; used_at: string | null; expires_at: string }[]).map((i) => [
+      i.email.toLowerCase(),
+      i,
+    ]),
+  );
+  const inviteState = (email: string) => {
+    const i = invites.get(email.toLowerCase());
+    if (!i) return null;
+    if (i.used_at) return `Set up their organization ${formatDate(i.used_at.slice(0, 10))}`;
+    if (new Date(i.expires_at) < new Date()) return `Host invitation expired ${formatDate(i.expires_at.slice(0, 10))}`;
+    return `Invited to host ${formatDate(i.invited_at.slice(0, 10))}`;
+  };
   const counts = Object.fromEntries(Object.keys(LABEL).map((k) => [k, requests.filter((r) => r.status === k).length]));
 
   return (
@@ -46,6 +63,19 @@ export default async function PilotRequestsPage() {
               .map((k) => `${counts[k]} ${LABEL[k].toLowerCase()}`)
               .join(" · ")}
       </p>
+      <Card className="mt-6">
+        <h3 className="font-semibold">Invite a host</h3>
+        <p className="mt-1 text-sm text-muted">
+          Hosts are set up by invitation: only invited emails can create an organization. Approve a request below, or invite
+          anyone by email.
+        </p>
+        <ActionForm action={inviteHost.bind(null, null)} className="mt-3 flex flex-wrap items-end gap-2">
+          <Field label="Email" className="min-w-60 flex-1">
+            <Input name="email" type="email" required placeholder="director@school.org" />
+          </Field>
+          <SubmitButton pendingText="Inviting…">Invite as host</SubmitButton>
+        </ActionForm>
+      </Card>
       <ul className="mt-6 space-y-4">
         {requests.map((r) => (
           <li key={r.id}>
@@ -74,6 +104,18 @@ export default async function PilotRequestsPage() {
                   .join(" · ") || <span className="text-muted">No contest details</span>}
               </p>
               {r.notes && <p className="whitespace-pre-line rounded-md bg-background px-3 py-2 text-sm">{r.notes}</p>}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                <p className="text-sm">
+                  {inviteState(r.email) ?? <span className="text-muted">Not invited to host yet</span>}
+                </p>
+                <ActionForm action={inviteHost.bind(null, r.id)} resetOnSuccess={false}>
+                  <input type="hidden" name="email" value={r.email} />
+                  <input type="hidden" name="name" value={r.name} />
+                  <SubmitButton variant={invites.has(r.email.toLowerCase()) ? "secondary" : "primary"} className="min-h-9 px-3 text-xs" pendingText="Inviting…">
+                    {invites.has(r.email.toLowerCase()) ? "Send the host invitation again" : "Approve as host"}
+                  </SubmitButton>
+                </ActionForm>
+              </div>
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <p className="text-xs text-muted">Sent {formatDate(r.created_at.slice(0, 10))}</p>
                 <ActionForm action={setPilotStatus.bind(null, r.id)} resetOnSuccess={false} className="flex items-center gap-2">
