@@ -6,8 +6,9 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { utcToZonedDate } from "@/lib/time";
 
 // Once a day (vercel.json): remind parents to bring their photo ID the day
-// before a school visitor event, and erase parent registrations 30 days after
-// their event. Vercel calls it with the CRON_SECRET environment variable.
+// before a school visitor event, erase parent registrations 30 days after
+// their event, volunteers 10 days after theirs, and old admin email records.
+// Vercel calls it with the CRON_SECRET environment variable.
 
 export const maxDuration = 300;
 
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
   // Volunteers' details (and under-18 helpers) are deleted 10 days after the event.
   const { data: volunteersPurged, error: volunteerPurgeError } = await admin.rpc("purge_volunteers");
   if (volunteerPurgeError) console.error("purge_volunteers failed", volunteerPurgeError);
+  // The admin email log: 14 days for people without an account, 180 for everyone.
+  const { data: emailsPurged, error: adminPurgeError } = await admin.rpc("purge_admin_records");
+  if (adminPurgeError) console.error("purge_admin_records failed", adminPurgeError);
 
   // Events starting tomorrow in their own time zone (look a day either side, then check).
   const shift = (days: number) => new Date(started + days * 86_400_000).toISOString().slice(0, 10);
@@ -78,5 +82,5 @@ export async function GET(request: NextRequest) {
   }
   if (unsent) console.error(`Daily job: ${unsent} parent reminder(s) not sent`);
 
-  return NextResponse.json({ purged: purged ?? 0, volunteersPurged: volunteersPurged ?? 0, reminded, unsent });
+  return NextResponse.json({ purged: purged ?? 0, volunteersPurged: volunteersPurged ?? 0, emailsPurged: emailsPurged ?? 0, reminded, unsent });
 }

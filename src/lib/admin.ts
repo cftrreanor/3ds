@@ -51,7 +51,12 @@ export function freeStatus(org: { subscription_status: string; free_until: strin
 export type AdminLogRow = {
   id: string;
   action: string;
-  details: { from?: { status: string; free_until: string | null }; to?: { status: string; free_until: string | null }; note?: string | null };
+  details: {
+    from?: { status: string; free_until: string | null };
+    to?: { status: string; free_until: string | null };
+    note?: string | null;
+    email?: string;
+  };
   created_at: string;
   admin: { full_name: string; email: string } | null;
   organization: { name: string } | null;
@@ -66,5 +71,6 @@ const planWithEnd = (p?: { status: string; free_until: string | null }) =>
 /** "Pilot (free) through Jun 30, 2027 → Paid" */
 export function describeAdminLog(r: AdminLogRow) {
   if (r.action === "plan_changed") return `Plan: ${planWithEnd(r.details.from)} → ${planWithEnd(r.details.to)}`;
-  return r.action;
+  if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host`;
+  return r.action.replaceAll("_", " ");
 }

@@ -1435,7 +1435,7 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":
 do $$ begin
   assert not public.is_platform_admin(), 'a host is not a platform admin';
   assert (select count(*) from public.pilot_requests) = 0, 'a host can''t read pilot requests';
-  update public.pilot_requests set status = 'accepted';
+  update public.pilot_requests set status = 'invited';
   begin
     insert into public.platform_admins (user_id) values (auth.uid());
     raise exception 'FAIL: a user made themselves a platform admin';
@@ -2675,5 +2675,138 @@ do $$ begin
   assert exists (select 1 from public.volunteers where event_id = '10000000-0000-0000-0000-00000000000a'), 'upcoming events keep theirs';
 end $$;
 delete from public.events where id in ('10000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000e2');
+
+-- Admin CRM: the pilot pipeline moves itself along; notes, the email log and
+-- sign-ins are for FieldCommand admins only.
+reset role;
+delete from public.platform_admins;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+insert into public.pilot_requests (id, name, email, organization)
+values ('60000000-0000-0000-0000-0000000000c1', 'Pia Pipeline', 'pia@example.com', 'Pipeline HS');
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000000c1', 'pia@example.com', '{"full_name":"Pia Pipeline"}');
+insert into auth.audit_log_entries (payload, created_at) values
+  ('{"actor_id":"00000000-0000-0000-0000-0000000000c1","action":"login"}', now() - interval '1 hour'),
+  ('{"actor_id":"00000000-0000-0000-0000-0000000000c1","action":"token_refreshed"}', now()),
+  ('{"actor_id":"00000000-0000-0000-0000-000000000001","action":"login"}', now());
+insert into public.email_log (to_email, subject, status, created_at) values
+  ('pia@example.com', 'Old note to a host', 'sent', now() - interval '20 days'),
+  ('volunteer-only@example.com', 'Old volunteer email', 'sent', now() - interval '20 days'),
+  ('volunteer-only@example.com', 'Recent volunteer email', 'sent', now() - interval '2 days'),
+  ('pia@example.com', 'Ancient', 'failed', now() - interval '200 days');
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select count(*) from public.email_log) = 0, 'a host can''t read the email log';
+  assert (select count(*) from public.admin_notes) = 0, 'or admin notes';
+  begin
+    insert into public.admin_notes (organization_id, body, author_id)
+    values ((select id from public.organizations limit 1), 'sneaky', auth.uid());
+    raise exception 'FAIL: a host wrote an admin note';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform * from public.admin_sign_ins();
+    raise exception 'FAIL: a host listed everyone''s sign-ins';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform * from public.admin_auth_history('00000000-0000-0000-0000-0000000000c1');
+    raise exception 'FAIL: a host read someone''s sign-in history';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.purge_admin_records();
+    raise exception 'FAIL: a browser ran the admin clean-up';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.admin_notes;
+    raise exception 'FAIL: anon read admin notes';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.email_log;
+    raise exception 'FAIL: anon read the email log';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.email_log) = 4, 'an admin reads the email log';
+  assert (select count(*) from public.admin_auth_history('00000000-0000-0000-0000-0000000000c1')) = 1,
+         'an admin sees one person''s sign-ins, without session refreshes';
+  assert exists (select 1 from public.admin_sign_ins() where user_id = '00000000-0000-0000-0000-0000000000c1'),
+         'and everyone''s account dates';
+  insert into public.admin_notes (pilot_request_id, body, follow_up_on)
+  values ('60000000-0000-0000-0000-0000000000c1', 'Call after spring break', current_date + 7);
+  assert (select author_id from public.admin_notes where body = 'Call after spring break') = auth.uid(), 'notes are signed by their admin';
+  begin
+    insert into public.admin_notes (pilot_request_id, body, author_id)
+    values ('60000000-0000-0000-0000-0000000000c1', 'Pretending', '00000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: an admin wrote a note in someone else''s name';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.admin_notes (body) values ('About nobody');
+    raise exception 'FAIL: a note about nothing';
+  exception when check_violation then null;
+  end;
+  update public.admin_notes set done_at = now(), done_by = auth.uid() where body = 'Call after spring break';
+  assert (select done_at is not null from public.admin_notes where body = 'Call after spring break'), 'an admin marks a follow-up done';
+  begin
+    update public.admin_notes set author_id = '00000000-0000-0000-0000-000000000001';
+    raise exception 'FAIL: changed who wrote a note';
+  exception when insufficient_privilege then null;
+  end;
+
+  update public.pilot_requests set status = 'contacted' where id = '60000000-0000-0000-0000-0000000000c1';
+  perform public.admin_invite_host('pia@example.com', '60000000-0000-0000-0000-0000000000c1');
+  assert (select status from public.pilot_requests where id = '60000000-0000-0000-0000-0000000000c1') = 'invited',
+         'inviting the host moves the request to "invited"';
+  begin
+    update public.pilot_requests set status = 'accepted' where id = '60000000-0000-0000-0000-0000000000c1';
+    raise exception 'FAIL: an unknown stage';
+  exception when check_violation then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000c1","email":"pia@example.com"}';
+do $$ begin
+  perform public.create_organization('Pipeline Boosters', 'pipeline-boosters');
+end $$;
+reset role;
+do $$ begin
+  assert (select status = 'set_up' and organization_id = (select id from public.organizations where slug = 'pipeline-boosters')
+            from public.pilot_requests where id = '60000000-0000-0000-0000-0000000000c1'),
+         'setting up the organization moves the request to "set up" and links it';
+end $$;
+insert into public.events (id, organization_id, name, slug, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000c1', (select id from public.organizations where slug = 'pipeline-boosters'),
+        'Pipeline Contest', 'pipeline-contest', current_date + 30, current_date + 30, now() + interval '30 days',
+        now() + interval '30 days 5 hours', '1 Pipe Rd');
+update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c1';
+do $$ begin
+  assert (select status from public.pilot_requests where id = '60000000-0000-0000-0000-0000000000c1') = 'active',
+         'publishing their first event makes the pilot "active"';
+end $$;
+set role service_role;
+do $$ begin
+  assert public.purge_admin_records() = 2, 'old emails to people without an account, and anything past 180 days, are removed';
+end $$;
+reset role;
+do $$ begin
+  assert exists (select 1 from public.email_log where subject = 'Old note to a host'), 'a host''s 20-day-old email stays';
+  assert exists (select 1 from public.email_log where subject = 'Recent volunteer email'), 'a recent volunteer email stays';
+end $$;
+delete from public.organizations where slug = 'pipeline-boosters';
+delete from public.pilot_requests where id = '60000000-0000-0000-0000-0000000000c1';
+delete from public.email_log;
+delete from public.platform_admins;
 
 \echo 'All database security tests passed.'
