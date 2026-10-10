@@ -2851,4 +2851,26 @@ end $$;
 delete from public.email_templates;
 delete from public.platform_admins;
 
+-- The database's messages use the company name, and the rules behind them are unchanged.
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare msg text;
+begin
+  begin
+    perform public.create_organization('Name Check Boosters', 'name-check-boosters');
+    raise exception 'FAIL: created an organization without an invitation';
+  exception when insufficient_privilege then
+    get stacked diagnostics msg = message_text;
+  end;
+  assert msg like '%Field Command Events%', 'the invitation message says Field Command Events';
+  begin
+    perform * from public.admin_sign_ins();
+    raise exception 'FAIL: a non-admin listed sign-ins';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

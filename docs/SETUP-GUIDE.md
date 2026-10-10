@@ -103,7 +103,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261023000000_adults_only_stations.sql` | Stations: an "Adults only (18+)" setting | ✅ run |
 | `20261024000000_event_files.sql` | Maps & documents: share PDFs and images with the public, directors, volunteers or the team (also creates the private `event-files` storage bucket) | ✅ run |
 | `20261025000000_event_file_uploader.sql` | Maps & documents: who uploaded each file, and when | ✅ run |
-| `20261026000000_demo_mode.sql` | Demo mode: FieldCommand admins can view an event as each role | ✅ run |
+| `20261026000000_demo_mode.sql` | Demo mode: Field Command Events admins can view an event as each role | ✅ run |
 | `20261027000000_band_invitations.sql` | Band registration: invite directors from your past events; they register in one tap with their saved band | ✅ run |
 | `20261028000000_admin_dashboard.sql` | Admin dashboard: set each organization's plan and the last day of its free pilot; admin activity log | ✅ run |
 | `20261029000000_event_types.sql` | Event types: a band contest, or a volunteer-only event (no bands) | ✅ run |
@@ -118,6 +118,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261107000000_volunteer_retention.sql` | Volunteers' names and contact details (under-18 helpers too) are deleted 10 days after the event, by the daily job; shift totals stay | ✅ run |
 | `20261108000000_admin_crm.sql` | Admin dashboard as a CRM: pilot pipeline stages (new → contacted → invited → set up → active), private notes and follow-ups, a log of emails sent, and sign-in history | ⬜ |
 | `20261109000000_admin_emails.sql` | Admin emails: write to hosts, people and pilot requests from the admin dashboard, and save email templates with merge fields like {{first_name}} | ⬜ |
+| `20261110000000_company_name.sql` | The database's own messages use the company name "Field Command Events" (for example "Hosting on Field Command Events is by invitation") | ⬜ |
 
 ## Pilot requests
 
@@ -125,7 +126,7 @@ People who fill in "Join the pilot" on the home page are saved in the database, 
 is emailed to the support address in `src/lib/brand.ts` (you can reply straight to the person).
 This works as soon as `20261018000000_pilot_requests.sql` has been run.
 
-Seeing the list of requests inside the app is a later step: see *Make yourself a FieldCommand
+Seeing the list of requests inside the app is a later step: see *Make yourself a Field Command Events
 admin* under **Later** below.
 
 ## Test data (fake bands and volunteers)
@@ -160,7 +161,7 @@ for both **Magic Link** and **Confirm signup**, the body is:
 
 ```html
 <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#14213d">
-  <p style="font-size:18px;font-weight:bold;margin:0 0 16px">FieldCommand</p>
+  <p style="font-size:18px;font-weight:bold;margin:0 0 16px">Field Command Events</p>
   <p style="font-size:16px;line-height:24px;margin:0 0 24px">Tap the button below to sign in. The link works once and expires in 1 hour.</p>
   <p style="margin:0 0 24px">
     <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email"
@@ -170,10 +171,10 @@ for both **Magic Link** and **Confirm signup**, the body is:
 </div>
 ```
 
-Subject: `Your FieldCommand sign-in link`.
+Subject: `Your Field Command Events sign-in link`.
 
 **App emails (volunteer confirmations).** Resend → API Keys → a second key named
-`FieldCommand app` with *Sending access* to the domain. Vercel → Environment
+`Field Command Events app` with *Sending access* to the domain. Vercel → Environment
 Variables → `RESEND_API_KEY` (Sensitive) → Redeploy.
 
 **Web addresses.** Supabase → Authentication → **URL Configuration**:
@@ -187,7 +188,7 @@ form simply shows plain venue name and address boxes.
 
 1. Go to **console.cloud.google.com** and sign in with a Google account (ideally the
    business one).
-2. At the top, click the project picker → **New project** → name it `FieldCommand` →
+2. At the top, click the project picker → **New project** → name it `Field Command Events` →
    **Create**, then make sure it's selected.
 3. **Billing:** Google requires a card on file, even though our usage fits
    comfortably in the free monthly allowance. Left menu → **Billing** → link or
@@ -221,7 +222,7 @@ can run it:
 
 ## Later: set up when we reach that phase
 
-### Make yourself a FieldCommand admin (whenever you're ready)
+### Make yourself a Field Command Events admin (whenever you're ready)
 Until you do this, pilot requests still arrive by email; you just won't see the list in the app.
 In the Supabase **SQL Editor**, paste this, put the email you sign in with between the quotes,
 and click **Run**:
@@ -231,7 +232,7 @@ insert into public.platform_admins (user_id)
 select id from auth.users where email = 'the-email-you-sign-in-with@example.com';
 ```
 
-It should say "1 row". Your dashboard then shows a **FieldCommand admin** box at the top. It opens
+It should say "1 row". Your dashboard then shows a **Field Command Events admin** box at the top. It opens
 the admin dashboard (`/admin`), laid out like a CRM with a sidebar: Home (what's due today and
 which accounts need attention), Follow-ups, Accounts (each host organization's health, plan and
 the last day of its free pilot), People (anyone with an account: roles, sign-ins and the emails

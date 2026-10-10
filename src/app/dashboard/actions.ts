@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { brand } from "@/lib/brand";
 import { eventTypeLabel, isEventType } from "@/lib/event-types";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
@@ -237,7 +238,7 @@ export async function setEventPublished(eventId: string, publish: boolean): Prom
     if (error.code === "42501") {
       return {
         error:
-          "Publishing needs an active FieldCommand plan for your organization. During the pilot, ask us to activate it.",
+          `Publishing needs an active ${brand.name} plan for your organization. During the pilot, ask us to activate it.`,
       };
     }
     return { error: friendlyDbError(error) };

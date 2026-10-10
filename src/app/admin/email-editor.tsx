@@ -67,7 +67,7 @@ export function FormatBar({
   const button = () => {
     const url = window.prompt("Where should the button go? (starts with https://)", "https://");
     if (!url || url === "https://") return;
-    const label = window.prompt("Button text", "Open FieldCommand") || "Open";
+    const label = window.prompt("Button text", `Open ${brand.name}`) || "Open";
     edit(() => ({ text: `\n[[${label.trim()}|${url.trim()}]]\n` }));
   };
 

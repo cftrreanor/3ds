@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/admin";
 import { ADMIN_TZ, ago, authActionLabel, byNewest, personRoles, ROLE_LABEL, stageLabel, stamp, type TimelineItem } from "@/lib/admin-crm";
+import { brand } from "@/lib/brand";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -95,7 +96,7 @@ export default async function PersonPage({ params }: PageProps<"/admin/people/[p
               {p.email}
             </a>
             {p.phone && <span>{formatPhone(p.phone)}</span>}
-            {isAdmin && <Tag tone="brand">FieldCommand admin</Tag>}
+            {isAdmin && <Tag tone="brand">{brand.name} admin</Tag>}
             {roles.map((r) => (
               <Tag key={r}>{ROLE_LABEL[r]}</Tag>
             ))}

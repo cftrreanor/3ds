@@ -152,7 +152,7 @@ export default async function DashboardPage() {
           href="/admin"
           className="flex items-center justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-card hover:border-brand/40"
         >
-          <span className="font-semibold">FieldCommand admin</span>
+          <span className="font-semibold">{brand.name} admin</span>
           <span className="text-sm text-muted">{newRequests ? `${newRequests} new pilot request${newRequests === 1 ? "" : "s"} →` : "Organizations, plans, pilot requests →"}</span>
         </Link>
       )}
