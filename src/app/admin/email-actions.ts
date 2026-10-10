@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requirePlatformAdmin } from "@/lib/admin";
 import { brand } from "@/lib/brand";
-import { pause, personalEmail, sendEmail } from "@/lib/email";
+import { pause, sendEmail } from "@/lib/email";
+import { renderEmail } from "@/lib/email-format";
 import { fillTemplate } from "@/lib/merge-fields";
 import { createClient } from "@/lib/supabase/server";
 import { emailRecipients, myName, type EmailTarget } from "./data";
@@ -35,7 +36,7 @@ export async function sendAdminEmail(target: EmailTarget, _prev: ActionState, fo
     const vars = { ...r.vars, my_name: me };
     const s = fillTemplate(subject, vars).text;
     const b = fillTemplate(body, vars).text;
-    const { html, text } = personalEmail(b);
+    const { html, text } = renderEmail(b);
     const ok = await sendEmail({ to: r.email, subject: s, html, text, replyTo: brand.supportEmail, author: { userId: user.id, body: b } });
     (ok ? sent : failed).push(r.email);
   }

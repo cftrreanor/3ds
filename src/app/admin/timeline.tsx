@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ago, stamp, type TimelineItem } from "@/lib/admin-crm";
+import { renderEmail } from "@/lib/email-format";
 import { formatDate } from "@/lib/time";
 import { Tag } from "./kit";
 import { NoteControls } from "./note-controls";
@@ -45,7 +46,7 @@ export function Timeline({ items, today }: { items: TimelineItem[]; today: strin
             {it.body && (
               <details className="mt-1 text-sm">
                 <summary className="cursor-pointer text-xs font-semibold text-brand">Show the email</summary>
-                <p className="mt-1 rounded-sm bg-background px-3 py-2 whitespace-pre-line">{it.body}</p>
+                <p className="mt-1 rounded-sm bg-background px-3 py-2 whitespace-pre-line">{renderEmail(it.body).text}</p>
               </details>
             )}
             {it.note && (

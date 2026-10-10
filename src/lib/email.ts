@@ -174,24 +174,6 @@ export const pause = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/**
- * A personal note (written in the admin dashboard): the brand line, then the
- * text as paragraphs, with no heading or button. Blank lines split paragraphs;
- * single line breaks are kept.
- */
-export function personalEmail(body: string) {
-  const paragraphs = body
-    .replace(/\r\n/g, "\n")
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#172033">
-<p style="font-size:18px;font-weight:bold;margin:0 0 20px">${escape(brand.name)}</p>
-${paragraphs.map((p) => `<p style="font-size:16px;line-height:24px;margin:0 0 16px">${escape(p).replace(/\n/g, "<br>")}</p>`).join("")}
-</div>`;
-  return { html, text: paragraphs.join("\n\n") };
-}
-
 /** A simple, readable layout that works in every email client. */
 export function emailLayout({
   heading,
