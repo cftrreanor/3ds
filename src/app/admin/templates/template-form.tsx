@@ -6,6 +6,7 @@ import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-state";
 import { brand } from "@/lib/brand";
+import type { MergeVars } from "@/lib/merge-fields";
 import { EmailPreview, editorField, FormatBar, FormatHelp, SAMPLE_VARS } from "../email-editor";
 
 /**
@@ -16,10 +17,13 @@ export function TemplateBuilder({
   action,
   template,
   onDelete,
+  sampleLinks,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   template?: { id: string; name: string; subject: string; body: string };
   onDelete?: () => Promise<void>;
+  /** Link fields for the preview (this site's sign-in, dashboard and home links). */
+  sampleLinks: MergeVars;
 }) {
   const [subject, setSubject] = useState(template?.subject ?? "");
   const [body, setBody] = useState(template?.body ?? "");
@@ -91,7 +95,7 @@ export function TemplateBuilder({
       </ActionForm>
       <div className="min-w-0 space-y-1">
         <span className="text-xs font-semibold text-muted">Preview</span>
-        <EmailPreview subject={subject} body={body} vars={{ ...SAMPLE_VARS, my_name: "You" }} note="Shown with sample details; each person gets their own." />
+        <EmailPreview subject={subject} body={body} vars={{ ...SAMPLE_VARS, ...sampleLinks, my_name: "You" }} note="Shown with sample details; each person gets their own." />
       </div>
     </div>
   );
