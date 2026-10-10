@@ -11,7 +11,12 @@ export const bandSchema = z.object({
   schoolName: z.string().trim().min(2, "School name is required").max(150),
   bandName: z.string().trim().min(2, "Ensemble name is required").max(150),
   classification: z.string().trim().min(1, "Pick a classification"),
-  schoolAddress: z.string().trim().min(5, "School address is required").max(300),
+  // Optional: some hosts use it to mail receipts or awards.
+  schoolAddress: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((v) => v === "" || v.length >= 5, "Please enter the full school address, or leave it blank."),
   contactEmail: z.string().trim().toLowerCase().email("Contact email isn't valid"),
   headDirectorName: z.string().trim().min(2, "Head director's name is required").max(150),
   headDirectorEmail: z.string().trim().toLowerCase().email("Head director's email isn't valid"),

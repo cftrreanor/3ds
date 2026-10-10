@@ -289,7 +289,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                     </Detail>
                     <Detail label="Assistant directors">{b.assistant_directors.join(", ") || "None listed"}</Detail>
                     <Detail label={`${w.One} contact`}>{b.contact_email}</Detail>
-                    <Detail label="School address">{b.school_address}</Detail>
+                    <Detail label="School address">{b.school_address || "Not given"}</Detail>
                     <Detail label="People">
                       {b.student_count} {roomsHere ? "participants" : "students"} · {b.chaperone_count} chaperones
                     </Detail>

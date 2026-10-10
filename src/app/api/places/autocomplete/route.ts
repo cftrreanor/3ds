@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getUser } from "@/lib/auth";
+import { canUsePlaces } from "@/lib/places-access";
 import { autocomplete, isPlacesConfigured } from "@/lib/places";
 
-// Signed-in users only: every call costs money on Google's side.
+// Hosts and admins only (canUsePlaces): every call costs money on Google's side.
 export async function GET(request: NextRequest) {
   if (!isPlacesConfigured) return NextResponse.json({ error: "not_configured" }, { status: 503 });
   if (!(await getUser())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await canUsePlaces())) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const session = request.nextUrl.searchParams.get("session") ?? "";
