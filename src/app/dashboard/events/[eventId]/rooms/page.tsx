@@ -79,7 +79,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
         ← Back to {event.name}
       </Link>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Rooms &amp; schedule</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Rooms &amp; schedule</h1>
         <Badge tone={event.performance_order_published ? "brand" : "neutral"}>
           {event.performance_order_published ? "Posted: directors and the public can see it" : "Not posted yet"}
         </Badge>

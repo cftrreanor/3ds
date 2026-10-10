@@ -118,7 +118,7 @@ export default async function DashboardPage() {
     if (count) redirect("/my");
     return (
       <div className="mx-auto max-w-lg">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Welcome! Let&apos;s set up your organization</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Welcome! Let&apos;s set up your organization</h1>
         <p className="mt-2 leading-7 text-muted">
           This is the group that hosts your events. You can invite other organizers later.
         </p>

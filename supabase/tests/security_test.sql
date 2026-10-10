@@ -1987,17 +1987,21 @@ insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-00
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
 do $$
-declare org uuid := (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a');
+declare
+  org uuid := (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a');
+  -- Already past in the organization's own time zone, which org_has_active_plan() uses:
+  -- on US evenings the server's UTC date is a day ahead, so "UTC yesterday" can still be today there.
+  ended date := current_date - 2;
 begin
   begin
     perform public.admin_set_plan(org, 'comped', null, null);
     raise exception 'FAIL: a pilot without its last free day';
   exception when sqlstate 'P0001' then null;
   end;
-  perform public.admin_set_plan(org, 'comped', current_date - 1, 'Pilot ended yesterday');
+  perform public.admin_set_plan(org, 'comped', ended, 'Pilot ended');
   assert not public.org_has_active_plan(org), 'a pilot past its last day isn''t active';
-  assert (select details->'to'->>'free_until' from public.admin_log where organization_id = org) = (current_date - 1)::text
-         and (select details->>'note' from public.admin_log where organization_id = org) = 'Pilot ended yesterday'
+  assert (select details->'to'->>'free_until' from public.admin_log where organization_id = org) = ended::text
+         and (select details->>'note' from public.admin_log where organization_id = org) = 'Pilot ended'
          and (select admin_id from public.admin_log where organization_id = org) = auth.uid(),
          'the change is logged with who made it';
 end $$;

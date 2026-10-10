@@ -38,7 +38,7 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
       <main className="mx-auto w-full max-w-md flex-1 px-4 py-12">
         {!reg || !event || event.slug !== slug ? (
           <Card>
-            <h1 className="text-2xl font-bold">This link isn&apos;t valid</h1>
+            <h1 className="text-2xl font-medium">This link isn&apos;t valid</h1>
             <p className="mt-2 text-muted">The registration may have been canceled, or deleted after the event.</p>
             <Link
               href={`/e/${slug}/parents`}
@@ -51,7 +51,7 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
           <div className="space-y-4">
             <Card>
               <p className="text-sm font-medium text-muted">You&apos;re registered</p>
-              <h1 className="mt-1 text-3xl font-bold">{event.name}</h1>
+              <h1 className="mt-1 text-3xl font-medium">{event.name}</h1>
               <p className="mt-2 text-muted">
                 {formatDateRange(event.starts_on, event.ends_on)} · {formatTimeRange(event.window_start, event.window_end, event.timezone)}
               </p>

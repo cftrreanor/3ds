@@ -23,7 +23,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
         <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
           ← All events
         </Link>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">What kind of event is this?</h1>
+        <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">What kind of event is this?</h1>
         <p className="mt-2 leading-7 text-muted">You can change this later, as long as no bands have registered.</p>
         <div className="mt-8">
           <EventTypeChoices />
@@ -37,7 +37,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
         ← All events
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">New {eventTypeLabel(type).toLowerCase()}</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">New {eventTypeLabel(type).toLowerCase()}</h1>
       <p className="mt-2 leading-7 text-muted">
         Just the basics for now. You&apos;ll add stations and volunteer shifts next.{" "}
         <Link href="/dashboard/events/new" className="font-medium text-brand underline-offset-4 hover:underline">

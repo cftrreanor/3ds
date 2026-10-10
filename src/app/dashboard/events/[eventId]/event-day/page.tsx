@@ -91,7 +91,7 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Event day</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event day</h1>
       <p className="mt-1 text-sm text-muted">
         Updates every 20 seconds. Tap a button once; it saves right away. All times {zoneName(tz)}.
       </p>

@@ -57,7 +57,7 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
       <Field label="Anything else we should know?" hint="Optional">
         <Textarea name="notes" rows={3} maxLength={2000} placeholder="What kind of events do you run? What's hardest about event day today?" />
       </Field>
-      <SubmitButton variant="accent" pendingText="Sending…" className="w-full sm:w-auto">
+      <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
         Request a pilot spot
       </SubmitButton>
     </ActionForm>

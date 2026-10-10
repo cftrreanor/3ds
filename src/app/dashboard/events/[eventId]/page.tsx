@@ -262,7 +262,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{event.name}</h1>
+          <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
           <p className="mt-1 text-muted">
             {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
           </p>

@@ -129,7 +129,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
 
       <header className="mt-4">
         <p className="text-sm font-medium text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">{event.name}</h1>
+        <h1 className="mt-1 text-3xl font-medium tracking-tight sm:text-4xl">{event.name}</h1>
         <p className="mt-1 text-muted">
           {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
           <a href={mapUrl} target="_blank" rel="noreferrer" className={linkClass}>

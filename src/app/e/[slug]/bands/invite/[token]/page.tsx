@@ -28,7 +28,7 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
         <Card>
           {!invite?.event || invite.event.slug !== slug ? (
             <>
-              <h1 className="text-2xl font-bold">This link isn&apos;t valid</h1>
+              <h1 className="text-2xl font-medium">This link isn&apos;t valid</h1>
               <p className="mt-2 text-muted">It may have been replaced by a newer invitation.</p>
               <Link href={here} className="mt-4 inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline">
                 Go to band registration
@@ -37,7 +37,7 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
           ) : (
             <>
               <p className="text-sm font-medium text-muted">You&apos;re invited</p>
-              <h1 className="mt-1 text-3xl font-bold">{invite.event.name}</h1>
+              <h1 className="mt-1 text-3xl font-medium">{invite.event.name}</h1>
               {signedInAsInvitee || invite.usable ? (
                 <>
                   <p className="mt-3 leading-7 text-muted">

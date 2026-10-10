@@ -73,7 +73,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Parent check-in</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Parent check-in</h1>
 
       {access.isHost && (
         <Card className="mt-6">
