@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requirePlatformAdmin } from "@/lib/admin";
 import { brand } from "@/lib/brand";
-import { pause, sendEmail } from "@/lib/email";
+import { getOrigin } from "@/lib/data";
+import { emailLogoUrl, pause, sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-format";
 import { fillTemplate } from "@/lib/merge-fields";
 import { createClient } from "@/lib/supabase/server";
@@ -29,6 +30,7 @@ export async function sendAdminEmail(target: EmailTarget, _prev: ActionState, fo
   if (recipients.length === 0) return { error: "Pick who to send it to." };
 
   const me = await myName(user.id);
+  const logoUrl = emailLogoUrl(await getOrigin());
   const sent: string[] = [];
   const failed: string[] = [];
   for (const [i, r] of recipients.entries()) {
@@ -36,7 +38,7 @@ export async function sendAdminEmail(target: EmailTarget, _prev: ActionState, fo
     const vars = { ...r.vars, my_name: me };
     const s = fillTemplate(subject, vars).text;
     const b = fillTemplate(body, vars).text;
-    const { html, text } = renderEmail(b);
+    const { html, text } = renderEmail(b, { logoUrl });
     const ok = await sendEmail({ to: r.email, subject: s, html, text, replyTo: brand.supportEmail, author: { userId: user.id, body: b } });
     (ok ? sent : failed).push(r.email);
   }
