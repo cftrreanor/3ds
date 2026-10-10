@@ -116,9 +116,9 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261105000000_security_fixes.sql` | Security fixes: people join a team only by accepting an invitation; hosts can't register a band in someone else's name; Section Leads see children's details on event day only; registering again with a parent's email no longer replaces their registration (parents change it from their own link) | ✅ run |
 | `20261106000000_host_invitations.sql` | Hosts by invitation: only emails you invite (Admin → Pilot requests → "Approve as host") can set up an organization; directors, team members, volunteers and parents are unaffected | ✅ run |
 | `20261107000000_volunteer_retention.sql` | Volunteers' names and contact details (under-18 helpers too) are deleted 10 days after the event, by the daily job; shift totals stay | ✅ run |
-| `20261108000000_admin_crm.sql` | Admin dashboard as a CRM: pilot pipeline stages (new → contacted → invited → set up → active), private notes and follow-ups, a log of emails sent, and sign-in history | ⬜ |
-| `20261109000000_admin_emails.sql` | Admin emails: write to hosts, people and pilot requests from the admin dashboard, and save email templates with merge fields like {{first_name}} | ⬜ |
-| `20261110000000_company_name.sql` | The database's own messages use the company name "Field Command Events" (for example "Hosting on Field Command Events is by invitation") | ⬜ |
+| `20261108000000_admin_crm.sql` | Admin dashboard as a CRM: pilot pipeline stages (new → contacted → invited → set up → active), private notes and follow-ups, a log of emails sent, and sign-in history | ✅ run |
+| `20261109000000_admin_emails.sql` | Admin emails: write to hosts, people and pilot requests from the admin dashboard, and save email templates with merge fields like {{first_name}} | ✅ run |
+| `20261110000000_company_name.sql` | The database's own messages use the company name "Field Command Events" (for example "Hosting on Field Command Events is by invitation") | ✅ run |
 
 ## Pilot requests
 
