@@ -102,6 +102,8 @@ export async function createOrganization(_prev: ActionState, formData: FormData)
     org_slug: slugify(orgName),
     tz,
   });
+  // No host invitation: the database says how to get one.
+  if (error?.code === "42501") return { error: error.message };
   if (error) return { error: friendlyDbError(error) };
 
   revalidatePath("/dashboard");

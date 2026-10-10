@@ -21,10 +21,44 @@ do $$ begin
   assert (select count(*) from public.profiles) = 7, 'profiles are created from auth.users';
 end $$;
 
--- Organization without a plan, created through the RPC as the host.
+-- Hosts are invited by FieldCommand: without an invitation, nobody can create an organization.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not public.has_host_invitation(), 'no invitation for a stranger';
+  begin
+    perform public.create_organization('Stranger Boosters', 'stranger-boosters');
+    raise exception 'FAIL: created an organization without an invitation';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.admin_invite_host('stranger@example.com');
+    raise exception 'FAIL: a non-admin invited a host';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select count(*) from public.host_invitations) = 0, 'invitations are hidden from non-admins';
+end $$;
+reset role;
+insert into public.host_invitations (email) values ('host@example.com');
+
+-- Organization without a plan, created through the RPC as the (invited) host.
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+select public.has_host_invitation() as invited \gset
+\if :invited
+\else
+  \echo 'FAIL: the invited host has no invitation'
+  select 1/0;
+\endif
 select id from public.create_organization('Pflugerville Band Boosters', 'pf-boosters') \gset org_
+do $$ begin
+  assert not public.has_host_invitation(), 'an invitation is used up by creating the organization';
+  begin
+    perform public.create_organization('Second Boosters', 'second-boosters');
+    raise exception 'FAIL: one invitation created two organizations';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
 
 do $$ declare new_event_id uuid; begin
   -- Drafts are free, and the host can read the new row back (the app uses
@@ -2565,5 +2599,35 @@ do $$ begin
 end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
+
+-- A FieldCommand admin invites a new host; they can then set up one organization.
+reset role;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006') on conflict do nothing;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  perform public.admin_invite_host(' NewLead@Example.com ');
+  assert (select count(*) from public.host_invitations where email = 'newlead@example.com' and used_at is null) = 1,
+         'an admin invites a host (email tidied)';
+  assert exists (select 1 from public.admin_log where action = 'invite_host'), 'the invitation is logged';
+  begin
+    perform public.admin_invite_host('not-an-email');
+    raise exception 'FAIL: invited a host with a bad email';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000007","email":"newlead@example.com"}';
+do $$ begin
+  assert public.has_host_invitation(), 'the invited person sees their invitation';
+  perform public.create_organization('Newlead Boosters', 'newlead-boosters');
+  assert not public.has_host_invitation(), 'and it''s used up';
+end $$;
+reset role;
+do $$ begin
+  assert (select used_at is not null and organization_id = (select id from public.organizations where slug = 'newlead-boosters')
+            from public.host_invitations where email = 'newlead@example.com'),
+         'the invitation records the organization it created';
+end $$;
+delete from public.organizations where slug = 'newlead-boosters';
 
 \echo 'All database security tests passed.'

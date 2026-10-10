@@ -15,6 +15,7 @@ import { DayStatusPill } from "@/components/day-status";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { bandSteps, dayStatus, groupSteps, type DayStatus, type ProgressRow } from "@/lib/director-day";
 import { hasRooms } from "@/lib/event-types";
+import { HostingByInvitation } from "@/components/hosting-by-invitation";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
 
@@ -97,6 +98,8 @@ export default async function DashboardPage() {
 
   // FieldCommand staff: a way in to the pilot requests from the home page.
   const { data: isAdmin } = await supabase.rpc("is_platform_admin");
+  // New hosts are invited by FieldCommand (has_host_invitation); admins can always set one up.
+  const mayHost = !org && (Boolean(isAdmin) || (await supabase.rpc("has_host_invitation")).data === true);
   const newRequests = isAdmin
     ? ((await supabase.from("pilot_requests").select("id", { count: "exact", head: true }).eq("status", "new")).count ?? 0)
     : 0;
@@ -118,13 +121,23 @@ export default async function DashboardPage() {
     if (count) redirect("/my");
     return (
       <div className="mx-auto max-w-lg">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Welcome! Let&apos;s set up your organization</h1>
-        <p className="mt-2 leading-7 text-muted">
-          This is the group that hosts your events. You can invite other organizers later.
-        </p>
-        <Card className="mt-8">
-          <OnboardingForm />
-        </Card>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">
+          {mayHost ? "Welcome! Let's set up your organization" : `Welcome to ${brand.name}`}
+        </h1>
+        {mayHost ? (
+          <>
+            <p className="mt-2 leading-7 text-muted">
+              This is the group that hosts your events. You can invite other organizers later.
+            </p>
+            <Card className="mt-8">
+              <OnboardingForm />
+            </Card>
+          </>
+        ) : (
+          <div className="mt-8">
+            <HostingByInvitation email={user.email} />
+          </div>
+        )}
         <p className="mt-6 text-sm text-muted">
           Registering a band for someone else&apos;s contest? Use the registration link the host sent you.
         </p>
@@ -182,7 +195,7 @@ export default async function DashboardPage() {
         />
       )}
 
-      {!org && (
+      {!org && mayHost && (
         <p className="text-sm text-muted">
           Hosting your own event?{" "}
           <Link href="/dashboard/setup" className="font-medium text-brand underline-offset-4 hover:underline">

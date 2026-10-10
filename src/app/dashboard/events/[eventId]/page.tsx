@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess } from "@/lib/data";
@@ -66,6 +67,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const words = groupWords(event.event_type);
 
   const access = await getEventAccess(eventId);
+  // Only the event's hosts and team: anyone else (even signed in) goes back to their own dashboard.
+  if (!access.isHost && !(await supabase.rpc("is_event_staff", { ev: eventId })).data) redirect("/dashboard");
   const [
     { data: stationData },
     { data: shifts },
