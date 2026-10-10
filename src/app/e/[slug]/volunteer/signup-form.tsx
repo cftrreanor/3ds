@@ -349,6 +349,9 @@ export function SignupForm({
         )}
         <FormMessage error={state.error} />
         <SubmitButtonWithCount count={chosen.size} people={groupSize} disabled={disabled} />
+        <p className="text-center text-xs text-muted">
+          Your contact details are shared only with the event team, and deleted 10 days after the event.
+        </p>
       </div>
       </ActionPendingContext>
     </form>

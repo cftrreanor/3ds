@@ -23,6 +23,9 @@ export async function GET(request: NextRequest) {
 
   const { data: purged, error: purgeError } = await admin.rpc("purge_parent_registrations");
   if (purgeError) console.error("purge_parent_registrations failed", purgeError);
+  // Volunteers' details (and under-18 helpers) are deleted 10 days after the event.
+  const { data: volunteersPurged, error: volunteerPurgeError } = await admin.rpc("purge_volunteers");
+  if (volunteerPurgeError) console.error("purge_volunteers failed", volunteerPurgeError);
 
   // Events starting tomorrow in their own time zone (look a day either side, then check).
   const shift = (days: number) => new Date(started + days * 86_400_000).toISOString().slice(0, 10);
@@ -75,5 +78,5 @@ export async function GET(request: NextRequest) {
   }
   if (unsent) console.error(`Daily job: ${unsent} parent reminder(s) not sent`);
 
-  return NextResponse.json({ purged: purged ?? 0, reminded, unsent });
+  return NextResponse.json({ purged: purged ?? 0, volunteersPurged: volunteersPurged ?? 0, reminded, unsent });
 }

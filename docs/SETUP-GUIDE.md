@@ -114,7 +114,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261103000000_group_events.sql` | Group events: a fourth kind of event; groups register (no trucks), rooms at one address, each group's path and times, posted schedule by room | ✅ run |
 | `20261104000000_group_event_day.sql` | Group events on the day: the team checks each group in ("Arrived") and marks each room done; directors see their group's progress | ✅ run |
 | `20261105000000_security_fixes.sql` | Security fixes: people join a team only by accepting an invitation; hosts can't register a band in someone else's name; Section Leads see children's details on event day only; registering again with a parent's email no longer replaces their registration (parents change it from their own link) | ✅ run |
-| `20261106000000_host_invitations.sql` | Hosts by invitation: only emails you invite (Admin → Pilot requests → "Approve as host") can set up an organization; directors, team members, volunteers and parents are unaffected | run this next |
+| `20261106000000_host_invitations.sql` | Hosts by invitation: only emails you invite (Admin → Pilot requests → "Approve as host") can set up an organization; directors, team members, volunteers and parents are unaffected | ✅ run |
+| `20261107000000_volunteer_retention.sql` | Volunteers' names and contact details (under-18 helpers too) are deleted 10 days after the event, by the daily job; shift totals stay | run this next |
 
 ## Pilot requests
 
