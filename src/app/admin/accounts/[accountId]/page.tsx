@@ -7,10 +7,11 @@ import { missing } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 import { setPlan } from "../../actions";
-import { loadAccount, NOTE_COLUMNS, signIns, type EmailRow, type NoteRow } from "../../data";
+import { EMAIL_COLUMNS, loadAccount, NOTE_COLUMNS, signIns, type EmailRow, type NoteRow } from "../../data";
 import { EmptyRow, Facts, HealthPill, PageHeader, Panel, RecordLink, Table, Tag, Td, Th, Tr } from "../../kit";
 import { NoteComposer } from "../../note-composer";
 import { addNote } from "../../notes-actions";
+import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
 import { PlanForm } from "../plan-form";
 
@@ -18,7 +19,7 @@ export const metadata: Metadata = { title: "Account" };
 
 /** One host organization: its health, hosts, events, plan and everything that's happened. */
 export default async function AccountPage({ params }: PageProps<"/admin/accounts/[accountId]">) {
-  await requirePlatformAdmin();
+  const user = await requirePlatformAdmin();
   const { accountId } = await params;
   const account = await loadAccount(accountId);
   if (!account) missing();
@@ -39,7 +40,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
       admin.from("admin_log").select(ADMIN_LOG_COLUMNS).eq("organization_id", accountId).order("created_at", { ascending: false }).limit(100),
       admin.from("host_invitations").select("email, invited_at, used_at").eq("organization_id", accountId),
       hostEmails.length
-        ? admin.from("email_log").select("*").in("to_email", hostEmails).order("created_at", { ascending: false }).limit(100)
+        ? admin.from("email_log").select(EMAIL_COLUMNS).in("to_email", hostEmails).order("created_at", { ascending: false }).limit(100)
         : Promise.resolve({ data: [] }),
       countPerEvent("bands"),
       countPerEvent("volunteers"),
@@ -83,7 +84,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
       detail: [r.details.note ? `“${r.details.note}”` : null, r.admin ? `by ${r.admin.full_name || r.admin.email}` : null].filter(Boolean).join(" · ") || null,
     })),
     ...noteItems(notes),
-    ...emailItems((emailData ?? []) as EmailRow[], hostEmails.length > 1),
+    ...emailItems((emailData ?? []) as unknown as EmailRow[], hostEmails.length > 1),
   ];
   items.sort(byNewest);
 
@@ -140,6 +141,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
             </Table>
           </Panel>
 
+          <EmailPanel target={{ organizationId: account.id }} userId={user.id} />
           <Panel title="Timeline" flush>
             <div className="border-b border-border p-3">
               <NoteComposer action={addNote.bind(null, { organizationId: account.id })} />

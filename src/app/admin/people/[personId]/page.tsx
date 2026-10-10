@@ -6,10 +6,11 @@ import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
-import { NOTE_COLUMNS, signIns, type EmailRow, type NoteRow } from "../../data";
+import { EMAIL_COLUMNS, NOTE_COLUMNS, signIns, type EmailRow, type NoteRow } from "../../data";
 import { Facts, PageHeader, Panel, RecordLink, Tag } from "../../kit";
 import { NoteComposer } from "../../note-composer";
 import { addNote } from "../../notes-actions";
+import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
 
 export const metadata: Metadata = { title: "Person" };
@@ -29,7 +30,7 @@ const STAFF_ROLE: Record<string, string> = { volunteer_director: "Volunteer Lead
 
 /** One person: their roles, sign-ins, the emails we sent them, and notes. */
 export default async function PersonPage({ params }: PageProps<"/admin/people/[personId]">) {
-  await requirePlatformAdmin();
+  const user = await requirePlatformAdmin();
   const { personId } = await params;
   const admin = createAdminClient();
   const { data } = await admin
@@ -43,7 +44,7 @@ export default async function PersonPage({ params }: PageProps<"/admin/people/[p
   const p = data as unknown as Profile;
 
   const [{ data: emailData }, { data: noteData }, { data: requestData }, { data: isAdmin }, history, logins] = await Promise.all([
-    admin.from("email_log").select("*").eq("to_email", p.email).order("created_at", { ascending: false }).limit(100),
+    admin.from("email_log").select(EMAIL_COLUMNS).eq("to_email", p.email).order("created_at", { ascending: false }).limit(100),
     admin.from("admin_notes").select(NOTE_COLUMNS).eq("profile_id", p.id).order("created_at", { ascending: false }),
     admin.from("pilot_requests").select("id, organization, status, created_at").ilike("email", p.email.replace(/[\\%_]/g, (c) => `\\${c}`)),
     admin.from("platform_admins").select("user_id").eq("user_id", p.id).maybeSingle(),
@@ -73,7 +74,7 @@ export default async function PersonPage({ params }: PageProps<"/admin/people/[p
       detail: b.events ? `${b.events.name}${b.events.organizations ? ` · ${b.events.organizations.name}` : ""}` : null,
     })),
     ...noteItems((noteData ?? []) as unknown as NoteRow[]),
-    ...emailItems((emailData ?? []) as EmailRow[]),
+    ...emailItems((emailData ?? []) as unknown as EmailRow[]),
   ];
   items.sort(byNewest);
   // The account's own "created" entry duplicates Supabase's sign-up record when both exist.
@@ -102,7 +103,8 @@ export default async function PersonPage({ params }: PageProps<"/admin/people/[p
         }
       />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-4">
+          <EmailPanel target={{ profileId: p.id }} userId={user.id} />
           <Panel title="Timeline" flush>
             <div className="border-b border-border p-3">
               <NoteComposer action={addNote.bind(null, { profileId: p.id })} />

@@ -117,6 +117,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261106000000_host_invitations.sql` | Hosts by invitation: only emails you invite (Admin → Pilot requests → "Approve as host") can set up an organization; directors, team members, volunteers and parents are unaffected | ✅ run |
 | `20261107000000_volunteer_retention.sql` | Volunteers' names and contact details (under-18 helpers too) are deleted 10 days after the event, by the daily job; shift totals stay | ✅ run |
 | `20261108000000_admin_crm.sql` | Admin dashboard as a CRM: pilot pipeline stages (new → contacted → invited → set up → active), private notes and follow-ups, a log of emails sent, and sign-in history | ⬜ |
+| `20261109000000_admin_emails.sql` | Admin emails: write to hosts, people and pilot requests from the admin dashboard, and save email templates with merge fields like {{first_name}} | ⬜ |
 
 ## Pilot requests
 
@@ -236,7 +237,9 @@ which accounts need attention), Follow-ups, Accounts (each host organization's h
 the last day of its free pilot), People (anyone with an account: roles, sign-ins and the emails
 we sent them), Pipeline (pilot requests as a board you drag cards across) and Activity. Any
 account, person or pilot request can have private notes; give a note a date to make it a
-follow-up. Only admins can see any of it: hosts, volunteers and directors can't.
+follow-up. Each of those pages also has an **Email** box: write to them (or start from one of
+your **Email templates**), and the email lands on their timeline; replies go to the support
+address. Only admins can see any of it: hosts, volunteers and directors can't.
 
 Being an admin also turns on **demo mode** (needs `20261026000000_demo_mode.sql`). Open any event
 and scroll to **Demo this event** at the bottom. Tap a role (Host, Volunteer Lead, Section Lead,

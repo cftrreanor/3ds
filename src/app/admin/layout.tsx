@@ -28,6 +28,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     { href: "/admin/accounts", label: "Accounts" },
     { href: "/admin/people", label: "People" },
     { href: "/admin/pipeline", label: "Pipeline", count: newRequests ?? 0, alert: true },
+    { href: "/admin/templates", label: "Email templates" },
     { href: "/admin/activity", label: "Activity" },
   ];
 

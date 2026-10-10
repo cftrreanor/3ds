@@ -13,16 +13,25 @@ const FROM = process.env.EMAIL_FROM ?? `${brand.name} <no-reply@fieldcommandeven
  * Notes each email in email_log, for the admin dashboard's person and account
  * pages ("did they get it?"). Never stops an email from going out.
  */
-async function logEmail(to: string, subject: string, status: "sent" | "failed" | "skipped", error?: string) {
+async function logEmail(to: string, subject: string, status: "sent" | "failed" | "skipped", error?: string, by?: EmailAuthor) {
   try {
     const { error: dbError } = await createAdminClient()
       .from("email_log")
-      .insert({ to_email: to, subject: subject.slice(0, 300), status, error: error ? error.slice(0, 500) : null });
+      .insert({
+        to_email: to,
+        subject: subject.slice(0, 300),
+        status,
+        error: error ? error.slice(0, 500) : null,
+        ...(by ? { sent_by: by.userId, body: by.body.slice(0, 10000) } : {}),
+      });
     if (dbError) console.error("email_log insert failed", dbError.message);
   } catch (err) {
     console.error("email_log insert failed", err);
   }
 }
+
+/** For emails written by a person (the admin dashboard): who, and what it said. */
+export type EmailAuthor = { userId: string; body: string };
 
 export type EmailAttachment = { filename: string; content: string; contentType: string };
 
@@ -95,6 +104,7 @@ export async function sendEmail({
   replyTo,
   attachments,
   invite,
+  author,
 }: {
   to: string;
   subject: string;
@@ -103,6 +113,7 @@ export async function sendEmail({
   replyTo?: string;
   attachments?: EmailAttachment[];
   invite?: CalendarInvite;
+  author?: EmailAuthor;
 }): Promise<boolean> {
   // Demo people (src/lib/demo.ts) have made-up addresses: never email them.
   if (isDemoEmail(to)) return true;
@@ -110,7 +121,7 @@ export async function sendEmail({
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn("RESEND_API_KEY not set; skipped email:", subject);
-    await logEmail(to, subject, "skipped", "Email isn't set up (RESEND_API_KEY)");
+    await logEmail(to, subject, "skipped", "Email isn't set up (RESEND_API_KEY)", author);
     return false;
   }
   const send = (withAttachments: boolean) =>
@@ -145,14 +156,14 @@ export async function sendEmail({
     if (!res.ok) {
       const body = await res.text();
       console.error("Resend send failed", res.status, body);
-      await logEmail(to, subject, "failed", `${res.status} ${body}`);
+      await logEmail(to, subject, "failed", `${res.status} ${body}`, author);
       return false;
     }
-    await logEmail(to, subject, "sent");
+    await logEmail(to, subject, "sent", undefined, author);
     return true;
   } catch (err) {
     console.error("Resend send failed", err);
-    await logEmail(to, subject, "failed", err instanceof Error ? err.message : String(err));
+    await logEmail(to, subject, "failed", err instanceof Error ? err.message : String(err), author);
     return false;
   }
 }
@@ -162,6 +173,24 @@ export const pause = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/**
+ * A personal note (written in the admin dashboard): the brand line, then the
+ * text as paragraphs, with no heading or button. Blank lines split paragraphs;
+ * single line breaks are kept.
+ */
+export function personalEmail(body: string) {
+  const paragraphs = body
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#172033">
+<p style="font-size:18px;font-weight:bold;margin:0 0 20px">${escape(brand.name)}</p>
+${paragraphs.map((p) => `<p style="font-size:16px;line-height:24px;margin:0 0 16px">${escape(p).replace(/\n/g, "<br>")}</p>`).join("")}
+</div>`;
+  return { html, text: paragraphs.join("\n\n") };
+}
 
 /** A simple, readable layout that works in every email client. */
 export function emailLayout({

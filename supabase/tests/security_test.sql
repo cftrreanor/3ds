@@ -2809,4 +2809,46 @@ delete from public.pilot_requests where id = '60000000-0000-0000-0000-0000000000
 delete from public.email_log;
 delete from public.platform_admins;
 
+-- Admin email templates: FieldCommand admins only.
+reset role;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  insert into public.email_templates (name, subject, body) values ('Welcome', 'Welcome, {{first_name}}', 'Hi {{first_name}}!');
+  assert (select created_by from public.email_templates where name = 'Welcome') = auth.uid(), 'templates are signed by their admin';
+  update public.email_templates set body = 'Hello {{first_name}}!', updated_at = now() where name = 'Welcome';
+  assert (select body from public.email_templates where name = 'Welcome') = 'Hello {{first_name}}!', 'an admin edits a template';
+  begin
+    insert into public.email_templates (name, subject, body, created_by) values ('Fake', 'x', 'y', '00000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: a template in someone else''s name';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select count(*) from public.email_templates) = 0, 'a host can''t read email templates';
+  begin
+    insert into public.email_templates (name, subject, body, created_by) values ('Mine', 'x', 'y', auth.uid());
+    raise exception 'FAIL: a host saved an email template';
+  exception when insufficient_privilege then null;
+  end;
+  update public.email_templates set body = 'hacked';
+  delete from public.email_templates;
+end $$;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.email_templates;
+    raise exception 'FAIL: anon read email templates';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select body from public.email_templates where name = 'Welcome') = 'Hello {{first_name}}!', 'a host can''t change or delete templates';
+end $$;
+delete from public.email_templates;
+delete from public.platform_admins;
+
 \echo 'All database security tests passed.'

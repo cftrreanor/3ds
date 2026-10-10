@@ -31,7 +31,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/admin/sea
   );
   const people = (peopleData ?? []) as { id: string; full_name: string; email: string }[];
   const requests = (requestData ?? []) as { id: string; name: string; email: string; organization: string; status: string }[];
-  const emails = (emailData ?? []) as EmailRow[];
+  const emails = (emailData ?? []) as unknown as EmailRow[];
   const total = accountHits.length + people.length + requests.length;
 
   return (

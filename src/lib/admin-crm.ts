@@ -158,6 +158,8 @@ export type TimelineItem = {
   kind: "note" | "email" | "signin" | "event" | "admin" | "pipeline" | "account";
   title: string;
   detail?: string | null;
+  /** The full text of an email written in the admin dashboard. */
+  body?: string | null;
   href?: string;
   tone?: "danger" | "warning" | "success";
   note?: { id: string; followUpOn: string | null; done: boolean; author: string | null };
