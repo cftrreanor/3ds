@@ -118,7 +118,7 @@ export default async function LeadSchedulePage({ params }: PageProps<"/dashboard
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Band schedule</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Band schedule</h1>
       <p className="mt-1 text-sm text-muted">
         All times are {zoneName(tz)}. Only the host can change bands or the schedule.
       </p>

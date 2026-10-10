@@ -77,7 +77,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Edit event details</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Edit event details</h1>
       <Card className="mt-8">
         <EventForm
           action={updateEvent.bind(null, eventId)}

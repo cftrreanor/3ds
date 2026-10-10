@@ -1,24 +1,30 @@
 @import "tailwindcss";
 
-/* Design tokens: the Field Command Events design system (docs/DESIGN.md).
-   Royal blue for actions and selection, orange sparingly for event identity,
-   status colors only for real signals. Every color in the UI comes from here.
-   ("brand" is the system's primary color.) */
+/* Design tokens (docs/DESIGN.md): an editorial palette of deep indigo navy,
+   warm white and off-warm greys, with deep teal as the single chromatic
+   interlude. Status colors only for real signals. Every color in the UI
+   comes from here. ("brand" is the system's primary color.) */
 :root {
-  --background: #f6f8fc;
+  --background: #fafaf8;
   --surface: #ffffff;
   --raised: #ffffff;
-  --foreground: #172033;
-  --muted: #5b667a;
-  --border: #d9e0ea;
-  --brand: #1749d8;
-  --brand-hover: #123baf;
+  /* Warm dark grey ink, never pure black. */
+  --foreground: #292827;
+  --muted: #73706d;
+  --border: #e8e4dd;
+  /* Indigo navy: filled buttons, selection, the header. */
+  --brand: #1b1938;
+  --brand-hover: #0e0c1f;
   --brand-foreground: #ffffff;
-  /* Selected rows, current items and info panels. */
-  --brand-soft: #eaf0fd;
-  --accent: #c94716;
+  /* Selected rows, current items and info panels: a whisper of violet. */
+  --brand-soft: #f1eefb;
+  /* Pale violet: the hero's pill button. */
+  --violet: #c9b4fa;
+  /* Teal: the closing band and, sparingly, event identity (finalists, pilot). */
+  --accent: #155555;
   --accent-foreground: #ffffff;
-  --accent-soft: #fcede6;
+  --accent-soft: #e5efee;
+  --teal-deep: #0e3030;
   --success: #16794a;
   --success-foreground: #ffffff;
   --success-soft: #e7f4ed;
@@ -27,27 +33,31 @@
   --warning-soft: #fdf1df;
   --danger: #b42318;
   --danger-foreground: #ffffff;
-  --focus: #1749d8;
+  --focus: #1b1938;
+  /* Secondary text on indigo and teal. */
+  --on-dark-mute: #bcbac9;
   /* Header bar: always dark, so the white logo reads in light and dark mode. */
-  --header: #172033;
+  --header: #1b1938;
   --header-foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0d1422;
-    --surface: #151f30;
-    --raised: #1c293d;
-    --foreground: #f2f5fa;
-    --muted: #a8b4c7;
-    --border: #2c3a50;
-    --brand: #89a4ff;
-    --brand-hover: #a1b5ff;
-    --brand-foreground: #10192b;
-    --brand-soft: #1b2847;
-    --accent: #ff9872;
-    --accent-foreground: #10192b;
-    --accent-soft: #3a2219;
+    --background: #0e0c1f;
+    --surface: #17152f;
+    --raised: #211e3d;
+    --foreground: #f4f2ee;
+    --muted: #bcbac9;
+    --border: #3f3a52;
+    --brand: #c9b4fa;
+    --brand-hover: #d9cafc;
+    --brand-foreground: #1b1938;
+    --brand-soft: #2a2550;
+    --violet: #c9b4fa;
+    --accent: #7cc4c0;
+    --accent-foreground: #0e3030;
+    --accent-soft: #123636;
+    --teal-deep: #0e3030;
     --success: #64d69a;
     --success-foreground: #10192b;
     --success-soft: #16322a;
@@ -56,8 +66,8 @@
     --warning-soft: #3a2c14;
     --danger: #ff8a80;
     --danger-foreground: #10192b;
-    --focus: #a1b5ff;
-    --header: #0a101c;
+    --focus: #c9b4fa;
+    --header: #0e0c1f;
   }
 }
 
@@ -83,23 +93,31 @@
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
+  --color-violet: var(--violet);
+  --color-on-dark-mute: var(--on-dark-mute);
+  --color-teal-deep: var(--teal-deep);
   --color-header: var(--header);
   --color-header-foreground: var(--header-foreground);
 
-  --font-sans: var(--font-public-sans), system-ui, sans-serif;
-  --font-heading: var(--font-barlow), system-ui, sans-serif;
-  --font-display: var(--font-barlow-condensed), system-ui, sans-serif;
+  /* One variable face (Inter) at in-between weights: 460 body, 540 headings. */
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-display: var(--font-sans);
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-weight-normal: 460;
+  --font-weight-medium: 540;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
-  /* Corners: controls 10px, cards 16px, big panels 24px. */
+  /* Corners: inputs 6px, buttons 8px, cards 12px, dialogs 16px. */
   --radius-sm: 6px;
-  --radius-md: 10px;
+  --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
-  --radius-2xl: 24px;
+  --radius-2xl: 16px;
 
-  --shadow-card: 0 2px 8px rgba(23, 32, 51, 0.06), 0 1px 2px rgba(23, 32, 51, 0.04);
-  --shadow-elevated: 0 12px 32px rgba(23, 32, 51, 0.14), 0 4px 10px rgba(23, 32, 51, 0.08);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
 
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --default-transition-duration: 120ms;
@@ -110,31 +128,50 @@
   body {
     background: var(--background);
     color: var(--foreground);
-    font-size: 15px;
-    line-height: 1.65;
-    letter-spacing: -0.01em;
+    font-size: 16px;
+    font-weight: 460;
+    line-height: 1.5;
     /* Times and counts line up. */
     font-variant-numeric: tabular-nums;
   }
 
-  /* Display face for page titles (event names); Barlow for section headings. */
+  /* Headings: mid weight, tight leading, slightly negative tracking. */
   h1 {
     font-family: var(--font-display);
-    font-weight: 700;
-    line-height: 1.05;
-    letter-spacing: -0.02em;
+    font-weight: 540;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
   }
   h2,
   h3 {
     font-family: var(--font-heading);
     line-height: 1.15;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
+  }
+
+  /* Body links: brand ink with a persistent underline (indigo alone reads as bold text). */
+  a.text-brand:not([class*="bg-"]) {
+    text-decoration-line: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+    text-underline-offset: 4px;
+  }
+  a.text-brand:not([class*="bg-"]):hover {
+    text-decoration-color: currentColor;
   }
 
   :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+}
+
+/* The home page hero: a soft violet-and-sky glow over the indigo. */
+.hero-sky {
+  background-color: #1b1938;
+  background-image:
+    radial-gradient(ellipse 60% 70% at 85% 15%, rgba(201, 180, 250, 0.42), transparent 70%),
+    radial-gradient(ellipse 55% 60% at 100% 95%, rgba(140, 190, 235, 0.32), transparent 70%),
+    radial-gradient(ellipse 50% 50% at 10% 110%, rgba(14, 12, 31, 0.9), transparent 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {

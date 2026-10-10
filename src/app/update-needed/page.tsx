@@ -12,7 +12,7 @@ export default function UpdateNeededPage() {
     <>
       <HeaderBar maxWidth="max-w-2xl" />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">This page is being updated</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">This page is being updated</h1>
         <p className="mt-3 leading-7 text-muted">
           {brand.name} was just updated, and its database needs a matching update before this page works. Nothing has been
           lost. Please try again in a few minutes.

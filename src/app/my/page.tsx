@@ -111,7 +111,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       </HeaderBar>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">My shifts</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My shifts</h1>
         {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
 
         {link === "invalid" && (

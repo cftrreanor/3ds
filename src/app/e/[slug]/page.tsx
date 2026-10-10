@@ -175,7 +175,7 @@ export default async function EventPublicPage({ params }: Params) {
       )}
 
       <header className="mt-6">
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{event.name}</h1>
+        <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
         <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
         <p className="mt-1 text-muted">
           {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}

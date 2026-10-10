@@ -15,7 +15,7 @@ export function Button({
   return (
     <button
       className={cx(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0",
         variant === "primary" && "bg-brand font-semibold text-brand-foreground hover:bg-brand-hover",
         variant === "secondary" && "border border-border bg-surface hover:border-brand/40 hover:bg-background",
         variant === "accent" && "bg-accent font-semibold text-accent-foreground hover:opacity-90",
@@ -51,7 +51,7 @@ export function Field({
 }
 
 const inputClass =
-  "min-h-11 w-full rounded-md border border-border bg-surface px-3 text-base outline-none transition focus:border-brand focus:ring-[3px] focus:ring-brand/25";
+  "min-h-11 w-full rounded-sm border border-border bg-surface px-3 text-base outline-none transition focus:border-brand focus:ring-[3px] focus:ring-brand/25";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cx(inputClass, className)} {...props} />;
@@ -66,7 +66,7 @@ export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
 }
 
 export function Card({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cx("rounded-xl border border-border bg-surface p-4 shadow-card sm:p-6", className)} {...props} />;
+  return <div className={cx("rounded-lg border border-border bg-surface p-4 shadow-card sm:p-6", className)} {...props} />;
 }
 
 export function Badge({

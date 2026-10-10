@@ -44,7 +44,7 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
         <header>
           <p className="text-sm font-medium text-muted">Parent registration</p>
-          <h1 className="mt-1 text-4xl font-bold tracking-tight sm:text-5xl">{event.name}</h1>
+          <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
           <p className="mt-2 text-muted">
             {formatDateRange(event.starts_on, event.ends_on)} · {formatTimeRange(event.window_start, event.window_end, event.timezone)}
           </p>

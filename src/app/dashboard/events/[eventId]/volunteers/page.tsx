@@ -110,7 +110,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Volunteer check-in</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer check-in</h1>
       <p className="mt-1 mb-6 text-muted">
         Tap <strong className="text-foreground">Check in</strong> as people arrive at the volunteer desk. Someone new
         wants to help? Add them as a walk-up on a shift with open spots.
