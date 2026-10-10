@@ -42,6 +42,12 @@ export function Timeline({ items, today }: { items: TimelineItem[]; today: strin
             {it.detail && (
               <p className={`mt-0.5 text-sm ${it.kind === "note" ? "whitespace-pre-line" : "text-muted"}`}>{it.detail}</p>
             )}
+            {it.body && (
+              <details className="mt-1 text-sm">
+                <summary className="cursor-pointer text-xs font-semibold text-brand">Show the email</summary>
+                <p className="mt-1 rounded-sm bg-background px-3 py-2 whitespace-pre-line">{it.body}</p>
+              </details>
+            )}
             {it.note && (
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                 {it.note.followUpOn && (
@@ -78,16 +84,24 @@ export function noteItems(
   }));
 }
 
-/** Emails as timeline items. */
+/** Emails as timeline items (with the text, for ones written in the admin dashboard). */
 export function emailItems(
-  emails: { to_email: string; subject: string; status: string; error: string | null; created_at: string }[],
+  emails: { to_email: string; subject: string; status: string; error: string | null; created_at: string; body?: string | null; sender?: { full_name: string; email: string } | null }[],
   showTo = false,
 ): TimelineItem[] {
   return emails.map((e) => ({
     at: e.created_at,
     kind: "email",
     title: `${e.status === "sent" ? "Emailed" : e.status === "failed" ? "Email failed" : "Email not sent"}: ${e.subject}`,
-    detail: [showTo ? `To ${e.to_email}` : null, e.status !== "sent" ? e.error : null].filter(Boolean).join(" · ") || null,
+    detail:
+      [
+        showTo || e.sender ? `To ${e.to_email}` : null,
+        e.sender ? `by ${e.sender.full_name || e.sender.email}` : null,
+        e.status !== "sent" ? e.error : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null,
+    body: e.body ?? null,
     tone: e.status === "sent" ? undefined : "danger",
   }));
 }

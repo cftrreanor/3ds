@@ -8,10 +8,11 @@ import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
-import { NOTE_COLUMNS, type EmailRow, type NoteRow } from "../../data";
+import { EMAIL_COLUMNS, NOTE_COLUMNS, type EmailRow, type NoteRow } from "../../data";
 import { Facts, PageHeader, Panel, RecordLink, Tag } from "../../kit";
 import { NoteComposer } from "../../note-composer";
 import { addNote, moveStage } from "../../notes-actions";
+import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
 import { inviteHost } from "../actions";
 import { StageSelect } from "../stage-select";
@@ -20,7 +21,7 @@ export const metadata: Metadata = { title: "Pilot request" };
 
 /** One pilot request: who asked, where it stands, and the conversation so far. */
 export default async function PilotRequestPage({ params }: PageProps<"/admin/pipeline/[requestId]">) {
-  await requirePlatformAdmin();
+  const user = await requirePlatformAdmin();
   const { requestId } = await params;
   const admin = createAdminClient();
   const { data: r } = await admin.from("pilot_requests").select("*").eq("id", requestId).maybeSingle();
@@ -30,7 +31,7 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
   const [{ data: invite }, { data: noteData }, { data: emailData }, { data: person }, { data: account }] = await Promise.all([
     admin.from("host_invitations").select("invited_at, used_at, expires_at").eq("email", email).maybeSingle(),
     admin.from("admin_notes").select(NOTE_COLUMNS).eq("pilot_request_id", requestId).order("created_at", { ascending: false }),
-    admin.from("email_log").select("*").eq("to_email", email).order("created_at", { ascending: false }).limit(50),
+    admin.from("email_log").select(EMAIL_COLUMNS).eq("to_email", email).order("created_at", { ascending: false }).limit(50),
     admin.from("profiles").select("id, full_name").eq("email", email).maybeSingle(),
     r.organization_id ? admin.from("organizations").select("id, name").eq("id", r.organization_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
@@ -49,7 +50,7 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
     ...(inv ? [{ at: inv.invited_at, kind: "pipeline" as const, title: "Host invitation sent" }] : []),
     ...(inv?.used_at ? [{ at: inv.used_at, kind: "account" as const, title: "Set up their organization", href: account ? `/admin/accounts/${account.id}` : undefined }] : []),
     ...noteItems((noteData ?? []) as unknown as NoteRow[]),
-    ...emailItems((emailData ?? []) as EmailRow[]),
+    ...emailItems((emailData ?? []) as unknown as EmailRow[]),
   ];
   items.sort(byNewest);
 
@@ -89,6 +90,7 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
             />
             {r.notes && <p className="mt-3 rounded-sm bg-background px-3 py-2 text-sm whitespace-pre-line">{r.notes}</p>}
           </Panel>
+          <EmailPanel target={{ pilotRequestId: r.id }} userId={user.id} />
           <Panel title="Timeline" flush>
             <div className="border-b border-border p-3">
               <NoteComposer action={addNote.bind(null, { pilotRequestId: r.id })} />
