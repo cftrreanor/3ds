@@ -3,6 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { safeNext } from "@/lib/safe-next";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginState = {
@@ -14,11 +15,6 @@ export type LoginState = {
 };
 
 const emailSchema = z.string().trim().toLowerCase().email();
-
-function safeNext(raw: FormDataEntryValue | null) {
-  const next = String(raw ?? "");
-  return next.startsWith("/") && !next.startsWith("//") ? next : null;
-}
 
 export async function sendLoginLink(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const typed = String(formData.get("email") ?? "");

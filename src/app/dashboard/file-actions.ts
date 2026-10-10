@@ -80,6 +80,9 @@ export async function saveFile(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const v = parsed.data;
   if (!fileId && !uploaded) return { error: "Please choose a file to upload." };
+  // Only the event's hosts, and only for that event's own files: the heads-up
+  // emails below go to the event's directors and volunteers.
+  if (!(await isHost(eventId))) return { error: "You don't have permission to do that." };
   if (uploaded) {
     const ok = uploadSchema.safeParse({ fileName: uploaded.fileName, contentType: uploaded.contentType, size: uploaded.size });
     if (!ok.success || !uploaded.path.startsWith(`${eventId}/`)) return { error: "Something went wrong with the upload. Please try again." };
@@ -94,8 +97,8 @@ export async function saveFile(
 
   let savedId = fileId;
   if (fileId) {
-    const { data: before } = await supabase.from("event_files").select("path").eq("id", fileId).maybeSingle();
-    if (!before) return { error: "You don't have permission to do that." };
+    const { data: before } = await supabase.from("event_files").select("path, event_id").eq("id", fileId).maybeSingle();
+    if (!before || before.event_id !== eventId) return { error: "You don't have permission to do that." };
     const { error } = await supabase
       .from("event_files")
       .update({ ...fields, updated_at: new Date().toISOString() })

@@ -78,10 +78,25 @@ values
    current_date + 30, current_date + 30, now() + interval '30 days', now() + interval '30 days 5 hours',
    '3 Stadium Rd', false, false);
 
+-- People join a team by accepting an invitation; set the team up directly here.
+reset role;
 insert into public.event_staff (event_id, user_id, role) values
   ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000002', 'volunteer_director'),
   ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000003', 'section_lead'),
   ('10000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-000000000003', 'section_lead');
+set role authenticated;
+-- A host can't add someone to the team without their say-so (their profile, email
+-- and phone would then be readable by the host).
+do $$ begin
+  begin
+    insert into public.event_staff (event_id, user_id, role)
+    values ('10000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-000000000006', 'section_lead');
+    raise exception 'FAIL: a host added a stranger to the team directly';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select count(*) from public.profiles where id = '00000000-0000-0000-0000-000000000006') = 0,
+         'a host can''t read a stranger''s profile';
+end $$;
 
 insert into public.stations (id, event_id, name, station_type) values
   ('20000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', 'Parking', 'passive'),
@@ -556,12 +571,28 @@ end $$;
 
 -- Host saves the order with times.
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+-- A host can't register a band in someone else's name (it would show that
+-- person's email in past_band_directors()).
+do $$ begin
+  begin
+    insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                              contact_email, head_director_name, head_director_email, head_director_phone,
+                              student_count, chaperone_count)
+    values ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000006', 'X HS', 'X', '6A', 'addr',
+            'x@example.com', 'X', 'x@example.com', '+15125550199', 1, 1);
+    raise exception 'FAIL: a host registered a band for another user';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+-- A second band from the same director (set up directly).
+reset role;
 insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
                           contact_email, head_director_name, head_director_email, head_director_phone,
                           student_count, chaperone_count)
 values ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-00000000000a',
         '00000000-0000-0000-0000-000000000005', 'North HS', 'Northern Lights', '6A', 'addr',
         'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 200, 20);
+set role authenticated;
 select public.save_performance_order('10000000-0000-0000-0000-00000000000a', jsonb_build_array(
   jsonb_build_object('band_id', '40000000-0000-0000-0000-000000000002', 'perform_at', now() + interval '10 days 2 hours',
                      'warm_up_minutes', 45),
@@ -2172,10 +2203,33 @@ begin
 end $$;
 reset role;
 set role authenticated;
--- The host and the team see registrations (never the links) and check parents in.
+-- Children's details: a Section Lead sees nothing before event day; a Volunteer Lead does.
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
 do $$ begin
-  assert public.can_check_in_parents('10000000-0000-0000-0000-0000000000c1'), 'a Section Lead can work the door';
+  assert not public.can_check_in_parents('10000000-0000-0000-0000-0000000000c1'), 'a Section Lead can''t work the door before event day';
+  assert (select count(*) from public.parent_registrations) = 0, 'a Section Lead sees no children''s details before event day';
+  begin
+    perform public.set_parent_checked_in((select id from public.parent_registrations limit 1), true);
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+insert into public.event_staff (event_id, user_id, role)
+values ('10000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000007', 'volunteer_director');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000007","email":"newlead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.parent_registrations) = 1, 'a Volunteer Lead sees registrations before event day';
+end $$;
+-- On event day the Section Lead works the door: sees registrations (never the links) and checks parents in.
+reset role;
+delete from public.event_staff where event_id = '10000000-0000-0000-0000-0000000000c1' and user_id = '00000000-0000-0000-0000-000000000007';
+update public.events set starts_on = (now() at time zone timezone)::date, ends_on = (now() at time zone timezone)::date
+ where id = '10000000-0000-0000-0000-0000000000c1';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert public.can_check_in_parents('10000000-0000-0000-0000-0000000000c1'), 'a Section Lead works the door on event day';
   assert (select count(*) from public.parent_registrations) = 1, 'the team sees registrations';
   assert (select adult_count = 3 and jsonb_array_length(other_adults) = 2 from public.parent_registrations),
          'the team sees the other adults coming';
@@ -2217,6 +2271,8 @@ do $$ begin
   end;
 end $$;
 reset role;
+update public.events set starts_on = current_date + 3, ends_on = current_date + 3
+ where id = '10000000-0000-0000-0000-0000000000c1';
 -- Editing a registration keeps anyone already checked in as checked in.
 do $$ begin
   perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Rita Parent', 'rita@example.com', null,
@@ -2313,12 +2369,15 @@ insert into public.bands (id, event_id, director_user_id, school_name, band_name
                           student_count, chaperone_count)
 values ('40000000-0000-0000-0000-0000000000d1', '10000000-0000-0000-0000-0000000000d1', auth.uid(), 'Central HS',
         'Varsity Treble', '5A', 'addr', 'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 40, 4);
-set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+-- A second group (set up directly; groups register under their own director).
+reset role;
 insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
                           contact_email, head_director_name, head_director_email, head_director_phone,
                           student_count, chaperone_count)
 values ('40000000-0000-0000-0000-0000000000d2', '10000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000002',
         'West HS', 'Chamber Singers', '5A', 'addr', 'w@example.com', 'Dee Director', 'director@example.com', '+15125550106', 24, 2);
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 do $$
 declare
   ev    uuid := '10000000-0000-0000-0000-0000000000d1';

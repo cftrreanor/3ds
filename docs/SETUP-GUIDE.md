@@ -113,6 +113,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261102000000_parent_walk_ins.sql` | Parent registration: say whether parents who didn't register can still come with a photo ID | ✅ run |
 | `20261103000000_group_events.sql` | Group events: a fourth kind of event; groups register (no trucks), rooms at one address, each group's path and times, posted schedule by room | ✅ run |
 | `20261104000000_group_event_day.sql` | Group events on the day: the team checks each group in ("Arrived") and marks each room done; directors see their group's progress | ✅ run |
+| `20261105000000_security_fixes.sql` | Security fixes: people join a team only by accepting an invitation; hosts can't register a band in someone else's name; Section Leads see children's details on event day only | run this next |
 
 ## Pilot requests
 

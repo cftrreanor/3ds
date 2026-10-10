@@ -240,6 +240,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
     ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, other_adults, children").eq("event_id", eventId)).data ?? [])
     : [];
   const parentNumbers = parentStats(parentRows);
+  // Section Leads see children's details (and work the door) on event day only.
+  const doorLocked = parentsHere && !access.canManage && !isEventDay;
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
   // The emptiest shifts first: where to send the next volunteers.
   const needsPeople = ((shifts ?? []) as Shift[])
@@ -322,9 +324,11 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-1 text-sm leading-6">
                 <p className="font-medium">
-                  {isEventDay
-                    ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
-                    : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
+                  {doorLocked
+                    ? "Door check-in opens on event day."
+                    : isEventDay
+                      ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
+                      : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
                 </p>
                 <p className="text-muted">
                   {event.status !== "published"
@@ -333,16 +337,22 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                       ? `Registration is open${event.parent_registration_closes_at ? ` until ${closesAtLabel(event.parent_registration_closes_at, event.timezone)}` : ""}. Parents are reminded to bring a photo ID.`
                       : "Registration is closed."}
                 </p>
-                <p className="text-muted">🔒 Children&apos;s details are seen only by your team and deleted 30 days after the event.</p>
+                <p className="text-muted">
+                  {doorLocked
+                    ? `🔒 Children's details open for Section Leads on event day (${formatDate(event.starts_on, { year: undefined })}), for door check-in.`
+                    : "🔒 Children's details are seen only by your team (Section Leads on event day) and deleted 30 days after the event."}
+                </p>
               </div>
-              <Link
-                href={`/dashboard/events/${eventId}/parents`}
-                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-              >
-                {access.isHost ? "Registration & door check-in" : "Open door check-in"}
-              </Link>
+              {!doorLocked && (
+                <Link
+                  href={`/dashboard/events/${eventId}/parents`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+                >
+                  {access.isHost ? "Registration & door check-in" : "Open door check-in"}
+                </Link>
+              )}
             </div>
-            {parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
+            {!doorLocked && parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
           </Card>
         </section>
       )}
