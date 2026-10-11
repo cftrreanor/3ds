@@ -15,9 +15,9 @@ const kinds = [
     title: "Band contests",
     examples: "Marching invitationals, jazz festivals, solo & ensemble",
     points: [
-      "Band registration with saved details, one-tap for returning directors",
-      "Performance schedule, finals and a live order for families",
-      "Check bands through parking, warm-up and the gate",
+      "Band registration with saved details, and easy one-tap registration for returning bands and directors",
+      "Performance schedule, finals and a live order for directors and spectators",
+      "Keep track of bands throughout the event with personalized check-in stages",
     ],
   },
   {
@@ -27,7 +27,7 @@ const kinds = [
     points: [
       "Groups register, then move through your rooms on a schedule built for you",
       "Arrived and Done taps keep every room on time",
-      "Families follow each room live on their phones",
+      "Directors and families can follow each room live on their phones",
     ],
   },
   {
@@ -45,9 +45,9 @@ const kinds = [
     title: "Volunteer events",
     examples: "Concessions, field day, book fairs, school parking",
     points: [
-      "Shifts and stations that fill themselves",
-      "A check-in desk on any phone, with walk-ups and no-shows",
-      "Leads who know exactly who's coming to their station",
+      "Build stations and schedules with ease",
+      "Volunteers sign up and get email confirmations and calendar invites, without any hassle or advertisements",
+      "Check in volunteers on any device, no additional app required",
     ],
   },
   {
@@ -57,7 +57,7 @@ const kinds = [
     points: [
       "Parents register ahead with each child, teacher and grade",
       "Reminders to bring a photo ID, and a calendar invite",
-      "Every adult checked in at the door, one by one",
+      "Easy parent and visitor check-in at the event door",
     ],
   },
 ];
