@@ -22,7 +22,8 @@ export type InvitationDetails = {
 
 /** A different email for co-hosts, Volunteer Leads and Section Leads, with a one-tap accept link. */
 /** `bands`: the event is a band contest (a volunteer event has no bands). */
-export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true) {
+/** `leadTitle`: what Section Leads are called at this event ("Station Coordinator" at fairs). */
+export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true, leadTitle = "Section Lead") {
   const who = inv.inviter_name ? `${inv.inviter_name} from ${inv.organization}` : inv.organization;
   const when = `${formatDateRange(inv.starts_on, inv.ends_on)}${inv.venue_name ? ` at ${inv.venue_name}` : ""}`;
   const station = inv.station_name ?? "a station";
@@ -49,7 +50,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
         }
       : {
           subject: `Lead ${station} at ${inv.event_name}`,
-          heading: "You're invited to be a Section Lead",
+          heading: `You're invited to be a ${leadTitle}`,
           paragraphs: [
             `${who} asked you to lead ${station} at ${inv.event_name} (${when}).`,
             bands

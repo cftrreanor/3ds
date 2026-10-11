@@ -283,6 +283,13 @@ function dueMinutes(formData: FormData, kind: string | null) {
   return /^\d{1,3}$/.test(raw) ? Math.min(Number(raw), 600) : null;
 }
 
+/** School fairs: the station's zone, only when the form has the Zone field. */
+function zoneOf(formData: FormData) {
+  if (!formData.has("zone")) return {};
+  const zone = String(formData.get("zone") ?? "").trim().slice(0, 60);
+  return { zone: zone || null };
+}
+
 /** The next place in the event's check-in order. */
 async function nextCheckpointOrder(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string) {
   const { data } = await supabase
@@ -315,6 +322,7 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
       location: v.location,
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
+      ...zoneOf(formData),
     })
     .select("id")
     .single();
@@ -354,6 +362,7 @@ export async function updateStation(
       location: v.location,
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
+      ...zoneOf(formData),
     })
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };

@@ -23,9 +23,10 @@ import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
 import { DemoStart } from "@/components/demo-switcher";
 import { EventBannerSlot } from "@/components/event-banner-slot";
+import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
-import { eventTypeLabel, groupWords, hasBands, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
+import { eventTypeLabel, groupWords, hasBands, hasBooths, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
@@ -188,7 +189,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   weekAgo.setDate(weekAgo.getDate() - 7);
   const joined = [
     ...hosts.filter((h) => h.role === "admin").map((h) => ({ ...h, label: "co-host" })),
-    ...staffRows.map((s) => ({ ...s, label: ROLE_LABEL[s.role] })),
+    ...staffRows.map((s) => ({ ...s, label: s.role === "section_lead" ? leadWords(event.event_type).one : ROLE_LABEL[s.role] })),
   ]
     .filter((j) => new Date(j.created_at) >= weekAgo && j.user_id !== user.id)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -198,7 +199,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       ? [
           {
             tone: "warn" as const,
-            text: `${unled.length === 1 ? "1 station needs" : `${unled.length} stations need`} a Section Lead: ${unled.map((s) => s.name).join(", ")}`,
+            text: `${unled.length === 1 ? "1 station needs" : `${unled.length} stations need`} a ${leadWords(event.event_type).one}: ${unled.map((s) => s.name).join(", ")}`,
             tab: "section-leads",
           },
         ]
@@ -327,6 +328,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       </div>
 
       <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
+
+      {hasBooths(event.event_type) && <BoothsCard eventId={eventId} isDay={isEventDay} />}
 
       {parentsHere && (
         <section className="mt-10" aria-labelledby="parents-heading">
@@ -512,7 +515,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           </h2>
           <Card className="mt-4 space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads and Section Leads, and their invitations.</p>
+              <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads and {leadWords(event.event_type).many}, and their invitations.</p>
               <Link
                 href={`/dashboard/events/${eventId}/team`}
                 className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
@@ -525,7 +528,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               counts={[
                 ...(access.isHost ? [{ label: "Hosts", value: hosts.length, tab: "hosts" }] : []),
                 { label: "Volunteer Leads", value: directors.length, tab: "volunteer-leads" },
-                { label: "Section Leads", value: leads.length, tab: "section-leads" },
+                { label: leadWords(event.event_type).many, value: leads.length, tab: "section-leads" },
                 { label: "Waiting to accept", value: openInvites.length, tab: null },
               ]}
               updates={teamUpdates}

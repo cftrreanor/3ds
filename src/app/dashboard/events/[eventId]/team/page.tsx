@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/time";
 import { cancelInvitation, inviteMember, reinviteMember, removeCoHost, removeMember, resendInvitation } from "../../../team-actions";
 import { CopyLinkButton, DeleteButton, InviteForm, RemoveButton, SmallActionButton } from "../forms";
+import { leadWords } from "@/lib/event-types";
 
 export const metadata: Metadata = { title: "Team" };
 
@@ -48,8 +49,9 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
   const user = await requireUser();
   const supabase = await createClient();
 
-  const { data: event } = await supabase.from("events").select("id, organization_id, name").eq("id", eventId).maybeSingle();
+  const { data: event } = await supabase.from("events").select("id, organization_id, name, event_type").eq("id", eventId).maybeSingle();
   if (!event) missing();
+  const lead = leadWords(event.event_type);
 
   const [{ data: staff }, { data: invitationData }, { data: stationData }, { data: leadRows }, { data: hostData }, { data: removalData }] =
     await Promise.all([
@@ -92,7 +94,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
   const tabs: { id: Tab; label: string; count: number }[] = [
     ...(access.isHost ? [{ id: "hosts" as const, label: "Hosts", count: hosts.length }] : []),
     { id: "volunteer-leads", label: "Volunteer Leads", count: directors.length },
-    { id: "section-leads", label: "Section Leads", count: leads.length },
+    { id: "section-leads", label: lead.many, count: leads.length },
   ];
   const tab = tabs.find((t) => t.id === tabParam)?.id ?? tabs[0].id;
   const pending = invitations.filter((inv) =>
@@ -107,7 +109,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
   );
   // Volunteer Leads manage Section Leads; hosts manage everyone.
   const canInvite = access.isHost || tab === "section-leads";
-  const roleName = tab === "hosts" ? "co-host" : tab === "volunteer-leads" ? "Volunteer Lead" : "Section Lead";
+  const roleName = tab === "hosts" ? "co-host" : tab === "volunteer-leads" ? "Volunteer Lead" : lead.one;
 
   return (
     <div>
@@ -201,7 +203,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
           <div>
             <h2 className="text-sm font-semibold">Current members</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
-              Section Leads run one station on the day, like Parking. They see who&apos;s on their shifts; phone numbers
+              {lead.many} run one station on the day, like {event.event_type === "fair" ? "Face Painting" : "Parking"}. They see who&apos;s on their shifts; phone numbers
               unlock on event day.
             </p>
             {leads.length > 0 ? (
@@ -217,8 +219,8 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
                     >
                       <RemoveButton
                         action={removeMember.bind(null, eventId, l.user_id, l.role)}
-                        label="Remove Section Lead"
-                        confirmMessage="Remove this Section Lead from the event? They'll be taken off their stations."
+                        label={`Remove ${lead.one}`}
+                        confirmMessage={`Remove this ${lead.one} from the event? They'll be taken off their stations.`}
                       />
                     </PersonRow>
                   );
@@ -310,7 +312,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
                     ? { value: "host", label: "Co-host" }
                     : tab === "volunteer-leads"
                       ? { value: "volunteer_director", label: "Volunteer Lead" }
-                      : { value: "section_lead", label: "Section Lead" },
+                      : { value: "section_lead", label: lead.one },
                 ]}
                 stations={stations.map((s) => ({ id: s.id, name: s.name }))}
               />

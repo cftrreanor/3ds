@@ -25,6 +25,12 @@ export const EVENT_TYPES = [
     icon: "🏫",
     blurb: "Parents register ahead (child, teacher and grade), are reminded to bring a photo ID, and are checked in at the door. Student details are deleted 30 days after.",
   },
+  {
+    value: "fair",
+    label: "School fair or fundraiser",
+    icon: "🎪",
+    blurb: "Carnivals, fall festivals and fundraisers: your booths and community partners by zone, a quick partner check-in on the day, volunteer shifts with Station Coordinators, and a public \u201cWhat's at the fair\u201d page.",
+  },
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number]["value"];
 
@@ -49,6 +55,19 @@ export function groupWords(type: string | null | undefined) {
 
 /** Parent registration and door check-in: school visitor events. */
 export const hasParents = (type: string | null | undefined) => type === "school_visit";
+
+/** Booths, partners and vendors, by zone: school fairs. */
+export const hasBooths = (type: string | null | undefined) => type === "fair";
+
+/** What Section Leads are called: "Station Coordinators" at fairs. */
+export function leadWords(type: string | null | undefined) {
+  return type === "fair"
+    ? { one: "Station Coordinator", many: "Station Coordinators" }
+    : { one: "Section Lead", many: "Section Leads" };
+}
+
+/** Zones a fair's booths and stations usually fall into (any name works). */
+export const FAIR_ZONES = ["Game Zone", "Activity Stations", "Marketplace", "Showcase", "Food & Drinks"] as const;
 
 /** "Contest day" for band contests, "Event day" otherwise. */
 export const dayLabel = (type: string | null | undefined) => (hasBands(type) ? "Contest day" : "Event day");

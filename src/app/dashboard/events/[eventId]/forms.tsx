@@ -18,6 +18,8 @@ type StationValues = {
   location: string | null;
   instructions: string | null;
   adults_only?: boolean;
+  /** School fairs: which zone the station is in. */
+  zone?: string | null;
   /** Everyone leading this station, first-added first. */
   lead_ids?: string[];
 };
@@ -30,6 +32,8 @@ export function StationForm({
   submitLabel = "Add station",
   bands = true,
   locations = [],
+  zones,
+  leadLabel = "Section Leads",
 }: {
   action: Action;
   initial?: StationValues;
@@ -39,6 +43,10 @@ export function StationForm({
   bands?: boolean;
   /** Suggestions for Location: a group event's rooms. */
   locations?: string[];
+  /** School fairs: zone suggestions (shows the Zone field). */
+  zones?: readonly string[];
+  /** What the station's leads are called ("Station Coordinators" at fairs). */
+  leadLabel?: string;
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
   return (
@@ -78,6 +86,16 @@ export function StationForm({
           />
         </Field>
       )}
+      {zones && (
+        <Field label="Zone" hint="Optional. Groups stations on the fair's pages, e.g. Game Zone or Marketplace.">
+          <Input name="zone" maxLength={60} defaultValue={initial?.zone ?? ""} list="fair-zones" placeholder={`e.g. ${zones[0]}`} />
+          <datalist id="fair-zones">
+            {zones.map((z) => (
+              <option key={z} value={z} />
+            ))}
+          </datalist>
+        </Field>
+      )}
       <Field label="Location" hint="Optional. Where volunteers should report." className="sm:col-span-2">
         <Input
           name="location"
@@ -110,7 +128,7 @@ export function StationForm({
       </label>
       {leads && (
         <fieldset className="sm:col-span-2">
-          <legend className="text-sm font-medium">Section Leads</legend>
+          <legend className="text-sm font-medium">{leadLabel}</legend>
           <input type="hidden" name="leadsField" value="1" />
           <p className="mt-1 text-sm text-muted">
             {leads.length
