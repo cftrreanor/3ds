@@ -74,7 +74,8 @@ export function Badge({
   tone = "neutral",
   children,
 }: {
-  tone?: "neutral" | "info" | "accent" | "brand" | "success" | "warning";
+  /** live: solid green (e.g. Published). off: solid red (e.g. Not published). */
+  tone?: "neutral" | "info" | "accent" | "brand" | "success" | "warning" | "live" | "off";
   children: ReactNode;
 }) {
   return (
@@ -87,6 +88,8 @@ export function Badge({
         tone === "brand" && "bg-brand text-brand-foreground",
         tone === "success" && "bg-success-soft text-foreground ring-1 ring-success/30",
         tone === "warning" && "bg-warning-soft text-foreground ring-1 ring-warning/30",
+        tone === "live" && "bg-success text-success-foreground",
+        tone === "off" && "bg-danger text-danger-foreground",
       )}
     >
       {children}

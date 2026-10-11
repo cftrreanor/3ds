@@ -14,7 +14,7 @@ import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import { DayStatusPill } from "@/components/day-status";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { bandSteps, dayStatus, groupSteps, type DayStatus, type ProgressRow } from "@/lib/director-day";
-import { hasRooms } from "@/lib/event-types";
+import { eventTypeIcon, eventTypeLabel, hasRooms } from "@/lib/event-types";
 import { HostingByInvitation } from "@/components/hosting-by-invitation";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
@@ -30,6 +30,7 @@ type EventSummary = {
   ends_on: string;
   venue_name: string | null;
   venue_address: string;
+  event_type: string | null;
 };
 
 type MyBand = {
@@ -38,7 +39,6 @@ type MyBand = {
   school_name: string;
   events:
     | (EventSummary & {
-        event_type: string | null;
         band_registration_open: boolean;
         band_registration_deadline: string | null;
         performance_order_published: boolean;
@@ -54,7 +54,7 @@ type MyBand = {
 
 type StaffEvent = { role: "volunteer_director" | "section_lead"; events: EventSummary | null };
 
-const EVENT_COLUMNS = "id, name, status, timezone, starts_on, ends_on, venue_name, venue_address";
+const EVENT_COLUMNS = "id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, event_type";
 
 /** Has the event ended, in its own time zone? */
 function isPast(e: { ends_on: string; timezone: string }) {
@@ -73,7 +73,7 @@ export default async function DashboardPage() {
       .from("bands")
       .select(
         `id, band_name, school_name,
-         events(${EVENT_COLUMNS}, event_type, band_registration_open, band_registration_deadline, performance_order_published, finalists_revealed, ready_minutes_before, finals_ready_minutes_before),
+         events(${EVENT_COLUMNS}, band_registration_open, band_registration_deadline, performance_order_published, finalists_revealed, ready_minutes_before, finals_ready_minutes_before),
          performance_slots(perform_at), finals_slots(perform_at)`,
       )
       .eq("director_user_id", user.id),
@@ -274,15 +274,35 @@ function CardLink({ href, children }: { href: string; children: ReactNode }) {
 
 const where = (e: EventSummary) => e.venue_name ?? e.venue_address;
 
+/** An event card's name, with its type's icon in front. */
+function EventName({ event: e }: { event: EventSummary }) {
+  return (
+    <h3 className="flex items-start gap-2 font-semibold">
+      <span aria-hidden="true">{eventTypeIcon(e.event_type)}</span>
+      <span>{e.name}</span>
+    </h3>
+  );
+}
+
+/** The event-type pill, right under an event card's name. */
+function TypePill({ event: e }: { event: EventSummary }) {
+  return (
+    <p className="mt-2">
+      <Badge tone="info">{eventTypeLabel(e.event_type)}</Badge>
+    </p>
+  );
+}
+
 function HostedCard({ event: e }: { event: EventSummary }) {
   return (
     <CardLink href={`/dashboard/events/${e.id}`}>
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-semibold">{e.name}</h3>
-        <Badge tone={e.status === "published" ? "brand" : "neutral"}>
+        <EventName event={e} />
+        <Badge tone={e.status === "published" ? "live" : "neutral"}>
           {e.status === "published" ? "Published" : e.status === "archived" ? "Archived" : "Draft"}
         </Badge>
       </div>
+      <TypePill event={e} />
       <p className="mt-2 text-sm text-muted">{formatDateRange(e.starts_on, e.ends_on)}</p>
       <p className="mt-1 text-sm text-muted">{where(e)}</p>
     </CardLink>
@@ -369,9 +389,10 @@ function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } })
   return (
     <CardLink href={`/dashboard/events/${r.events.id}`}>
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-semibold">{r.events.name}</h3>
+        <EventName event={r.events} />
         <Badge tone="info">{ROLE_LABEL[r.role]}</Badge>
       </div>
+      <TypePill event={r.events} />
       <p className="mt-2 text-sm text-muted">{formatDateRange(r.events.starts_on, r.events.ends_on)}</p>
       <p className="mt-1 text-sm text-muted">{where(r.events)}</p>
     </CardLink>

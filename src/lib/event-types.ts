@@ -74,3 +74,6 @@ export const dayLabel = (type: string | null | undefined) => (hasBands(type) ? "
 
 export const eventTypeLabel = (type: string | null | undefined) =>
   EVENT_TYPES.find((t) => t.value === type)?.label ?? EVENT_TYPES[0].label;
+
+export const eventTypeIcon = (type: string | null | undefined) =>
+  EVENT_TYPES.find((t) => t.value === type)?.icon ?? EVENT_TYPES[0].icon;

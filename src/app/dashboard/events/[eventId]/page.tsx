@@ -284,7 +284,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         <div>
           <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Badge tone={event.status === "published" ? "brand" : "neutral"}>
+            <Badge tone={event.status === "published" ? "live" : "neutral"}>
               {event.status === "published" ? "Published" : "Draft: only your team can see this"}
             </Badge>
             <Badge tone="info">{eventTypeLabel(event.event_type)}</Badge>
