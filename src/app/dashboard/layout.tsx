@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DemoBar } from "@/components/demo-bar";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
+import { UserBanners } from "@/components/user-banners";
 import { requireUser } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -40,7 +41,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <button className={headerLinkClass}>Sign out</button>
         </form>
       </HeaderBar>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-10">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        <UserBanners userId={user.id} />
+        {children}
+      </main>
     </div>
   );
 }

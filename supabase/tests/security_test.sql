@@ -2873,4 +2873,73 @@ begin
 end $$;
 reset role;
 
+-- Company banners: admins write them; signed-in people read live ones;
+-- visitors only live public ones; people close their own (not urgent ones).
+reset role;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  insert into public.site_banners (title, audience, host_filter) values ('Hosts: new feature', 'hosts', 'pilot');
+  insert into public.site_banners (title, audience) values ('Pilot spots filling up', 'public');
+  insert into public.site_banners (title, audience, tone) values ('Outage tonight', 'hosts', 'urgent');
+  insert into public.site_banners (title, audience, starts_at) values ('Next month', 'hosts', now() + interval '30 days');
+  assert (select created_by from public.site_banners where title = 'Outage tonight') = auth.uid(), 'banners are signed by their admin';
+  begin
+    insert into public.site_banners (title, audience, created_by) values ('Fake', 'public', '00000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: a banner in someone else''s name';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.site_banners (title, audience, link_url) values ('Bad link', 'public', 'javascript:alert(1)');
+    raise exception 'FAIL: a banner with a javascript: link';
+  exception when check_violation then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert (select count(*) from public.site_banners) = 3, 'a signed-in person reads the live banners, not scheduled ones';
+  begin
+    insert into public.site_banners (title, audience, created_by) values ('Mine', 'public', auth.uid());
+    raise exception 'FAIL: a host posted a company banner';
+  exception when insufficient_privilege then null;
+  end;
+  update public.site_banners set title = 'hacked';
+  delete from public.site_banners;
+  insert into public.site_banner_dismissals (banner_id) select id from public.site_banners where title = 'Hosts: new feature';
+  assert (select count(*) from public.site_banner_dismissals) = 1, 'a host closes a banner for themselves';
+  begin
+    insert into public.site_banner_dismissals (banner_id) select id from public.site_banners where title = 'Outage tonight';
+    raise exception 'FAIL: closed an urgent banner';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.site_banner_dismissals (banner_id, user_id)
+    select id, '00000000-0000-0000-0000-000000000002' from public.site_banners where title = 'Pilot spots filling up';
+    raise exception 'FAIL: closed a banner for someone else';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select count(*) from public.site_banner_dismissals) = 0, 'people only see their own dismissals';
+end $$;
+set role anon;
+do $$ begin
+  assert (select count(*) from public.site_banners) = 1, 'visitors only see live public banners';
+  assert (select title from public.site_banners) = 'Pilot spots filling up', 'the public one';
+  begin
+    insert into public.site_banner_dismissals (banner_id) select id from public.site_banners;
+    raise exception 'FAIL: anon wrote a dismissal';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.site_banners where title = 'hacked') = 0 and (select count(*) from public.site_banners) = 4,
+         'a host can''t change or delete banners';
+end $$;
+delete from public.site_banners;
+delete from public.platform_admins;
+
 \echo 'All database security tests passed.'

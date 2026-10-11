@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
+import { PublicBanners } from "@/components/site-banner";
+import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
@@ -84,7 +86,20 @@ const pilot = [
 
 const JOIN = "#join";
 
-export default function Home() {
+// Company banners for visitors (admin → Banners) refresh at least once a minute.
+export const revalidate = 60;
+
+/** Public banners, or none if the database isn't reachable (e.g. while building). */
+async function homeBanners() {
+  try {
+    return await publicBanners();
+  } catch {
+    return [];
+  }
+}
+
+export default async function Home() {
+  const banners = await homeBanners();
   return (
     <div className="flex flex-1 flex-col">
       <HeaderBar maxWidth="max-w-6xl">
@@ -106,7 +121,8 @@ export default function Home() {
       </HeaderBar>
 
       <main className="flex-1">
-        <section className="hero-sky text-white">
+        <PublicBanners banners={banners} />
+        <section className={`hero-sky text-white ${banners.length ? "mt-4" : ""}`}>
           <div className="mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24">
             <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/20">
               Now inviting schools and booster clubs to the 2026–27 pilot
