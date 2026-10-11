@@ -3074,4 +3074,90 @@ do $$ begin
 end $$;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000f1';
 
+-- ---------------------------------------------------------------------------
+-- Demo sample data: filled in by the server only, and taken back off with the
+-- demo people
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform public.demo_seed('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-00000000000a', null);
+    raise exception 'FAIL: a browser filled an event with sample data';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.demo_samples;
+    raise exception 'FAIL: a browser read the sample-data list';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address, event_type)
+select ('10000000-0000-0000-0000-0000000000d' || n)::uuid, e.organization_id, 'Demo ' || t, 'demo-sample-' || n, 'draft',
+       current_date + 20, current_date + 20, now() + interval '20 days', now() + interval '20 days 6 hours', '1 Main St',
+       t::public.event_type
+  from public.events e,
+       (values (1, 'band_contest'), (2, 'group_event'), (3, 'school_visit'), (4, 'fair'), (5, 'volunteer')) v(n, t)
+ where e.id = '10000000-0000-0000-0000-00000000000a';
+
+set role service_role;
+do $$
+declare
+  owner constant uuid := '00000000-0000-0000-0000-000000000001';
+  director constant uuid := 'd0000000-0000-0000-0000-000000000003';
+  ev uuid;
+  n int;
+begin
+  begin
+    perform public.demo_seed(owner, '10000000-0000-0000-0000-0000000000d1', director);
+    raise exception 'FAIL: sample data without demo mode on';
+  exception when sqlstate 'P0001' then null;
+  end;
+
+  for n in 1..5 loop
+    ev := ('10000000-0000-0000-0000-0000000000d' || n)::uuid;
+    insert into public.demo_events (owner_id, event_id) values (owner, ev);
+    perform public.demo_seed(owner, ev, director);
+    perform public.demo_seed(owner, ev, director);  -- a second switch adds nothing
+    assert (select count(*) from public.stations where event_id = ev) = 3, 'three sample stations';
+    assert (select count(*) from public.volunteers where event_id = ev) = 14, 'a dozen volunteers plus two students';
+    assert (select count(*) from public.volunteers where event_id = ev and minor and contact_id is not null) = 2,
+           'the students are signed up by a parent';
+    assert (select sum(registered_count) from public.shifts where event_id = ev)
+         = (select count(*) from public.volunteer_assignments va join public.shifts s on s.id = va.shift_id where s.event_id = ev),
+           'every sign-up is counted';
+  end loop;
+
+  assert (select count(*) from public.bands where event_id = '10000000-0000-0000-0000-0000000000d1') = 6, 'a band contest gets bands';
+  assert (select count(*) from public.bands where event_id = '10000000-0000-0000-0000-0000000000d2') = 5, 'a group event gets groups';
+  assert (select count(*) from public.rooms where event_id = '10000000-0000-0000-0000-0000000000d2') = 3, 'and rooms';
+  assert (select count(*) from public.parent_registrations where event_id = '10000000-0000-0000-0000-0000000000d3') = 8,
+         'a school visit gets parents';
+  assert (select count(*) from public.fair_booths where event_id = '10000000-0000-0000-0000-0000000000d4') = 8, 'a fair gets booths';
+  assert not exists (select 1 from public.bands where event_id = '10000000-0000-0000-0000-0000000000d5'), 'a volunteer event gets no bands';
+  assert not exists (
+    select email from public.volunteers where email is not null and email not like '%@demo.fieldcommandevents.com'
+       and event_id::text like '10000000-0000-0000-0000-0000000000d%'
+    union all
+    select email from public.parent_registrations where email not like '%@demo.fieldcommandevents.com'
+       and event_id = '10000000-0000-0000-0000-0000000000d3'
+  ), 'sample people are never emailed';
+
+  for n in 1..5 loop
+    ev := ('10000000-0000-0000-0000-0000000000d' || n)::uuid;
+    perform public.demo_leave(owner, ev);
+    assert not exists (select 1 from public.stations where event_id = ev), 'sample stations are gone';
+    assert not exists (select 1 from public.volunteers where event_id = ev), 'sample volunteers are gone';
+    assert not exists (select 1 from public.bands where event_id = ev), 'sample bands are gone';
+    assert not exists (select 1 from public.rooms where event_id = ev), 'sample rooms are gone';
+    assert not exists (select 1 from public.parent_registrations where event_id = ev), 'sample parents are gone';
+    assert not exists (select 1 from public.fair_booths where event_id = ev), 'sample booths are gone';
+    assert not exists (select 1 from public.demo_samples where event_id = ev), 'nothing left on the list';
+  end loop;
+end $$;
+reset role;
+delete from public.events where id::text like '10000000-0000-0000-0000-0000000000d%';
+
 \echo 'All database security tests passed.'
