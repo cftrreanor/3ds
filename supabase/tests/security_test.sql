@@ -3160,4 +3160,17 @@ end $$;
 reset role;
 delete from public.events where id::text like '10000000-0000-0000-0000-0000000000d%';
 
+-- Pilot requests: only known event types can be saved.
+do $$ begin
+  begin
+    insert into public.pilot_requests (name, email, organization, event_types)
+    values ('Odd Type', 'odd@example.com', 'Odd PTO', array['rodeo']);
+    raise exception 'FAIL: saved an unknown event type on a pilot request';
+  exception when check_violation then null;
+  end;
+  insert into public.pilot_requests (name, email, organization, event_types)
+  values ('Fair Host', 'fairhost@example.com', 'Oak PTO', array['fair', 'volunteer']);
+  delete from public.pilot_requests where email = 'fairhost@example.com';
+end $$;
+
 \echo 'All database security tests passed.'

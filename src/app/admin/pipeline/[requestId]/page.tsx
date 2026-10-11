@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pilotEventTypeLabels } from "@/lib/pilot";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
@@ -81,10 +82,11 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
           <Panel title="Request">
             <Facts
               items={[
-                ["Contest", r.contest_name || "—"],
-                ["When", r.contest_when || "—"],
-                ["Bands", r.bands ?? "—"],
-                ["Volunteers", r.volunteers ?? "—"],
+                ["Event types", pilotEventTypeLabels(r.event_types).join(", ") || "—"],
+                ...(r.contest_name ? [["Contest", r.contest_name] as [string, string]] : []),
+                ...(r.contest_when ? [["When", r.contest_when] as [string, string]] : []),
+                ...(r.bands != null ? [["Bands", r.bands] as [string, number]] : []),
+                ...(r.volunteers != null ? [["Volunteers", r.volunteers] as [string, number]] : []),
                 ["Sent", formatDate(utcToZonedDate(r.created_at, ADMIN_TZ), { weekday: undefined })],
               ]}
             />
