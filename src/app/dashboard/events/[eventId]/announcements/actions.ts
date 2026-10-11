@@ -9,7 +9,7 @@ import { utcToZonedDate, zonedToUtc } from "@/lib/time";
 const AUDIENCES = ["public", "band_directors", "volunteers", "section_leads"] as const;
 const PRIORITIES = ["routine", "schedule", "emergency"] as const;
 /** How long a banner stays up: minutes, "day" (until midnight at the event) or "open" (until ended). */
-const DURATIONS = ["30", "60", "120", "240", "day", "open"] as const;
+const DURATIONS = ["1", "5", "10", "30", "60", "120", "240", "day", "open"] as const;
 
 const refresh = (eventId: string, slug?: string) => {
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
