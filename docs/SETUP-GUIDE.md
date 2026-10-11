@@ -119,8 +119,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261108000000_admin_crm.sql` | Admin dashboard as a CRM: pilot pipeline stages (new → contacted → invited → set up → active), private notes and follow-ups, a log of emails sent, and sign-in history | ✅ run |
 | `20261109000000_admin_emails.sql` | Admin emails: write to hosts, people and pilot requests from the admin dashboard, and save email templates with merge fields like {{first_name}} | ✅ run |
 | `20261110000000_company_name.sql` | The database's own messages use the company name "Field Command Events" (for example "Hosting on Field Command Events is by invitation") | ✅ run |
-| `20261111000000_site_banners.sql` | Company banners: short notices from you at the top of the site for hosts (by plan), directors, event teams or visitors; people can close them (except urgent ones) | ⬜ |
-| `20261112000000_event_banners.sql` | Event banners: hosts and Volunteer Leads post day-of messages (band switch, delay, emergency) that show on the pages of the people they're for, and can end them early | ⬜ |
+| `20261111000000_site_banners.sql` | Company banners: short notices from you at the top of the site for hosts (by plan), directors, event teams or visitors; people can close them (except urgent ones) | ✅ run |
+| `20261112000000_event_banners.sql` | Event banners: hosts and Volunteer Leads post day-of messages (band switch, delay, emergency) that show on the pages of the people they're for, and can end them early | ✅ run |
 
 ## Pilot requests
 
