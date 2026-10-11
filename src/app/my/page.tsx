@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { EventBanners } from "@/components/event-banners";
 import { FileLinks } from "@/components/file-links";
+import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { liveVolunteerBanners } from "@/lib/event-banners";
 import { filesFor } from "@/lib/event-files";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import Link from "next/link";
@@ -9,7 +12,7 @@ import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { formatDate, formatTime, formatTimeRange, utcToZonedDate } from "@/lib/time";
 import { icsDownloadUrl } from "@/lib/volunteer-emails";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
 import { cancelMyShift } from "./actions";
@@ -67,6 +70,16 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
     (f) => f.event_id,
   );
   const origin = await getOrigin();
+  // Day-of banners from the hosts of the events this person is volunteering at.
+  const nameOf = new Map(rows.map((r) => [r.event_id, r.event_name]));
+  const banners = (await liveVolunteerBanners([...byEvent.keys()])).map((b) => ({
+    id: b.id,
+    body: b.body,
+    priority: b.priority,
+    time: formatTime(b.created_at, tzOf.get(b.event_id) ?? "America/Chicago"),
+    eventName: byEvent.size > 1 ? nameOf.get(b.event_id) : undefined,
+  }));
+  const shiftToday = upcoming.some((r) => utcToZonedDate(r.starts_at, r.timezone) === utcToZonedDate(new Date().toISOString(), r.timezone));
 
   // Events this person volunteers for (or did, before cancelling) that are
   // still taking signups: offer "Sign up for more shifts".
@@ -113,6 +126,12 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My shifts</h1>
         {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
+        {shiftToday && <AutoRefresh seconds={30} />}
+        {banners.length > 0 && (
+          <div className="mt-6">
+            <EventBanners banners={banners} />
+          </div>
+        )}
 
         {link === "invalid" && (
           <Card className="mt-6 bg-brand-soft">

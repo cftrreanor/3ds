@@ -22,6 +22,7 @@ import { setEventPublished } from "../../actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
 import { DemoStart } from "@/components/demo-switcher";
+import { EventBannerSlot } from "@/components/event-banner-slot";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
 import { eventTypeLabel, groupWords, hasBands, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
@@ -314,8 +315,18 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               Edit details
             </Link>
           )}
+          {access.canManage && (
+            <Link
+              href={`/dashboard/events/${eventId}/announcements`}
+              className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
+            >
+              Post a banner
+            </Link>
+          )}
         </div>
       </div>
+
+      <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
 
       {parentsHere && (
         <section className="mt-10" aria-labelledby="parents-heading">

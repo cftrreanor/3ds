@@ -44,6 +44,7 @@ import { DoneButton, LotSizeForm, NoteForm, PushBackForm, TapButton } from "./co
 import { AttentionList, DayTiles, StatusLine } from "./on-track";
 import { loadLeadStations } from "../lead-station-data";
 import { LeadStations } from "../lead-stations";
+import { EventBannerSlot } from "@/components/event-banner-slot";
 
 export const metadata: Metadata = { title: "Contest day" };
 
@@ -127,6 +128,15 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{dayLabel(event.event_type)}</h1>
       <p className="mt-1 text-sm text-muted">Updates every 20 seconds. Tap a button once; it saves right away.</p>
+      <EventBannerSlot eventId={eventId} audience="section_leads" tz={event.timezone} className="mt-4" />
+      {access.canManage && (
+        <p className="mt-2 text-sm">
+          <Link href={`/dashboard/events/${eventId}/announcements`} className="font-medium text-brand underline-offset-4 hover:underline">
+            Post a banner
+          </Link>{" "}
+          <span className="text-muted">(a band switch, a delay, an emergency)</span>
+        </p>
+      )}
 
       {(mine.length + myOther.length > 1 || (bandsHere && access.canManage)) && (
         <nav aria-label="Stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">

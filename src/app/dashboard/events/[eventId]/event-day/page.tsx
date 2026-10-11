@@ -13,6 +13,7 @@ import { DoneButton, TapButton } from "../contest-day/controls";
 import { pushRoomScheduleBack } from "../rooms/actions";
 import { RoomPushBackForm } from "../rooms/push-back-form";
 import { tapGroup } from "./actions";
+import { EventBannerSlot } from "@/components/event-banner-slot";
 
 export const metadata: Metadata = { title: "Event day" };
 
@@ -95,6 +96,15 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
       <p className="mt-1 text-sm text-muted">
         Updates every 20 seconds. Tap a button once; it saves right away. All times {zoneName(tz)}.
       </p>
+      <EventBannerSlot eventId={eventId} audience="section_leads" tz={event.timezone} className="mt-4" />
+      {access.canManage && (
+        <p className="mt-2 text-sm">
+          <Link href={`/dashboard/events/${eventId}/announcements`} className="font-medium text-brand underline-offset-4 hover:underline">
+            Post a banner
+          </Link>{" "}
+          <span className="text-muted">(a band switch, a delay, an emergency)</span>
+        </p>
+      )}
 
       {days.length === 0 ? (
         <Card className="mt-6">
