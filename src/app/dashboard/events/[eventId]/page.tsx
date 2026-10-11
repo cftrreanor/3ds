@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { getEventAccess } from "@/lib/data";
+import { getEventAccess, getOrigin } from "@/lib/data";
+import QRCode from "qrcode";
+import { CopyLink } from "@/components/copy-link";
 import { missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
@@ -261,6 +263,16 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       capacity: s.max_capacity,
     }));
 
+  // The public event page, with a QR code to download for flyers, emails and slides.
+  const publicUrl = `${await getOrigin()}/e/${event.slug}`;
+  const publicQr =
+    event.status === "published"
+      ? await Promise.all([
+          QRCode.toString(publicUrl, { type: "svg", margin: 1, width: 112 }),
+          QRCode.toDataURL(publicUrl, { margin: 2, width: 1024 }),
+        ])
+      : null;
+
   return (
     <div>
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
@@ -270,27 +282,11 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
-          <p className="mt-1 text-muted">
-            {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
-          </p>
-          <p className="mt-1 text-sm text-muted">All times are {zoneName(tz)}.</p>
-          <p className="mt-1 text-sm text-muted">
-            {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
-            {" · "}
-            <a
-              href={mapsUrl(event.venue_address, event.venue_place_id)}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-brand underline-offset-4 hover:underline"
-            >
-              Map
-            </a>
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <Badge tone={event.status === "published" ? "brand" : "neutral"}>
               {event.status === "published" ? "Published" : "Draft: only your team can see this"}
             </Badge>
-            {!bandsHere && <Badge tone="info">{eventTypeLabel(event.event_type)}</Badge>}
+            <Badge tone="info">{eventTypeLabel(event.event_type)}</Badge>
             {access.isHost &&
               (event.status !== "published" ? (
                 <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
@@ -306,6 +302,22 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                 </ActionButton>
               ))}
           </div>
+          <p className="mt-3 text-muted">
+            {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
+          </p>
+          <p className="mt-1 text-sm text-muted">All times are {zoneName(tz)}.</p>
+          <p className="mt-1 text-sm text-muted">
+            {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
+            {" · "}
+            <a
+              href={mapsUrl(event.venue_address, event.venue_place_id)}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-brand underline-offset-4 hover:underline"
+            >
+              Map
+            </a>
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           {access.isHost && (
@@ -316,18 +328,36 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               Edit details
             </Link>
           )}
-          {access.canManage && (
-            <Link
-              href={`/dashboard/events/${eventId}/announcements`}
-              className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
-            >
-              Post a banner
-            </Link>
-          )}
         </div>
       </div>
 
       <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
+
+      <PublicPageCard url={publicUrl} published={event.status === "published"} slug={event.slug} qr={publicQr} />
+
+      {(files.length > 0 || access.isHost) && (
+        <section className="mt-10" aria-labelledby="files-heading">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="files-heading" className="text-xl font-semibold">
+              Maps &amp; documents
+            </h2>
+            {access.isHost && (
+              <Link href={`/dashboard/events/${eventId}/edit#files-heading`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
+                {files.length ? "Manage" : "Add a map or document"}
+              </Link>
+            )}
+          </div>
+          {files.length ? (
+            <FileLinks files={files} details={uploaded} className="mt-3" />
+          ) : (
+            <p className="mt-1 text-sm text-muted">
+              {groupsHere
+                ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
+                : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
+            </p>
+          )}
+        </section>
+      )}
 
       {hasBooths(event.event_type) && <BoothsCard eventId={eventId} isDay={isEventDay} />}
 
@@ -416,6 +446,14 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                 )}
                 {access.canManage && (
                   <Link
+                    href={`/dashboard/events/${eventId}/announcements`}
+                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                  >
+                    Post a banner
+                  </Link>
+                )}
+                {access.canManage && (
+                  <Link
                     href={`/dashboard/events/${eventId}/volunteers`}
                     className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                   >
@@ -444,12 +482,20 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                     dayLabel={formatDate(event.starts_on, { year: undefined })}
                     time={(iso) => formatTime(iso, tz)}
                   />
-                  <Link
-                    href={`/dashboard/events/${eventId}/contest-day`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-                  >
-                    Open contest day
-                  </Link>
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/dashboard/events/${eventId}/announcements`}
+                      className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                    >
+                      Post a banner
+                    </Link>
+                    <Link
+                      href={`/dashboard/events/${eventId}/contest-day`}
+                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                    >
+                      Open contest day
+                    </Link>
+                  </div>
                 </div>
                 {phase !== "before" && path.length > 0 && (
                   <DayTiles
@@ -480,12 +526,16 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="space-y-1 text-sm leading-6">
-                  <p>
-                    <span className="font-medium">You lead {myStations.map((s) => s.name).join(", ")}.</span>{" "}
-                    <span className="text-muted">
-                      {myVolunteers} {myVolunteers === 1 ? "volunteer" : "volunteers"} signed up.
-                    </span>
-                  </p>
+                  {myStations.length > 0 ? (
+                    <p>
+                      <span className="font-medium">You lead {myStations.map((s) => s.name).join(", ")}.</span>{" "}
+                      <span className="text-muted">
+                        {myVolunteers} {myVolunteers === 1 ? "volunteer" : "volunteers"} signed up.
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-muted">No bands registered yet. Live progress shows here once they do.</p>
+                  )}
                   {myStations.some((s) => s.checkpoint_kind) && (
                     <p className="text-muted">
                       {!bands.length
@@ -496,12 +546,22 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
                 </p>
                   )}
                 </div>
-                <Link
-                  href={`/dashboard/events/${eventId}/contest-day`}
-                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-                >
-                  Open contest day
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                  {access.canManage && (
+                    <Link
+                      href={`/dashboard/events/${eventId}/announcements`}
+                      className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                    >
+                      Post a banner
+                    </Link>
+                  )}
+                  <Link
+                    href={`/dashboard/events/${eventId}/contest-day`}
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                  >
+                    Open contest day
+                  </Link>
+                </div>
               </div>
             )}
           </Card>
@@ -537,29 +597,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         </section>
       )}
 
-      {(files.length > 0 || access.isHost) && (
-        <section className="mt-10" aria-labelledby="files-heading">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="files-heading" className="text-xl font-semibold">
-              Maps &amp; documents
-            </h2>
-            {access.isHost && (
-              <Link href={`/dashboard/events/${eventId}/edit#files-heading`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
-                {files.length ? "Manage" : "Add a map or document"}
-              </Link>
-            )}
-          </div>
-          {files.length ? (
-            <FileLinks files={files} details={uploaded} className="mt-3" />
-          ) : (
-            <p className="mt-1 text-sm text-muted">
-              {groupsHere
-                ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
-                : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
-            </p>
-          )}
-        </section>
-      )}
 
       {groupsHere && (
       <section className="mt-10" aria-labelledby="bands-heading">
@@ -748,6 +785,43 @@ function TeamStats({
         )}
       </div>
     </div>
+  );
+}
+
+function PublicPageCard({ url, published, slug, qr }: { url: string; published: boolean; slug: string; qr: [string, string] | null }) {
+  const display = url.replace(/^https?:\/\//, "");
+  if (!published || !qr) {
+    return (
+      <Card className="mt-6 text-sm leading-6">
+        <p className="font-medium">Public page</p>
+        <p className="text-muted">
+          Goes live at <span className="font-mono text-foreground">{display}</span> when you publish, with a QR code to share.
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <Card className="mt-6 flex flex-wrap items-center gap-4">
+      <div
+        className="shrink-0 rounded-md border border-border bg-white p-1"
+        aria-label="QR code for the public event page"
+        role="img"
+        dangerouslySetInnerHTML={{ __html: qr[0] }}
+      />
+      <div className="min-w-0 flex-1 space-y-1 text-sm leading-6">
+        <p className="font-medium">Public page</p>
+        <a href={url} target="_blank" rel="noreferrer" className="block break-all font-mono text-brand underline-offset-4 hover:underline">
+          {display} ↗
+        </a>
+        <p className="text-muted">Share the link or QR code in emails, flyers and slides.</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 font-medium">
+          <CopyLink url={url} className="text-brand underline-offset-4 hover:underline" />
+          <a href={qr[1]} download={`${slug}-qr.png`} className="text-brand underline-offset-4 hover:underline">
+            Download QR code
+          </a>
+        </div>
+      </div>
+    </Card>
   );
 }
 
