@@ -121,7 +121,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261110000000_company_name.sql` | The database's own messages use the company name "Field Command Events" (for example "Hosting on Field Command Events is by invitation") | ✅ run |
 | `20261111000000_site_banners.sql` | Company banners: short notices from you at the top of the site for hosts (by plan), directors, event teams or visitors; people can close them (except urgent ones) | ✅ run |
 | `20261112000000_event_banners.sql` | Event banners: hosts and Volunteer Leads post day-of messages (band switch, delay, emergency) that show on the pages of the people they're for, and can end them early | ✅ run |
-| `20261113000000_fairs.sql` | School fairs and fundraisers: a new kind of event with booths and community partners by zone, a partner check-in on the day, a public "What's at the event" list, and zones for volunteer stations | ⬜ |
+| `20261113000000_fairs.sql` | School fairs and fundraisers: a new kind of event with booths and community partners by zone, a partner check-in on the day, a public "What's at the event" list, and zones for volunteer stations | ✅ |
 
 ## Pilot requests
 
