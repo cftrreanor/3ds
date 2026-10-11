@@ -3001,4 +3001,77 @@ end $$;
 reset role;
 delete from public.announcements where event_id = '10000000-0000-0000-0000-00000000000a' and body in ('Band switch: Lakeview now at 2:15', 'Lunch is in the cafeteria');
 
+-- School fairs: booths belong to fairs only; the host and Volunteer Leads
+-- manage them; the event team checks partners in; the public list has no
+-- contact details and only listed booths of published fairs.
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000f1', :'org_id', 'Cardinal Renaissance Fair', 'ren-fair', 'draft', 'fair',
+        current_date + 10, current_date + 10, now() + interval '10 days', now() + interval '10 days 3 hours', '1 Cardinal Way');
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-000000000003', 'section_lead');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  insert into public.fair_booths (event_id, title, host_name, zone, contact_email)
+  values ('10000000-0000-0000-0000-0000000000f1', 'Dunk Tank', 'Verizon', 'Activity Stations', 'events@verizon.example');
+  insert into public.fair_booths (event_id, title, zone, show_publicly)
+  values ('10000000-0000-0000-0000-0000000000f1', 'Supply closet', 'Back of house', false);
+  begin
+    insert into public.fair_booths (event_id, title) values ('10000000-0000-0000-0000-00000000000a', 'Not a fair');
+    raise exception 'FAIL: a booth on a band contest';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    update public.fair_booths set arrived_at = now() where title = 'Dunk Tank';
+    raise exception 'FAIL: set arrival directly instead of through check-in';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.fair_booths where event_id = '10000000-0000-0000-0000-0000000000f1') = 2, 'a Station Coordinator sees the booths';
+  perform public.fair_booth_checkin((select id from public.fair_booths where title = 'Dunk Tank'), true);
+  assert (select arrived_at is not null and arrived_by = auth.uid() from public.fair_booths where title = 'Dunk Tank'), 'and checks a partner in';
+  begin
+    insert into public.fair_booths (event_id, title) values ('10000000-0000-0000-0000-0000000000f1', 'Sneaky booth');
+    raise exception 'FAIL: a Station Coordinator added a booth';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.fair_booths) = 0, 'strangers can''t read booths (or partner contacts)';
+  begin
+    perform public.fair_booth_checkin((select id from public.fair_booths limit 1), false);
+    raise exception 'FAIL: a stranger checked a partner in';
+  exception when sqlstate 'P0001' or insufficient_privilege then null;
+  end;
+end $$;
+set role anon;
+do $$ begin
+  assert (select count(*) from public.public_fair_booths('ren-fair')) = 0, 'a draft fair lists nothing';
+  begin
+    perform 1 from public.fair_booths;
+    raise exception 'FAIL: anon read the booths table';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000f1';
+set role anon;
+do $$ begin
+  assert (select count(*) from public.public_fair_booths('ren-fair')) = 1, 'the public sees listed booths only';
+  assert (select host_name from public.public_fair_booths('ren-fair')) = 'Verizon', 'with who hosts them';
+end $$;
+reset role;
+do $$ begin
+  begin
+    update public.events set event_type = 'volunteer' where id = '10000000-0000-0000-0000-0000000000f1';
+    raise exception 'FAIL: a fair with booths changed type';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000f1';
+
 \echo 'All database security tests passed.'

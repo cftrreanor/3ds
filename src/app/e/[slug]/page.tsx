@@ -11,12 +11,13 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { readPass } from "@/lib/volunteer-pass";
-import { groupWords, hasBands, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
+import { groupWords, hasBands, hasBooths, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
 import { RoomSchedule, type ScheduleRoom, type ScheduleSlot } from "@/components/room-schedule";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { EventBannerSlot } from "@/components/event-banner-slot";
 import { AutoRefresh } from "./auto-refresh";
+import { FairBooths } from "./fair-booths";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -180,6 +181,8 @@ export default async function EventPublicPage({ params }: Params) {
       </header>
 
       <EventBannerSlot eventId={event.id} audience="public" tz={tz} className="mt-6" />
+
+      {hasBooths(event.event_type) && event.status === "published" && <FairBooths slug={slug} />}
 
       {(isVolunteer || bandsOpen || signUp || parentsOpen || parentWalkIns) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">

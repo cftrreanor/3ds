@@ -1,6 +1,6 @@
 import { Badge, Card } from "@/components/ui";
 import { kindLabel, type CheckpointKind } from "@/lib/contest-day";
-import { hasBands } from "@/lib/event-types";
+import { FAIR_ZONES, hasBands, hasBooths, leadWords } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
@@ -26,6 +26,7 @@ export type Station = {
   location: string | null;
   instructions: string | null;
   adults_only?: boolean;
+  zone?: string | null;
   lead_user_id: string | null;
   /** Everyone leading this station, first-added first. */
   lead_ids: string[];
@@ -113,7 +114,7 @@ export function StationPanel({
       {canManage && (
         <div className="mt-4 flex flex-col gap-3">
           <details className="rounded-lg border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">Section Leads &amp; station details</summary>
+            <summary className="cursor-pointer text-sm font-medium">{leadWords(event.event_type).many} &amp; station details</summary>
             <div className="mt-4">
               <StationForm
                 action={updateStation.bind(null, eventId, station.id)}
@@ -122,6 +123,8 @@ export function StationPanel({
                 submitLabel="Save station"
                 bands={hasBands(event.event_type)}
                 locations={locations}
+                zones={hasBooths(event.event_type) ? FAIR_ZONES : undefined}
+                leadLabel={leadWords(event.event_type).many}
               />
             </div>
           </details>

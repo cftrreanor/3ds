@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { eachDate, formatTimeRange } from "@/lib/time";
 import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, StationForm, type LeadOption } from "../forms";
-import { hasBands, hasRooms } from "@/lib/event-types";
+import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
@@ -19,7 +19,8 @@ export const metadata: Metadata = { title: "Volunteer Registration" };
 
 type HostRow = { user_id: string; role: "owner" | "admin"; profiles: { full_name: string; email: string } | null };
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: { full_name: string; email: string } | null };
-const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
+const roleLabel = (role: "volunteer_director" | "section_lead", type: string | null) =>
+  role === "volunteer_director" ? "Volunteer Lead" : leadWords(type).one;
 const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 
 /** Volunteer signup and one tab per station (section) with its own shift schedule. */
@@ -46,7 +47,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const [{ data: stationData }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id")
+      .select(
+        `id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id${hasBooths(event.event_type) ? ", zone" : ""}`,
+      )
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -67,7 +70,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       : Promise.resolve({ data: [] }),
   ]);
   // Check-in stations first, in the band's order, matching the volunteer signup page.
-  const stations = sortStations((stationData ?? []) as Omit<Station, "lead_ids">[]).map((st) => ({
+  const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
     ...st,
     lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
   }));
@@ -110,7 +113,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       .map((h) => ({ id: h.user_id, label: `${h.profiles?.full_name || h.profiles?.email || "Team member"} (${HOST_LABEL[h.role]})` })),
     ...[...new Map(staffRows.filter((s) => s.user_id !== user.id && !hosts.some((h) => h.user_id === s.user_id)).map((s) => [s.user_id, s])).values()].map((s) => ({
       id: s.user_id,
-      label: `${s.profiles?.full_name || s.profiles?.email || "Team member"} (${ROLE_LABEL[s.role]})`,
+      label: `${s.profiles?.full_name || s.profiles?.email || "Team member"} (${roleLabel(s.role, event.event_type)})`,
     })),
   ];
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
@@ -302,7 +305,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   ? "Start with your first station, like Parking, Concessions or a Warm-Up area. You'll set up its shifts next."
                   : "It gets its own tab and shift schedule."}
               </p>
-              <StationForm action={createStation.bind(null, eventId)} bands={hasBands(event.event_type)} locations={locations} />
+              <StationForm
+                action={createStation.bind(null, eventId)}
+                bands={hasBands(event.event_type)}
+                locations={locations}
+                zones={hasBooths(event.event_type) ? FAIR_ZONES : undefined}
+              />
             </Card>
           )}
         </div>

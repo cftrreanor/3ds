@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
-import { EVENT_TYPES, eventTypeLabel, groupWords, hasBands, hasEnsembles, hasParents } from "@/lib/event-types";
+import { EVENT_TYPES, eventTypeLabel, groupWords, hasBands, hasBooths, hasEnsembles, hasParents } from "@/lib/event-types";
 import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
@@ -30,6 +30,7 @@ const SWITCH_NOTE = {
   group_event: "Group registration, rooms and each group's room schedule are added; the single performance order and band check-in stations go away.",
   volunteer: "Band registration, parent registration and the performance schedule go away; band check-in stations become ordinary stations.",
   school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
+  fair: "Booths and partners by zone, partner check-in and the public \u201cWhat's at the fair\u201d list are added; band registration and the performance schedule go away.",
 };
 
 export default async function EditEventPage({ params }: PageProps<"/dashboard/events/[eventId]/edit">) {
@@ -46,7 +47,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
-  const [{ count }, { data: fileData }, { count: bandCount }, { count: parentCount }] = await Promise.all([
+  const [{ count }, { data: fileData }, { count: bandCount }, { count: parentCount }, { count: boothCount }] = await Promise.all([
     supabase.from("shifts").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase
       .from("event_files")
@@ -55,6 +56,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
       .order("created_at"),
     supabase.from("bands").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase.from("parent_registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+    supabase.from("fair_booths").select("id", { count: "exact", head: true }).eq("event_id", eventId),
   ]);
   const bandsHere = hasBands(event.event_type);
   const groupsHere = hasEnsembles(event.event_type);
@@ -117,6 +119,8 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
               {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
               {eventTypeLabel(event.event_type).toLowerCase()}.
             </p>
+          ) : hasBooths(event.event_type) && (boothCount ?? 0) > 0 ? (
+            <p className="text-sm text-muted">This fair has booths and partners, so it has to stay a school fair.</p>
           ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
             <p className="text-sm text-muted">
               {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
