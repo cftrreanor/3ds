@@ -1,6 +1,6 @@
 import { Badge, Card } from "@/components/ui";
 import { kindLabel, type CheckpointKind } from "@/lib/contest-day";
-import { FAIR_ZONES, hasBands, hasBooths, leadWords } from "@/lib/event-types";
+import { hasBands, leadWords } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
@@ -64,6 +64,7 @@ export function StationPanel({
   leadOptions,
   roster,
   locations = [],
+  zones,
 }: {
   eventId: string;
   station: Station;
@@ -77,6 +78,8 @@ export function StationPanel({
   leadOptions: LeadOption[];
   /** A group event's rooms, suggested for a station's location. */
   locations?: string[];
+  /** A fair's zones, suggested for a station's zone. */
+  zones?: readonly string[];
   /** Only for the station's lead: who has signed up. */
   roster?: RosterEntry[];
 }) {
@@ -123,7 +126,7 @@ export function StationPanel({
                 submitLabel="Save station"
                 bands={hasBands(event.event_type)}
                 locations={locations}
-                zones={hasBooths(event.event_type) ? FAIR_ZONES : undefined}
+                zones={zones}
                 leadLabel={leadWords(event.event_type).many}
               />
             </div>

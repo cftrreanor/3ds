@@ -47,7 +47,13 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
   const isDay = eventPhase(event, new Date()) === "day";
   const partners = booths.filter((b) => b.host_name);
   const arrived = partners.filter((b) => b.arrived_at).length;
-  const zones = [...new Set([...booths.map((b) => b.zone).filter((z): z is string => Boolean(z)), ...FAIR_ZONES])];
+  // Zone suggestions: the usual five plus any the host has made up (on booths or stations).
+  const { data: stationZones } = await supabase.from("stations").select("zone").eq("event_id", eventId).not("zone", "is", null);
+  const zones = [
+    ...new Set(
+      [...FAIR_ZONES, ...booths.map((b) => b.zone), ...(stationZones ?? []).map((s) => s.zone)].filter((z): z is string => Boolean(z)),
+    ),
+  ];
   const groups = [...new Set(booths.map((b) => b.zone ?? ""))].map((zone) => ({ zone, booths: booths.filter((b) => (b.zone ?? "") === zone) }));
 
   return (
