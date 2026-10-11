@@ -30,7 +30,7 @@ const SWITCH_NOTE = {
   group_event: "Group registration, rooms and each group's room schedule are added; the single performance order and band check-in stations go away.",
   volunteer: "Band registration, parent registration and the performance schedule go away; band check-in stations become ordinary stations.",
   school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
-  fair: "Booths and partners by zone, partner check-in and the public \u201cWhat's at the fair\u201d list are added; band registration and the performance schedule go away.",
+  fair: "Booths and partners by zone, partner check-in and the public \u201cWhat's at the event\u201d list are added; band registration and the performance schedule go away.",
 };
 
 export default async function EditEventPage({ params }: PageProps<"/dashboard/events/[eventId]/edit">) {

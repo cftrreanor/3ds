@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { NumberInput } from "@/components/number-input";
+import { ZoneInput } from "@/components/zone-input";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
@@ -87,13 +88,8 @@ export function StationForm({
         </Field>
       )}
       {zones && (
-        <Field label="Zone" hint="Optional. Groups stations on the fair's pages, e.g. Game Zone or Marketplace.">
-          <Input name="zone" maxLength={60} defaultValue={initial?.zone ?? ""} list="fair-zones" placeholder={`e.g. ${zones[0]}`} />
-          <datalist id="fair-zones">
-            {zones.map((z) => (
-              <option key={z} value={z} />
-            ))}
-          </datalist>
+        <Field label="Zone" hint="Optional. Groups stations on the event's pages. Use one of these or make up your own.">
+          <ZoneInput zones={zones} defaultValue={initial?.zone} />
         </Field>
       )}
       <Field label="Location" hint="Optional. Where volunteers should report." className="sm:col-span-2">

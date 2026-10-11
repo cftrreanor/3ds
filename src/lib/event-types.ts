@@ -29,7 +29,7 @@ export const EVENT_TYPES = [
     value: "fair",
     label: "School fair or fundraiser",
     icon: "🎪",
-    blurb: "Carnivals, fall festivals and fundraisers: your booths and community partners by zone, a quick partner check-in on the day, volunteer shifts with Station Coordinators, and a public \u201cWhat's at the fair\u201d page.",
+    blurb: "Carnivals, fall festivals and fundraisers: your booths and community partners by zone, a quick partner check-in on the day, volunteer shifts with Station Coordinators, and a public \u201cWhat's at the event\u201d page.",
   },
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number]["value"];

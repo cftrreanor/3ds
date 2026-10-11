@@ -47,7 +47,13 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
   const isDay = eventPhase(event, new Date()) === "day";
   const partners = booths.filter((b) => b.host_name);
   const arrived = partners.filter((b) => b.arrived_at).length;
-  const zones = [...new Set([...booths.map((b) => b.zone).filter((z): z is string => Boolean(z)), ...FAIR_ZONES])];
+  // Zone suggestions: the usual five plus any the host has made up (on booths or stations).
+  const { data: stationZones } = await supabase.from("stations").select("zone").eq("event_id", eventId).not("zone", "is", null);
+  const zones = [
+    ...new Set(
+      [...FAIR_ZONES, ...booths.map((b) => b.zone), ...(stationZones ?? []).map((s) => s.zone)].filter((z): z is string => Boolean(z)),
+    ),
+  ];
   const groups = [...new Set(booths.map((b) => b.zone ?? ""))].map((zone) => ({ zone, booths: booths.filter((b) => (b.zone ?? "") === zone) }));
 
   return (
@@ -59,7 +65,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Booths &amp; partners</h1>
         <p className="mt-1 text-muted">
-          Everything at the fair, by zone: games, activities, vendors and showcases, and who hosts each one.
+          Everything at the event, by zone: games, activities, vendors and showcases, and who hosts each one.
           {event.status === "published" ? " Listed ones show on the public page." : " Listed ones show on the public page once the event is published."}
         </p>
       </div>

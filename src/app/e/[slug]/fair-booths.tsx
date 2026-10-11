@@ -10,7 +10,9 @@ const ZONE_ICON: Record<string, string> = {
   "food & drinks": "🍿",
 };
 
-/** A fair's public "What's at the fair": booths by zone, with a thank-you to who hosts each one. */
+const zoneIcon = (zone: string) => ZONE_ICON[zone.toLowerCase()] ?? "✨";
+
+/** A fair's public "What's at the event": booths by zone, with a thank-you to who hosts each one. */
 export async function FairBooths({ slug }: { slug: string }) {
   const { data } = await (await createClient()).rpc("public_fair_booths", { p_slug: slug });
   const booths = (data ?? []) as PublicBooth[];
@@ -20,33 +22,56 @@ export async function FairBooths({ slug }: { slug: string }) {
   return (
     <section className="mt-10" aria-labelledby="fair-heading">
       <h2 id="fair-heading" className="text-2xl font-medium tracking-tight">
-        What&apos;s at the fair
+        What&apos;s at the event
       </h2>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {zones.map((zone) => (
-          <div key={zone || "more"} className="rounded-lg border border-border bg-surface p-4 shadow-card sm:p-5">
-            <h3 className="text-lg font-semibold">
-              <span aria-hidden>{ZONE_ICON[zone.toLowerCase()] ?? "✨"} </span>
+      {zones.length > 1 && (
+        <nav aria-label="Fair zones" className="mt-3 flex flex-wrap gap-2">
+          {zones.map((zone, i) => (
+            <a
+              key={zone || "more"}
+              href={`#zone-${i}`}
+              className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3 text-sm font-medium hover:border-brand hover:text-brand"
+            >
+              <span aria-hidden className="mr-1.5">
+                {zoneIcon(zone)}
+              </span>
               {zone || "And more"}
-            </h3>
-            <ul className="mt-2 space-y-2">
-              {booths
-                .filter((b) => (b.zone ?? "") === zone)
-                .map((b) => (
-                  <li key={b.id} className="leading-6">
-                    <span className="font-medium">{b.title}</span>
-                    {b.host_name && <span className="text-muted"> · hosted by {b.host_name}</span>}
-                    {(b.description || b.location) && (
-                      <span className="block text-sm text-muted">{[b.description, b.location].filter(Boolean).join(" · ")}</span>
+            </a>
+          ))}
+        </nav>
+      )}
+      <div className="mt-6 space-y-10">
+        {zones.map((zone, i) => {
+          const inZone = booths.filter((b) => (b.zone ?? "") === zone);
+          return (
+            <section key={zone || "more"} id={`zone-${i}`} aria-labelledby={`zone-${i}-heading`} className="scroll-mt-6">
+              <h3 id={`zone-${i}-heading`} className="flex items-baseline gap-2 border-b-2 border-foreground pb-2 text-xl font-semibold">
+                <span aria-hidden>{zoneIcon(zone)}</span>
+                {zone || "And more"}
+                <span className="ml-auto text-sm font-normal text-muted">
+                  {inZone.length} {inZone.length === 1 ? "attraction" : "attractions"}
+                </span>
+              </h3>
+              <ul className="divide-y divide-border">
+                {inZone.map((b) => (
+                  <li key={b.id} className="py-4">
+                    <p className="text-lg font-medium leading-7">{b.title}</p>
+                    {b.host_name && <p className="text-sm text-muted">Hosted by {b.host_name}</p>}
+                    {b.description && <p className="mt-2 leading-6">{b.description}</p>}
+                    {b.location && (
+                      <p className="mt-2 text-sm">
+                        <span className="font-semibold">Where:</span> {b.location}
+                      </p>
                     )}
                   </li>
                 ))}
-            </ul>
-          </div>
-        ))}
+              </ul>
+            </section>
+          );
+        })}
       </div>
       {hosts.length > 0 && (
-        <p className="mt-4 text-sm leading-6 text-muted">
+        <p className="mt-8 rounded-md bg-surface px-4 py-3 text-sm leading-6 text-muted">
           <span className="font-semibold text-foreground">Thank you to our community partners:</span> {hosts.join(", ")}.
         </p>
       )}
