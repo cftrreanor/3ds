@@ -3173,4 +3173,16 @@ do $$ begin
   delete from public.pilot_requests where email = 'fairhost@example.com';
 end $$;
 
+-- Volunteer reminders: only the server marks a shift as reminded.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    update public.volunteer_assignments set reminded_at = now();
+    raise exception 'FAIL: a browser marked volunteer shifts as reminded';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

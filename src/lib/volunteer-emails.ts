@@ -154,6 +154,27 @@ export async function sendSignupConfirmation(
   return sent;
 }
 
+/** The day before: a volunteer's shifts tomorrow, where to report and who their lead is. */
+export async function sendShiftReminder(entries: CalendarEntry[], tz: string, origin: string) {
+  if (entries.length === 0) return false;
+  const first = entries[0];
+  const single = entries.length === 1;
+  const leads = [...new Set(entries.filter((e) => e.lead_name).map((e) => `${e.lead_name}${e.lead_phone ? ` (${formatPhone(e.lead_phone)})` : ""}`))];
+  const { html, text } = emailLayout({
+    heading: `See you tomorrow at ${first.event_name}`,
+    paragraphs: [
+      `Hi ${first.volunteer_name.split(" ")[0]}! A reminder that you're volunteering tomorrow${first.venue_name ? ` at ${first.venue_name}` : ""}. Here ${single ? "is your shift" : "are your shifts"}.`,
+      ...entries.filter((e) => e.instructions).map((e) => `${e.station_name}: ${e.instructions}`),
+      ...(leads.length ? [`Questions on the day? Your ${leads.length === 1 ? "lead is" : "leads are"} ${leads.join(" and ")}.`] : []),
+      "Can't make it anymore? Please cancel below so someone else can take your spot.",
+    ],
+    rows: entries.map((e) => shiftRow(e, tz, origin, false)),
+    button: { label: "View or cancel my shifts", url: manageUrl(origin, first) },
+    footer: `You're receiving this because you signed up to volunteer through ${brand.name}.`,
+  });
+  return sendEmail({ to: first.volunteer_email, subject: `Tomorrow: your volunteer shift at ${first.event_name}`, html, text });
+}
+
 /** Tell each volunteer their shift changed and update their calendar. */
 export async function sendShiftUpdates(entries: CalendarEntry[], tz: string, origin: string) {
   for (const e of entries) {

@@ -46,7 +46,7 @@ const kinds = [
     examples: "Concessions, field day, book fairs, school parking",
     points: [
       "Build stations and schedules with ease",
-      "Volunteers sign up and get email confirmations and calendar invites, without any hassle or advertisements",
+      "Volunteers sign up and get email confirmations, calendar invites and day-before reminders, without any hassle or advertisements",
       "Check in volunteers on any device, no additional app required",
     ],
   },

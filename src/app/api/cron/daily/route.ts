@@ -3,10 +3,13 @@ import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
+import { isSchemaError } from "@/lib/schema-check";
+import { loadCalendarEntries, sendShiftReminder } from "@/lib/volunteer-emails";
 import { utcToZonedDate } from "@/lib/time";
 
 // Once a day (vercel.json): remind parents to bring their photo ID the day
-// before a school visitor event, erase parent registrations 30 days after
+// before a school visitor event, remind volunteers of their shifts the day
+// before, erase parent registrations 30 days after
 // their event, volunteers 10 days after theirs, and old admin email records.
 // Vercel calls it with the CRON_SECRET environment variable.
 
@@ -82,5 +85,64 @@ export async function GET(request: NextRequest) {
   }
   if (unsent) console.error(`Daily job: ${unsent} parent reminder(s) not sent`);
 
-  return NextResponse.json({ purged: purged ?? 0, volunteersPurged: volunteersPurged ?? 0, emailsPurged: emailsPurged ?? 0, reminded, unsent });
+  // Volunteers: shifts that start tomorrow in their event's time zone, at published events.
+  let volunteersReminded = 0;
+  let volunteersUnsent = 0;
+  const { data: soon, error: shiftsError } = await admin
+    .from("shifts")
+    .select("id, starts_at, events!inner(timezone, status)")
+    .eq("events.status", "published")
+    .gte("starts_at", new Date(started).toISOString())
+    .lte("starts_at", new Date(started + 2 * 86_400_000).toISOString());
+  if (shiftsError) console.error("Daily job: shifts lookup failed", shiftsError);
+  const tomorrowShifts = ((soon ?? []) as unknown as { id: string; starts_at: string; events: { timezone: string } }[]).filter((sh) => {
+    const tz = sh.events.timezone;
+    const local = utcToZonedDate(new Date(started).toISOString(), tz);
+    const next = new Date(`${local}T12:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    return utcToZonedDate(sh.starts_at, tz) === next.toISOString().slice(0, 10);
+  });
+  if (tomorrowShifts.length) {
+    const { data: due, error: dueError } = await admin
+      .from("volunteer_assignments")
+      .select("id")
+      .in("shift_id", tomorrowShifts.map((sh) => sh.id))
+      .is("reminded_at", null);
+    // Before 20261116000000_volunteer_reminders.sql there's nothing to track reminders with.
+    if (dueError && !isSchemaError(dueError)) console.error("Daily job: volunteer lookup failed", dueError);
+    const entries = await loadCalendarEntries((due ?? []).map((a) => a.id));
+    const byPerson = new Map<string, typeof entries>();
+    for (const e of entries) {
+      const key = `${e.volunteer_email.toLowerCase()}|${e.event_name}`;
+      byPerson.set(key, [...(byPerson.get(key) ?? []), e]);
+    }
+    for (const list of byPerson.values()) {
+      if (Date.now() - started > 270_000) {
+        volunteersUnsent += list.length;
+        continue;
+      }
+      list.sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+      if (await sendShiftReminder(list, list[0].timezone, origin)) {
+        await admin
+          .from("volunteer_assignments")
+          .update({ reminded_at: new Date().toISOString() })
+          .in("id", list.map((e) => e.assignment_id));
+        volunteersReminded++;
+      } else {
+        volunteersUnsent++;
+      }
+      await pause();
+    }
+  }
+  if (volunteersUnsent) console.error(`Daily job: ${volunteersUnsent} volunteer reminder(s) not sent`);
+
+  return NextResponse.json({
+    purged: purged ?? 0,
+    volunteersPurged: volunteersPurged ?? 0,
+    emailsPurged: emailsPurged ?? 0,
+    reminded,
+    unsent,
+    volunteersReminded,
+    volunteersUnsent,
+  });
 }
