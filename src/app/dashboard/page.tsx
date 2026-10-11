@@ -284,11 +284,11 @@ function EventName({ event: e }: { event: EventSummary }) {
   );
 }
 
-/** The event-type pill at the foot of an event card. */
+/** The event-type pill, right under an event card's name. */
 function TypePill({ event: e }: { event: EventSummary }) {
   return (
-    <p className="mt-3">
-      <Badge>{eventTypeLabel(e.event_type)}</Badge>
+    <p className="mt-2">
+      <Badge tone="info">{eventTypeLabel(e.event_type)}</Badge>
     </p>
   );
 }
@@ -298,13 +298,13 @@ function HostedCard({ event: e }: { event: EventSummary }) {
     <CardLink href={`/dashboard/events/${e.id}`}>
       <div className="flex items-start justify-between gap-3">
         <EventName event={e} />
-        <Badge tone={e.status === "published" ? "brand" : "neutral"}>
+        <Badge tone={e.status === "published" ? "live" : "neutral"}>
           {e.status === "published" ? "Published" : e.status === "archived" ? "Archived" : "Draft"}
         </Badge>
       </div>
+      <TypePill event={e} />
       <p className="mt-2 text-sm text-muted">{formatDateRange(e.starts_on, e.ends_on)}</p>
       <p className="mt-1 text-sm text-muted">{where(e)}</p>
-      <TypePill event={e} />
     </CardLink>
   );
 }
@@ -392,9 +392,9 @@ function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } })
         <EventName event={r.events} />
         <Badge tone="info">{ROLE_LABEL[r.role]}</Badge>
       </div>
+      <TypePill event={r.events} />
       <p className="mt-2 text-sm text-muted">{formatDateRange(r.events.starts_on, r.events.ends_on)}</p>
       <p className="mt-1 text-sm text-muted">{where(r.events)}</p>
-      <TypePill event={r.events} />
     </CardLink>
   );
 }

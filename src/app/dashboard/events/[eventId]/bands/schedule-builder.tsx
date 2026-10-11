@@ -452,7 +452,7 @@ export function ScheduleBuilder({
     </Button>
   );
   const status = (published: boolean) => (
-    <Badge tone={published ? "brand" : "neutral"}>{published ? "Published" : "Not published"}</Badge>
+    <Badge tone={published ? "live" : "off"}>{published ? "Published" : "Not published"}</Badge>
   );
 
   return (
