@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
+import { SITE_URL } from "@/lib/site-url";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
 
@@ -13,9 +15,9 @@ const kinds = [
     title: "Band contests",
     examples: "Marching invitationals, jazz festivals, solo & ensemble",
     points: [
-      "Band registration with saved details, one-tap for returning directors",
-      "Performance schedule, finals and a live order for families",
-      "Check bands through parking, warm-up and the gate",
+      "Band registration with saved details, and easy one-tap registration for returning bands and directors",
+      "Performance schedule, finals and a live order for directors and spectators",
+      "Keep track of bands throughout the event with personalized check-in stages",
     ],
   },
   {
@@ -25,7 +27,7 @@ const kinds = [
     points: [
       "Groups register, then move through your rooms on a schedule built for you",
       "Arrived and Done taps keep every room on time",
-      "Families follow each room live on their phones",
+      "Directors and families can follow each room live on their phones",
     ],
   },
   {
@@ -43,9 +45,9 @@ const kinds = [
     title: "Volunteer events",
     examples: "Concessions, field day, book fairs, school parking",
     points: [
-      "Shifts and stations that fill themselves",
-      "A check-in desk on any phone, with walk-ups and no-shows",
-      "Leads who know exactly who's coming to their station",
+      "Build stations and schedules with ease",
+      "Volunteers sign up and get email confirmations, calendar invites and day-before reminders, without any hassle or advertisements",
+      "Check in volunteers on any device, no additional app required",
     ],
   },
   {
@@ -55,18 +57,41 @@ const kinds = [
     points: [
       "Parents register ahead with each child, teacher and grade",
       "Reminders to bring a photo ID, and a calendar invite",
-      "Every adult checked in at the door, one by one",
+      "Easy parent and visitor check-in at the event door",
     ],
   },
 ];
 
 const features = [
   { title: "Sign-ups that run themselves", body: "Share one link or QR code. Capacity is enforced, confirmations and calendar invites go out on their own." },
-  { title: "Check-in on any phone", body: "Your team checks people in at the door or the desk with one tap. No app, no laptop, no printed lists." },
-  { title: "Your whole team, with the right access", body: "Hosts, Volunteer Leads and Section Leads each see what they need, and nothing they don't." },
-  { title: "Numbers at a glance", body: "Who's registered, who's arrived and who's still to come, broken down the way you need it." },
-  { title: "Day-of banners, maps & documents", body: "Post a banner for a schedule change or an emergency, and share parking maps or packets with exactly the people who need them." },
   { title: "Registration on your schedule", body: "Open and close it by hand, or set a date and time for it to close on its own." },
+  { title: "Your whole team, with the right access", body: "Hosts, Volunteer Leads and Section Leads each see what they need, and nothing they don't." },
+  { title: "Public day of event details", body: "Post a banner for a schedule change or an emergency, and share parking maps or packets with exactly the people who need them." },
+  {
+    title: "Check-in on any device",
+    body: "It's a web app, so it runs in the browser on any phone, tablet or laptop. Nothing to download or install: your team checks people in at the door or the desk with one tap.",
+  },
+  { title: "Numbers at a glance", body: "Who's registered, who's arrived and who's still to come, broken down the way you need it." },
+];
+
+// The principles behind every event's data (the database enforces each one).
+const privacy = [
+  {
+    title: "Only what the event needs.",
+    body: "We ask for the least information that gets the job done: headcounts instead of student names, first name and last initial for under-18 helpers, and no accounts for families or spectators.",
+  },
+  {
+    title: "Only who needs it.",
+    body: "Hosts, leads and volunteers each see what their role requires. Contact details unlock for leads on event day, and children's names stay with your event team.",
+  },
+  {
+    title: "Gone when it's over.",
+    body: "Volunteers' details are deleted 10 days after the event, and children's details from school visits after 30 days.",
+  },
+  {
+    title: "Never sold, no ads.",
+    body: `We never sell your data or the data of anyone you invite, and there are no ads anywhere in ${brand.name}.`,
+  },
 ];
 
 const steps = [
@@ -99,12 +124,85 @@ const pilot = [
     items: [
       "Nothing renews or charges automatically",
       "We'll talk with you about what comes next before your pilot ends",
-      "Volunteers, bands and families never pay",
+      "Hosting is a paid plan after your pilot; we'll go over it with you first",
+      "No platform fee for anyone you invite: volunteers, families and visiting groups use it free (your own registration or ticket fees are still up to you)",
     ],
   },
 ];
 
+// Plain answers to what hosts ask (and search for); also given to search
+// engines and AI assistants as an FAQ (see jsonLd below).
+const faqs = [
+  {
+    q: "Can I use this instead of a Google Form for parent check-in?",
+    a: "Yes. For a school visitor event, parents register ahead with each child's name, teacher and grade, get a reminder to bring a photo ID, and your front office checks every adult in at the door on any phone. Children's details are seen only by your event team and are deleted 30 days after the event.",
+  },
+  {
+    q: "How do band and choir directors register for our contest or festival?",
+    a: "Share one registration link. Directors register their band or group once, returning directors reuse their saved details, and they see their performance time or room schedule as soon as you publish it.",
+  },
+  {
+    q: "How do volunteers sign up and get checked in?",
+    a: "Share a link or QR code. Volunteers pick a shift on their phone without making an account, get a confirmation and calendar invite, and are checked in at the desk with one tap. Walk-ups can fill open spots on the day.",
+  },
+  {
+    q: "Can it run a school fair or PTO fundraiser?",
+    a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer stations with Station Coordinators, and share a public page of everything at the event that thanks your partners.",
+  },
+  {
+    q: "Do volunteers, parents or visiting directors have to pay or download an app?",
+    a: `No app, and no platform fee. Only the school or organization hosting the event pays to use ${brand.name}. Everyone they invite (volunteers, parents and families, and visiting band and choir directors) uses ${brand.name} at no charge, right in their phone's web browser. Any registration fee or ticket price the event itself charges is set by the host and is separate from ${brand.name}.`,
+  },
+  {
+    q: "How is student and family information protected?",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events are deleted 30 days after the event, volunteers' details 10 days after, and Section Leads see volunteers' phone numbers only on event day. We never sell anyone's data, and there are no ads.",
+  },
+  {
+    q: "Who is it for?",
+    a: "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, school front offices and administrators: anyone running a school event with volunteers, registrations or check-in.",
+  },
+  {
+    q: "What does it cost?",
+    a: `Hosting is free during your pilot, with dates we set together. After that, hosting events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a platform fee for volunteers, families or visiting groups; any registration or ticket fees are your event's own.`,
+  },
+];
+
 const JOIN = "#join";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
+// What search engines and AI assistants read about the product.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: brand.name,
+      url: SITE_URL,
+      logo: `${SITE_URL}/logo.png`,
+      email: brand.supportEmail,
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: brand.name,
+      url: SITE_URL,
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      description:
+        "School event management for band contests, choir and group festivals, school fairs and fundraisers, volunteer events and school visitor days: registration, volunteer sign-ups and scheduling, and check-in on any phone.",
+      audience: {
+        "@type": "Audience",
+        audienceType:
+          "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, school front offices and administrators",
+      },
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free for hosts during the pilot, then a paid plan for hosts. No platform fee for volunteers, families or visiting groups (event registration or ticket fees are set by the host)." },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
+  ],
+};
 
 // Company banners for visitors (admin → Banners) refresh at least once a minute.
 export const revalidate = 60;
@@ -122,6 +220,7 @@ export default async function Home() {
   const banners = await homeBanners();
   return (
     <div className="flex flex-1 flex-col">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <HeaderBar maxWidth="max-w-6xl">
         <a href="#how" className={`hidden sm:block ${headerLinkClass}`}>
           How it works
@@ -231,18 +330,28 @@ export default async function Home() {
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
           <div className="rounded-lg bg-brand p-8 text-brand-foreground sm:p-12">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Privacy by default</h2>
-            <ul className="mt-4 max-w-3xl space-y-3 leading-7 opacity-90">
-              <li>
-                Section Leads see who&apos;s assigned to them right away, but phone numbers and emails unlock only on
-                event day and lock again at midnight.
-              </li>
-              <li>
-                Band contests never collect student names, just headcounts. For school visitor events, children&apos;s
-                names are seen only by your event team and are permanently deleted 30 days after the event.
-              </li>
-              <li>Volunteers&apos; names and contact details, including under-18 helpers, are deleted 10 days after the event.</li>
-              <li>Families and spectators never need an account or an app.</li>
-            </ul>
+            <dl className="mt-6 grid max-w-5xl gap-6 leading-7 sm:grid-cols-2">
+              {privacy.map((p) => (
+                <div key={p.title}>
+                  <dt className="font-semibold">{p.title}</dt>
+                  <dd className="mt-1 opacity-90">{p.body}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        <section id="faq" className="scroll-mt-20 border-t border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Questions schools ask</h2>
+            <dl className="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-2">
+              {faqs.map((f) => (
+                <div key={f.q}>
+                  <dt className="font-semibold">{f.q}</dt>
+                  <dd className="mt-2 leading-7 text-muted">{f.a}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 

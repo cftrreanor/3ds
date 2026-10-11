@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { ActionForm } from "@/components/action-form";
-import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { PILOT_EVENT_TYPES } from "@/lib/pilot";
 
 export function PilotForm({ action }: { action: (prev: ActionState, formData: FormData) => Promise<ActionState> }) {
   const [sent, setSent] = useState(false);
@@ -19,7 +19,7 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
     );
   }
   return (
-    <ActionForm action={action} onSuccess={() => setSent(true)} className="space-y-4">
+    <ActionForm action={action} onSuccess={() => setSent(true)} className="space-y-5">
       {/* Bot traps: people never see or fill this in, and bots submit instantly. */}
       <input type="hidden" name="startedAt" value={startedAt} />
       <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
@@ -29,33 +29,37 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
         </label>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Your name">
+        <Field label="Name">
           <Input name="name" required maxLength={200} autoComplete="name" />
         </Field>
         <Field label="Email">
           <Input name="email" type="email" required maxLength={254} autoComplete="email" />
         </Field>
-        <Field label="School or booster program">
-          <Input name="organization" required maxLength={200} placeholder="e.g. Oak Elementary PTA" />
+        <Field label="Phone">
+          <Input name="phone" type="tel" required maxLength={30} autoComplete="tel" />
         </Field>
-        <Field label="Phone" hint="Optional">
-          <Input name="phone" type="tel" maxLength={30} autoComplete="tel" />
-        </Field>
-        <Field label="Event name" hint="Optional">
-          <Input name="contestName" maxLength={200} placeholder="e.g. Fall Festival" />
-        </Field>
-        <Field label="When is it?" hint="Optional">
-          <Input name="contestWhen" maxLength={100} placeholder="e.g. October 2026" />
-        </Field>
-        <Field label="About how many bands?" hint="Optional, for band contests">
-          <NumberInput name="bands" maxLength={3} />
-        </Field>
-        <Field label="About how many volunteers?" hint="Optional">
-          <NumberInput name="volunteers" maxLength={4} />
+        <Field label="School, PTO/PTA, booster club or other organization">
+          <Input name="organization" required maxLength={200} autoComplete="organization" placeholder="e.g. Oak Elementary PTA" />
         </Field>
       </div>
-      <Field label="Anything else we should know?" hint="Optional">
-        <Textarea name="notes" rows={3} maxLength={2000} placeholder="What kind of events do you run? What's hardest about event day today?" />
+      <fieldset>
+        <legend className="text-sm font-semibold">What event types are you interested in planning and hosting?</legend>
+        <p className="mt-1 text-sm text-muted">Pick all that apply.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {PILOT_EVENT_TYPES.map((t) => (
+            <label
+              key={t.value}
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-border bg-surface px-3 py-2 text-sm has-[:checked]:border-brand has-[:checked]:bg-brand-soft"
+            >
+              <input type="checkbox" name="eventTypes" value={t.value} className="size-4 accent-brand" />
+              <span aria-hidden>{t.icon}</span>
+              <span>{t.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <Field label="What's the hardest part about event planning and hosting for you today?" hint="Optional">
+        <Textarea name="notes" rows={3} maxLength={2000} />
       </Field>
       <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
         Request a pilot spot

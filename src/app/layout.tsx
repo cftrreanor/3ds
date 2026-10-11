@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { brand } from "@/lib/brand";
+import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 import { Toaster } from "@/components/toaster";
 
@@ -9,13 +10,19 @@ import { Toaster } from "@/components/toaster";
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subsets: ["latin"] });
 
+const DESCRIPTION =
+  "School event management for band contests, choir festivals, school fairs and fundraisers, volunteer events and parent check-in. Registration, volunteer sign-ups and check-in on any phone, with privacy built in.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: `${brand.name} — school event management`,
+    default: `${brand.name}: school event management for bands, choirs, PTOs and front offices`,
     template: `%s · ${brand.name}`,
   },
-  description:
-    "Band contests, volunteer events and school visitor days in one place: sign-ups, registration, check-in on any phone and announcements, with privacy built in.",
+  description: DESCRIPTION,
+  applicationName: brand.name,
+  openGraph: { type: "website", siteName: brand.name, description: DESCRIPTION },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
