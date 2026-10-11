@@ -12,7 +12,7 @@ const ZONE_ICON: Record<string, string> = {
 
 const zoneIcon = (zone: string) => ZONE_ICON[zone.toLowerCase()] ?? "✨";
 
-/** A fair's public "What's at the fair": booths by zone, with a thank-you to who hosts each one. */
+/** A fair's public "What's at the event": booths by zone, with a thank-you to who hosts each one. */
 export async function FairBooths({ slug }: { slug: string }) {
   const { data } = await (await createClient()).rpc("public_fair_booths", { p_slug: slug });
   const booths = (data ?? []) as PublicBooth[];
@@ -22,7 +22,7 @@ export async function FairBooths({ slug }: { slug: string }) {
   return (
     <section className="mt-10" aria-labelledby="fair-heading">
       <h2 id="fair-heading" className="text-2xl font-medium tracking-tight">
-        What&apos;s at the fair
+        What&apos;s at the event
       </h2>
       {zones.length > 1 && (
         <nav aria-label="Fair zones" className="mt-3 flex flex-wrap gap-2">

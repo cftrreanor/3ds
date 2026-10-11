@@ -70,7 +70,7 @@ export function BoothForm({
         <input type="checkbox" name="showPublicly" defaultChecked={initial?.show_publicly ?? true} className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]" />
         <span>
           <span className="font-medium">Show on the public page</span>
-          <span className="block text-muted">Listed under &ldquo;What&apos;s at the fair&rdquo;, with a thank-you to whoever hosts it. Contact details are never shown.</span>
+          <span className="block text-muted">Listed under &ldquo;What&apos;s at the event&rdquo;, with a thank-you to whoever hosts it. Contact details are never shown.</span>
         </span>
       </label>
       <div className="sm:col-span-2">
