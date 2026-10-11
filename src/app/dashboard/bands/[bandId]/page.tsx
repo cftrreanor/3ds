@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SuccessToast } from "@/components/toaster";
 import { FileLinks } from "@/components/file-links";
 import { filesFor } from "@/lib/event-files";
 import Link from "next/link";
@@ -122,11 +123,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           </p>
         </Card>
       )}
-      {saved && (
-        <Card className="mt-4 border-success/30 bg-success-soft" role="status">
-          <p className="font-medium">Registration updated.</p>
-        </Card>
-      )}
+      {saved && <SuccessToast message="Registration updated." />}
 
       <header className="mt-4">
         <p className="text-sm font-medium text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
