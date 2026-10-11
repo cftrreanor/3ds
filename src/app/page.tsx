@@ -101,7 +101,8 @@ const pilot = [
     items: [
       "Nothing renews or charges automatically",
       "We'll talk with you about what comes next before your pilot ends",
-      "Volunteers, bands and families never pay",
+      "Hosting is a paid plan after your pilot; we'll go over it with you first",
+      "Free for everyone you invite: volunteers, families and visiting groups never pay to use it",
     ],
   },
 ];
@@ -126,8 +127,8 @@ const faqs = [
     a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer stations with Station Coordinators, and share a public page of everything at the event that thanks your partners.",
   },
   {
-    q: "Do volunteers, parents or directors need an app or have to pay?",
-    a: "No. Everything works in the phone's web browser, and volunteers, families and visiting bands and groups never pay.",
+    q: "Do volunteers, parents or visiting directors have to pay or download an app?",
+    a: `No to both. Only the school or organization hosting the event pays for ${brand.name}. Everyone they invite (volunteers, parents and families, and visiting band and choir directors) signs up, registers and checks in for free, right in their phone's web browser.`,
   },
   {
     q: "How is student and family information protected?",
@@ -139,7 +140,7 @@ const faqs = [
   },
   {
     q: "What does it cost?",
-    a: "It's free during your pilot, with dates we set together. Nothing renews or charges automatically, and we'll talk with you about what comes next before your pilot ends.",
+    a: "Hosting is free during your pilot, with dates we set together. After that, hosting events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. Volunteers, families and visiting groups never pay to use it.",
   },
 ];
 
@@ -171,7 +172,7 @@ const jsonLd = {
         audienceType:
           "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, school front offices and administrators",
       },
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free during the pilot" },
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free for hosts during the pilot, then a paid plan for hosts. Always free for volunteers, families and visiting groups." },
     },
     {
       "@type": "FAQPage",
