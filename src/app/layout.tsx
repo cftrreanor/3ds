@@ -16,7 +16,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${brand.name}: school event management for bands, choirs, PTOs and front offices`,
+    default: `${brand.name}: Event Management Software for Schools, PTOs & Booster Clubs`,
     template: `%s · ${brand.name}`,
   },
   description: DESCRIPTION,
