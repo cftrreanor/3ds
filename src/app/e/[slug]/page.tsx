@@ -15,6 +15,7 @@ import { groupWords, hasBands, hasEnsembles, hasParents, hasRooms } from "@/lib/
 import { RoomSchedule, type ScheduleRoom, type ScheduleSlot } from "@/components/room-schedule";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
+import { EventBannerSlot } from "@/components/event-banner-slot";
 import { AutoRefresh } from "./auto-refresh";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -94,17 +95,10 @@ export default async function EventPublicPage({ params }: Params) {
   const isVolunteer = await volunteersHere(slug, event.id);
 
   const supabase = await createClient();
-  const [{ data: scheduleData }, { data: finalsData }, { data: breakData }, { data: announcements }, { data: progressData }] = await Promise.all([
+  const [{ data: scheduleData }, { data: finalsData }, { data: breakData }, { data: progressData }] = await Promise.all([
     supabase.rpc("public_schedule", { p_slug: slug }),
     supabase.rpc("public_finals", { p_slug: slug }),
     supabase.rpc("public_breaks", { p_slug: slug }),
-    supabase
-      .from("announcements")
-      .select("id, body, priority, created_at")
-      .eq("event_id", event.id)
-      .contains("audiences", ["public"])
-      .order("created_at", { ascending: false })
-      .limit(3),
     supabase.rpc("public_progress", { p_slug: slug }),
   ]);
   // Group events: the posted schedule, room by room.
@@ -140,7 +134,6 @@ export default async function EventPublicPage({ params }: Params) {
   }));
   const breaks = (breakData ?? []) as BreakRow[];
   const files = event.status === "published" ? await filesFor([event.id], ["public"], () => event.timezone) : [];
-  const published = event.performance_order_published || event.finals_published;
   const bandsHere = hasBands(event.event_type);
   const words = groupWords(event.event_type);
   const bandsOpen = hasEnsembles(event.event_type) && registrationIsOpen(event);
@@ -167,7 +160,7 @@ export default async function EventPublicPage({ params }: Params) {
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
     {(bandsHere || roomsHere) && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      {isEventDay && (published || roomSlots.length > 0) && <AutoRefresh seconds={30} />}
+      {isEventDay && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
         <Card className="mt-6 bg-brand-soft">
           <p className="text-sm">Preview: this page isn&apos;t public yet. Only your team can see it.</p>
@@ -186,19 +179,7 @@ export default async function EventPublicPage({ params }: Params) {
         {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
       </header>
 
-      {(announcements ?? []).map((a) => (
-        <Card
-          key={a.id}
-          role={a.priority === "emergency" ? "alert" : undefined}
-          className={`mt-6 ${a.priority === "emergency" ? "border-danger bg-danger/5" : "bg-brand-soft"}`}
-        >
-          <p className="text-xs font-semibold uppercase tracking-wide">
-            {a.priority === "emergency" ? "⚠️ Emergency" : a.priority === "schedule" ? "Schedule update" : "Announcement"} ·{" "}
-            {formatTime(a.created_at, tz)}
-          </p>
-          <p className="mt-1 leading-7">{a.body}</p>
-        </Card>
-      ))}
+      <EventBannerSlot eventId={event.id} audience="public" tz={tz} className="mt-6" />
 
       {(isVolunteer || bandsOpen || signUp || parentsOpen || parentWalkIns) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">

@@ -20,6 +20,7 @@ import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { hasRooms } from "@/lib/event-types";
 import { CollapsibleInfo } from "./collapsible-info";
 import { DayStatusBanner } from "@/components/day-status";
+import { EventBannerSlot } from "@/components/event-banner-slot";
 import { dayStatus, groupSteps } from "@/lib/director-day";
 import { ContestDayCard, type ProgressRow } from "./contest-day-card";
 
@@ -171,6 +172,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           <span className="text-muted">· {band.school_name}</span>
         </p>
       </header>
+
+      <EventBannerSlot eventId={band.event_id} audience="band_directors" tz={event.timezone} className="mt-6" />
 
       {contestDay && (
         <>

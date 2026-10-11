@@ -2942,4 +2942,63 @@ end $$;
 delete from public.site_banners;
 delete from public.platform_admins;
 
+-- Event banners: hosts and Volunteer Leads post; they can end them early
+-- (Volunteer Leads only their own kind); nothing else about a sent one changes.
+reset role;
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000002', 'volunteer_director'),
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000003', 'section_lead')
+on conflict do nothing;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  insert into public.announcements (event_id, sender_id, audiences, priority, body, ends_at)
+  values ('10000000-0000-0000-0000-00000000000a', auth.uid(), '{public,band_directors}', 'schedule', 'Band switch: Lakeview now at 2:15', now() + interval '2 hours');
+  update public.announcements set ends_at = now() where body = 'Band switch: Lakeview now at 2:15';
+  assert (select ends_at <= now() from public.announcements where body = 'Band switch: Lakeview now at 2:15'), 'a host ends a banner early';
+  begin
+    update public.announcements set body = 'changed' where body = 'Band switch: Lakeview now at 2:15';
+    raise exception 'FAIL: changed what a sent banner says';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  insert into public.announcements (event_id, sender_id, audiences, priority, body)
+  values ('10000000-0000-0000-0000-00000000000a', auth.uid(), '{volunteers,section_leads}', 'routine', 'Lunch is in the cafeteria');
+  update public.announcements set ends_at = now() where body = 'Lunch is in the cafeteria';
+  assert (select ends_at is not null from public.announcements where body = 'Lunch is in the cafeteria'), 'a Volunteer Lead ends their banner';
+  update public.announcements set ends_at = now() + interval '1 day' where body = 'Band switch: Lakeview now at 2:15';
+  begin
+    insert into public.announcements (event_id, sender_id, audiences, priority, body)
+    values ('10000000-0000-0000-0000-00000000000a', auth.uid(), '{public}', 'routine', 'To everyone');
+    raise exception 'FAIL: a Volunteer Lead posted to the public';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  begin
+    insert into public.announcements (event_id, sender_id, audiences, priority, body)
+    values ('10000000-0000-0000-0000-00000000000a', auth.uid(), '{volunteers}', 'routine', 'From a Section Lead');
+    raise exception 'FAIL: a Section Lead posted a banner';
+  exception when insufficient_privilege then null;
+  end;
+  update public.announcements set ends_at = now();
+end $$;
+reset role;
+do $$ begin
+  assert (select ends_at <= now() from public.announcements where body = 'Band switch: Lakeview now at 2:15'),
+         'a Volunteer Lead can''t change the end of a host''s public banner';
+  assert (select count(*) from public.announcements where body = 'Lunch is in the cafeteria' and ends_at is not null) = 1,
+         'a Section Lead can''t end banners (the Volunteer Lead had already ended this one)';
+end $$;
+set role anon;
+do $$ begin
+  assert (select count(*) from public.announcements where body = 'Band switch: Lakeview now at 2:15') = 1, 'visitors read public banners';
+  assert (select count(*) from public.announcements where body = 'Lunch is in the cafeteria') = 0, 'but not the team''s';
+end $$;
+reset role;
+delete from public.announcements where event_id = '10000000-0000-0000-0000-00000000000a' and body in ('Band switch: Lakeview now at 2:15', 'Lunch is in the cafeteria');
+
 \echo 'All database security tests passed.'
