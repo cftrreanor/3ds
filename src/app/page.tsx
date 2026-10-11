@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
+import { SITE_URL } from "@/lib/site-url";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
 
@@ -104,7 +106,79 @@ const pilot = [
   },
 ];
 
+// Plain answers to what hosts ask (and search for); also given to search
+// engines and AI assistants as an FAQ (see jsonLd below).
+const faqs = [
+  {
+    q: "Can I use this instead of a Google Form for parent check-in?",
+    a: "Yes. For a school visitor event, parents register ahead with each child's name, teacher and grade, get a reminder to bring a photo ID, and your front office checks every adult in at the door on any phone. Children's details are seen only by your event team and are deleted 30 days after the event.",
+  },
+  {
+    q: "How do band and choir directors register for our contest or festival?",
+    a: "Share one registration link. Directors register their band or group once, returning directors reuse their saved details, and they see their performance time or room schedule as soon as you publish it.",
+  },
+  {
+    q: "How do volunteers sign up and get checked in?",
+    a: "Share a link or QR code. Volunteers pick a shift on their phone without making an account, get a confirmation and calendar invite, and are checked in at the desk with one tap. Walk-ups can fill open spots on the day.",
+  },
+  {
+    q: "Can it run a school fair or PTO fundraiser?",
+    a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer stations with Station Coordinators, and share a public page of everything at the event that thanks your partners.",
+  },
+  {
+    q: "Do volunteers, parents or directors need an app or have to pay?",
+    a: "No. Everything works in the phone's web browser, and volunteers, families and visiting bands and groups never pay.",
+  },
+  {
+    q: "How is student and family information protected?",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events are deleted 30 days after the event, volunteers' details 10 days after, and Section Leads see volunteers' phone numbers only on event day.",
+  },
+  {
+    q: "Who is it for?",
+    a: "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, school front offices and administrators: anyone running a school event with volunteers, registrations or check-in.",
+  },
+  {
+    q: "What does it cost?",
+    a: "It's free during your pilot, with dates we set together. Nothing renews or charges automatically, and we'll talk with you about what comes next before your pilot ends.",
+  },
+];
+
 const JOIN = "#join";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
+// What search engines and AI assistants read about the product.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: brand.name,
+      url: SITE_URL,
+      logo: `${SITE_URL}/logo.png`,
+      email: brand.supportEmail,
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: brand.name,
+      url: SITE_URL,
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      description:
+        "School event management for band contests, choir and group festivals, school fairs and fundraisers, volunteer events and school visitor days: registration, volunteer sign-ups and scheduling, and check-in on any phone.",
+      audience: {
+        "@type": "Audience",
+        audienceType:
+          "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, school front offices and administrators",
+      },
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free during the pilot" },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
+  ],
+};
 
 // Company banners for visitors (admin → Banners) refresh at least once a minute.
 export const revalidate = 60;
@@ -122,6 +196,7 @@ export default async function Home() {
   const banners = await homeBanners();
   return (
     <div className="flex flex-1 flex-col">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <HeaderBar maxWidth="max-w-6xl">
         <a href="#how" className={`hidden sm:block ${headerLinkClass}`}>
           How it works
@@ -243,6 +318,20 @@ export default async function Home() {
               <li>Volunteers&apos; names and contact details, including under-18 helpers, are deleted 10 days after the event.</li>
               <li>Families and spectators never need an account or an app.</li>
             </ul>
+          </div>
+        </section>
+
+        <section id="faq" className="scroll-mt-20 border-t border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Questions schools ask</h2>
+            <dl className="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-2">
+              {faqs.map((f) => (
+                <div key={f.q}>
+                  <dt className="font-semibold">{f.q}</dt>
+                  <dd className="mt-2 leading-7 text-muted">{f.a}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 
