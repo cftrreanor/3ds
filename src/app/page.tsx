@@ -74,6 +74,26 @@ const features = [
   { title: "Numbers at a glance", body: "Who's registered, who's arrived and who's still to come, broken down the way you need it." },
 ];
 
+// The principles behind every event's data (the database enforces each one).
+const privacy = [
+  {
+    title: "Only what the event needs.",
+    body: "We ask for the least information that gets the job done: headcounts instead of student names, first name and last initial for under-18 helpers, and no accounts for families or spectators.",
+  },
+  {
+    title: "Only who needs it.",
+    body: "Hosts, leads and volunteers each see what their role requires. Contact details unlock for leads on event day, and children's names stay with your event team.",
+  },
+  {
+    title: "Gone when it's over.",
+    body: "Volunteers' details are deleted 10 days after the event, and children's details from school visits after 30 days.",
+  },
+  {
+    title: "Never sold, no ads.",
+    body: `We never sell your data or the data of anyone you invite, and there are no ads anywhere in ${brand.name}.`,
+  },
+];
+
 const steps = [
   { n: "1", title: "Pick the kind of event", body: "Band contest, group event, school fair, volunteer event or school visitor event." },
   { n: "2", title: "Set it up", body: "Dates, venue, stations and shifts, or registration questions." },
@@ -135,7 +155,7 @@ const faqs = [
   },
   {
     q: "How is student and family information protected?",
-    a: "Band contests collect headcounts, not student names. Children's names at school visitor events are deleted 30 days after the event, volunteers' details 10 days after, and Section Leads see volunteers' phone numbers only on event day.",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events are deleted 30 days after the event, volunteers' details 10 days after, and Section Leads see volunteers' phone numbers only on event day. We never sell anyone's data, and there are no ads.",
   },
   {
     q: "Who is it for?",
@@ -310,18 +330,14 @@ export default async function Home() {
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
           <div className="rounded-lg bg-brand p-8 text-brand-foreground sm:p-12">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Privacy by default</h2>
-            <ul className="mt-4 max-w-3xl space-y-3 leading-7 opacity-90">
-              <li>
-                Section Leads see who&apos;s assigned to them right away, but phone numbers and emails unlock only on
-                event day and lock again at midnight.
-              </li>
-              <li>
-                Band contests never collect student names, just headcounts. For school visitor events, children&apos;s
-                names are seen only by your event team and are permanently deleted 30 days after the event.
-              </li>
-              <li>Volunteers&apos; names and contact details, including under-18 helpers, are deleted 10 days after the event.</li>
-              <li>Families and spectators never need an account or an app.</li>
-            </ul>
+            <dl className="mt-6 grid max-w-5xl gap-6 leading-7 sm:grid-cols-2">
+              {privacy.map((p) => (
+                <div key={p.title}>
+                  <dt className="font-semibold">{p.title}</dt>
+                  <dd className="mt-1 opacity-90">{p.body}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 
