@@ -128,7 +128,7 @@ const faqs = [
   },
   {
     q: "Do volunteers, parents or visiting directors have to pay or download an app?",
-    a: `No app, and no ${brand.name} fee. Only the school or organization hosting the event pays to use ${brand.name}. Everyone they invite (volunteers, parents and families, and visiting band and choir directors) uses ${brand.name} at no charge, right in their phone's web browser. Any registration fee or ticket price the event itself charges is set by the host and is separate from ${brand.name}.`,
+    a: `No app, and no platform fee. Only the school or organization hosting the event pays to use ${brand.name}. Everyone they invite (volunteers, parents and families, and visiting band and choir directors) uses ${brand.name} at no charge, right in their phone's web browser. Any registration fee or ticket price the event itself charges is set by the host and is separate from ${brand.name}.`,
   },
   {
     q: "How is student and family information protected?",
@@ -140,7 +140,7 @@ const faqs = [
   },
   {
     q: "What does it cost?",
-    a: `Hosting is free during your pilot, with dates we set together. After that, hosting events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a ${brand.name} fee for volunteers, families or visiting groups; any registration or ticket fees are your event's own.`,
+    a: `Hosting is free during your pilot, with dates we set together. After that, hosting events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a platform fee for volunteers, families or visiting groups; any registration or ticket fees are your event's own.`,
   },
 ];
 
