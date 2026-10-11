@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import QRCode from "qrcode";
 import { CopyLink } from "@/components/copy-link";
+import { RememberedPanel } from "@/components/remembered-panel";
 import { missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
@@ -804,27 +805,39 @@ function PublicPageCard({ url, published, slug, qr }: { url: string; published: 
     );
   }
   return (
-    <Card className="mt-6 flex flex-wrap items-center gap-4">
-      <div
-        className="shrink-0 rounded-md border border-border bg-white p-1"
-        aria-label="QR code for the public event page"
-        role="img"
-        dangerouslySetInnerHTML={{ __html: qr[0] }}
-      />
-      <div className="min-w-0 flex-1 space-y-1 text-sm leading-6">
-        <p className="font-medium">Public page</p>
-        <a href={url} target="_blank" rel="noreferrer" className="block break-all font-mono text-brand underline-offset-4 hover:underline">
-          {display} ↗
-        </a>
-        <p className="text-muted">Share the link or QR code in emails, flyers and slides.</p>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 font-medium">
-          <CopyLink url={url} className="text-brand underline-offset-4 hover:underline" />
-          <a href={qr[1]} download={`${slug}-qr.png`} className="text-brand underline-offset-4 hover:underline">
+    <RememberedPanel
+      id="public-page"
+      defaultOpen={false}
+      className="mt-6"
+      showLabel="Show QR code"
+      hideLabel="Hide QR code"
+      header={
+        <div className="text-sm leading-6">
+          <span className="font-medium">Public page</span>
+          <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <a href={url} target="_blank" rel="noreferrer" className="break-all font-mono text-brand underline-offset-4 hover:underline">
+              {display} ↗
+            </a>
+            <CopyLink url={url} className="font-medium text-brand underline-offset-4 hover:underline" />
+          </span>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap items-center gap-4">
+        <div
+          className="shrink-0 rounded-md border border-border bg-white p-1"
+          aria-label="QR code for the public event page"
+          role="img"
+          dangerouslySetInnerHTML={{ __html: qr[0] }}
+        />
+        <div className="min-w-0 flex-1 space-y-2 text-sm leading-6">
+          <p className="text-muted">Share the link or QR code in emails, flyers and slides.</p>
+          <a href={qr[1]} download={`${slug}-qr.png`} className="inline-block font-medium text-brand underline-offset-4 hover:underline">
             Download QR code
           </a>
         </div>
       </div>
-    </Card>
+    </RememberedPanel>
   );
 }
 
