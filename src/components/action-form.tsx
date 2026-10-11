@@ -2,6 +2,7 @@
 
 import { createContext, useActionState, useEffect, useRef, startTransition, type ReactNode } from "react";
 import type { ActionState } from "@/lib/action-state";
+import { toast } from "./toaster";
 import { FormMessage } from "./ui";
 
 /** Lets <SubmitButton> know a manually-submitted ActionForm is saving. */
@@ -33,6 +34,7 @@ export function ActionForm({
   useEffect(() => {
     if (state.ok) {
       if (resetOnSuccess) ref.current?.reset();
+      if (state.message) toast(state.message);
       onSuccess?.();
     }
   }, [state, resetOnSuccess, onSuccess]);
@@ -51,7 +53,8 @@ export function ActionForm({
       }}
     >
       <ActionPendingContext value={pending}>
-        <FormMessage error={state.error} success={state.ok ? state.message : null} />
+        {/* Success shows as a toast (top right); errors stay with the form. */}
+        <FormMessage error={state.error} />
         {children}
       </ActionPendingContext>
     </form>

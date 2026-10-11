@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
+import { SuccessToast } from "./toaster";
 
 // Small shared building blocks so every form looks and behaves the same.
 // Sizes favor touch: contest-day users are on phones, often outdoors.
@@ -101,12 +102,7 @@ export function FormMessage({ error, success }: { error?: string | null; success
       </p>
     );
   }
-  if (success) {
-    return (
-      <p role="status" className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm">
-        {success}
-      </p>
-    );
-  }
+  // Success messages appear as a toast in the top-right corner (components/toaster).
+  if (success) return <SuccessToast message={success} />;
   return null;
 }

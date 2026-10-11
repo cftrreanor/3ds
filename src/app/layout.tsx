@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { brand } from "@/lib/brand";
 import "./globals.css";
+import { Toaster } from "@/components/toaster";
 
 // The design system's faces: Inter (variable, so the in-between 460/540 weights
 // render) for everything, JetBrains Mono for codes.
@@ -23,7 +24,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
