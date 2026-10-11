@@ -115,7 +115,7 @@ export function DemoStart({ eventId, personas, active }: { eventId: string; pers
             className="min-h-9 px-3"
             disabled={removing}
             onClick={() => {
-              if (!window.confirm("Take the demo people off this event? Their demo band and volunteer shift go too.")) return;
+              if (!window.confirm("Take the demo people and sample data off this event? The sample stations, volunteers, bands, groups, parents and booths go too.")) return;
               start(async () => {
                 const r = await endDemo(eventId);
                 setMessage(r.error ? { error: r.error } : { success: r.message });

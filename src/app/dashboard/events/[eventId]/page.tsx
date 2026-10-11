@@ -734,6 +734,13 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               sign-in link to get back to your own account.
             </p>
             <p className="text-sm leading-6 text-muted">
+              The first time, the event also fills with sample data for its kind: stations and shifts with a dozen
+              volunteers (two of them students signed up by a parent){bandsHere ? ", six bands" : groupsHere ? ", five groups and three rooms" : ""}
+              {event.event_type === "school_visit" ? ", eight parent registrations" : ""}
+              {event.event_type === "fair" ? ", eight booths across four zones" : ""}. Sample people never get emails, and{" "}
+              <strong className="text-foreground">Remove demo people</strong> takes all of it back off.
+            </p>
+            <p className="text-sm leading-6 text-muted">
               Use a practice event: the demo people really are on this event (in its lists and counts), and as Host
               you can do anything a host can, including emailing its {groupsHere ? `${words.many} and volunteers` : "volunteers"}. Demo people never get
               emails.

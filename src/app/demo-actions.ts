@@ -55,6 +55,9 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
     }
   }
 
+  // Sample people for the event's type (bands, groups, parents, booths, volunteers), the first time.
+  await fillWithSamples(admin, ownerId, eventId);
+
   const person = await demoAccount(admin, ownerId, persona);
   if (!person) return { error: "We couldn't set up the demo person. Please try again." };
   const { data: bandId, error: joinError } = await admin.rpc("demo_join", {
@@ -98,6 +101,17 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
           ? `/dashboard/bands/${bandId}`
           : `/dashboard/events/${eventId}`,
   );
+}
+
+/**
+ * Fills a demo event with sample data for its type (once). The admin's demo
+ * director "registered" the sample bands. Demo mode still works without it
+ * (e.g. before 20261114000000_demo_sample_data.sql is run).
+ */
+async function fillWithSamples(admin: Admin, ownerId: string, eventId: string) {
+  const director = await demoAccount(admin, ownerId, "director");
+  const { error } = await admin.rpc("demo_seed", { p_owner: ownerId, p_event: eventId, p_director: director?.id ?? null });
+  if (error && !isSchemaError(error)) console.error("demo_seed failed", error);
 }
 
 /** The admin's demo account for a role, created the first time. */
@@ -193,5 +207,5 @@ export async function endDemo(eventId: string): Promise<ActionState> {
     return { error: "We couldn't remove the demo people. Please try again." };
   }
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: "The demo people are off this event." };
+  return { ok: true, message: "The demo people and sample data are off this event." };
 }
