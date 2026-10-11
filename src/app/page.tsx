@@ -6,7 +6,7 @@ import { brand } from "@/lib/brand";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
 
-// The three kinds of event (src/lib/event-types.ts), as the page's main pitch.
+// The kinds of event (src/lib/event-types.ts), as the page's main pitch.
 const kinds = [
   {
     icon: "🎺",
@@ -19,9 +19,29 @@ const kinds = [
     ],
   },
   {
+    icon: "👥",
+    title: "Group events",
+    examples: "Choir and orchestra festivals, theater, speech & debate",
+    points: [
+      "Groups register, then move through your rooms on a schedule built for you",
+      "Arrived and Done taps keep every room on time",
+      "Families follow each room live on their phones",
+    ],
+  },
+  {
+    icon: "🎪",
+    title: "School fairs & fundraisers",
+    examples: "Fall festivals, carnivals, PTO fundraisers",
+    points: [
+      "Booths and community partners organized by zone",
+      "Quick partner check-in on the day",
+      "A public \u201cWhat's at the event\u201d page that thanks your partners",
+    ],
+  },
+  {
     icon: "🙋",
     title: "Volunteer events",
-    examples: "Concessions, carnivals, fundraisers, field day",
+    examples: "Concessions, field day, book fairs, school parking",
     points: [
       "Shifts and stations that fill themselves",
       "A check-in desk on any phone, with walk-ups and no-shows",
@@ -45,14 +65,14 @@ const features = [
   { title: "Check-in on any phone", body: "Your team checks people in at the door or the desk with one tap. No app, no laptop, no printed lists." },
   { title: "Your whole team, with the right access", body: "Hosts, Volunteer Leads and Section Leads each see what they need, and nothing they don't." },
   { title: "Numbers at a glance", body: "Who's registered, who's arrived and who's still to come, broken down the way you need it." },
-  { title: "Announcements, maps & documents", body: "Post updates and share parking maps or packets with exactly the people who need them." },
+  { title: "Day-of banners, maps & documents", body: "Post a banner for a schedule change or an emergency, and share parking maps or packets with exactly the people who need them." },
   { title: "Registration on your schedule", body: "Open and close it by hand, or set a date and time for it to close on its own." },
 ];
 
 const steps = [
-  { n: "1", title: "Pick the kind of event", body: "Band contest, volunteer event or school visitor event." },
+  { n: "1", title: "Pick the kind of event", body: "Band contest, group event, school fair, volunteer event or school visitor event." },
   { n: "2", title: "Set it up", body: "Dates, venue, stations and shifts, or registration questions." },
-  { n: "3", title: "Share a link or QR code", body: "Volunteers, bands and parents sign up on their own phones." },
+  { n: "3", title: "Share a link or QR code", body: "Volunteers, bands, groups and parents sign up on their own phones." },
   { n: "4", title: "Run the day", body: "Check everyone in, see who's here, and post updates as things change." },
 ];
 
@@ -60,7 +80,7 @@ const pilot = [
   {
     title: "What you get",
     items: [
-      "Everything, free for the 2026–27 school year",
+      "Every feature, free during your pilot",
       "Unlimited events of every kind, volunteers and registrations",
       "Help setting up your first event",
       "Direct support from the people building it",
@@ -78,7 +98,7 @@ const pilot = [
     title: "After the pilot",
     items: [
       "Nothing renews or charges automatically",
-      "We'll talk with you about what comes next before the year ends",
+      "We'll talk with you about what comes next before your pilot ends",
       "Volunteers, bands and families never pay",
     ],
   },
@@ -125,18 +145,18 @@ export default async function Home() {
         <section className={`hero-sky text-white ${banners.length ? "mt-4" : ""}`}>
           <div className="mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24">
             <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/20">
-              Now inviting schools and booster clubs to the 2026–27 pilot
+              Now inviting schools, PTOs and booster clubs to our pilot
             </p>
             <h1 className="mt-6 max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">School events, without the clipboards.</h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
-              Band contests, volunteer events and school visitor days, all in one place. Replace the
-              spreadsheets, signup forms, group texts and paper sign-in sheets with simple links your
-              volunteers, visiting bands and parents use on their own phones, and keep everyone&apos;s
-              personal information private while you do it.
+              Band contests, choir and group festivals, school fairs, volunteer events and school visitor days,
+              all in one place. Replace the spreadsheets, signup forms, group texts and paper sign-in sheets
+              with simple links your volunteers, visiting groups and parents use on their own phones, and keep
+              everyone&apos;s personal information private while you do it.
             </p>
             <p className="mt-4 max-w-2xl text-on-dark-mute">
-              One tool for the whole school year, for band programs, booster clubs, PTAs and front offices.
-              Free for pilot schools all year; spots are limited.
+              One tool for the whole school year, for band and choir programs, booster clubs, PTOs and front
+              offices. Free during your pilot; spots are limited.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-[#1b1938] hover:opacity-90">
@@ -155,7 +175,7 @@ export default async function Home() {
             <p className="mt-3 max-w-2xl leading-7 text-muted">
               Choose what kind of event you&apos;re running and {brand.name} gives you exactly the tools it needs.
             </p>
-            <ul className="mt-10 grid gap-6 lg:grid-cols-3">
+            <ul className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {kinds.map((k) => (
                 <li key={k.title} className="flex flex-col rounded-lg border border-border bg-background p-8">
                   <span aria-hidden className="text-3xl">
@@ -229,10 +249,10 @@ export default async function Home() {
         <section id="pilot" className="scroll-mt-20 border-t border-border bg-surface">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium">Limited spots</p>
-            <h2 className="mt-4 text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Join the 2026–27 pilot</h2>
+            <h2 className="mt-4 text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Join the pilot</h2>
             <p className="mt-3 max-w-2xl leading-7 text-muted">
-              We&apos;re working closely with a small group of schools and booster clubs this school year. It&apos;s
-              free, and we keep the group small so we can support every host on event day.
+              We&apos;re working closely with a small group of schools, PTOs and booster clubs. Your pilot is free,
+              we set its dates together, and we keep the group small so we can support every host on event day.
             </p>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
               {pilot.map((col) => (
@@ -265,7 +285,7 @@ export default async function Home() {
             <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">
               Your next event, without the clipboards.
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free for pilot schools all year. Spots are limited.</p>
+            <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free during your pilot. Spots are limited.</p>
             <a href={JOIN} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
               Request a pilot spot
             </a>
