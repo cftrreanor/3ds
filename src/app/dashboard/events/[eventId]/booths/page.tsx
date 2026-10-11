@@ -95,6 +95,20 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
         </Card>
       )}
 
+      {canManage && (
+        <Card>
+          <h2 className="text-xl font-semibold">Add a booth</h2>
+          {booths.length === 0 && (
+            <p className="mt-1 text-sm text-muted">Start with your first one: a game hosted by a community partner, an activity, a vendor or a showcase.</p>
+          )}
+          <div className="mt-4">
+            <BoothForm action={saveBooth.bind(null, eventId, null)} zones={zones} />
+          </div>
+        </Card>
+      )}
+
+      {!canManage && booths.length === 0 && <p className="text-muted">No booths added yet.</p>}
+
       {groups.map((g) => (
         <section key={g.zone || "none"} aria-label={g.zone || "No zone"}>
           <h2 className="text-xl font-semibold">
@@ -161,21 +175,6 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
           </ul>
         </section>
       ))}
-
-      {booths.length === 0 && (
-        <p className="text-muted">
-          Nothing yet. Add your first booth below: a game hosted by a community partner, an activity, a vendor or a showcase.
-        </p>
-      )}
-
-      {canManage && (
-        <Card>
-          <h2 className="text-xl font-semibold">Add a booth</h2>
-          <div className="mt-4">
-            <BoothForm action={saveBooth.bind(null, eventId, null)} zones={zones} />
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
