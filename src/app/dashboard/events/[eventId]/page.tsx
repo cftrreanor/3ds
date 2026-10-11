@@ -287,20 +287,6 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               {event.status === "published" ? "Published" : "Draft: only your team can see this"}
             </Badge>
             <Badge tone="info">{eventTypeLabel(event.event_type)}</Badge>
-            {access.isHost &&
-              (event.status !== "published" ? (
-                <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
-                  Publish event
-                </ActionButton>
-              ) : (
-                <ActionButton
-                  action={setEventPublished.bind(null, eventId, false)}
-                  variant="stop"
-                  confirmMessage="Unpublish? The public pages will be hidden and signup will close."
-                >
-                  Unpublish event
-                </ActionButton>
-              ))}
           </div>
           <p className="mt-3 text-muted">
             {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
@@ -333,6 +319,23 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
 
+      {access.isHost && (
+        <div className="mt-6">
+          {event.status !== "published" ? (
+            <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
+              Publish event
+            </ActionButton>
+          ) : (
+            <ActionButton
+              action={setEventPublished.bind(null, eventId, false)}
+              variant="stop"
+              confirmMessage="Unpublish? The public pages will be hidden and signup will close."
+            >
+              Unpublish event
+            </ActionButton>
+          )}
+        </div>
+      )}
       <PublicPageCard url={publicUrl} published={event.status === "published"} slug={event.slug} qr={publicQr} />
 
       {(files.length > 0 || access.isHost) && (
