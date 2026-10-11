@@ -102,7 +102,7 @@ const pilot = [
       "Nothing renews or charges automatically",
       "We'll talk with you about what comes next before your pilot ends",
       "Hosting is a paid plan after your pilot; we'll go over it with you first",
-      "Free for everyone you invite: volunteers, families and visiting groups never pay to use it",
+      "No platform fee for anyone you invite: volunteers, families and visiting groups use it free (your own registration or ticket fees are still up to you)",
     ],
   },
 ];
@@ -128,7 +128,7 @@ const faqs = [
   },
   {
     q: "Do volunteers, parents or visiting directors have to pay or download an app?",
-    a: `No to both. Only the school or organization hosting the event pays for ${brand.name}. Everyone they invite (volunteers, parents and families, and visiting band and choir directors) signs up, registers and checks in for free, right in their phone's web browser.`,
+    a: `No app, and no ${brand.name} fee. Only the school or organization hosting the event pays to use ${brand.name}. Everyone they invite (volunteers, parents and families, and visiting band and choir directors) uses ${brand.name} at no charge, right in their phone's web browser. Any registration fee or ticket price the event itself charges is set by the host and is separate from ${brand.name}.`,
   },
   {
     q: "How is student and family information protected?",
@@ -140,7 +140,7 @@ const faqs = [
   },
   {
     q: "What does it cost?",
-    a: "Hosting is free during your pilot, with dates we set together. After that, hosting events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. Volunteers, families and visiting groups never pay to use it.",
+    a: `Hosting is free during your pilot, with dates we set together. After that, hosting events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a ${brand.name} fee for volunteers, families or visiting groups; any registration or ticket fees are your event's own.`,
   },
 ];
 
@@ -172,7 +172,7 @@ const jsonLd = {
         audienceType:
           "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, school front offices and administrators",
       },
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free for hosts during the pilot, then a paid plan for hosts. Always free for volunteers, families and visiting groups." },
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free for hosts during the pilot, then a paid plan for hosts. No platform fee for volunteers, families or visiting groups (event registration or ticket fees are set by the host)." },
     },
     {
       "@type": "FAQPage",
