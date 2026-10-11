@@ -64,11 +64,14 @@ const kinds = [
 
 const features = [
   { title: "Sign-ups that run themselves", body: "Share one link or QR code. Capacity is enforced, confirmations and calendar invites go out on their own." },
-  { title: "Check-in on any phone", body: "Your team checks people in at the door or the desk with one tap. No app, no laptop, no printed lists." },
-  { title: "Your whole team, with the right access", body: "Hosts, Volunteer Leads and Section Leads each see what they need, and nothing they don't." },
-  { title: "Numbers at a glance", body: "Who's registered, who's arrived and who's still to come, broken down the way you need it." },
-  { title: "Day-of banners, maps & documents", body: "Post a banner for a schedule change or an emergency, and share parking maps or packets with exactly the people who need them." },
   { title: "Registration on your schedule", body: "Open and close it by hand, or set a date and time for it to close on its own." },
+  { title: "Your whole team, with the right access", body: "Hosts, Volunteer Leads and Section Leads each see what they need, and nothing they don't." },
+  { title: "Public day of event details", body: "Post a banner for a schedule change or an emergency, and share parking maps or packets with exactly the people who need them." },
+  {
+    title: "Check-in on any device",
+    body: "It's a web app, so it runs in the browser on any phone, tablet or laptop. Nothing to download or install: your team checks people in at the door or the desk with one tap.",
+  },
+  { title: "Numbers at a glance", body: "Who's registered, who's arrived and who's still to come, broken down the way you need it." },
 ];
 
 const steps = [
