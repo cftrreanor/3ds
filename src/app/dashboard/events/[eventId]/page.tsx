@@ -62,7 +62,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, band_registration_open, performance_order_published, director_info",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, band_registration_open, performance_order_published, director_info, finals_published, finalists_revealed",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -290,6 +290,12 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         volunteerSignupOpen: event.volunteer_signup_open,
         bandRegistrationOpen: Boolean(event.band_registration_open),
         scheduleShared: Boolean(event.performance_order_published),
+        finalsSlots:
+          event.event_type === "band_contest"
+            ? ((await supabase.from("finals_slots").select("event_id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
+            : 0,
+        finalsPublished: Boolean(event.finals_published),
+        finalistsRevealed: Boolean(event.finalists_revealed),
         directorInfo: Boolean(event.director_info?.trim()),
         pathRooms: roomsHere
           ? ((await supabase.from("rooms").select("id", { count: "exact", head: true }).eq("event_id", eventId).not("path_order", "is", null)).count ?? 0)
@@ -776,25 +782,47 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: ReturnType<typeof setupChecklist>["remaining"] }) {
   const words = groupWords(facts.eventType);
   if (facts.published) {
-    const live = [
-      ...(facts.stations > 0 || facts.eventType === "volunteer"
-        ? [{ label: "Volunteer sign-up", open: facts.volunteerSignupOpen, href: "volunteering" }]
+    // Each thing people can use or see, whether it's on, and where to change it.
+    type Live = { label: string; on: boolean; onText: string; offText: string; href: string; note?: string };
+    const open = (label: string, on: boolean, href: string): Live => ({ label, on, onText: "Open", offText: "Closed", href });
+    const shown = (label: string, on: boolean, href: string, note?: string): Live => ({
+      label,
+      on,
+      onText: "Viewable",
+      offText: "Not published",
+      href,
+      note,
+    });
+    const live: Live[] = [
+      ...(facts.stations > 0 || facts.eventType === "volunteer" ? [open("Volunteer sign-up", facts.volunteerSignupOpen, "volunteering")] : []),
+      ...(hasEnsembles(facts.eventType) ? [open(`${words.One} registration`, facts.bandRegistrationOpen, "bands")] : []),
+      ...(facts.eventType === "band_contest" ? [shown("Performance schedule", facts.scheduleShared, "bands")] : []),
+      ...(facts.eventType === "band_contest" && facts.finalsSlots > 0
+        ? [
+            shown(
+              "Finals schedule",
+              facts.finalsPublished,
+              "bands",
+              facts.finalsPublished && !facts.finalistsRevealed ? "Finalist names not revealed yet" : undefined,
+            ),
+          ]
         : []),
-      ...(hasEnsembles(facts.eventType) ? [{ label: `${words.One} registration`, open: facts.bandRegistrationOpen, href: "bands" }] : []),
-      ...(hasParents(facts.eventType) ? [{ label: "Parent registration", open: facts.parentRegistrationOpen, href: "parents" }] : []),
+      ...(hasRooms(facts.eventType) ? [shown("Room schedule", facts.scheduleShared, "rooms#order-heading")] : []),
+      ...(hasParents(facts.eventType) ? [open("Parent registration", facts.parentRegistrationOpen, "parents")] : []),
     ];
     return (
       <Card id="publish" className="mt-6 scroll-mt-6">
         <h2 className="text-lg font-semibold">Your event is live</h2>
-        <p className="mt-1 text-sm text-muted">Your public page is online. Here&apos;s what&apos;s open right now:</p>
+        <p className="mt-1 text-sm text-muted">Your public page is online. Here&apos;s what people can use and see right now:</p>
         {live.length > 0 && (
           <ul className="mt-3 space-y-2 text-sm">
             {live.map((l) => (
               <li key={l.label} className="flex flex-wrap items-center gap-2">
-                <Badge tone={l.open ? "success" : "neutral"}>{l.open ? "Open" : "Closed"}</Badge>
+                <Badge tone={l.on ? "success" : "neutral"}>{l.on ? l.onText : l.offText}</Badge>
                 <span>{l.label}</span>
+                {l.note && <span className="text-muted">· {l.note}</span>}
                 <Link href={`/dashboard/events/${facts.eventId}/${l.href}`} className="font-medium text-brand underline-offset-4 hover:underline">
-                  {l.open ? "Manage" : "Open it"}
+                  {l.on ? "Manage" : l.offText === "Closed" ? "Open it" : "Publish it"}
                 </Link>
               </li>
             ))}

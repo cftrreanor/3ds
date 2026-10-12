@@ -29,6 +29,10 @@ export type SetupFacts = {
   volunteerSignupOpen: boolean;
   bandRegistrationOpen: boolean;
   scheduleShared: boolean;
+  /** Band contests: finals times exist, are published, and finalist names are revealed. */
+  finalsSlots: number;
+  finalsPublished: boolean;
+  finalistsRevealed: boolean;
   directorInfo: boolean;
   pathRooms: number;
   booths: number;
