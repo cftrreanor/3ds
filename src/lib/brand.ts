@@ -2,5 +2,9 @@
 export const brand = {
   name: "Field Command Events",
   tagline: "Run event day from one place.",
-  supportEmail: "fieldcommandevents@gmail.com",
+  supportEmail: "product@fieldcommandevents.com",
+  // Where we are, shown on the site (city only: no street address).
+  city: "Melissa",
+  region: "Texas",
+  regionCode: "TX",
 } as const;

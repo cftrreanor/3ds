@@ -196,6 +196,7 @@ const jsonLd = {
       url: SITE_URL,
       logo: `${SITE_URL}/logo.png`,
       email: brand.supportEmail,
+      address: { "@type": "PostalAddress", addressLocality: brand.city, addressRegion: brand.regionCode, addressCountry: "US" },
     },
     {
       "@type": "SoftwareApplication",
@@ -364,6 +365,23 @@ export default async function Home() {
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Questions schools ask</h2>
             <FaqList faqs={faqs} />
+          </div>
+        </section>
+
+        <section id="about" className="scroll-mt-20 border-t border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Who we are</h2>
+            <p className="mt-6 max-w-2xl leading-7 text-muted">
+              {brand.name} is a small team based in {brand.city}, {brand.region}. We build it alongside the schools,
+              PTOs and booster clubs in our pilot, so you&apos;ll work directly with the people making it.
+            </p>
+            <p className="mt-4 max-w-2xl leading-7 text-muted">
+              Questions? Email us at{" "}
+              <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">
+                {brand.supportEmail}
+              </a>
+              .
+            </p>
           </div>
         </section>
 
