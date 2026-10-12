@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
+import { AUDIENCES } from "@/lib/audiences";
 import { SITE_URL } from "@/lib/site-url";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return [{ url: SITE_URL, changeFrequency: "weekly", priority: 1 }];
+  return [
+    { url: SITE_URL, changeFrequency: "weekly", priority: 1 },
+    ...AUDIENCES.map((a) => ({ url: `${SITE_URL}${a.path}`, changeFrequency: "monthly" as const, priority: 0.8 })),
+  ];
 }
