@@ -28,3 +28,25 @@ export async function setPlan(orgId: string, _prev: ActionState, formData: FormD
   revalidatePath("/dashboard", "layout");
   return { ok: true, message: `Saved: ${planLabel(status)}${free ? ` through ${formatDate(freeUntil)}` : ""}.` };
 }
+
+/** Close an account: 90 days later everything in it is deleted (purge_closed_accounts). */
+export async function closeAccount(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePlatformAdmin();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_close_account", { p_org: orgId, p_note: note || null });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "Account closed. It will be deleted in 90 days unless you reopen it." };
+}
+
+/** Reopen a closed account before it's deleted. */
+export async function reopenAccount(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePlatformAdmin();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_reopen_account", { p_org: orgId, p_note: note || null });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "Account reopened. Nothing will be deleted." };
+}

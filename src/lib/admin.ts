@@ -72,5 +72,7 @@ const planWithEnd = (p?: { status: string; free_until: string | null }) =>
 export function describeAdminLog(r: AdminLogRow) {
   if (r.action === "plan_changed") return `Plan: ${planWithEnd(r.details.from)} → ${planWithEnd(r.details.to)}`;
   if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host`;
+  if (r.action === "account_closed") return "Closed the account (deleted 90 days later)";
+  if (r.action === "account_reopened") return "Reopened the account";
   return r.action.replaceAll("_", " ");
 }

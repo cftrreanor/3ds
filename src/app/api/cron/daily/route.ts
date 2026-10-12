@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
+import { runRetention } from "@/lib/retention";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSchemaError } from "@/lib/schema-check";
 import { loadCalendarEntries, sendShiftReminder } from "@/lib/volunteer-emails";
@@ -10,7 +11,8 @@ import { utcToZonedDate } from "@/lib/time";
 // Once a day (vercel.json): remind parents to bring their photo ID the day
 // before a school visitor event, remind volunteers of their shifts the day
 // before, erase parent registrations 30 days after
-// their event, volunteers 10 days after theirs, and old admin email records.
+// their event, volunteers 10 days after theirs, and old admin email records,
+// and run the rest of the privacy policy's deletion schedule (lib/retention).
 // Vercel calls it with the CRON_SECRET environment variable.
 
 export const maxDuration = 300;
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
   // The admin email log: 14 days for people without an account, 180 for everyone.
   const { data: emailsPurged, error: adminPurgeError } = await admin.rpc("purge_admin_records");
   if (adminPurgeError) console.error("purge_admin_records failed", adminPurgeError);
+  const retention = await runRetention(admin);
 
   // Events starting tomorrow in their own time zone (look a day either side, then check).
   const shift = (days: number) => new Date(started + days * 86_400_000).toISOString().slice(0, 10);
@@ -140,6 +143,7 @@ export async function GET(request: NextRequest) {
     purged: purged ?? 0,
     volunteersPurged: volunteersPurged ?? 0,
     emailsPurged: emailsPurged ?? 0,
+    ...retention,
     reminded,
     unsent,
     volunteersReminded,

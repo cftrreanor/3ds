@@ -125,6 +125,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261114000000_demo_sample_data.sql` | Demo mode fills a practice event with sample data for its kind (volunteers incl. students, bands or groups and rooms, parents, booths) and takes it back off with the demo people | ✅ |
 | `20261115000000_pilot_event_types.sql` | The homepage pilot form saves which kinds of event each person wants to plan and host | ✅ |
 | `20261116000000_volunteer_reminders.sql` | Volunteers get a reminder email the day before their shifts (station, time, where to report, their lead) | ✅ |
+| `20261117000000_data_retention.sql` | The privacy policy's deletion schedule, run by the daily job: you can close an account (Admin → account → Close account) and it's deleted 90 days later; pilot requests that never became an account go after 1 year; directors' details 2 years after the event (band name and headcounts stay); fair booth contacts after 15 months; uploaded files 30 days after the event | ⬜ not run yet |
 
 ## Pilot requests
 

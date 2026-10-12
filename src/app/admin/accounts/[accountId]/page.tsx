@@ -3,16 +3,17 @@ import Link from "next/link";
 import { ADMIN_LOG_COLUMNS, DEFAULT_PILOT_END, describeAdminLog, freeStatus, isFreePlan, PLANS, planLabel, requirePlatformAdmin, type AdminLogRow } from "@/lib/admin";
 import { ADMIN_TZ, ago, byNewest, stageLabel, type TimelineItem } from "@/lib/admin-crm";
 import { eventTypeLabel } from "@/lib/event-types";
-import { missing } from "@/lib/schema-check";
+import { isSchemaError, missing } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
-import { setPlan } from "../../actions";
+import { closeAccount, reopenAccount, setPlan } from "../../actions";
 import { EMAIL_COLUMNS, loadAccount, NOTE_COLUMNS, signIns, type EmailRow, type NoteRow } from "../../data";
 import { EmptyRow, Facts, HealthPill, PageHeader, Panel, RecordLink, Table, Tag, Td, Th, Tr } from "../../kit";
 import { NoteComposer } from "../../note-composer";
 import { addNote } from "../../notes-actions";
 import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
+import { ClosureForm } from "../closure-form";
 import { PlanForm } from "../plan-form";
 
 export const metadata: Metadata = { title: "Account" };
@@ -34,7 +35,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
     return Object.fromEntries(eventIds.map((id, i) => [id, counts[i].count ?? 0])) as Record<string, number>;
   };
   const hostEmails = account.organization_members.map((m) => m.profiles?.email).filter((e): e is string => Boolean(e));
-  const [{ data: requestData }, { data: logData }, { data: inviteData }, { data: emailData }, bands, volunteers, logins] =
+  const [{ data: requestData }, { data: logData }, { data: inviteData }, { data: emailData }, bands, volunteers, logins, closure] =
     await Promise.all([
       admin.from("pilot_requests").select("id, name, email, status, created_at").eq("organization_id", accountId),
       admin.from("admin_log").select(ADMIN_LOG_COLUMNS).eq("organization_id", accountId).order("created_at", { ascending: false }).limit(100),
@@ -45,7 +46,14 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
       countPerEvent("bands"),
       countPerEvent("volunteers"),
       signIns(),
+      // Before 20261117000000_data_retention.sql there's no closed_at.
+      admin.from("organizations").select("closed_at").eq("id", accountId).maybeSingle(),
     ]);
+  const closable = !(closure.error && isSchemaError(closure.error));
+  const closedAt = (closure.data as { closed_at: string | null } | null)?.closed_at ?? null;
+  const deleteOn = formatDate(utcToZonedDate(new Date(Date.parse(closedAt ?? new Date().toISOString()) + 90 * 86_400_000).toISOString(), ADMIN_TZ), {
+    weekday: undefined,
+  });
   const requests = (requestData ?? []) as { id: string; name: string; email: string; status: string; created_at: string }[];
   const requestIds = requests.map((r) => r.id);
   const { data: noteData } = await admin
@@ -105,6 +113,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
             </Tag>
             {free && <span className={free.ended || free.soon ? "text-warning" : ""}>{free.text}</span>}
             <span>Joined {formatDate(utcToZonedDate(account.created_at, ADMIN_TZ), { weekday: undefined })}</span>
+            {closedAt && <Tag tone="warning">Closed · deleted {deleteOn}</Tag>}
           </span>
         }
       />
@@ -209,6 +218,21 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
                 />
               </div>
             </details>
+          </Panel>
+
+          <Panel title={closedAt ? "Account closed" : "Close account"}>
+            {!closable ? (
+              <p className="text-sm text-muted">Run the data retention database update (20261117000000_data_retention.sql) to close accounts.</p>
+            ) : (
+              <>
+                <p className="mb-3 text-sm text-muted">
+                  {closedAt
+                    ? `Closed ${formatDate(utcToZonedDate(closedAt, ADMIN_TZ), { weekday: undefined })}. On ${deleteOn} the organization, its events and everyone's details in them are deleted, with the sign-in accounts of hosts and team members who have no other role. Reopen it to keep everything.`
+                    : `Closing starts the privacy policy's 90-day countdown: on ${deleteOn} the organization, its events and everyone's details in them are deleted for good. You can reopen it any time before then.`}
+                </p>
+                <ClosureForm action={(closedAt ? reopenAccount : closeAccount).bind(null, account.id)} closed={Boolean(closedAt)} deleteOn={deleteOn} />
+              </>
+            )}
           </Panel>
         </div>
       </div>
