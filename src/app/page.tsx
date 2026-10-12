@@ -206,6 +206,9 @@ const faqs = [
 // Each event-type card in the sideways row: most of a phone screen, about a third of a wide one.
 const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%] lg:w-[31%]";
 
+// Each "How it works" step: most of a phone screen, all four side by side on a wide one.
+const stepCard = "w-[75%] shrink-0 snap-start sm:w-[42%] lg:w-[calc((100%-4.5rem)/4)]";
+
 const JOIN = "#join" as const;
 // Every button to the form says the same thing.
 const CTA = "Request a pilot spot";
@@ -316,7 +319,7 @@ export default async function Home() {
             <p className="mt-3 max-w-2xl leading-7 text-muted">
               Choose what kind of event you&apos;re running and {brand.name} gives you exactly the tools it needs.
             </p>
-            <CardCarousel label="Kinds of school event">
+            <CardCarousel label="Kinds of school event" itemName="event types">
               {kinds.map((k) => (
                 <li key={k.title} className={`${carouselCard} flex flex-col rounded-lg border border-border bg-background p-6 sm:p-8`}>
                   <span aria-hidden className="text-3xl">
@@ -359,18 +362,20 @@ export default async function Home() {
         <section id="how" tabIndex={-1} className="scroll-mt-20 border-t border-border outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">How it works</h2>
-            <ol className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-4">
+            <CardCarousel label="How it works, step by step" itemName="steps" ordered>
               {steps.map((s) => (
-                <li key={s.n}>
-                  <PhoneFrame src={s.screen} alt={s.alt} className="mx-auto mb-6 max-w-[260px]" />
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand font-semibold text-brand-foreground">
-                    {s.n}
-                  </span>
-                  <h3 className="mt-4 font-semibold">{s.title}</h3>
-                  <p className="mt-1 leading-7 text-muted">{s.body}</p>
+                <li key={s.n} className={`${stepCard} flex flex-col`}>
+                  <div className="flex-1">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand font-semibold text-brand-foreground">
+                      {s.n}
+                    </span>
+                    <h3 className="mt-4 font-semibold">{s.title}</h3>
+                    <p className="mt-1 leading-7 text-muted">{s.body}</p>
+                  </div>
+                  <PhoneFrame src={s.screen} alt={s.alt} className="mt-6 w-full max-w-[260px]" />
                 </li>
               ))}
-            </ol>
+            </CardCarousel>
           </div>
         </section>
 
