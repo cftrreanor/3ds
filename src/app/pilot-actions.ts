@@ -1,24 +1,12 @@
 "use server";
 
-import { z } from "zod";
-import type { ActionState } from "@/lib/action-state";
+import { fieldErrorState, type ActionState } from "@/lib/action-state";
 import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, sendEmail } from "@/lib/email";
-import { normalizePhone } from "@/lib/phone";
-import { PILOT_EVENT_TYPES, pilotEventTypeLabels } from "@/lib/pilot";
+import { checkPilotRequest, pilotEventTypeLabels } from "@/lib/pilot";
 import { isSchemaError } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
-
-const schema = z.object({
-  name: z.string().trim().min(2, "Please enter your name.").max(200),
-  email: z.string().trim().toLowerCase().email("Please enter a valid email address."),
-  phone: z.string().trim().min(1, "Please enter your phone number.").max(30),
-  organization: z.string().trim().min(2, "Please enter your school or organization.").max(200),
-  notes: z.string().trim().max(2000, "Please keep your answer under 2,000 characters."),
-});
-
-const THANKS = "Thanks! We got your request and will be in touch within a few days.";
 
 /**
  * "Join the pilot" from the home page. Visitors aren't signed in, so this
@@ -26,20 +14,19 @@ const THANKS = "Thanks! We got your request and will be in touch within a few da
  * from a browser. Then it emails the request to us (reply goes to them).
  */
 export async function requestPilot(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  // Simple bot traps: a hidden field people never fill in, and a minimum time on the page.
+  // Bot traps: a hidden field people never fill in, a minimum time on the page,
+  // and a real tap, click or key press in the form (scripts filling it in don't make one).
   const startedAt = Number(formData.get("startedAt"));
-  if (String(formData.get("website") ?? "") || !startedAt || Date.now() - startedAt < 2500) {
-    return { error: "Something went wrong. Please try again." };
+  const touched = formData.get("touched") === "1";
+  if (String(formData.get("website") ?? "") || !touched || !startedAt || Date.now() - startedAt < 2500) {
+    // A real person who autofills and sends very fast can land here too; trying again works.
+    return { error: "That was quick! Please wait a moment, then press Request a pilot spot again." };
   }
 
-  const parsed = schema.safeParse(Object.fromEntries(Object.keys(schema.shape).map((k) => [k, String(formData.get(k) ?? "")])));
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const d = parsed.data;
-  const phone = normalizePhone(d.phone);
-  if (!phone) return { error: "Please enter a 10-digit phone number." };
-  const known = new Set(PILOT_EVENT_TYPES.map((t) => t.value));
-  const eventTypes = [...new Set(formData.getAll("eventTypes").map(String))].filter((v) => known.has(v));
-  if (!eventTypes.length) return { error: "Please pick at least one kind of event." };
+  // The browser checks these first; this is the backstop. Every problem comes back at once.
+  const { request: d, fieldErrors } = checkPilotRequest(formData);
+  if (!d) return fieldErrorState(fieldErrors);
+  const { phone, eventTypes } = d;
 
   const admin = createAdminClient();
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -48,7 +35,7 @@ export async function requestPilot(_prev: ActionState, formData: FormData): Prom
     admin.from("pilot_requests").select("id", { count: "exact", head: true }).gte("created_at", hourAgo),
   ]);
   // Sent twice (double tap, back button): we already have it.
-  if (mine) return { ok: true, message: THANKS };
+  if (mine) return { ok: true };
   if ((everyone ?? 0) >= 30) {
     return { error: `We're getting a lot of requests right now. Please email us at ${brand.supportEmail} instead.` };
   }
@@ -82,5 +69,6 @@ export async function requestPilot(_prev: ActionState, formData: FormData): Prom
   });
   await sendEmail({ to: brand.supportEmail, subject: `Pilot request: ${d.organization}`, html, text, replyTo: d.email });
 
-  return { ok: true, message: THANKS };
+  // The form shows its own "Request sent" panel, so no toast message here.
+  return { ok: true };
 }

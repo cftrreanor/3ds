@@ -34,11 +34,16 @@ export function Button({
 export function Field({
   label,
   hint,
+  error,
+  errorId,
   children,
   className,
 }: {
   label: string;
   hint?: ReactNode;
+  /** A problem with this answer, shown in red under the field. Point the input's aria-describedby at errorId. */
+  error?: string;
+  errorId?: string;
   children: ReactNode;
   className?: string;
 }) {
@@ -47,12 +52,22 @@ export function Field({
       <span className="text-sm font-semibold">{label}</span>
       {children}
       {hint && <span className="text-sm text-muted">{hint}</span>}
+      {error && <FieldError id={errorId}>{error}</FieldError>}
     </label>
   );
 }
 
+/** A problem with one answer, in red under its field. */
+export function FieldError({ id, children }: { id?: string; children: ReactNode }) {
+  return (
+    <span id={id} className="text-sm font-semibold text-danger">
+      {children}
+    </span>
+  );
+}
+
 const inputClass =
-  "min-h-11 w-full rounded-sm border border-border bg-surface px-3 text-base outline-none transition focus:border-brand focus:ring-[3px] focus:ring-brand/25";
+  "min-h-11 w-full rounded-sm border border-field-border bg-surface px-3 text-base outline-none transition focus:border-brand focus:ring-[3px] focus:ring-brand/25 aria-invalid:border-danger";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cx(inputClass, className)} {...props} />;
@@ -100,7 +115,7 @@ export function Badge({
 export function FormMessage({ error, success }: { error?: string | null; success?: string | null }) {
   if (error) {
     return (
-      <p role="alert" className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+      <p role="alert" tabIndex={-1} data-form-message className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
         {error}
       </p>
     );

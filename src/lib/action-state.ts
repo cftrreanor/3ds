@@ -1,5 +1,20 @@
 /** What every form Server Action returns, for <ActionForm> to display. */
-export type ActionState = { ok?: boolean; error?: string; message?: string };
+export type ActionState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  /** Per-field problems, keyed by the input's name, shown under each field. */
+  fieldErrors?: Record<string, string>;
+};
+
+/** An error state for one or more fields: the summary names the problem, or how many there are. */
+export function fieldErrorState(fieldErrors: Record<string, string>): ActionState {
+  const messages = Object.values(fieldErrors);
+  return {
+    error: messages.length === 1 ? messages[0] : `Please fix the ${messages.length} answers marked below.`,
+    fieldErrors,
+  };
+}
 
 /** Turn a database error into something a booster president can act on. */
 export function friendlyDbError(error: { code?: string; message: string }): string {

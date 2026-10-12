@@ -13,6 +13,7 @@ colors:
   canvas-soft: "#FAFAF8"
   hairline: "#E8E4DD"
   hairline-dark: "#3F3A52"
+  field-border: "#8A8580"   # text-box and option edges (3:1 on white); dark mode #7D7896
   ink: "#292827"
   ink-mute: "#73706D"
   on-dark-mute: "#BCBAC9"
