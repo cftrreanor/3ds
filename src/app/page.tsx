@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
@@ -167,7 +168,9 @@ const faqs = [
   },
 ];
 
-const JOIN = "#join";
+const JOIN = "#join" as const;
+// Every button to the form says the same thing.
+const CTA = "Request a pilot spot";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -222,21 +225,21 @@ export default async function Home() {
     <div className="flex flex-1 flex-col">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <HeaderBar maxWidth="max-w-6xl">
-        <a href="#how" className={`hidden sm:block ${headerLinkClass}`}>
+        <JumpLink href="#how" className={`hidden sm:block ${headerLinkClass}`}>
           How it works
-        </a>
-        <a href="#pilot" className={`hidden sm:block ${headerLinkClass}`}>
-          Pilot
-        </a>
+        </JumpLink>
+        <JumpLink href="#pilot" className={`hidden sm:block ${headerLinkClass}`}>
+          Pilot details
+        </JumpLink>
         <Link href="/login" className={headerLinkClass}>
           Sign in
         </Link>
-        <a
+        <JumpLink
           href={JOIN}
-          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-5 text-sm font-semibold text-[#1b1938] transition hover:opacity-90"
+          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold sm:px-5 sm:text-sm text-[#1b1938] transition hover:opacity-90"
         >
-          Join the pilot
-        </a>
+          {CTA}
+        </JumpLink>
       </HeaderBar>
 
       <main className="flex-1">
@@ -258,12 +261,12 @@ export default async function Home() {
               offices. Free during your pilot; spots are limited.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-[#1b1938] hover:opacity-90">
-                Join the pilot
-              </a>
-              <a href="#how" className="rounded-md px-5 py-3 font-medium text-white ring-1 ring-white/30 hover:bg-white/10">
+              <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-[#1b1938] hover:opacity-90">
+                {CTA}
+              </JumpLink>
+              <JumpLink href="#how" className="rounded-md px-5 py-3 font-medium text-white ring-1 ring-white/30 hover:bg-white/10">
                 See how it works
-              </a>
+              </JumpLink>
             </div>
           </div>
         </section>
@@ -310,7 +313,7 @@ export default async function Home() {
           </ul>
         </section>
 
-        <section id="how" className="scroll-mt-20 border-t border-border">
+        <section id="how" tabIndex={-1} className="scroll-mt-20 border-t border-border outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">How it works</h2>
             <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -355,7 +358,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <section id="pilot" className="scroll-mt-20 border-t border-border bg-surface">
+        <section id="pilot" tabIndex={-1} className="scroll-mt-20 border-t border-border bg-surface outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium">Limited spots</p>
             <h2 className="mt-4 text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Join the pilot</h2>
@@ -379,8 +382,8 @@ export default async function Home() {
               ))}
             </div>
 
-            <div id="join" className="mt-12 max-w-3xl scroll-mt-20">
-              <h3 className="text-xl font-semibold">Request a pilot spot</h3>
+            <div id="join" tabIndex={-1} className="mt-12 max-w-3xl scroll-mt-20 outline-none">
+              <h3 className="text-xl font-semibold">{CTA}</h3>
               <p className="mt-1 text-muted">Takes a minute. We&apos;ll reply within a few days.</p>
               <div className="mt-6">
                 <PilotForm action={requestPilot} />
@@ -395,9 +398,9 @@ export default async function Home() {
               Your next event, without the clipboards.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free during your pilot. Spots are limited.</p>
-            <a href={JOIN} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
-              Request a pilot spot
-            </a>
+            <JumpLink href={JOIN} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
+              {CTA}
+            </JumpLink>
           </div>
         </section>
       </main>

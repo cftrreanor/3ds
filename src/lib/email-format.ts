@@ -12,7 +12,7 @@ import { brand } from "@/lib/brand";
 //   A blank line starts a new paragraph.
 
 const INK = "#292827";
-const MUTED = "#73706d";
+const MUTED = "#5f5c59";
 const BRAND = "#1b1938";
 const LINE = "#e8e4dd";
 
