@@ -7,7 +7,10 @@ import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { eachDate, formatTimeRange } from "@/lib/time";
+import { eachDate, formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { importVolunteers } from "@/app/dashboard/import-actions";
+import { SpreadsheetImport } from "@/components/spreadsheet-import";
+import { importFields, type Choice } from "@/lib/imports";
 import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, StationForm, type LeadOption } from "../forms";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
@@ -131,6 +134,18 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       label: `${s.profiles?.full_name || s.profiles?.email || "Team member"} (${roleLabel(s.role, event.event_type)})`,
     })),
   ];
+  // Each shift as a spreadsheet might name it: "Parking 9:00–11:00 AM", "Morning Parking"…
+  const multiDay = days.length > 1;
+  const shiftChoices: Choice[] = shifts.map((sh) => {
+    const station = stations.find((s) => s.id === sh.station_id)?.name ?? "";
+    const time = formatTimeRange(sh.starts_at, sh.ends_at, tz, { zone: false });
+    const day = multiDay ? `${formatDate(utcToZonedDate(sh.starts_at, tz), { year: undefined })} ` : "";
+    return {
+      value: sh.id,
+      label: `${station}: ${sh.title} · ${day}${time}`,
+      also: [sh.title, `${station} ${sh.title}`, `${station} ${time}`, `${sh.title} ${time}`, `${station} ${day}${time}`],
+    };
+  });
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
 
   return (
@@ -331,6 +346,30 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           )}
         </div>
       </section>
+
+      {shifts.length > 0 && (
+        <section className="mt-10" aria-labelledby="import-heading">
+          <h2 id="import-heading" className="text-xl font-semibold">
+            Import volunteers from a spreadsheet
+          </h2>
+          <p className="mt-1 mb-4 text-sm text-muted">
+            Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row per
+            person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
+            room for them.
+          </p>
+          <Card>
+            <SpreadsheetImport
+              kind="volunteers"
+              fields={importFields("volunteers")}
+              choices={{ shift: shiftChoices }}
+              noun={{ one: "sign-up", many: "sign-ups" }}
+              templateName="volunteers.csv"
+              emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
+              action={importVolunteers.bind(null, eventId)}
+            />
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

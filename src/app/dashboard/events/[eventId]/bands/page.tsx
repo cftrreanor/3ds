@@ -14,6 +14,9 @@ import {
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
+import { importBandPrefills } from "@/app/dashboard/import-actions";
+import { SpreadsheetImport } from "@/components/spreadsheet-import";
+import { importFields } from "@/lib/imports";
 import { InvitePastBands, type PastDirector } from "./invite-past-bands";
 import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
 import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
@@ -68,7 +71,31 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     supabase.rpc("director_contact_phone", { ev: eventId }),
     supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
   ]);
-  const { data: pastData } = await supabase.rpc("past_band_directors", { p_event: eventId });
+  const [{ data: pastData }, { data: prefillData }, { data: inviteData }] = await Promise.all([
+    supabase.rpc("past_band_directors", { p_event: eventId }),
+    supabase.from("band_prefills").select("email, band_name, school_name, head_director_name").eq("event_id", eventId).order("created_at"),
+    supabase.from("band_invitations").select("email, sent_at").eq("event_id", eventId),
+  ]);
+  const invitedLabel = (iso: string) => `Invited ${formatDate(utcToZonedDate(iso, event.timezone), { year: undefined })}`;
+  const invitedAt = new Map((inviteData ?? []).map((i) => [i.email.toLowerCase(), i.sent_at as string]));
+  const registeredEmails = new Set(((bandData ?? []) as BandRow[]).map((b) => b.head_director_email.toLowerCase()));
+  // Directors whose details the host imported, one line per director.
+  const imported = new Map<string, PastDirector>();
+  for (const p of (prefillData ?? []) as { email: string; band_name: string; school_name: string | null; head_director_name: string | null }[]) {
+    const email = p.email.toLowerCase();
+    const band = p.school_name ? `${p.band_name} (${p.school_name})` : p.band_name;
+    const d = imported.get(email);
+    if (d) d.bands.push(band);
+    else
+      imported.set(email, {
+        email,
+        name: p.head_director_name ?? "",
+        bands: [band],
+        note: "From your spreadsheet",
+        registered: registeredEmails.has(email),
+        invited: invitedAt.has(email) ? invitedLabel(invitedAt.get(email)!) : null,
+      });
+  }
   const pastDirectors: PastDirector[] = ((pastData ?? []) as {
     email: string;
     full_name: string;
@@ -80,10 +107,12 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     email: d.email,
     name: d.full_name,
     bands: d.bands,
-    lastEvent: d.last_event,
+    note: `Last registered for ${d.last_event}`,
     registered: d.registered,
-    invited: d.invited_at ? `Invited ${formatDate(utcToZonedDate(d.invited_at, event.timezone), { year: undefined })}` : null,
+    invited: d.invited_at ? invitedLabel(d.invited_at) : null,
   }));
+  // Past directors are band directors so far; group events start fresh.
+  const directors = [...imported.values(), ...(roomsHere ? [] : pastDirectors.filter((d) => !imported.has(d.email.toLowerCase())))];
   const regOpen = registrationIsOpen(event);
   const pastDeadline = event.band_registration_open && deadlinePassed(event);
   const bands = (bandData ?? []) as BandRow[];
@@ -200,18 +229,39 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         </Card>
       </section>
 
-      {/* Past directors are band directors so far; group events start fresh. */}
-      {!roomsHere && pastDirectors.length > 0 && (
+      <section className="mt-10" aria-labelledby="import-heading">
+        <h2 id="import-heading" className="text-xl font-semibold">
+          Import from a spreadsheet
+        </h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
+          Have {w.many} you already work with in a spreadsheet? Import them, and each director&apos;s details are saved for
+          them. Nobody is registered yet: invite the directors below, and each one checks their details and registers.
+        </p>
+        <Card>
+          <SpreadsheetImport
+            kind="bands"
+            fields={importFields("bands", { words: w, trucks: !roomsHere })}
+            choices={{ classification: event.classifications.map((c: string) => ({ value: c, label: c })) }}
+            chaperoneLimit={event.chaperone_limit}
+            noun={{ one: w.one, many: w.many }}
+            templateName={`${w.one}-registrations.csv`}
+            action={importBandPrefills.bind(null, eventId)}
+          />
+        </Card>
+      </section>
+
+      {directors.length > 0 && (
         <section className="mt-10" aria-labelledby="invite-heading">
           <h2 id="invite-heading" className="text-xl font-semibold">
-            Invite bands from your past events
+            Invite directors to register
           </h2>
           <p className="mt-1 mb-4 text-sm text-muted">
-            Directors who registered at your earlier events. Their band&apos;s details are saved, so they can register in one
-            tap.
+            {imported.size > 0 ? "Directors from your spreadsheet" : "Directors who registered at your earlier events"}
+            {imported.size > 0 && !roomsHere && pastDirectors.length > 0 ? " and your earlier events" : ""}. Their
+            {` ${w.one}`}&apos;s details are saved, so registering only takes a moment.
           </p>
           <Card>
-            <InvitePastBands directors={pastDirectors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} />
+            <InvitePastBands directors={directors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} one={w.one} />
           </Card>
         </section>
       )}

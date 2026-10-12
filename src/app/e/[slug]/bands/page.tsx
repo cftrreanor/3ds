@@ -15,6 +15,26 @@ import { RegisterForm, type PreviousBand } from "./register-form";
 
 type Params = { params: Promise<{ slug: string }> };
 
+type Prefill = {
+  id: string;
+  email: string;
+  band_name: string;
+  school_name: string | null;
+  classification: string | null;
+  school_address: string | null;
+  contact_email: string | null;
+  head_director_name: string | null;
+  head_director_phone: string | null;
+  assistant_directors: string[];
+  student_count: number | null;
+  chaperone_count: number | null;
+  bus_count: number | null;
+  box_truck_count: number | null;
+  truck_trailer_count: number | null;
+  semi_truck_count: number | null;
+  special_needs: string | null;
+};
+
 async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
@@ -42,17 +62,43 @@ export default async function BandRegistrationPage({ params }: Params) {
   const user = await getUser();
   const supabase = await createClient();
 
-  const [{ data: myBandData }, { data: profile }] = user
+  const [{ data: myBandData }, { data: profile }, { data: prefillData }] = user
     ? await Promise.all([
         supabase.from("bands").select(`${BAND_COLUMNS}, events(name, event_type)`).eq("director_user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
+        // Details the host imported for this director, from their spreadsheet.
+        supabase.rpc("my_band_prefills", { p_event: event.id }),
       ])
-    : [{ data: [] }, { data: null }];
+    : [{ data: [] }, { data: null }, { data: [] }];
   const myBands = (myBandData ?? []) as unknown as (BandRow & { events: { name: string; event_type: string | null } | null })[];
   const mine = myBands.filter((b) => b.event_id === event.id);
   // The latest registration of each of the director's bands, to copy from.
   // (Not ones already registered for this contest.)
   const seen = new Set<string>(mine.map((b) => `${b.band_name}|${b.school_name}`.toLowerCase()));
+  const registeredNames = new Set(mine.map((b) => b.band_name.toLowerCase()));
+  const prefilled: PreviousBand[] = ((prefillData ?? []) as Prefill[])
+    .filter((p) => !registeredNames.has(p.band_name.toLowerCase()))
+    .map((p) => ({
+      id: p.id,
+      from: "the host",
+      prefilled: true,
+      band_name: p.band_name,
+      school_name: p.school_name ?? "",
+      classification: p.classification ?? "",
+      school_address: p.school_address ?? "",
+      contact_email: p.contact_email ?? p.email,
+      head_director_name: p.head_director_name ?? profile?.full_name ?? "",
+      head_director_email: p.email,
+      head_director_phone: formatPhone(p.head_director_phone ?? profile?.phone),
+      assistant_directors: p.assistant_directors,
+      student_count: p.student_count ?? undefined,
+      chaperone_count: p.chaperone_count ?? undefined,
+      bus_count: p.bus_count ?? undefined,
+      box_truck_count: p.box_truck_count ?? undefined,
+      truck_trailer_count: p.truck_trailer_count ?? undefined,
+      semi_truck_count: p.semi_truck_count ?? undefined,
+      special_needs: p.special_needs,
+    }));
   const previous: PreviousBand[] = myBands
     // Groups copy from groups, bands from bands.
     .filter((b) => hasRooms(b.events?.event_type) === hasRooms(event.event_type))
@@ -69,6 +115,7 @@ export default async function BandRegistrationPage({ params }: Params) {
       head_director_phone: formatPhone(b.head_director_phone),
       from: b.events?.name ?? "an earlier event",
     }));
+  previous.unshift(...prefilled);
 
   const open = registrationIsOpen(event);
   const here = `/e/${slug}/bands`;

@@ -8,21 +8,25 @@ export type PastDirector = {
   email: string;
   name: string;
   bands: string[];
-  lastEvent: string;
+  /** Where they come from: "Last registered for Fall Classic", "From your spreadsheet". */
+  note: string;
   registered: boolean;
   /** "Invited Oct 8", once emailed. */
   invited: string | null;
 };
 
-/** Hosts: pick directors from earlier events and email them an invitation to register. */
+/** Hosts: pick directors (from earlier events, or imported) and email them an invitation to register. */
 export function InvitePastBands({
   directors,
   canSend,
   send,
+  one = "band",
 }: {
   directors: PastDirector[];
   canSend: boolean;
   send: (emails: string[]) => Promise<ActionState>;
+  /** "band" or "group". */
+  one?: string;
 }) {
   // Ticked to start: everyone not yet registered or invited.
   const [picked, setPicked] = useState(() => new Set(directors.filter((d) => !d.registered && !d.invited).map((d) => d.email)));
@@ -41,7 +45,7 @@ export function InvitePastBands({
     <div className="space-y-4">
       {!canSend && (
         <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm">
-          Publish the event and open band registration to send invitations.
+          Publish the event and open {one} registration to send invitations.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -73,7 +77,7 @@ export function InvitePastBands({
                 </span>
                 {d.name && <span className="block text-sm text-muted">{d.email}</span>}
                 <span className="block text-sm">{d.bands.join(", ")}</span>
-                <span className="block text-xs text-muted">Last registered for {d.lastEvent}</span>
+                <span className="block text-xs text-muted">{d.note}</span>
               </span>
             </label>
           </li>
@@ -94,8 +98,8 @@ export function InvitePastBands({
         {pending ? "Sending…" : `Send ${picked.size} invitation${picked.size === 1 ? "" : "s"}`}
       </Button>
       <p className="text-xs text-muted">
-        Each email has a button that signs the director in and shows their saved band, ready to register in one tap. It
-        works for as long as registration is open. Sending again replaces the earlier link.
+        Each email has a button that signs the director in and opens registration with their {one}&apos;s details filled
+        in. It works for as long as registration is open. Sending again replaces the earlier link.
       </p>
     </div>
   );

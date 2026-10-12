@@ -7,7 +7,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { Button, Card } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 
-export type PreviousBand = BandFormValues & { id: string; from: string };
+/** A band to copy from: the director's own from an earlier event, or details the host filled in for them. */
+export type PreviousBand = BandFormValues & { id: string; from: string; prefilled?: boolean };
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -50,7 +51,9 @@ export function RegisterForm({
     <div className="space-y-3">
       {source && (
         <p className="text-sm text-muted">
-          Editing {source.band_name}&apos;s saved details. Changes apply to this event only.
+          {source.prefilled
+            ? `The host filled in ${source.band_name}'s details. Check each answer, fill in anything missing, then register.`
+            : `Editing ${source.band_name}'s saved details. Changes apply to this event only.`}
         </p>
       )}
       {/* Re-mount when the source changes so every box picks up the copied values. */}
@@ -115,7 +118,8 @@ function SavedBand({
   onEdit: () => void;
 }) {
   // Things this contest needs changed before a one-tap registration works.
-  const problems = [
+  // Details the host filled in are always reviewed by the director before registering.
+  const problems = b.prefilled ? [] : [
     b.classification && !classifications.includes(b.classification)
       ? `This event doesn't have a ${b.classification} classification. Pick one in Review & edit.`
       : null,
@@ -135,7 +139,7 @@ function SavedBand({
     <Card className={editing ? "border-brand" : undefined}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-lg font-semibold">{b.band_name}</h3>
-        <p className="text-sm text-muted">Saved from {b.from}</p>
+        <p className="text-sm text-muted">{b.prefilled ? "Filled in by the host" : `Saved from ${b.from}`}</p>
       </div>
       <p className="text-muted">{b.school_name}</p>
       <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
@@ -154,13 +158,13 @@ function SavedBand({
         </ul>
       )}
       <div className="mt-4 flex flex-wrap items-start gap-2">
-        {problems.length === 0 && (
+        {!b.prefilled && problems.length === 0 && (
           <ActionForm action={register}>
             <SubmitButton pendingText="Registering…">Register {b.band_name}</SubmitButton>
           </ActionForm>
         )}
-        <Button type="button" variant={problems.length ? "primary" : "secondary"} onClick={onEdit} aria-expanded={editing}>
-          {editing ? "Close editing" : "Review & edit"}
+        <Button type="button" variant={problems.length || b.prefilled ? "primary" : "secondary"} onClick={onEdit} aria-expanded={editing}>
+          {editing ? "Close editing" : b.prefilled ? "Review & register" : "Review & edit"}
         </Button>
       </div>
     </Card>

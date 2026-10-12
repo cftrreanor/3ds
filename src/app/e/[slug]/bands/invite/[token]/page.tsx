@@ -7,13 +7,15 @@ import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
 import { findBandInvite } from "@/lib/band-invites";
+import { groupWords } from "@/lib/event-types";
 import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 
 export const metadata: Metadata = { title: "You're invited" };
 
 /**
  * Where a band invitation email lands. One tap signs the director in and
- * opens registration with their saved band details. (A button rather than an
+ * opens registration with their saved band details (from an earlier event,
+ * or filled in by the host from a spreadsheet). (A button rather than an
  * automatic sign-in, so email link checkers can't use up the link.)
  */
 export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/bands/invite/[token]">) {
@@ -32,7 +34,7 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
               <h1 className="text-2xl font-medium">This link isn&apos;t valid</h1>
               <p className="mt-2 text-muted">It may have been replaced by a newer invitation.</p>
               <Link href={here} className="mt-4 inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline">
-                Go to band registration
+                Go to registration
               </Link>
             </>
           ) : (
@@ -42,8 +44,7 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
               {signedInAsInvitee || invite.usable ? (
                 <>
                   <p className="mt-3 leading-7 text-muted">
-                    Your band&apos;s details from last time are saved. Check them, change anything you need, and
-                    register in one tap.
+                    Your details are saved and ready. Check them, change anything you need, and register.
                   </p>
                   <ActionForm action={acceptBandInvite.bind(null, token)} className="mt-5">
                     <SubmitButton className="w-full" pendingText="Opening…">
@@ -58,8 +59,8 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
                 <>
                   <p className="mt-3 leading-7 text-muted">
                     {invite.blocked === "closed"
-                      ? "Band registration for this contest is closed, so this link no longer signs you in. Please contact the host if you need to make a change."
-                      : `For your security, this email's sign-in button works once, within ${EMAIL_LINK_DAYS} days${invite.blocked === "used" ? ", and it's been used" : ", and it has expired"}. Sign in with ${invite.email} to continue: your band's details are still saved.`}
+                      ? `${groupWords(invite.event.event_type).One} registration for this event is closed, so this link no longer signs you in. Please contact the host if you need to make a change.`
+                      : `For your security, this email's sign-in button works once, within ${EMAIL_LINK_DAYS} days${invite.blocked === "used" ? ", and it's been used" : ", and it has expired"}. Sign in with ${invite.email} to continue: your details are still saved.`}
                   </p>
                   <Link
                     href={invite.blocked === "closed" ? here : `/login?next=${encodeURIComponent(here)}&email=${encodeURIComponent(invite.email)}`}
