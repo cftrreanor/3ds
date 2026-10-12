@@ -7,17 +7,32 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
  * buttons (or a trackpad) on a computer. Each card snaps into place, and the
  * next one peeks in from the edge so it's clear there's more.
  * Children are the cards' <li>s; give each a width and `shrink-0 snap-start`.
+ * When every card already fits (a wide screen), the arrows are hidden.
  */
-export function CardCarousel({ label, children }: { label: string; children: ReactNode }) {
-  const track = useRef<HTMLUListElement>(null);
+export function CardCarousel({
+  label,
+  itemName,
+  ordered = false,
+  children,
+}: {
+  label: string;
+  /** What the cards are, for the arrows' labels: "Next event types". */
+  itemName: string;
+  /** A numbered list (steps) instead of a plain one. */
+  ordered?: boolean;
+  children: ReactNode;
+}) {
+  const track = useRef<HTMLUListElement & HTMLOListElement>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
+  const [scrolls, setScrolls] = useState(true);
 
   const update = useCallback(() => {
     const el = track.current;
     if (!el) return;
     setAtStart(el.scrollLeft <= 4);
     setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+    setScrolls(el.scrollWidth > el.clientWidth + 4);
   }, []);
 
   useEffect(() => {
@@ -35,25 +50,26 @@ export function CardCarousel({ label, children }: { label: string; children: Rea
     el.scrollBy({ left: dir * (card.getBoundingClientRect().width + gap), behavior: "smooth" });
   };
 
+  const List = ordered ? "ol" : "ul";
   const arrow =
     "flex size-11 items-center justify-center rounded-full border border-border bg-surface text-lg transition hover:border-brand hover:text-brand disabled:cursor-default disabled:opacity-40 disabled:hover:border-border disabled:hover:text-current";
 
   return (
     <div className="mt-6">
-      <ul
+      <List
         ref={track}
         onScroll={update}
         tabIndex={0}
         aria-label={label}
-        className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-2 sm:-mx-6 sm:scroll-px-6 sm:gap-6 sm:px-6"
+        className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-5 sm:-mx-6 sm:scroll-px-6 sm:gap-6 sm:px-6"
       >
         {children}
-      </ul>
-      <div className="mt-4 flex justify-center gap-2">
-        <button type="button" className={arrow} onClick={() => step(-1)} disabled={atStart} aria-label="Previous event types">
+      </List>
+      <div className={`mt-4 justify-center gap-2 ${scrolls ? "flex" : "hidden"}`}>
+        <button type="button" className={arrow} onClick={() => step(-1)} disabled={atStart} aria-label={`Previous ${itemName}`}>
           <span aria-hidden>←</span>
         </button>
-        <button type="button" className={arrow} onClick={() => step(1)} disabled={atEnd} aria-label="Next event types">
+        <button type="button" className={arrow} onClick={() => step(1)} disabled={atEnd} aria-label={`Next ${itemName}`}>
           <span aria-hidden>→</span>
         </button>
       </div>
