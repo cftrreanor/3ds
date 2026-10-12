@@ -347,17 +347,21 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         </div>
       </section>
 
-      {shifts.length > 0 && (
-        <section className="mt-10" aria-labelledby="import-heading">
-          <h2 id="import-heading" className="text-xl font-semibold">
-            Import volunteers from a spreadsheet
-          </h2>
-          <p className="mt-1 mb-4 text-sm text-muted">
-            Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row per
-            person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
-            room for them.
-          </p>
-          <Card>
+      <section className="mt-10" aria-labelledby="import-heading">
+        <h2 id="import-heading" className="text-xl font-semibold">
+          Import volunteers from a spreadsheet
+        </h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
+          Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row per
+          person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
+          room for them.
+        </p>
+        <Card>
+          {shifts.length === 0 ? (
+            <p className="text-sm">
+              Add a station and its shifts above first. Each volunteer you import goes onto one of your shifts.
+            </p>
+          ) : (
             <SpreadsheetImport
               kind="volunteers"
               fields={importFields("volunteers")}
@@ -367,9 +371,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
               action={importVolunteers.bind(null, eventId)}
             />
-          </Card>
-        </section>
-      )}
+          )}
+        </Card>
+      </section>
     </div>
   );
 }
