@@ -18,6 +18,7 @@ import { eventTypeIcon, eventTypeLabel, hasRooms } from "@/lib/event-types";
 import { HostingByInvitation } from "@/components/hosting-by-invitation";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
+import { SuccessToast } from "@/components/toaster";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -61,7 +62,8 @@ function isPast(e: { ends_on: string; timezone: string }) {
   return e.ends_on < utcToZonedDate(new Date().toISOString(), e.timezone);
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
+  const { deleted } = await searchParams;
   const user = await requireUser();
   const supabase = await createClient();
   const [org, { data: orgRows }, { data: staffRows }, { data: bandRows }] = await Promise.all([
@@ -147,6 +149,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-14">
+      {deleted && <SuccessToast message="Event deleted." />}
       {isAdmin && (
         <Link
           href="/admin"

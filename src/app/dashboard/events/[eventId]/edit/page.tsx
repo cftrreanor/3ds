@@ -105,6 +105,27 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
         />
       </Card>
 
+      <section className="mt-10" aria-labelledby="files-heading">
+        <h2 id="files-heading" className="text-xl font-semibold">
+          Maps &amp; documents
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          {groupsHere
+            ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers or your team.`
+            : "Share a site map, parking map or volunteer guide. Choose who sees each one: the public page, volunteers or your team."}
+        </p>
+        <Card className="mt-4">
+          <FilesManager
+            files={files}
+            audiences={groupsHere ? AUDIENCES : AUDIENCES.filter((a) => a.value !== "directors")}
+            prepareUpload={prepareUpload.bind(null, eventId)}
+            saveFile={saveFile.bind(null, eventId)}
+            deleteFile={deleteFile.bind(null, eventId)}
+            canNotify={bandsHere}
+          />
+        </Card>
+      </section>
+
       <section className="mt-10" aria-labelledby="type-heading">
         <h2 id="type-heading" className="text-xl font-semibold">
           Kind of event
@@ -139,26 +160,6 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
               ))}
             </div>
           )}
-        </Card>
-      </section>
-
-      <section className="mt-10" aria-labelledby="files-heading">
-        <h2 id="files-heading" className="text-xl font-semibold">
-          Maps &amp; documents
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          {groupsHere
-            ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers or your team.`
-            : "Share a site map, parking map or volunteer guide. Choose who sees each one: the public page, volunteers or your team."}
-        </p>
-        <Card className="mt-4">
-          <FilesManager
-            files={files}
-            audiences={groupsHere ? AUDIENCES : AUDIENCES.filter((a) => a.value !== "directors")}
-            prepareUpload={prepareUpload.bind(null, eventId)}
-            saveFile={saveFile.bind(null, eventId)}
-            deleteFile={deleteFile.bind(null, eventId)}
-          />
         </Card>
       </section>
     </div>

@@ -11,7 +11,8 @@ import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
 import { slugify } from "@/lib/slug";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { FILES_BUCKET } from "@/lib/event-files";
 import { eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
 import { loadCalendarEntries, sendShiftUpdates } from "@/lib/volunteer-emails";
 
@@ -224,6 +225,27 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   redirect(`/dashboard/events/${eventId}`);
+}
+
+/**
+ * Deletes an event for good, with everything attached to it (the database
+ * removes stations, shifts, volunteers, registrations, schedules and the
+ * team along with it), then its uploaded files from storage. Hosts only.
+ */
+export async function deleteEvent(eventId: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data: files } = await supabase.from("event_files").select("path").eq("event_id", eventId);
+  const { data, error } = await supabase.from("events").delete().eq("id", eventId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's host can delete it." };
+  const paths = (files ?? []).map((f) => f.path);
+  if (paths.length) {
+    const { error: removeError } = await createAdminClient().storage.from(FILES_BUCKET).remove(paths);
+    if (removeError) console.error("Removing a deleted event's files from storage failed", removeError);
+  }
+  revalidatePath("/dashboard", "layout");
+  redirect("/dashboard?deleted=1");
 }
 
 export async function setEventPublished(eventId: string, publish: boolean): Promise<ActionState> {
