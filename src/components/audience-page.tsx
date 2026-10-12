@@ -102,14 +102,9 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
         <section className="border-b border-border bg-surface">
           <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
             <h2 className="text-xl font-semibold">What it replaces</h2>
-            <ul className="mt-5 grid gap-x-8 gap-y-3 leading-7 sm:grid-cols-2">
+            <ul className="mt-5 grid list-disc gap-x-10 gap-y-3 pl-5 leading-7 text-muted marker:text-muted sm:grid-cols-2">
               {a.replaces.map((r) => (
-                <li key={r} className="flex gap-2 text-muted">
-                  <span aria-hidden className="text-danger">
-                    ✕
-                  </span>
-                  <span>{r}</span>
-                </li>
+                <li key={r}>{r}</li>
               ))}
             </ul>
           </div>
