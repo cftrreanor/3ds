@@ -194,3 +194,11 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Sideways-scrolling rows (CardCarousel): swipe or arrows, no scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
