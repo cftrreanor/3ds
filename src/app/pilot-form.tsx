@@ -13,7 +13,14 @@ function validate(data: FormData) {
   return Object.keys(fieldErrors).length ? fieldErrorState(fieldErrors) : null;
 }
 
-export function PilotForm({ action }: { action: (prev: ActionState, formData: FormData) => Promise<ActionState> }) {
+export function PilotForm({
+  action,
+  defaultEventTypes = [],
+}: {
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Event types ticked to start with (an event type's own page ticks its type). */
+  defaultEventTypes?: readonly string[];
+}) {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [startedAt] = useState(() => Date.now());
@@ -37,7 +44,7 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
             <input type="text" name="website" tabIndex={-1} autoComplete="off" />
           </label>
         </div>
-        <Fields onEmail={setEmail} />
+        <Fields onEmail={setEmail} defaultEventTypes={defaultEventTypes} />
         <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
           Request a pilot spot
         </SubmitButton>
@@ -47,7 +54,7 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
 }
 
 /** The answers, each with its own problem message (inside ActionForm, so it can read them). */
-function Fields({ onEmail }: { onEmail: (email: string) => void }) {
+function Fields({ onEmail, defaultEventTypes }: { onEmail: (email: string) => void; defaultEventTypes: readonly string[] }) {
   const errors = useFieldErrors();
   // Marks a field with a problem and links it to its message for screen readers.
   const problem = (name: string) => ({
@@ -103,6 +110,7 @@ function Fields({ onEmail }: { onEmail: (email: string) => void }) {
                 type="checkbox"
                 name="eventTypes"
                 value={t.value}
+                defaultChecked={defaultEventTypes.includes(t.value)}
                 className="size-4 accent-brand"
                 {...describe("eventTypes")}
               />

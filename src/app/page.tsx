@@ -6,6 +6,8 @@ import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
+import { audiences } from "@/lib/audiences";
+import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
 
@@ -14,6 +16,7 @@ const kinds = [
   {
     icon: "🎺",
     title: "Band contests",
+    href: audiences.bands.path,
     examples: "Marching invitationals, jazz festivals, solo & ensemble",
     points: [
       "Band registration with saved details, and easy one-tap registration for returning bands and directors",
@@ -24,6 +27,7 @@ const kinds = [
   {
     icon: "👥",
     title: "Group events",
+    href: audiences.groups.path,
     examples: "Choir and orchestra festivals, theater, speech & debate",
     points: [
       "Groups register, then move through your rooms on a schedule built for you",
@@ -34,6 +38,7 @@ const kinds = [
   {
     icon: "🎪",
     title: "School fairs & fundraisers",
+    href: audiences.fairs.path,
     examples: "Fall festivals, carnivals, PTO fundraisers",
     points: [
       "Booths and community partners organized by zone",
@@ -44,6 +49,7 @@ const kinds = [
   {
     icon: "🙋",
     title: "Volunteer events",
+    href: audiences.volunteers.path,
     examples: "Concessions, field day, book fairs, school parking",
     points: [
       "Build stations and schedules with ease",
@@ -54,6 +60,7 @@ const kinds = [
   {
     icon: "🏫",
     title: "School visitor events",
+    href: audiences.parents.path,
     examples: "Family lunches, open houses, performances, award days",
     points: [
       "Parents register ahead with each child, teacher and grade",
@@ -295,6 +302,10 @@ export default async function Home() {
                       </li>
                     ))}
                   </ul>
+                  <Link href={k.href} className="mt-auto pt-6 font-medium text-brand underline">
+                    More about {k.title.toLowerCase()}
+                    <span aria-hidden> →</span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -405,16 +416,7 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-muted sm:flex-row sm:justify-between sm:px-6">
-          <span>
-            © {new Date().getFullYear()} {brand.name}
-          </span>
-          <a href={`mailto:${brand.supportEmail}`} className="hover:text-foreground">
-            {brand.supportEmail}
-          </a>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

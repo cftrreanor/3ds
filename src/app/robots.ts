@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site-url";
 
-// Search engines read the homepage and public event pages; everything behind
+// Search engines read the homepage, the event-type pages and public event pages; everything behind
 // a sign-in, plus private links (passes, files, invitations), stays out.
 export default function robots(): MetadataRoute.Robots {
   return {
