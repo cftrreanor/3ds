@@ -158,6 +158,7 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
             prepareUpload={prepareUpload.bind(null, eventId)}
             saveFile={saveFile.bind(null, eventId)}
             deleteFile={deleteFile.bind(null, eventId)}
+            canNotify={bandsHere}
           />
         </Card>
       </section>

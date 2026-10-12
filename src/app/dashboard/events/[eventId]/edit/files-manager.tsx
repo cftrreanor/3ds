@@ -32,8 +32,11 @@ export function FilesManager({
   prepareUpload,
   saveFile,
   deleteFile,
+  canNotify = false,
 }: {
   files: ManagedFile[];
+  /** Offer to email people about a file (band contests only). */
+  canNotify?: boolean;
   audiences: readonly Audience[];
   prepareUpload: (file: { fileName: string; contentType: string; size: number }) => Promise<{ error?: string; path?: string; token?: string }>;
   saveFile: (fileId: string | null, uploaded: UploadedFile | null, prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -52,6 +55,7 @@ export function FilesManager({
             editing === f.id ? (
               <li key={f.id} className="p-3">
                 <FileForm
+                  canNotify={canNotify}
                   file={f}
                   audiences={audiences}
                   prepareUpload={prepareUpload}
@@ -87,6 +91,7 @@ export function FilesManager({
       {editing === "new" ? (
         <div className="rounded-lg border border-border p-3">
           <FileForm
+                  canNotify={canNotify}
             audiences={audiences}
             prepareUpload={prepareUpload}
             saveFile={saveFile}
@@ -138,7 +143,9 @@ function FileForm({
   saveFile,
   onDone,
   onCancel,
+  canNotify,
 }: {
+  canNotify: boolean;
   file?: ManagedFile;
   audiences: readonly Audience[];
   prepareUpload: (file: { fileName: string; contentType: string; size: number }) => Promise<{ error?: string; path?: string; token?: string }>;
@@ -247,10 +254,10 @@ function FileForm({
           </Field>
         )}
       </div>
-      {hide && (toDirectors || toVolunteers) && (
+      {canNotify && hide && (toDirectors || toVolunteers) && (
         <p className="text-xs text-muted">To email people about it, edit it again once it&apos;s showing.</p>
       )}
-      {!hide && (toDirectors || toVolunteers) && (
+      {canNotify && !hide && (toDirectors || toVolunteers) && (
         <fieldset className="rounded-lg bg-background px-3 py-2">
           <legend className="sr-only">Email people about it</legend>
           <p className="text-sm font-medium">Let people know?</p>
