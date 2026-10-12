@@ -39,15 +39,7 @@ export function CardCarousel({ label, children }: { label: string; children: Rea
     "flex size-11 items-center justify-center rounded-full border border-border bg-surface text-lg transition hover:border-brand hover:text-brand disabled:cursor-default disabled:opacity-40 disabled:hover:border-border disabled:hover:text-current";
 
   return (
-    <div className="mt-10">
-      <div className="mb-4 flex justify-end gap-2">
-        <button type="button" className={arrow} onClick={() => step(-1)} disabled={atStart} aria-label="Previous event types">
-          <span aria-hidden>←</span>
-        </button>
-        <button type="button" className={arrow} onClick={() => step(1)} disabled={atEnd} aria-label="Next event types">
-          <span aria-hidden>→</span>
-        </button>
-      </div>
+    <div className="mt-6">
       <ul
         ref={track}
         onScroll={update}
@@ -57,6 +49,14 @@ export function CardCarousel({ label, children }: { label: string; children: Rea
       >
         {children}
       </ul>
+      <div className="mt-4 flex justify-center gap-2">
+        <button type="button" className={arrow} onClick={() => step(-1)} disabled={atStart} aria-label="Previous event types">
+          <span aria-hidden>←</span>
+        </button>
+        <button type="button" className={arrow} onClick={() => step(1)} disabled={atEnd} aria-label="Next event types">
+          <span aria-hidden>→</span>
+        </button>
+      </div>
     </div>
   );
 }
