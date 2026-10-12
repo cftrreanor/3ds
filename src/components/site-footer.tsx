@@ -20,7 +20,7 @@ export function SiteFooter() {
         </nav>
         <div className="mt-6 flex flex-col gap-2 border-t border-border pt-6 sm:flex-row sm:justify-between">
           <span>
-            © {new Date().getFullYear()} {brand.name}
+            © {new Date().getFullYear()} {brand.name} · {brand.city}, {brand.region}
           </span>
           <a href={`mailto:${brand.supportEmail}`} className="hover:text-foreground">
             {brand.supportEmail}
