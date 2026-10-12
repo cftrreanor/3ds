@@ -1,32 +1,34 @@
 @import "tailwindcss";
 
-/* Design tokens (docs/DESIGN.md): an editorial palette of deep indigo navy,
-   warm white and off-warm greys, with deep teal as the single chromatic
-   interlude. Status colors only for real signals. Every color in the UI
-   comes from here. ("brand" is the system's primary color.) */
+/* Design tokens (docs/DESIGN.md): a calm, restrained blue system. White
+   pages with warm off-white panels, near-black text, one deep blue for
+   actions, selection and the header, and the darkest navy for the closing
+   band. Status colors only for real signals. Every color in the UI comes
+   from here. ("brand" is the system's primary color.) */
 :root {
-  --background: #fafaf8;
-  --surface: #ffffff;
+  --background: #ffffff;
+  --surface: #fcfbf8;
   --raised: #ffffff;
-  /* Warm dark grey ink, never pure black. */
-  --foreground: #292827;
-  --muted: #5f5c59;
-  --border: #e8e4dd;
-  /* Edges of text boxes and options: 3:1 or more, so fields show in glare. */
-  --field-border: #8a8580;
-  /* Indigo navy: filled buttons, selection, the header. */
-  --brand: #1b1938;
-  --brand-hover: #0e0c1f;
+  --foreground: #0a0a0a;
+  /* Slate blue for supporting text (6.6:1 on white). */
+  --muted: #4b5f72;
+  --border: #dfe3e8;
+  /* Edges of text boxes, options and panels that need to read clearly. */
+  --field-border: #5f6d77;
+  /* Deep blue: filled buttons, selection, links, the header. */
+  --brand: #0b3558;
+  --brand-hover: #071a31;
   --brand-foreground: #ffffff;
-  /* Selected rows, current items and info panels: a whisper of violet. */
-  --brand-soft: #f1eefb;
-  /* Pale violet: the hero's pill button. */
-  --violet: #c9b4fa;
-  /* Teal: the closing band and, sparingly, event identity (finalists, pilot). */
-  --accent: #155555;
+  /* Selected rows, current items and info panels: a whisper of blue. */
+  --brand-soft: #edf3f9;
+  /* Pale blue: the hero's pill button. */
+  --violet: #b9d3f0;
+  /* A brighter blue, sparingly: finalists, the pilot pill. */
+  --accent: #1a5c8f;
   --accent-foreground: #ffffff;
-  --accent-soft: #e5efee;
-  --teal-deep: #0e3030;
+  --accent-soft: #e6f0f8;
+  /* The closing band: the darkest navy. */
+  --teal-deep: #071a31;
   --success: #16794a;
   --success-foreground: #ffffff;
   --success-soft: #e7f4ed;
@@ -35,32 +37,32 @@
   --warning-soft: #fdf1df;
   --danger: #b42318;
   --danger-foreground: #ffffff;
-  --focus: #1b1938;
-  /* Secondary text on indigo and teal. */
-  --on-dark-mute: #bcbac9;
+  --focus: #0b3558;
+  /* Secondary text on deep blue and navy. */
+  --on-dark-mute: #b5c3d1;
   /* Header bar: always dark, so the white logo reads in light and dark mode. */
-  --header: #1b1938;
+  --header: #0b3558;
   --header-foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0e0c1f;
-    --surface: #17152f;
-    --raised: #211e3d;
-    --foreground: #f4f2ee;
-    --muted: #bcbac9;
-    --border: #3f3a52;
-    --field-border: #7d7896;
-    --brand: #c9b4fa;
-    --brand-hover: #d9cafc;
-    --brand-foreground: #1b1938;
-    --brand-soft: #2a2550;
-    --violet: #c9b4fa;
-    --accent: #7cc4c0;
-    --accent-foreground: #0e3030;
-    --accent-soft: #123636;
-    --teal-deep: #0e3030;
+    --background: #06121f;
+    --surface: #0c1f33;
+    --raised: #132a42;
+    --foreground: #f2f5f8;
+    --muted: #a9b8c7;
+    --border: #253a51;
+    --field-border: #5f7489;
+    --brand: #9cc3ee;
+    --brand-hover: #b8d4f3;
+    --brand-foreground: #071a31;
+    --brand-soft: #12304f;
+    --violet: #b9d3f0;
+    --accent: #7fb6e0;
+    --accent-foreground: #071a31;
+    --accent-soft: #10304a;
+    --teal-deep: #071a31;
     --success: #64d69a;
     --success-foreground: #10192b;
     --success-soft: #16322a;
@@ -69,8 +71,8 @@
     --warning-soft: #3a2c14;
     --danger: #ff8a80;
     --danger-foreground: #10192b;
-    --focus: #c9b4fa;
-    --header: #0e0c1f;
+    --focus: #9cc3ee;
+    --header: #071a31;
   }
 }
 
@@ -113,19 +115,20 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* Corners: inputs 6px, buttons 8px, cards 12px, dialogs 16px. */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 16px;
+  /* Corners: small 8px, buttons and inputs 12px, cards 20px, dialogs 24px. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-2xl: 24px;
 
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* Very soft, layered shadows: separation without heavy elevation. */
+  --shadow-card: 0 4px 5px rgba(95, 109, 119, 0.04), 0 8px 15px rgba(95, 109, 119, 0.03), 0 15px 30px rgba(95, 109, 119, 0.06);
+  --shadow-elevated: 0 4px 5px rgba(95, 109, 119, 0.04), 0 8px 15px rgba(95, 109, 119, 0.03), 0 30px 50px rgba(95, 109, 119, 0.08);
 
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --default-transition-duration: 120ms;
-  --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @layer base {
@@ -142,9 +145,9 @@
   /* Headings: mid weight, tight leading, slightly negative tracking. */
   h1 {
     font-family: var(--font-display);
-    font-weight: 540;
-    line-height: 1.02;
-    letter-spacing: -0.025em;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
   }
   h2,
   h3 {
@@ -175,13 +178,13 @@
   }
 }
 
-/* The home page hero: a soft violet-and-sky glow over the indigo. */
+/* The home page hero: a soft sky-blue glow over the deep blue. */
 .hero-sky {
-  background-color: #1b1938;
+  background-color: #0b3558;
   background-image:
-    radial-gradient(ellipse 60% 70% at 85% 15%, rgba(201, 180, 250, 0.42), transparent 70%),
-    radial-gradient(ellipse 55% 60% at 100% 95%, rgba(140, 190, 235, 0.32), transparent 70%),
-    radial-gradient(ellipse 50% 50% at 10% 110%, rgba(14, 12, 31, 0.9), transparent 70%);
+    radial-gradient(ellipse 60% 70% at 85% 15%, rgba(185, 211, 240, 0.32), transparent 70%),
+    radial-gradient(ellipse 55% 60% at 100% 95%, rgba(120, 180, 240, 0.28), transparent 70%),
+    radial-gradient(ellipse 50% 50% at 10% 110%, rgba(7, 26, 49, 0.9), transparent 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {

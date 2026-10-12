@@ -70,7 +70,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
         </Link>
         <JumpLink
           href="#join"
-          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-[#1b1938] transition hover:opacity-90 sm:px-5 sm:text-sm"
+          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-header transition hover:opacity-90 sm:px-5 sm:text-sm"
         >
           {CTA}
         </JumpLink>
@@ -89,7 +89,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
               <span className="font-semibold text-white">Made for:</span> {a.examples}.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <JumpLink href="#join" className="rounded-full bg-violet px-6 py-3 font-semibold text-[#1b1938] hover:opacity-90">
+              <JumpLink href="#join" className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
                 {CTA}
               </JumpLink>
               <JumpLink href="#faq" className="rounded-md px-5 py-3 font-medium text-white ring-1 ring-white/30 hover:bg-white/10">
