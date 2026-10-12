@@ -15,6 +15,9 @@ import { ActionButton, CopyLinkButton } from "../forms";
 import { setParentCheckedIn, setParentRegistrationClosesAt, setParentRegistrationOpen, setParentWalkInsAllowed } from "./actions";
 import { ClosesAtForm } from "./closes-at-form";
 import { Door, type DoorParent } from "./door";
+import { importParents } from "@/app/dashboard/import-actions";
+import { SpreadsheetImport } from "@/components/spreadsheet-import";
+import { GRADE_CHOICES, importFields } from "@/lib/imports";
 
 export const metadata: Metadata = { title: "Parent check-in" };
 
@@ -202,6 +205,30 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
           : "Anyone who isn't on the list goes through the school's usual visitor process."}
       </p>
       <Door parents={parents} toggle={setParentCheckedIn.bind(null, eventId)} />
+
+      {access.isHost && closed !== "over" && (
+        <section className="mt-10" aria-labelledby="import-heading">
+          <h2 id="import-heading" className="text-xl font-semibold">
+            Import families from a spreadsheet
+          </h2>
+          <p className="mt-1 mb-4 text-sm text-muted">
+            Already collected registrations, like from a Google Form? Add them here so they&apos;re on the check-in list.
+            One row per child; rows with the same email become one family. Families already registered are left as they
+            are.
+          </p>
+          <Card>
+            <SpreadsheetImport
+              kind="parents"
+              fields={importFields("parents")}
+              choices={{ grade: GRADE_CHOICES }}
+              noun={{ one: "family", many: "families" }}
+              templateName="parent-registrations.csv"
+              emailOption="Email each family a confirmation with their link, a calendar invite and the photo ID reminder"
+              action={importParents.bind(null, eventId)}
+            />
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

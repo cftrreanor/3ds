@@ -3474,4 +3474,196 @@ do $$ begin
   assert not exists (select 1 from public.event_staff where event_id = '10000000-0000-0000-0000-0000000000e9'), 'its team is removed';
 end $$;
 
+-- Spreadsheet imports. Bands: the host saves directors' details (band_prefills);
+-- only the director with that email sees them, nobody is registered.
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end,
+                           venue_address, volunteer_signup_open)
+values ('10000000-0000-0000-0000-0000000000f1', :'org_id', 'Import Contest', 'import-contest', 'draft', 'band_contest',
+        current_date + 30, current_date + 30, now() + interval '30 days', now() + interval '30 days 8 hours', '1 Sheet Rd', false),
+       ('10000000-0000-0000-0000-0000000000f2', :'org_id', 'Import Lunch', 'import-lunch', 'draft', 'school_visit',
+        current_date + 30, current_date + 30, now() + interval '30 days', now() + interval '30 days 2 hours', '2 Sheet Rd', false),
+       ('10000000-0000-0000-0000-0000000000f3', :'org_id', 'Import Picnic', 'import-picnic', 'draft', 'volunteer',
+        current_date + 30, current_date + 30, now() + interval '30 days', now() + interval '30 days 2 hours', '3 Sheet Rd', false);
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-000000000002', 'volunteer_director'),
+  ('10000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-000000000003', 'section_lead'),
+  ('10000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-000000000003', 'section_lead');
+insert into public.stations (id, event_id, name, station_type) values
+  ('20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-0000000000f1', 'Gate', 'passive');
+insert into public.shifts (id, station_id, event_id, title, starts_at, ends_at, max_capacity) values
+  ('30000000-0000-0000-0000-0000000000f1', '20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-0000000000f1',
+   'Gate Morning', now() + interval '30 days', now() + interval '30 days 2 hours', 1);
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.band_prefills (event_id, email, school_name, band_name, classification, created_by) values
+  ('10000000-0000-0000-0000-0000000000f1', 'band@example.com', 'Sheet High', 'Sheet High Band', '5A',
+   '00000000-0000-0000-0000-000000000001');
+-- Importing the same row again updates it in place.
+insert into public.band_prefills (event_id, email, school_name, band_name, classification, created_by) values
+  ('10000000-0000-0000-0000-0000000000f1', 'band@example.com', 'Sheet High', 'Sheet High Band', '6A',
+   '00000000-0000-0000-0000-000000000001')
+on conflict (event_id, email, band_name) do update
+  set event_id = excluded.event_id, email = excluded.email, band_name = excluded.band_name,
+      school_name = excluded.school_name, classification = excluded.classification, created_by = excluded.created_by;
+do $$ begin
+  assert (select count(*) = 1 and min(classification) = '6A' from public.band_prefills where email = 'band@example.com'),
+         'a re-import updates the saved details';
+  -- Not for a volunteer event, and never in someone else's name.
+  begin
+    insert into public.band_prefills (event_id, email, band_name, created_by)
+    values ('10000000-0000-0000-0000-0000000000f3', 'band@example.com', 'Nope', '00000000-0000-0000-0000-000000000001');
+    raise exception 'saved band details for a volunteer event';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.band_prefills (event_id, email, band_name, created_by)
+    values ('10000000-0000-0000-0000-0000000000f1', 'band@example.com', 'Nope', '00000000-0000-0000-0000-000000000006');
+    raise exception 'saved band details as someone else';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.bands where event_id = '10000000-0000-0000-0000-0000000000f1'),
+         'importing registers nobody';
+end $$;
+
+set role authenticated;
+-- Not a Volunteer Lead, a Section Lead or a stranger: they can't read or add any.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select count(*) from public.band_prefills) = 0, 'a Volunteer Lead can''t read saved band details';
+  assert (select count(*) from public.my_band_prefills('10000000-0000-0000-0000-0000000000f1')) = 0,
+         'nor see them for someone else''s email';
+  begin
+    insert into public.band_prefills (event_id, email, band_name, created_by)
+    values ('10000000-0000-0000-0000-0000000000f1', 'x@example.com', 'Nope', '00000000-0000-0000-0000-000000000002');
+    raise exception 'a Volunteer Lead saved band details';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.band_prefills) = 0, 'a stranger can''t read saved band details';
+  delete from public.band_prefills;
+end $$;
+-- The director it names sees their own.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+do $$ begin
+  assert (select band_name from public.my_band_prefills('10000000-0000-0000-0000-0000000000f1')) = 'Sheet High Band',
+         'the director sees the details saved for them';
+  assert (select count(*) from public.band_prefills) = 0, 'but not the table itself';
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform public.my_band_prefills('10000000-0000-0000-0000-0000000000f1');
+    raise exception 'anon read saved band details';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.band_prefills where event_id = '10000000-0000-0000-0000-0000000000f1') = 1,
+         'the stranger''s delete removed nothing';
+end $$;
+
+-- Volunteers: hosts and Volunteer Leads import; a full shift grows to fit.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+select public.import_volunteer('10000000-0000-0000-0000-0000000000f1', 'Ida Import', 'ida@example.com', '+15125550170', false,
+       '[{"name": "Ivy Importson", "minor": true}]', array['30000000-0000-0000-0000-0000000000f1']::uuid[]) \g /dev/null
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+select public.import_volunteer('10000000-0000-0000-0000-0000000000f1', 'Lia Lead-Added', 'lia@example.com', null, false,
+       '[]', array['30000000-0000-0000-0000-0000000000f1']::uuid[]) \g /dev/null
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  begin
+    perform public.import_volunteer('10000000-0000-0000-0000-0000000000f1', 'No Way', 'noway@example.com', null, false,
+            '[]', array['30000000-0000-0000-0000-0000000000f1']::uuid[]);
+    raise exception 'a Section Lead imported volunteers';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.import_volunteer('10000000-0000-0000-0000-0000000000f1', 'No Way', 'noway@example.com', null, false,
+            '[]', array['30000000-0000-0000-0000-0000000000f1']::uuid[]);
+    raise exception 'a stranger imported volunteers';
+  exception when insufficient_privilege then null;
+  end;
+  -- Nor onto another event's shift through an event they don't run.
+  begin
+    perform public.import_volunteer('10000000-0000-0000-0000-0000000000f3', 'No Way', 'noway@example.com', null, false,
+            '[]', array['30000000-0000-0000-0000-0000000000f1']::uuid[]);
+    raise exception 'a stranger imported volunteers to an event they don''t run';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select registered_count = 3 and max_capacity = 3 from public.shifts where id = '30000000-0000-0000-0000-0000000000f1'),
+         'the full shift grew to fit the three imported people';
+  assert exists (select 1 from public.volunteers where full_name = 'Ivy I.' and minor and contact_id is not null),
+         'an imported under-18 helper keeps only a last initial';
+  assert not exists (select 1 from public.volunteers where email = 'noway@example.com'), 'nobody else was imported';
+end $$;
+
+-- A host can't import onto another event's shift through their own event.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform public.import_volunteer('10000000-0000-0000-0000-0000000000f3', 'Wrong Event', 'wrong@example.com', null, false,
+            '[]', array['30000000-0000-0000-0000-0000000000f1']::uuid[]);
+    raise exception 'imported onto a shift from another event';
+  exception when raise_exception then
+    if sqlerrm not like '%does not exist%' then raise; end if;
+  end;
+end $$;
+
+-- Parents: the host of a school visit only, open or not; an email already registered is left alone.
+select public.import_parent_registration('10000000-0000-0000-0000-0000000000f2', 'Pam Parent', 'pam@example.com', null,
+       '[{"name": "Pia Parent", "teacher": "Smith", "grade": "3rd"}]') \g /dev/null
+do $$ begin
+  assert public.import_parent_registration('10000000-0000-0000-0000-0000000000f2', 'Someone Else', 'pam@example.com', null,
+         '[{"name": "Other Kid", "teacher": "Jones", "grade": "1st"}]') is null, 'a second import of the same email changes nothing';
+  begin
+    perform public.import_parent_registration('10000000-0000-0000-0000-0000000000f1', 'Pam Parent', 'pam2@example.com', null,
+            '[{"name": "Pia Parent", "teacher": "Smith", "grade": "3rd"}]');
+    raise exception 'imported parents into a band contest';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  begin
+    perform public.import_parent_registration('10000000-0000-0000-0000-0000000000f2', 'Lead Parent', 'leadp@example.com', null,
+            '[{"name": "Kid", "teacher": "Smith", "grade": "3rd"}]');
+    raise exception 'a Section Lead imported children''s details';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select parent_name = 'Pam Parent' and children -> 0 ->> 'name' = 'Pia Parent'
+            from public.parent_registrations where email = 'pam@example.com'), 'the imported family is registered once';
+  assert not exists (select 1 from public.parent_registrations where email = 'leadp@example.com'), 'the lead''s import was refused';
+end $$;
+
+-- Saved band details go once the event is over.
+update public.events set starts_on = current_date - 1, ends_on = current_date - 1,
+       window_start = now() - interval '1 day', window_end = now() - interval '20 hours'
+ where id = '10000000-0000-0000-0000-0000000000f1';
+set role service_role;
+do $$ begin
+  assert public.purge_band_prefills() = 1, 'saved band details are removed after the event';
+end $$;
+reset role;
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-0000000000f2',
+                                       '10000000-0000-0000-0000-0000000000f3');
+
 \echo 'All database security tests passed.'

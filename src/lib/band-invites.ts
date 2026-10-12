@@ -13,7 +13,7 @@ export async function findBandInvite(token: string) {
   if (!/^[0-9a-f-]{36}$/i.test(token)) return null;
   const { data } = await createAdminClient()
     .from("band_invitations")
-    .select("email, sent_at, used_at, events(slug, name, status, timezone, band_registration_open, band_registration_deadline)")
+    .select("email, sent_at, used_at, events(slug, name, status, event_type, timezone, band_registration_open, band_registration_deadline)")
     .eq("token", token)
     .maybeSingle();
   if (!data) return null;
@@ -21,6 +21,7 @@ export async function findBandInvite(token: string) {
     slug: string;
     name: string;
     status: string;
+    event_type: string;
     timezone: string;
     band_registration_open: boolean;
     band_registration_deadline: string | null;

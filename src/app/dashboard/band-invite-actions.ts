@@ -9,6 +9,7 @@ import { getUser, requireUser } from "@/lib/auth";
 import { findBandInvite } from "@/lib/band-invites";
 import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 import { registrationIsOpen } from "@/lib/bands";
+import { groupWords } from "@/lib/event-types";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -17,8 +18,9 @@ import { formatDate, formatDateRange } from "@/lib/time";
 const emailsSchema = z.array(z.string().trim().toLowerCase().email()).min(1, "Pick at least one director to invite.").max(500);
 
 /**
- * Email directors from the organization's earlier events an invitation to
- * register for this one. Each gets a fresh one-time sign-in link.
+ * Email directors from the organization's earlier events, or whose details
+ * the host imported from a spreadsheet, an invitation to register for this
+ * one. Each gets a fresh one-time sign-in link.
  */
 export async function sendBandInvites(eventId: string, emails: string[]): Promise<ActionState> {
   const user = await requireUser();
@@ -26,19 +28,26 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const supabase = await createClient();
-  const [{ data: event }, { data: past }] = await Promise.all([
+  const [{ data: event }, { data: past }, { data: prefills }] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, name, status, timezone, starts_on, ends_on, venue_name, band_registration_open, band_registration_deadline")
+      .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, venue_name, band_registration_open, band_registration_deadline")
       .eq("id", eventId)
       .maybeSingle(),
-    // Only hosts get rows back, and only directors from their own earlier events.
+    // Only hosts get rows back: directors from their own earlier events, and
+    // directors whose details they imported from a spreadsheet.
     supabase.rpc("past_band_directors", { p_event: eventId }),
+    supabase.from("band_prefills").select("email, head_director_name").eq("event_id", eventId),
   ]);
-  if (!event || !past?.length) return { error: "Only the event's hosts can send invitations." };
-  if (!registrationIsOpen(event)) return { error: "Open band registration first, so invited directors can register." };
+  if (!event || (!past?.length && !prefills?.length)) return { error: "Only the event's hosts can send invitations." };
+  const w = groupWords(event.event_type);
+  if (!registrationIsOpen(event)) return { error: `Open ${w.one} registration first, so invited directors can register.` };
 
-  const allowed = new Map((past as { email: string; full_name: string }[]).map((p) => [p.email.toLowerCase(), p]));
+  const filledIn = new Set((prefills ?? []).map((p) => p.email.toLowerCase()));
+  const allowed = new Map<string, { full_name: string | null }>([
+    ...(prefills ?? []).map((p) => [p.email.toLowerCase(), { full_name: p.head_director_name }] as const),
+    ...((past ?? []) as { email: string; full_name: string }[]).map((p) => [p.email.toLowerCase(), p] as const),
+  ]);
   const to = [...new Set(parsed.data)].filter((e) => allowed.has(e));
   if (to.length === 0) return { error: "Pick at least one director to invite." };
 
@@ -66,8 +75,10 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
       const { html, text } = emailLayout({
         heading: `You're invited: ${event.name}`,
         paragraphs: [
-          `${name ? `Hi ${name.split(" ")[0]}! ` : ""}${host?.full_name ?? "The host"} would love to have your band at ${event.name}, ${formatDateRange(event.starts_on, event.ends_on)}${event.venue_name ? ` at ${event.venue_name}` : ""}.`,
-          "Your band's details from last time are saved. Check them and register in one tap, or change anything first.",
+          `${name ? `Hi ${name.split(" ")[0]}! ` : ""}${host?.full_name ?? "The host"} would love to have your ${w.one} at ${event.name}, ${formatDateRange(event.starts_on, event.ends_on)}${event.venue_name ? ` at ${event.venue_name}` : ""}.`,
+          filledIn.has(row.email)
+            ? `Your ${w.one}'s details are already filled in from the host's records. Check them, change anything you need, and register.`
+            : `Your ${w.one}'s details from last time are saved. Check them and register in one tap, or change anything first.`,
           ...(event.band_registration_deadline ? [`Registration closes at the end of ${formatDate(event.band_registration_deadline)}.`] : []),
         ],
         button: { label: "Review and register", url: `${origin}/e/${event.slug}/bands/invite/${row.token}` },

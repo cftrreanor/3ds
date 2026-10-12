@@ -10,7 +10,8 @@ type Admin = ReturnType<typeof createAdminClient>;
  * run by the daily job: closed accounts 90 days after closing (and the sign-in
  * accounts of hosts and team members left with no other role), pilot requests
  * a year old that never became an account, directors' details 2 years after
- * the event, booth contacts after 15 months, and uploaded files 30 days after.
+ * the event, booth contacts after 15 months, uploaded files 30 days after, and
+ * directors' details a host imported from a spreadsheet once the event is over.
  */
 export async function runRetention(admin: Admin) {
   // Before the migration is run, every call is a schema error: skip quietly.
@@ -41,6 +42,7 @@ export async function runRetention(admin: Admin) {
   const pilotRequestsPurged = await call("purge_pilot_requests");
   const bandDetailsRemoved = await call("purge_band_directors");
   const boothContactsRemoved = await call("purge_booth_contacts");
+  const bandPrefillsRemoved = await call("purge_band_prefills");
 
   // Sign-in accounts can only be deleted through Supabase's admin API.
   let usersDeleted = 0;
@@ -53,5 +55,5 @@ export async function runRetention(admin: Admin) {
     else usersDeleted++;
   }
 
-  return { accountsClosed, usersDeleted, pilotRequestsPurged, bandDetailsRemoved, boothContactsRemoved, filesDeleted };
+  return { accountsClosed, usersDeleted, pilotRequestsPurged, bandDetailsRemoved, boothContactsRemoved, bandPrefillsRemoved, filesDeleted };
 }
