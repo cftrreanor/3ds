@@ -7,7 +7,7 @@ import { Button } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 
 /**
- * "Delete this event", with a confirmation that spells out what's lost and
+^ * "Delete Event", with a confirmation that spells out what's lost and
  * asks the host to tick that they understand before the red button works.
  */
 export function DeleteEventButton({
@@ -27,7 +27,7 @@ export function DeleteEventButton({
   return (
     <>
       <Button type="button" variant="danger" onClick={() => dialog.current?.showModal()} className="px-3 text-sm">
-        Delete this event
+        Delete Event
       </Button>
       <dialog
         ref={dialog}
@@ -57,7 +57,7 @@ export function DeleteEventButton({
               Cancel
             </Button>
             <SubmitButton variant="warn" disabled={!sure} pendingText="Deleting…">
-              Delete event
+              Delete Event
             </SubmitButton>
           </ActionForm>
         </div>
