@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CardCarousel } from "@/components/card-carousel";
 import { FaqList } from "@/components/faq-list";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
@@ -176,6 +177,9 @@ const faqs = [
   },
 ];
 
+// Each event-type card in the sideways row: most of a phone screen, about a third of a wide one.
+const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%] lg:w-[31%]";
+
 const JOIN = "#join" as const;
 // Every button to the form says the same thing.
 const CTA = "Request a pilot spot";
@@ -285,9 +289,9 @@ export default async function Home() {
             <p className="mt-3 max-w-2xl leading-7 text-muted">
               Choose what kind of event you&apos;re running and {brand.name} gives you exactly the tools it needs.
             </p>
-            <ul className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <CardCarousel label="Kinds of school event">
               {kinds.map((k) => (
-                <li key={k.title} className="flex flex-col rounded-lg border border-border bg-background p-8">
+                <li key={k.title} className={`${carouselCard} flex flex-col rounded-lg border border-border bg-background p-6 sm:p-8`}>
                   <span aria-hidden className="text-3xl">
                     {k.icon}
                   </span>
@@ -309,7 +313,7 @@ export default async function Home() {
                   </Link>
                 </li>
               ))}
-            </ul>
+            </CardCarousel>
           </div>
         </section>
 
