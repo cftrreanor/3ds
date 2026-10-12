@@ -21,7 +21,8 @@ import {
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
-import { setEventPublished } from "../../actions";
+import { deleteEvent, setEventPublished } from "../../actions";
+import { DeleteEventButton } from "./delete-event";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
 import { DemoStart } from "@/components/demo-switcher";
@@ -343,15 +344,16 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
             </a>
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-stretch gap-2">
           {access.isHost && (
             <Link
               href={`/dashboard/events/${eventId}/edit`}
-              className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
+              className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
             >
               Edit details
             </Link>
           )}
+          {access.isHost && <DeleteEventButton name={event.name} action={deleteEvent.bind(null, eventId)} />}
         </div>
       </div>
 

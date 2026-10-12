@@ -3427,4 +3427,51 @@ reset role;
 delete from public.events where id in ('10000000-0000-0000-0000-0000000000d8', '10000000-0000-0000-0000-0000000000d9');
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
+-- Deleting an event (Edit details → Delete this event): only its hosts can,
+-- and everything attached to it goes too (stations, shifts, volunteers, team).
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end,
+                           venue_address, volunteer_signup_open)
+values ('10000000-0000-0000-0000-0000000000e9', :'org_id', 'Delete Me Fair', 'delete-me', 'published',
+        current_date + 20, current_date + 20, now() + interval '20 days', now() + interval '20 days 4 hours',
+        '9 Gone Rd', true);
+insert into public.stations (id, event_id, name, station_type) values
+  ('20000000-0000-0000-0000-0000000000e9', '10000000-0000-0000-0000-0000000000e9', 'Snacks', 'passive');
+insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+  ('30000000-0000-0000-0000-0000000000e9', '20000000-0000-0000-0000-0000000000e9', 'Snack Shift',
+   now() + interval '20 days', now() + interval '20 days 2 hours', 3);
+reset role;
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000000e9', '00000000-0000-0000-0000-000000000003', 'section_lead');
+set role service_role;
+select public.register_volunteer('10000000-0000-0000-0000-0000000000e9', 'Del Volunteer', 'del@example.com', '+15125550188',
+       array['30000000-0000-0000-0000-0000000000e9']::uuid[]);
+reset role;
+
+-- A Section Lead and a stranger can't delete it (the row just isn't theirs to delete).
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+delete from public.events where id = '10000000-0000-0000-0000-0000000000e9';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+delete from public.events where id = '10000000-0000-0000-0000-0000000000e9';
+reset role;
+do $$ begin
+  assert exists (select 1 from public.events where id = '10000000-0000-0000-0000-0000000000e9'),
+         'only a host can delete an event';
+end $$;
+
+-- The host can, and its volunteers, shifts, stations and team go with it.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+delete from public.events where id = '10000000-0000-0000-0000-0000000000e9';
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.events where id = '10000000-0000-0000-0000-0000000000e9'), 'the host deleted the event';
+  assert not exists (select 1 from public.volunteers where email = 'del@example.com'), 'its volunteers are deleted';
+  assert not exists (select 1 from public.shifts where id = '30000000-0000-0000-0000-0000000000e9'), 'its shifts are deleted';
+  assert not exists (select 1 from public.stations where id = '20000000-0000-0000-0000-0000000000e9'), 'its stations are deleted';
+  assert not exists (select 1 from public.event_staff where event_id = '10000000-0000-0000-0000-0000000000e9'), 'its team is removed';
+end $$;
+
 \echo 'All database security tests passed.'
