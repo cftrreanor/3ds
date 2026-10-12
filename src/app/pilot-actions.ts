@@ -14,10 +14,12 @@ import { createAdminClient } from "@/lib/supabase/server";
  * from a browser. Then it emails the request to us (reply goes to them).
  */
 export async function requestPilot(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  // Simple bot traps: a hidden field people never fill in, and a minimum time on the page.
+  // Bot traps: a hidden field people never fill in, a minimum time on the page,
+  // and a real tap, click or key press in the form (scripts filling it in don't make one).
   const startedAt = Number(formData.get("startedAt"));
-  if (String(formData.get("website") ?? "") || !startedAt || Date.now() - startedAt < 2500) {
-    // A real person who autofills and sends very fast can land here too.
+  const touched = formData.get("touched") === "1";
+  if (String(formData.get("website") ?? "") || !touched || !startedAt || Date.now() - startedAt < 2500) {
+    // A real person who autofills and sends very fast can land here too; trying again works.
     return { error: "That was quick! Please wait a moment, then press Request a pilot spot again." };
   }
 

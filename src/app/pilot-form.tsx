@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { ActionForm, useFieldErrors } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, FieldError, Input, Textarea } from "@/components/ui";
@@ -17,21 +17,31 @@ export function PilotForm({ action }: { action: (prev: ActionState, formData: Fo
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [startedAt] = useState(() => Date.now());
+  const touched = useRef<HTMLInputElement>(null);
+  // A real tap, click or key press in the form. Browsers mark these as coming
+  // from a person (isTrusted); events faked by a script aren't.
+  const markTouched = (e: SyntheticEvent) => {
+    if (e.nativeEvent.isTrusted && touched.current) touched.current.value = "1";
+  };
   if (sentTo !== null) return <Sent email={sentTo} />;
   return (
     <ActionForm action={action} validate={validate} onSuccess={() => setSentTo(email.trim())} className="space-y-5" noValidate>
-      {/* Bot traps: people never see or fill this in, and bots submit instantly. */}
-      <input type="hidden" name="startedAt" value={startedAt} />
-      <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
-        <label>
-          Website
-          <input type="text" name="website" tabIndex={-1} autoComplete="off" />
-        </label>
+      <div className="space-y-5" onPointerDownCapture={markTouched} onKeyDownCapture={markTouched} onFocusCapture={markTouched}>
+        {/* Bot traps: a box people never see (bots fill in everything), a minimum
+            time on the page, and proof a person actually touched the form. */}
+        <input type="hidden" name="startedAt" value={startedAt} />
+        <input type="hidden" name="touched" ref={touched} defaultValue="" />
+        <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+          <label>
+            Website
+            <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+          </label>
+        </div>
+        <Fields onEmail={setEmail} />
+        <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
+          Request a pilot spot
+        </SubmitButton>
       </div>
-      <Fields onEmail={setEmail} />
-      <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
-        Request a pilot spot
-      </SubmitButton>
     </ActionForm>
   );
 }
