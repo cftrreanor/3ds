@@ -149,7 +149,7 @@ export function EmailPreview({ subject, body, vars, note }: { subject: string; b
         </p>
         <p className="font-semibold">{filledSubject || <span className="text-muted">(no subject)</span>}</p>
       </div>
-      <iframe title="Email preview" sandbox="" srcDoc={html} className="h-[32rem] w-full bg-[#f4f2ee]" />
+      <iframe title="Email preview" sandbox="" srcDoc={html} className="h-[32rem] w-full bg-[#fcfbf8]" />
     </div>
   );
 }

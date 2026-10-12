@@ -23,7 +23,7 @@ export function Mark({ size, logo }: { size: number; logo: string }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#1b1938",
+        background: "#0b3558",
         borderRadius: size * 0.2,
       }}
     >

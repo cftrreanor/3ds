@@ -111,28 +111,28 @@ const steps = [
     n: "1",
     title: "Pick the kind of event",
     body: "Band contest, group event, school fair, volunteer event or school visitor event.",
-    screen: "/screens/pick-event-type.webp",
+    screen: "/screens/pick-event-type-blue.webp",
     alt: "Choosing the kind of event: band contest, group event, volunteer event, school visitor event or school fair.",
   },
   {
     n: "2",
     title: "Set it up",
     body: "Dates, venue, stations and shifts, or registration questions.",
-    screen: "/screens/set-up-shifts.webp",
+    screen: "/screens/set-up-shifts-blue.webp",
     alt: "Setting up a parking station with its morning and late-morning volunteer shifts.",
   },
   {
     n: "3",
     title: "Share a link or QR code",
     body: "Volunteers, bands, groups and parents sign up on their own phones.",
-    screen: "/screens/volunteer-signup.webp",
+    screen: "/screens/volunteer-signup-blue.webp",
     alt: "A volunteer picking a shift on the event's sign-up page.",
   },
   {
     n: "4",
     title: "Run the day",
     body: "Check everyone in, see who's here, and post updates as things change.",
-    screen: "/screens/event-day-dashboard.webp",
+    screen: "/screens/event-day-dashboard-blue.webp",
     alt: "The contest day dashboard: a schedule-change banner and how many bands have parked, checked in and warmed up.",
   },
 ];
@@ -278,7 +278,7 @@ export default async function Home() {
         </Link>
         <JumpLink
           href={JOIN}
-          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold sm:px-5 sm:text-sm text-[#1b1938] transition hover:opacity-90"
+          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold sm:px-5 sm:text-sm text-header transition hover:opacity-90"
         >
           {CTA}
         </JumpLink>
@@ -303,7 +303,7 @@ export default async function Home() {
               offices. Free during your pilot; spots are limited.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-[#1b1938] hover:opacity-90">
+              <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
                 {CTA}
               </JumpLink>
               <JumpLink href="#how" className="rounded-md px-5 py-3 font-medium text-white ring-1 ring-white/30 hover:bg-white/10">
