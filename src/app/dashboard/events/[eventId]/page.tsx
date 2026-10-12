@@ -34,6 +34,8 @@ import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
+import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { SetupGuide } from "@/components/setup-guide";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -60,7 +62,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, band_registration_open, performance_order_published, director_info",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -274,8 +276,37 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
         ])
       : null;
 
+  // Hosts: the setup checklist and what publishing will do.
+  const setup: SetupFacts | null = access.isHost
+    ? {
+        eventId,
+        eventType: event.event_type,
+        published: event.status === "published",
+        stations: stations.length,
+        shifts: (shifts ?? []).length,
+        checkInStops: path.length,
+        team: staffRows.length + openInvites.length + hosts.filter((h) => h.role === "admin").length,
+        files: files.length,
+        volunteerSignupOpen: event.volunteer_signup_open,
+        bandRegistrationOpen: Boolean(event.band_registration_open),
+        scheduleShared: Boolean(event.performance_order_published),
+        directorInfo: Boolean(event.director_info?.trim()),
+        pathRooms: roomsHere
+          ? ((await supabase.from("rooms").select("id", { count: "exact", head: true }).eq("event_id", eventId).not("path_order", "is", null)).count ?? 0)
+          : 0,
+        booths: hasBooths(event.event_type)
+          ? ((await supabase.from("fair_booths").select("id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
+          : 0,
+        parentRegistrationOpen: event.parent_registration_open,
+        parentClosesAt: Boolean(event.parent_registration_closes_at),
+      }
+    : null;
+  const checklist = setup ? setupChecklist(setup) : null;
+
   return (
-    <div>
+    <div className={checklist ? "pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8 lg:pb-0" : undefined}>
+      {checklist && <SetupGuide checklist={checklist} />}
+      <div className="min-w-0">
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
         ← All events
       </Link>
@@ -320,23 +351,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
       <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
 
-      {access.isHost && (
-        <div className="mt-6">
-          {event.status !== "published" ? (
-            <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
-              Publish event
-            </ActionButton>
-          ) : (
-            <ActionButton
-              action={setEventPublished.bind(null, eventId, false)}
-              variant="stop"
-              confirmMessage="Unpublish? The public pages will be hidden and signup will close."
-            >
-              Unpublish event
-            </ActionButton>
-          )}
-        </div>
-      )}
+      {setup && checklist && <PublishPanel facts={setup} remaining={checklist.remaining} />}
       <PublicPageCard url={publicUrl} published={event.status === "published"} slug={event.slug} qr={publicQr} />
 
       {(files.length > 0 || access.isHost) && (
@@ -749,7 +764,90 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
           </Card>
         </section>
       )}
+      </div>
     </div>
+  );
+}
+
+/**
+ * Publish or unpublish, with what that does in plain words, so hosts know
+ * when they're ready and that nothing is sent or locked in.
+ */
+function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: ReturnType<typeof setupChecklist>["remaining"] }) {
+  const words = groupWords(facts.eventType);
+  if (facts.published) {
+    const live = [
+      ...(facts.stations > 0 || facts.eventType === "volunteer"
+        ? [{ label: "Volunteer sign-up", open: facts.volunteerSignupOpen, href: "volunteering" }]
+        : []),
+      ...(hasEnsembles(facts.eventType) ? [{ label: `${words.One} registration`, open: facts.bandRegistrationOpen, href: "bands" }] : []),
+      ...(hasParents(facts.eventType) ? [{ label: "Parent registration", open: facts.parentRegistrationOpen, href: "parents" }] : []),
+    ];
+    return (
+      <Card id="publish" className="mt-6 scroll-mt-6">
+        <h2 className="text-lg font-semibold">Your event is live</h2>
+        <p className="mt-1 text-sm text-muted">Your public page is online. Here&apos;s what&apos;s open right now:</p>
+        {live.length > 0 && (
+          <ul className="mt-3 space-y-2 text-sm">
+            {live.map((l) => (
+              <li key={l.label} className="flex flex-wrap items-center gap-2">
+                <Badge tone={l.open ? "success" : "neutral"}>{l.open ? "Open" : "Closed"}</Badge>
+                <span>{l.label}</span>
+                <Link href={`/dashboard/events/${facts.eventId}/${l.href}`} className="font-medium text-brand underline-offset-4 hover:underline">
+                  {l.open ? "Manage" : "Open it"}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-4 border-t border-border pt-4">
+          <ActionButton
+            action={setEventPublished.bind(null, facts.eventId, false)}
+            variant="stop"
+            confirmMessage="Unpublish? The public pages will be hidden and volunteer sign-up will close. You can publish again anytime."
+          >
+            Unpublish event
+          </ActionButton>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card id="publish" className="mt-6 scroll-mt-6">
+      <h2 className="text-lg font-semibold">{remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      {remaining.length ? (
+        <div className="mt-3 rounded-md bg-warning-soft p-3 text-sm">
+          <p className="font-medium">We recommend finishing {remaining.length === 1 ? "this" : "these"} first:</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {remaining.map((r) => (
+              <li key={r.id}>
+                <Link href={r.href} className="font-medium text-brand underline-offset-4 hover:underline">
+                  {r.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-2 flex items-center gap-2 text-sm font-medium text-success">
+          <span aria-hidden>✓</span> Everything your event needs is set up.
+        </p>
+      )}
+      <p className="mt-4 text-sm font-semibold">When you publish:</p>
+      <ul className="mt-2 space-y-1.5 text-sm text-muted">
+        {publishEffects(facts).map((line) => (
+          <li key={line} className="flex gap-2">
+            <span aria-hidden className="text-success">✓</span>
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-5">
+        <ActionButton action={setEventPublished.bind(null, facts.eventId, true)} variant="go" pendingText="Publishing…">
+          Publish event
+        </ActionButton>
+      </div>
+    </Card>
   );
 }
 
