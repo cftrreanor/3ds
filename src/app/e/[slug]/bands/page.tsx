@@ -56,6 +56,8 @@ export default async function BandRegistrationPage({ params }: Params) {
   const previous: PreviousBand[] = myBands
     // Groups copy from groups, bands from bands.
     .filter((b) => hasRooms(b.events?.event_type) === hasRooms(event.event_type))
+    // Not ones whose details were removed 2 years after their event (purge_band_directors).
+    .filter((b) => b.head_director_email)
     .filter((b) => {
       const k = `${b.band_name}|${b.school_name}`.toLowerCase();
       if (seen.has(k)) return false;

@@ -3185,4 +3185,246 @@ do $$ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Data retention (privacy policy): closing accounts, old pilot requests,
+-- directors' details after 2 years, booth contacts after 15 months, files
+-- after 30 days. Only FieldCommand admins close accounts; only the server
+-- runs the clean-ups.
+-- ---------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-0000-0000-0000000000f8', 'closehost@example.com', '{"full_name":"Cleo Closing"}'),
+  ('00000000-0000-0000-0000-0000000000f9', 'closeteam@example.com', '{"full_name":"Tad Team"}');
+insert into public.organizations (id, name, slug)
+values ('60000000-0000-0000-0000-000000000001', 'Closing Boosters', 'closing-boosters');
+insert into public.organization_members (organization_id, user_id, role)
+values ('60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000f8', 'owner');
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000a9', '60000000-0000-0000-0000-000000000001', 'Closing Contest', 'closing-contest',
+        'published', current_date + 20, current_date + 20, now() + interval '20 days', now() + interval '20 days 6 hours', '9 Close Rd');
+-- Their team member also directs a band at another organization's contest, so keeps their account.
+insert into public.event_staff (event_id, user_id, role)
+values ('10000000-0000-0000-0000-0000000000a9', '00000000-0000-0000-0000-0000000000f9', 'section_lead');
+insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone, student_count, chaperone_count)
+values ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f9', 'Team HS', 'Team Band', '4A', 'addr',
+        'closeteam@example.com', 'Tad Team', 'closeteam@example.com', '+15125550109', 40, 5);
+insert into public.pilot_requests (name, email, organization, organization_id)
+values ('Cleo Closing', 'closehost@example.com', 'Closing Boosters', '60000000-0000-0000-0000-000000000001');
+insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences)
+values ('10000000-0000-0000-0000-0000000000a9', 'Parking', '10000000-0000-0000-0000-0000000000a9/parking.pdf', 'parking.pdf',
+        'application/pdf', 100, array['public']);
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006') on conflict do nothing;
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform public.admin_close_account('60000000-0000-0000-0000-000000000001', null);
+    raise exception 'FAIL: a host closed an account';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.purge_closed_accounts();
+    raise exception 'FAIL: a browser ran the closed-account clean-up';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.user_deletion_queue;
+    raise exception 'FAIL: a browser read the account deletion queue';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.purge_band_directors();
+    raise exception 'FAIL: a browser ran the directors'' details clean-up';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform * from public.expired_event_files();
+    raise exception 'FAIL: a browser listed expired files';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+select public.admin_close_account('60000000-0000-0000-0000-000000000001', 'Moving to another tool');
+reset role;
+do $$ begin
+  assert (select closed_at is not null from public.organizations where id = '60000000-0000-0000-0000-000000000001'), 'an admin closes the account';
+end $$;
+set role authenticated;
+do $$ begin
+  begin
+    perform public.admin_close_account('60000000-0000-0000-0000-000000000001', null);
+    raise exception 'FAIL: closed an account twice';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+end $$;
+select public.admin_reopen_account('60000000-0000-0000-0000-000000000001', 'Changed their mind');
+reset role;
+do $$ begin
+  assert (select closed_at is null from public.organizations where id = '60000000-0000-0000-0000-000000000001'), 'and can reopen it';
+end $$;
+set role authenticated;
+select public.admin_close_account('60000000-0000-0000-0000-000000000001', null);
+reset role;
+do $$ begin
+  assert (select count(*) from public.admin_log where organization_id = '60000000-0000-0000-0000-000000000001'
+            and action in ('account_closed', 'account_reopened')) = 3, 'closing and reopening are logged';
+end $$;
+
+set role service_role;
+do $$ begin
+  assert public.purge_closed_accounts() = 0, 'a just-closed account stays for 90 days';
+end $$;
+reset role;
+update public.organizations set closed_at = now() - interval '91 days' where id = '60000000-0000-0000-0000-000000000001';
+set role service_role;
+do $$ begin
+  assert exists (select 1 from public.expired_event_files() where path = '10000000-0000-0000-0000-0000000000a9/parking.pdf'),
+         'its files are handed to the server to remove from storage first';
+  assert public.purge_closed_accounts() = 1, '90 days after closing, the account goes';
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.organizations where id = '60000000-0000-0000-0000-000000000001'), 'no organization left';
+  assert not exists (select 1 from public.events where id = '10000000-0000-0000-0000-0000000000a9'), 'nor its events';
+  assert not exists (select 1 from public.pilot_requests where email = 'closehost@example.com'), 'nor its pilot request';
+  assert exists (select 1 from public.user_deletion_queue where user_id = '00000000-0000-0000-0000-0000000000f8'),
+         'its host, with no other role, is queued for account deletion';
+  assert not exists (select 1 from public.user_deletion_queue where user_id = '00000000-0000-0000-0000-0000000000f9'),
+         'a team member who directs a band elsewhere keeps their account';
+end $$;
+set role service_role;
+do $$ begin
+  assert (select array_agg(u) from public.user_deletions_due() u) = array['00000000-0000-0000-0000-0000000000f8'::uuid],
+         'the server is handed the host to delete';
+end $$;
+reset role;
+-- Someone who picks up a role before the server gets to them leaves the queue.
+insert into public.organizations (id, name, slug) values ('60000000-0000-0000-0000-000000000002', 'New Start PTO', 'new-start');
+insert into public.organization_members (organization_id, user_id, role)
+values ('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-0000000000f8', 'owner');
+set role service_role;
+do $$ begin
+  assert not exists (select 1 from public.user_deletions_due()), 'a host who started again isn''t deleted';
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.user_deletion_queue), 'and is out of the queue';
+end $$;
+delete from public.organizations where id = '60000000-0000-0000-0000-000000000002';
+
+-- Pilot requests that never became an account go after a year.
+insert into public.pilot_requests (name, email, organization, created_at) values
+  ('Old Lead', 'oldlead@example.com', 'Old PTO', now() - interval '13 months'),
+  ('New Lead', 'newlead2@example.com', 'New PTO', now() - interval '11 months');
+insert into public.pilot_requests (name, email, organization, organization_id, created_at)
+values ('Old Customer', 'oldcustomer@example.com', 'Customer Boosters', :'org_id', now() - interval '13 months');
+set role service_role;
+do $$ begin
+  assert public.purge_pilot_requests() = 1, 'a request over a year old with no account is deleted';
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.pilot_requests where email = 'oldlead@example.com'), 'the old lead is gone';
+  assert exists (select 1 from public.pilot_requests where email = 'newlead2@example.com'), 'a newer one stays';
+  assert exists (select 1 from public.pilot_requests where email = 'oldcustomer@example.com'), 'one that became an account stays';
+end $$;
+delete from public.pilot_requests where email in ('newlead2@example.com', 'oldcustomer@example.com');
+
+-- Directors' details are removed 2 years after the event; the band's name and headcounts stay.
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000b8', :'org_id', 'Ancient Contest', 'ancient-contest', 'published',
+        current_date - interval '2 years 5 days', current_date - interval '2 years 5 days',
+        now() - interval '2 years 5 days', now() - interval '2 years 5 days' + interval '6 hours', '1 Past Ln'),
+       ('10000000-0000-0000-0000-0000000000b9', :'org_id', 'Recent Contest', 'recent-contest', 'published',
+        current_date - interval '2 years' + interval '5 days', current_date - interval '2 years' + interval '5 days',
+        now() - interval '2 years' + interval '5 days', now() - interval '2 years' + interval '5 days 6 hours', '2 Past Ln');
+insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          assistant_directors, student_count, chaperone_count, special_needs)
+values ('40000000-0000-0000-0000-0000000000b8', '10000000-0000-0000-0000-0000000000b8', '00000000-0000-0000-0000-000000000005',
+        'Old HS', 'Old Band', '5A', '1 Old School Rd', 'band@example.com', 'Bo Band', 'band@example.com', '+15125550105',
+        array['Ann Assistant'], 90, 10, 'Ramp for a wheelchair'),
+       ('40000000-0000-0000-0000-0000000000b9', '10000000-0000-0000-0000-0000000000b9', '00000000-0000-0000-0000-000000000005',
+        'Old HS', 'Newer Band', '5A', '1 Old School Rd', 'band@example.com', 'Bo Band', 'band@example.com', '+15125550105',
+        '{}', 80, 10, null);
+insert into public.band_invitations (event_id, email) values ('10000000-0000-0000-0000-0000000000b8', 'band@example.com');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert exists (select 1 from public.past_band_directors('10000000-0000-0000-0000-00000000000a') d where 'Old Band (Old HS)' = any (d.bands)),
+         'before the clean-up, the host can invite the old band''s director back';
+end $$;
+reset role;
+set role service_role;
+do $$ begin
+  assert public.purge_band_directors() = 1, 'one registration over 2 years old loses its director''s details';
+  assert public.purge_band_directors() = 0, 'and only once';
+end $$;
+reset role;
+do $$ begin
+  assert (select head_director_name = '' and head_director_email = '' and head_director_phone = '' and contact_email = ''
+             and school_address = '' and assistant_directors = '{}' and special_needs is null and details_removed_at is not null
+            from public.bands where id = '40000000-0000-0000-0000-0000000000b8'), 'no names, emails, phones, address or notes left';
+  assert (select band_name = 'Old Band' and school_name = 'Old HS' and student_count = 90
+            from public.bands where id = '40000000-0000-0000-0000-0000000000b8'), 'the band, school and headcount stay';
+  assert (select head_director_email = 'band@example.com' from public.bands where id = '40000000-0000-0000-0000-0000000000b9'),
+         'a registration under 2 years old keeps its details';
+  assert not exists (select 1 from public.band_invitations where event_id = '10000000-0000-0000-0000-0000000000b8'),
+         'the old event''s invitations are gone';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.past_band_directors('10000000-0000-0000-0000-00000000000a') d where 'Old Band (Old HS)' = any (d.bands)),
+         'after it, the old registration no longer offers its director to invite';
+end $$;
+reset role;
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000b8', '10000000-0000-0000-0000-0000000000b9');
+
+-- Fair booth contacts are removed 15 months after the fair.
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000c8', :'org_id', 'Old Fair', 'old-fair', 'published', 'fair',
+        current_date - interval '16 months', current_date - interval '16 months',
+        now() - interval '16 months', now() - interval '16 months' + interval '4 hours', '1 Fair Rd'),
+       ('10000000-0000-0000-0000-0000000000c9', :'org_id', 'Last Year Fair', 'last-year-fair', 'published', 'fair',
+        current_date - interval '14 months', current_date - interval '14 months',
+        now() - interval '14 months', now() - interval '14 months' + interval '4 hours', '2 Fair Rd');
+insert into public.fair_booths (event_id, title, contact_name, contact_email, contact_phone) values
+  ('10000000-0000-0000-0000-0000000000c8', 'Old Dunk Tank', 'Pat Partner', 'pat@partner.example', '+15125550110'),
+  ('10000000-0000-0000-0000-0000000000c9', 'New Dunk Tank', 'Pat Partner', 'pat@partner.example', '+15125550110');
+set role service_role;
+do $$ begin
+  assert public.purge_booth_contacts() = 1, 'a booth at a fair over 15 months ago loses its contact';
+end $$;
+reset role;
+do $$ begin
+  assert (select contact_name is null and contact_email is null and contact_phone is null and title = 'Old Dunk Tank'
+            from public.fair_booths where event_id = '10000000-0000-0000-0000-0000000000c8'), 'the booth stays, without its contact';
+  assert (select contact_email = 'pat@partner.example' from public.fair_booths where event_id = '10000000-0000-0000-0000-0000000000c9'),
+         'a fair 14 months ago keeps its contacts';
+end $$;
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000c8', '10000000-0000-0000-0000-0000000000c9');
+
+-- Uploaded files are listed for removal 30 days after the event.
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000d8', :'org_id', 'Old Files Contest', 'old-files', 'published',
+        current_date - 35, current_date - 35, now() - interval '35 days', now() - interval '35 days' + interval '6 hours', '1 File Rd'),
+       ('10000000-0000-0000-0000-0000000000d9', :'org_id', 'Recent Files Contest', 'recent-files', 'published',
+        current_date - 25, current_date - 25, now() - interval '25 days', now() - interval '25 days' + interval '6 hours', '2 File Rd');
+insert into public.event_files (event_id, label, path, file_name, content_type, size_bytes, audiences) values
+  ('10000000-0000-0000-0000-0000000000d8', 'Old map', '10000000-0000-0000-0000-0000000000d8/map.pdf', 'map.pdf', 'application/pdf', 100, array['public']),
+  ('10000000-0000-0000-0000-0000000000d9', 'New map', '10000000-0000-0000-0000-0000000000d9/map.pdf', 'map.pdf', 'application/pdf', 100, array['public']);
+set role service_role;
+do $$ begin
+  assert (select array_agg(path) from public.expired_event_files()) = array['10000000-0000-0000-0000-0000000000d8/map.pdf'],
+         'only the file of the event over 30 days ago is due for removal';
+end $$;
+reset role;
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000d8', '10000000-0000-0000-0000-0000000000d9');
+delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
+
 \echo 'All database security tests passed.'
