@@ -11,10 +11,10 @@ import { brand } from "@/lib/brand";
 //   ---                        (on its own line: a divider)
 //   A blank line starts a new paragraph.
 
-const INK = "#292827";
-const MUTED = "#5f5c59";
-const BRAND = "#1b1938";
-const LINE = "#e8e4dd";
+const INK = "#0a0a0a";
+const MUTED = "#4b5f72";
+const BRAND = "#0b3558";
+const LINE = "#dfe3e8";
 
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
