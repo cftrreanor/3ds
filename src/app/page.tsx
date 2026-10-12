@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CardCarousel } from "@/components/card-carousel";
 import { FaqList } from "@/components/faq-list";
 import { JumpLink } from "@/components/jump-link";
+import { PhoneFrame } from "@/components/phone-frame";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
@@ -104,11 +105,36 @@ const privacy = [
   },
 ];
 
+// Each step shows a phone screenshot (public/screens/, made-up sample data).
 const steps = [
-  { n: "1", title: "Pick the kind of event", body: "Band contest, group event, school fair, volunteer event or school visitor event." },
-  { n: "2", title: "Set it up", body: "Dates, venue, stations and shifts, or registration questions." },
-  { n: "3", title: "Share a link or QR code", body: "Volunteers, bands, groups and parents sign up on their own phones." },
-  { n: "4", title: "Run the day", body: "Check everyone in, see who's here, and post updates as things change." },
+  {
+    n: "1",
+    title: "Pick the kind of event",
+    body: "Band contest, group event, school fair, volunteer event or school visitor event.",
+    screen: "/screens/pick-event-type.webp",
+    alt: "Choosing the kind of event: band contest, group event, volunteer event, school visitor event or school fair.",
+  },
+  {
+    n: "2",
+    title: "Set it up",
+    body: "Dates, venue, stations and shifts, or registration questions.",
+    screen: "/screens/set-up-shifts.webp",
+    alt: "Setting up a parking station with its morning and late-morning volunteer shifts.",
+  },
+  {
+    n: "3",
+    title: "Share a link or QR code",
+    body: "Volunteers, bands, groups and parents sign up on their own phones.",
+    screen: "/screens/volunteer-signup.webp",
+    alt: "A volunteer picking a shift on the event's sign-up page.",
+  },
+  {
+    n: "4",
+    title: "Run the day",
+    body: "Check everyone in, see who's here, and post updates as things change.",
+    screen: "/screens/event-day-dashboard.webp",
+    alt: "The contest day dashboard: a schedule-change banner and how many bands have parked, checked in and warmed up.",
+  },
 ];
 
 const pilot = [
@@ -333,9 +359,10 @@ export default async function Home() {
         <section id="how" tabIndex={-1} className="scroll-mt-20 border-t border-border outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">How it works</h2>
-            <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <ol className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-4">
               {steps.map((s) => (
                 <li key={s.n}>
+                  <PhoneFrame src={s.screen} alt={s.alt} className="mx-auto mb-6 max-w-[260px]" />
                   <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand font-semibold text-brand-foreground">
                     {s.n}
                   </span>
