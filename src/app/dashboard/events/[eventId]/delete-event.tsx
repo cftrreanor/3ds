@@ -7,7 +7,7 @@ import { Button } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 
 /**
-^ * "Delete Event", with a confirmation that spells out what's lost and
+ * "Delete Event", with a confirmation that spells out what's lost and
  * asks the host to tick that they understand before the red button works.
  */
 export function DeleteEventButton({
