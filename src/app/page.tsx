@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FaqList } from "@/components/faq-list";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
@@ -358,14 +359,7 @@ export default async function Home() {
         <section id="faq" className="scroll-mt-20 border-t border-border">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Questions schools ask</h2>
-            <dl className="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-2">
-              {faqs.map((f) => (
-                <div key={f.q}>
-                  <dt className="font-semibold">{f.q}</dt>
-                  <dd className="mt-2 leading-7 text-muted">{f.a}</dd>
-                </div>
-              ))}
-            </dl>
+            <FaqList faqs={faqs} />
           </div>
         </section>
 

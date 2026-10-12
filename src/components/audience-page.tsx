@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requestPilot } from "@/app/pilot-actions";
 import { PilotForm } from "@/app/pilot-form";
+import { FaqList } from "@/components/faq-list";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
@@ -101,14 +102,9 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
         <section className="border-b border-border bg-surface">
           <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
             <h2 className="text-xl font-semibold">What it replaces</h2>
-            <ul className="mt-5 grid gap-x-8 gap-y-3 leading-7 sm:grid-cols-2">
+            <ul className="mt-5 grid list-disc gap-x-10 gap-y-3 pl-5 leading-7 text-muted marker:text-muted sm:grid-cols-2">
               {a.replaces.map((r) => (
-                <li key={r} className="flex gap-2 text-muted">
-                  <span aria-hidden className="text-danger">
-                    ✕
-                  </span>
-                  <span>{r}</span>
-                </li>
+                <li key={r}>{r}</li>
               ))}
             </ul>
           </div>
@@ -153,14 +149,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
         <section id="faq" tabIndex={-1} className="scroll-mt-20 border-t border-border outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Common questions</h2>
-            <dl className="mt-10 grid gap-x-10 gap-y-8 md:grid-cols-2">
-              {a.faqs.map((f) => (
-                <div key={f.q}>
-                  <dt className="font-semibold">{f.q}</dt>
-                  <dd className="mt-2 leading-7 text-muted">{f.a}</dd>
-                </div>
-              ))}
-            </dl>
+            <FaqList faqs={a.faqs} />
           </div>
         </section>
 
