@@ -12,6 +12,8 @@
   --foreground: #292827;
   --muted: #73706d;
   --border: #e8e4dd;
+  /* Edges of text boxes and options: 3:1 or more, so fields show in glare. */
+  --field-border: #8a8580;
   /* Indigo navy: filled buttons, selection, the header. */
   --brand: #1b1938;
   --brand-hover: #0e0c1f;
@@ -49,6 +51,7 @@
     --foreground: #f4f2ee;
     --muted: #bcbac9;
     --border: #3f3a52;
+    --field-border: #7d7896;
     --brand: #c9b4fa;
     --brand-hover: #d9cafc;
     --brand-foreground: #1b1938;
@@ -78,6 +81,7 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
+  --color-field-border: var(--field-border);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-foreground: var(--brand-foreground);
