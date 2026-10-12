@@ -1,0 +1,54 @@
+name: Vercel backup deploy
+
+# Vercel sometimes misses a push to main (GitHub rate-limits it), so the live
+# site doesn't update. After each push to main this waits a few minutes; if
+# Vercel still hasn't started on that commit, it asks Vercel to build main
+# through a Deploy Hook. The hook's link is a repository secret named
+# VERCEL_DEPLOY_HOOK_URL or BACKUP (Settings → Secrets and variables →
+# Actions); without either, this does nothing.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  deployments: read
+  statuses: read
+
+# A newer push to main replaces an older one still waiting.
+concurrency:
+  group: vercel-backup-deploy
+  cancel-in-progress: true
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wait for Vercel, and nudge it if it missed this commit
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL || secrets.BACKUP }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "No VERCEL_DEPLOY_HOOK_URL or BACKUP secret, so nothing to do."
+            exit 0
+          fi
+          # Vercel reports on a commit with a GitHub deployment and a "Vercel" status.
+          seen() {
+            deployments=$(gh api "repos/$REPO/deployments?sha=$SHA" --jq 'length')
+            statuses=$(gh api "repos/$REPO/commits/$SHA/status" --jq '[.statuses[] | select(.context | startswith("Vercel"))] | length')
+            [ "$deployments" -gt 0 ] || [ "$statuses" -gt 0 ]
+          }
+          for _ in 1 2 3 4 5 6; do
+            sleep 30
+            if seen; then
+              echo "Vercel picked up this commit on its own."
+              exit 0
+            fi
+          done
+          echo "Vercel hasn't started on this commit after 3 minutes: triggering the deploy hook."
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "Deploy hook triggered. Vercel is building main."
