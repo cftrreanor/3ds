@@ -1,9 +1,14 @@
 import { EVENT_TYPES } from "@/lib/event-types";
 import { normalizePhone } from "@/lib/phone";
 
+// The order of the event-type cards on the home page, so the form matches them.
+const HOME_ORDER = ["band_contest", "group_event", "fair", "volunteer", "school_visit"];
+
 /** The event types a pilot request can ask about (the five kinds, plus "something else"). */
 export const PILOT_EVENT_TYPES = [
-  ...EVENT_TYPES.map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as string })),
+  ...EVENT_TYPES.map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as string })).sort(
+    (a, b) => HOME_ORDER.indexOf(a.value) - HOME_ORDER.indexOf(b.value),
+  ),
   { value: "other", label: "Something else", icon: "✨" },
 ];
 

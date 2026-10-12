@@ -15,7 +15,7 @@ colors:
   hairline-dark: "#3F3A52"
   field-border: "#8A8580"   # text-box and option edges (3:1 on white); dark mode #7D7896
   ink: "#292827"
-  ink-mute: "#73706D"
+  ink-mute: "#5F5C59"   # 6.6:1 on white (was #73706D, too faint on tinted panels)
   on-dark-mute: "#BCBAC9"
   success: "#16794A"
   warning: "#854600"

@@ -10,7 +10,7 @@
   --raised: #ffffff;
   /* Warm dark grey ink, never pure black. */
   --foreground: #292827;
-  --muted: #73706d;
+  --muted: #5f5c59;
   --border: #e8e4dd;
   /* Edges of text boxes and options: 3:1 or more, so fields show in glare. */
   --field-border: #8a8580;
@@ -166,6 +166,12 @@
   :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
+  }
+
+  /* On the always-dark areas (header bar, home page hero, closing teal band)
+     the indigo focus ring would vanish into the background: use white there. */
+  :where(.bg-header, .hero-sky, .bg-teal-deep) {
+    --focus: #ffffff;
   }
 }
 
