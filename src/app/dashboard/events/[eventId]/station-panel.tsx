@@ -111,7 +111,9 @@ export function StationPanel({
           <DeleteButton
             action={deleteStation.bind(null, eventId, station.id)}
             label={`Delete station ${station.name}`}
-            confirmMessage={`Delete “${station.name}” and all of its shifts?`}
+            text="Delete Station"
+            destructive
+            confirmMessage={`Delete “${station.name}”? Its shifts, and everyone's sign-ups for them, are deleted too. This can't be undone.`}
           />
         )}
       </div>

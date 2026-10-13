@@ -454,15 +454,23 @@ export function DeleteButton({
   label,
   confirmMessage,
   text = "Delete",
+  destructive = false,
 }: {
   action: Action;
   label: string;
   confirmMessage: string;
   text?: string;
+  /** A full-size red outlined button, for deleting something big (a whole station). */
+  destructive?: boolean;
 }) {
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="contents">
-      <SubmitButton variant="ghost" pendingText="Working…" className="min-h-9 px-2 text-xs" aria-label={label}>
+      <SubmitButton
+        variant={destructive ? "danger" : "ghost"}
+        pendingText={destructive ? "Deleting…" : "Working…"}
+        className={destructive ? "text-sm" : "min-h-9 px-2 text-xs"}
+        aria-label={destructive ? undefined : label}
+      >
         {text}
       </SubmitButton>
     </ActionForm>
