@@ -11,7 +11,8 @@ import {
   setBandRegistrationOpen,
   updateBandSettings,
 } from "@/app/dashboard/band-actions";
-import { Badge, Card } from "@/components/ui";
+import { Card } from "@/components/ui";
+import { SetupStep, StepStatus } from "@/components/setup-step";
 import { requireUser } from "@/lib/auth";
 import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
 import { importBandPrefills } from "@/app/dashboard/import-actions";
@@ -157,164 +158,196 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const builderFinals: FinalsSlot[] = finalsSlots.map((f) => ({ bandId: f.band_id ?? "", ...toTimes(f, days.at(-1)!) }));
 
 
+  // The steps, in order. Inviting directors is optional, so it never holds the others back.
+  const settingsDone = Boolean(contact);
+  const published = event.status === "published";
+  const scheduleDone = event.performance_order_published;
+  const invitesSent = (inviteData ?? []).length > 0;
+  const toInvite = directors.some((d) => !d.registered && !d.invited);
+  // Registration counts as dealt with once it's open, or it closed after directors registered.
+  const registrationDone = regOpen || pastDeadline || bands.length > 0;
+  // Open the first step that still needs doing; the rest stay folded.
+  const openStep = !settingsDone ? 1 : !registrationDone ? 2 : regOpen && toInvite ? 3 : !scheduleDone ? 4 : 0;
+  const registrationStatus = regOpen ? (
+    <StepStatus done doneLabel="Open" />
+  ) : (
+    <StepStatus
+      done={false}
+      todoLabel={pastDeadline ? "Closed: deadline passed" : bands.length > 0 ? "Closed" : !published ? "Publish the event first" : "Needs to be done"}
+    />
+  );
+
   return (
     <div>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{w.One} Registration</h1>
+      <p className="mt-2 text-sm text-muted">
+        {bands.length} {bands.length === 1 ? w.one : w.many} registered · Registration {regOpen ? "open" : "closed"}
+      </p>
 
-      <section className="mt-6">
-        <Card className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={regOpen ? "brand" : "neutral"}>
-              {event.status !== "published"
-                ? "Event not published"
-                : regOpen
-                  ? "Registration open"
-                  : pastDeadline
-                    ? "Closed: deadline passed"
-                    : "Registration closed"}
-            </Badge>
-            <span className="text-sm text-muted">
-              {bands.length} {bands.length === 1 ? w.one : w.many} registered
-            </span>
+      <div className="mt-6 flex flex-col gap-3">
+        <SetupStep
+          id="registration-settings"
+          title="1. Registration settings"
+          status={<StepStatus done={settingsDone} />}
+          open={openStep === 1}
+          intro={`What directors see and agree to when they register. Save to finish this step.`}
+        >
+          <BandSettingsForm
+            action={updateBandSettings.bind(null, eventId)}
+            chaperoneLimit={event.chaperone_limit}
+            classifications={event.classifications}
+            deadline={event.band_registration_deadline ?? ""}
+            directorInfo={event.director_info ?? ""}
+            contact={{
+              name: contact?.name || profile?.full_name || "",
+              phone: formatPhone(contact ? contactPhone : profile?.phone),
+              email: contact?.email || user.email || "",
+            }}
+            contactSaved={Boolean(contact)}
+          />
+        </SetupStep>
+
+        <SetupStep
+          id="open-registration"
+          title="2. Open registration"
+          status={registrationStatus}
+          open={openStep === 2}
+          intro={`Share the link with ${w.one} directors, then open registration so they can sign up.`}
+        >
+          <div className="space-y-4">
+            {!published && (
+              <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm">
+                Publish the event from its main page first, then open registration here.
+              </p>
+            )}
+            {published && !settingsDone && !regOpen && (
+              <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm">
+                Save your registration settings (step 1) first, so directors see the right classifications and information.
+              </p>
+            )}
+            {event.band_registration_deadline && (
+              <p className="text-sm text-muted">
+                {pastDeadline
+                  ? `The deadline (${formatDate(event.band_registration_deadline)}) has passed. Change it in step 1 to reopen.`
+                  : `Closes automatically at the end of ${formatDate(event.band_registration_deadline)}.`}
+              </p>
+            )}
+            <div>
+              <p className="text-sm font-medium">Link for {w.one} directors</p>
+              <p className="mt-1 break-all text-sm text-muted">{registrationUrl}</p>
+              <div className="mt-2">
+                <CopyLinkButton url={registrationUrl} label="Copy link" />
+              </div>
+            </div>
+            {published && (
+              <ActionButton
+                action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
+                variant={event.band_registration_open ? "stop" : "go"}
+                confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
+              >
+                {event.band_registration_open ? `Close ${w.one} registration` : `Open ${w.one} registration`}
+              </ActionButton>
+            )}
           </div>
-          {event.status !== "published" && (
-            <p className="text-sm text-muted">Publish the event from its main page first, then open registration here.</p>
-          )}
-          {event.band_registration_deadline && (
-            <p className="text-sm text-muted">
-              {pastDeadline
-                ? `The deadline (${formatDate(event.band_registration_deadline)}) has passed. Change it in Registration settings to reopen.`
-                : `Closes automatically at the end of ${formatDate(event.band_registration_deadline)}.`}
-            </p>
-          )}
-          <div>
-            <p className="text-sm font-medium">Link for {w.one} directors</p>
-            <p className="mt-1 break-all text-sm text-muted">{registrationUrl}</p>
-            <div className="mt-2">
-              <CopyLinkButton url={registrationUrl} label="Copy link" />
+        </SetupStep>
+
+        <SetupStep
+          id="invite-directors"
+          title="3. Invite directors"
+          status={<StepStatus done={invitesSent} doneLabel="Invitations sent" todoLabel="Optional" />}
+          open={openStep === 3}
+          intro={`Bring in ${w.many} you already work with, and email their directors an invitation to register.`}
+        >
+          <div className="space-y-6">
+            <div>
+              <h3 className="font-semibold">Import from a spreadsheet</h3>
+              <p className="mt-1 mb-3 text-sm text-muted">
+                Each director&apos;s details are saved for them. Nobody is registered yet: invite the directors below, and
+                each one checks their details and registers.
+              </p>
+              <SpreadsheetImport
+                kind="bands"
+                fields={importFields("bands", { words: w, trucks: !roomsHere })}
+                choices={{ classification: event.classifications.map((c: string) => ({ value: c, label: c })) }}
+                chaperoneLimit={event.chaperone_limit}
+                noun={{ one: w.one, many: w.many }}
+                templateName={`${w.one}-registrations.csv`}
+                action={importBandPrefills.bind(null, eventId)}
+              />
+            </div>
+            <div>
+              <h3 className="font-semibold">Send invitations</h3>
+              {directors.length > 0 ? (
+                <>
+                  <p className="mt-1 mb-3 text-sm text-muted">
+                    {imported.size > 0 ? "Directors from your spreadsheet" : "Directors who registered at your earlier events"}
+                    {imported.size > 0 && !roomsHere && pastDirectors.length > 0 ? " and your earlier events" : ""}. Their
+                    {` ${w.one}`}&apos;s details are saved, so registering only takes a moment.
+                  </p>
+                  <InvitePastBands directors={directors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} one={w.one} />
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-muted">
+                  Directors from your spreadsheet{roomsHere ? "" : " and your earlier events"} show up here to invite.
+                </p>
+              )}
             </div>
           </div>
-          {access.isHost && (
-            <details className="rounded-lg border border-border px-4 py-3">
-              <summary className="cursor-pointer text-sm font-medium">Registration settings</summary>
-              <div className="mt-4">
-                <BandSettingsForm
-                  action={updateBandSettings.bind(null, eventId)}
-                  chaperoneLimit={event.chaperone_limit}
-                  classifications={event.classifications}
-                  deadline={event.band_registration_deadline ?? ""}
-                  directorInfo={event.director_info ?? ""}
-                  contact={{
-                    name: contact?.name || profile?.full_name || "",
-                    phone: formatPhone(contact ? contactPhone : profile?.phone),
-                    email: contact?.email || user.email || "",
-                  }}
-                  contactSaved={Boolean(contact)}
-                />
-              </div>
-            </details>
-          )}
-          {access.isHost && event.status === "published" && (
-            <ActionButton
-              action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
-              variant={event.band_registration_open ? "stop" : "go"}
-              confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
-            >
-              {event.band_registration_open ? `Close ${w.one} registration` : `Open ${w.one} registration`}
-            </ActionButton>
-          )}
-        </Card>
-      </section>
+        </SetupStep>
 
-      <section className="mt-10" aria-labelledby="import-heading">
-        <h2 id="import-heading" className="text-xl font-semibold">
-          Import from a spreadsheet
-        </h2>
-        <p className="mt-1 mb-4 text-sm text-muted">
-          Have {w.many} you already work with in a spreadsheet? Import them, and each director&apos;s details are saved for
-          them. Nobody is registered yet: invite the directors below, and each one checks their details and registers.
-        </p>
-        <Card>
-          <SpreadsheetImport
-            kind="bands"
-            fields={importFields("bands", { words: w, trucks: !roomsHere })}
-            choices={{ classification: event.classifications.map((c: string) => ({ value: c, label: c })) }}
-            chaperoneLimit={event.chaperone_limit}
-            noun={{ one: w.one, many: w.many }}
-            templateName={`${w.one}-registrations.csv`}
-            action={importBandPrefills.bind(null, eventId)}
-          />
-        </Card>
-      </section>
-
-      {directors.length > 0 && (
-        <section className="mt-10" aria-labelledby="invite-heading">
-          <h2 id="invite-heading" className="text-xl font-semibold">
-            Invite directors to register
-          </h2>
-          <p className="mt-1 mb-4 text-sm text-muted">
-            {imported.size > 0 ? "Directors from your spreadsheet" : "Directors who registered at your earlier events"}
-            {imported.size > 0 && !roomsHere && pastDirectors.length > 0 ? " and your earlier events" : ""}. Their
-            {` ${w.one}`}&apos;s details are saved, so registering only takes a moment.
-          </p>
-          <Card>
-            <InvitePastBands directors={directors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} one={w.one} />
-          </Card>
-        </section>
-      )}
-
-      {access.isHost && roomsHere && (
-        <section className="mt-10">
-          <h2 className="text-xl font-semibold">Rooms &amp; schedule</h2>
-          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm leading-6 text-muted">
-              Set up your rooms and the path every group follows, then put the groups in order. Each group&apos;s times
-              are worked out for you.
-            </p>
+        <SetupStep
+          id="schedule"
+          title={roomsHere ? "4. Rooms & schedule" : "4. Performance schedule"}
+          status={<StepStatus done={scheduleDone} doneLabel="Published" />}
+          open={openStep === 4}
+          intro={
+            roomsHere
+              ? "Set up your rooms and the path every group follows, then put the groups in order. Each group's times are worked out for you."
+              : `All times ${zoneName(tz)}. Directors and the public only see a round once you publish it from the bar at the bottom. Conflicts directors reported are shown with ⚠️.`
+          }
+        >
+          {roomsHere ? (
             <Link
               href={`/dashboard/events/${eventId}/rooms`}
               className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
             >
-              Rooms &amp; schedule
+              Open rooms &amp; schedule
             </Link>
+          ) : (
+            <ScheduleBuilder
+              initialBands={builderBands}
+              initialBreaks={builderBreaks}
+              initialFinals={builderFinals}
+              initialReadyMinutes={event.ready_minutes_before}
+              initialFinalsReadyMinutes={event.finals_ready_minutes_before}
+              days={days}
+              zoneLabel={zoneName(tz)}
+              orderPublished={event.performance_order_published}
+              finalsPublished={event.finals_published}
+              finalistsRevealed={event.finalists_revealed}
+              revealFinalists={revealFinalists.bind(null, eventId)}
+              save={saveSchedule.bind(null, eventId)}
+              emailChanges={emailTimeChanges.bind(null, eventId)}
+              publishOrder={publishRunningOrder.bind(null, eventId)}
+              publishFinals={publishFinals.bind(null, eventId)}
+              emailFinalists={emailFinalists.bind(null, eventId)}
+            />
+          )}
+        </SetupStep>
+      </div>
+
+      <section className="mt-10" aria-labelledby="registered-heading">
+        <h2 id="registered-heading" className="text-xl font-semibold">
+          Registered {w.many} ({bands.length})
+        </h2>
+        {bands.length === 0 ? (
+          <Card className="mt-4">
+            <p className="text-sm text-muted">No {w.many} have registered yet. They show up here as directors sign up.</p>
           </Card>
-        </section>
-      )}
-
-      {access.isHost && !roomsHere && (
-        <section className="mt-10">
-          <h2 className="text-xl font-semibold">Performance schedule</h2>
-          <p className="mt-1 mb-4 text-sm text-muted">
-            All times {zoneName(tz)}. Directors and the public only see a round once you publish it from the bar at the
-            bottom. Conflicts directors reported are shown with ⚠️.
-          </p>
-          <ScheduleBuilder
-            initialBands={builderBands}
-            initialBreaks={builderBreaks}
-            initialFinals={builderFinals}
-            initialReadyMinutes={event.ready_minutes_before}
-            initialFinalsReadyMinutes={event.finals_ready_minutes_before}
-            days={days}
-            zoneLabel={zoneName(tz)}
-            orderPublished={event.performance_order_published}
-            finalsPublished={event.finals_published}
-            finalistsRevealed={event.finalists_revealed}
-            revealFinalists={revealFinalists.bind(null, eventId)}
-            save={saveSchedule.bind(null, eventId)}
-            emailChanges={emailTimeChanges.bind(null, eventId)}
-            publishOrder={publishRunningOrder.bind(null, eventId)}
-            publishFinals={publishFinals.bind(null, eventId)}
-            emailFinalists={emailFinalists.bind(null, eventId)}
-          />
-        </section>
-      )}
-
-      {bands.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-xl font-semibold">Registrations</h2>
+        ) : (
           <ul className="mt-4 space-y-3">
             {bands.map((b) => (
               <li key={b.id}>
@@ -355,8 +388,8 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
     </div>
   );
 }

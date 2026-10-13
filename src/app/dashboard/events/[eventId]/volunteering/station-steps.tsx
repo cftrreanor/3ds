@@ -154,14 +154,3 @@ export function StationTabs({ tabs }: { tabs: StationTab[] }) {
     </nav>
   );
 }
-
-/** Beside an accordion's title: done, or still to do. */
-export function StepStatus({ done }: { done: boolean }) {
-  return done ? (
-    <span className="flex items-center gap-1 text-sm font-semibold text-success">
-      <span aria-hidden>✓</span> Done
-    </span>
-  ) : (
-    <span className="text-sm text-muted italic">Needs to be done</span>
-  );
-}
