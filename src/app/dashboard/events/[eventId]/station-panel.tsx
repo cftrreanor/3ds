@@ -4,7 +4,7 @@ import { hasBands, leadWords } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
-import { BuildShifts, DeleteButton, ShiftForm, StationForm, type LeadOption } from "./forms";
+import { BuildShifts, DeleteButton, ShiftForm, StationForm } from "./forms";
 import { StepStatus } from "./volunteering/station-steps";
 
 export type Shift = {
@@ -64,7 +64,6 @@ export function StationPanel({
   userId,
   canManage,
   leadNames,
-  leadOptions,
   roster,
   locations = [],
   zones,
@@ -78,7 +77,6 @@ export function StationPanel({
   userId: string;
   canManage: boolean;
   leadNames: string[];
-  leadOptions: LeadOption[];
   /** A group event's rooms, suggested for a station's location. */
   locations?: string[];
   /** A fair's zones, suggested for a station's zone. */
@@ -113,7 +111,9 @@ export function StationPanel({
           <DeleteButton
             action={deleteStation.bind(null, eventId, station.id)}
             label={`Delete station ${station.name}`}
-            confirmMessage={`Delete “${station.name}” and all of its shifts?`}
+            text="Delete Station"
+            destructive
+            confirmMessage={`Delete “${station.name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
           />
         )}
       </div>
@@ -129,13 +129,12 @@ export function StationPanel({
               <StepStatus done={detailsDone} />
             </summary>
             <p className="mt-2 text-sm text-muted">
-              Where volunteers report, what they should know, and its {leadWords(event.event_type).many}. Save to finish this step.
+              Where volunteers report and what they should know. Save to finish this step.
             </p>
             <div className="mt-4">
               <StationForm
                 action={updateStation.bind(null, eventId, station.id)}
                 initial={station}
-                leads={leadOptions}
                 submitLabel="Save station details"
                 bands={hasBands(event.event_type)}
                 locations={locations}

@@ -11,8 +11,8 @@ import { eachDate, formatDate, formatTimeRange, utcToZonedDate } from "@/lib/tim
 import { importVolunteers } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields, type Choice } from "@/lib/imports";
-import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
-import { ActionButton, CopyLinkButton, NewStationForm, type LeadOption } from "../forms";
+import { createStation, deleteStation, moveCheckpoint, renameStation, setStationLeads, setVolunteerSignupOpen } from "../../../actions";
+import { ActionButton, CopyLinkButton, NewStationForm, StationRow, type LeadOption } from "../forms";
 import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
@@ -149,6 +149,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       also: [sh.title, `${station} ${sh.title}`, `${station} ${time}`, `${sh.title} ${time}`, `${station} ${day}${time}`],
     };
   });
+  // Assigning leads waits until the team has Section Leads (Station Coordinators at fairs).
+  const hasSectionLeads = staffRows.some((r) => r.role === "section_lead");
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
 
   return (
@@ -231,21 +233,36 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             <span className="flex size-7 items-center justify-center rounded-full bg-brand text-sm text-brand-foreground">1</span>
             Create stations
           </h3>
-          <p className="mt-1 text-sm text-muted">Name each station and pick who leads it. You&apos;ll set up the rest in step 2.</p>
+          <p className="mt-1 text-sm text-muted">Name each station, then assign who leads it. You&apos;ll set up the rest in step 2.</p>
           {stations.length > 0 && (
             <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
               {stations.map((st) => (
-                <li key={st.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 text-sm">
-                  <span className="font-medium">{st.name}</span>
-                  <span className="text-muted">
-                    {st.lead_ids.length ? st.lead_ids.map((id) => nameOf(id) ?? "Team member").join(", ") : `No ${leadWords(event.event_type).one} yet`}
-                  </span>
-                </li>
+                <StationRow
+                  key={st.id}
+                  name={st.name}
+                  leadIds={st.lead_ids}
+                  leadNames={st.lead_ids.map((id) => nameOf(id) ?? "Team member")}
+                  leads={leadOptions}
+                  canAssign={hasSectionLeads}
+                  leadWord={leadWords(event.event_type)}
+                  setLeads={setStationLeads.bind(null, eventId, st.id)}
+                  rename={renameStation.bind(null, eventId, st.id)}
+                  remove={deleteStation.bind(null, eventId, st.id)}
+                />
               ))}
             </ul>
           )}
+          {!hasSectionLeads && stations.length > 0 && (
+            <p className="mt-2 text-sm text-muted">
+              To assign {leadWords(event.event_type).many}, invite them on the{" "}
+              <Link href={`/dashboard/events/${eventId}/team`} className="font-medium text-brand underline">
+                Team page
+              </Link>
+              .
+            </p>
+          )}
           <div className="mt-4">
-            <NewStationForm action={createStation.bind(null, eventId)} leads={leadOptions} leadLabel={leadWords(event.event_type).many} />
+            <NewStationForm action={createStation.bind(null, eventId)} />
           </div>
         </Card>
 
@@ -340,7 +357,6 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   locations={locations}
                   zones={zones}
                   leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
-                  leadOptions={leadOptions}
                   roster={roster}
                 />
               </div>

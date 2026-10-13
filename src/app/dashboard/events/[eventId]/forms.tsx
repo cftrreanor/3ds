@@ -65,9 +65,14 @@ export function StationForm({
       onEdit={trackUnsaved ? changed : undefined}
       onSuccess={trackUnsaved ? saved : undefined}
     >
-      <Field label="Station name" hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}>
-        <Input name="name" required defaultValue={initial?.name} />
-      </Field>
+      {trackUnsaved ? (
+        // Step 2: the name was set in step 1 (rename it there).
+        <input type="hidden" name="name" value={initial?.name ?? ""} />
+      ) : (
+        <Field label="Station name" hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}>
+          <Input name="name" required defaultValue={initial?.name} />
+        </Field>
+      )}
       {bands && (
       <Field
         label="Check-in station?"
@@ -250,9 +255,11 @@ export function ShiftForm({
             }
       }
     >
-      <Field label="Title" className="sm:col-span-2">
-        <Input name="title" required defaultValue={initial?.title} placeholder="e.g. Morning parking crew" />
-      </Field>
+      {initial && (
+        <Field label="Title" className="sm:col-span-2">
+          <Input name="title" required defaultValue={initial.title} placeholder="e.g. Morning parking crew" />
+        </Field>
+      )}
       {days.length > 1 ? (
         <Field label="Day" className="sm:col-span-2">
           <Select name="day" defaultValue={initial?.day}>
@@ -278,9 +285,11 @@ export function ShiftForm({
       >
         <NumberInput name="capacity" defaultValue={initial?.capacity ?? ""} placeholder="e.g. 4" required />
       </Field>
-      <Field label="Duties" hint="Optional." className="sm:col-span-2">
-        <Textarea name="description" defaultValue={initial?.description ?? ""} />
-      </Field>
+      {initial && (
+        <Field label="Duties" hint="Optional." className="sm:col-span-2">
+          <Textarea name="description" defaultValue={initial.description ?? ""} />
+        </Field>
+      )}
       <div className="space-y-3 sm:col-span-2">
         {!initial && <StepNotice step="shifts" />}
         <SubmitButton variant={initial ? "primary" : "go"} disabled={!ready} pendingText="Saving…">
@@ -340,35 +349,112 @@ export function BuildShifts({
   );
 }
 
-/** "1. Create stations": a station's name and who leads it. Its other details come in step 2. */
-export function NewStationForm({ action, leads, leadLabel }: { action: Action; leads: LeadOption[]; leadLabel: string }) {
+/** "1. Create stations": a station's name. Its leads are picked on its row; the rest comes in step 2. */
+export function NewStationForm({ action }: { action: Action }) {
   const [ready, setReady] = useState(false);
   return (
-    <ActionForm action={action} className="space-y-4" onEdit={(f) => setReady(f.checkValidity())}>
-      <Field label="Station name" hint="e.g. Parking, Concessions, Ticket Table">
+    <ActionForm action={action} className="flex flex-col gap-3 sm:flex-row sm:items-end" onEdit={(f) => setReady(f.checkValidity())}>
+      <Field label="New station name" hint="e.g. Parking, Concessions, Ticket Table" className="flex-1">
         <Input name="name" required maxLength={80} />
       </Field>
-      <fieldset>
-        <legend className="text-sm font-semibold">{leadLabel} (optional)</legend>
-        <input type="hidden" name="leadsField" value="1" />
-        <p className="mt-1 text-sm text-muted">
-          {leads.length ? "Who runs this station. You can change this later." : "Invite leads on the Team page, then pick them here or in step 2."}
-        </p>
-        {leads.length > 0 && (
-          <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-            {leads.map((l) => (
-              <label key={l.id} className="flex min-h-10 items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm hover:border-brand">
-                <input type="checkbox" name="leadIds" value={l.id} className="h-5 w-5 shrink-0 accent-[var(--brand)]" />
-                {l.label}
-              </label>
-            ))}
-          </div>
-        )}
-      </fieldset>
-      <SubmitButton variant="go" disabled={!ready} pendingText="Adding…">
+      <SubmitButton variant="go" disabled={!ready} pendingText="Adding…" className="sm:mb-7">
         Add station
       </SubmitButton>
     </ActionForm>
+  );
+}
+
+/**
+ * A station's row in "1. Create stations": its leads, with a button to
+ * assign them (once the team has leads to pick from), and a rename.
+ */
+export function StationRow({
+  name,
+  leadNames,
+  leadIds,
+  leads,
+  canAssign,
+  leadWord,
+  setLeads,
+  rename,
+  remove,
+}: {
+  name: string;
+  leadNames: string[];
+  leadIds: string[];
+  leads: LeadOption[];
+  /** The team has Section Leads (Station Coordinators) to assign. */
+  canAssign: boolean;
+  leadWord: { one: string; many: string };
+  setLeads: Action;
+  rename: Action;
+  remove: Action;
+}) {
+  const [open, setOpen] = useState<"leads" | "rename" | null>(null);
+  const toggle = (which: "leads" | "rename") => setOpen(open === which ? null : which);
+  return (
+    <li className="px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <p className="font-medium">{name}</p>
+          <p className="text-sm text-muted">{leadNames.length ? leadNames.join(", ") : `No ${leadWord.one} yet`}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {canAssign && (
+            <Button type="button" variant={leadNames.length ? "secondary" : "primary"} className="min-h-10 text-sm" onClick={() => toggle("leads")} aria-expanded={open === "leads"}>
+              {leadNames.length ? `Change ${leadWord.many}` : `Assign a ${leadWord.one}`}
+            </Button>
+          )}
+          <Button type="button" variant="ghost" className="min-h-10 px-2 text-sm" onClick={() => toggle("rename")} aria-expanded={open === "rename"}>
+            Rename
+          </Button>
+          <DeleteButton
+            action={remove}
+            label={`Delete station ${name}`}
+            text="Delete Station"
+            destructive
+            confirmMessage={`Delete “${name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
+          />
+        </div>
+      </div>
+      {open === "leads" && (
+        <ActionForm action={setLeads} className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
+          <fieldset>
+            <legend className="text-sm font-semibold">Who leads {name}?</legend>
+            <p className="mt-0.5 text-sm text-muted">Pick one or more, so there&apos;s a backup. Volunteers contact the first one picked.</p>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+              {leads.map((l) => (
+                <label key={l.id} className="flex min-h-10 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-brand">
+                  <input type="checkbox" name="leadIds" value={l.id} defaultChecked={leadIds.includes(l.id)} className="h-5 w-5 shrink-0 accent-[var(--brand)]" />
+                  {l.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="flex flex-wrap gap-2">
+            <SubmitButton variant="go" pendingText="Saving…">
+              Save
+            </SubmitButton>
+            <Button type="button" variant="ghost" onClick={() => setOpen(null)}>
+              Cancel
+            </Button>
+          </div>
+        </ActionForm>
+      )}
+      {open === "rename" && (
+        <ActionForm action={rename} className="mt-3 flex flex-col gap-2 rounded-lg border border-border bg-background p-3 sm:flex-row sm:items-end" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
+          <Field label="Station name" className="flex-1">
+            <Input name="name" required maxLength={80} defaultValue={name} />
+          </Field>
+          <div className="flex gap-2">
+            <SubmitButton pendingText="Saving…">Save</SubmitButton>
+            <Button type="button" variant="ghost" onClick={() => setOpen(null)}>
+              Cancel
+            </Button>
+          </div>
+        </ActionForm>
+      )}
+    </li>
   );
 }
 
@@ -377,15 +463,23 @@ export function DeleteButton({
   label,
   confirmMessage,
   text = "Delete",
+  destructive = false,
 }: {
   action: Action;
   label: string;
   confirmMessage: string;
   text?: string;
+  /** A full-size red outlined button, for deleting something big (a whole station). */
+  destructive?: boolean;
 }) {
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="contents">
-      <SubmitButton variant="ghost" pendingText="Working…" className="min-h-9 px-2 text-xs" aria-label={label}>
+      <SubmitButton
+        variant={destructive ? "danger" : "ghost"}
+        pendingText={destructive ? "Deleting…" : "Working…"}
+        className={destructive ? "text-sm" : "min-h-9 px-2 text-xs"}
+        aria-label={destructive ? undefined : label}
+      >
         {text}
       </SubmitButton>
     </ActionForm>
