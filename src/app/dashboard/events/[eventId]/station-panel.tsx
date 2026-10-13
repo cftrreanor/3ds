@@ -158,6 +158,8 @@ export function StationPanel({
                 create={createShift.bind(null, eventId, station.id)}
                 windowLabel={windowLabel}
                 days={days}
+                existing={stationShifts.length}
+                signedUp={stationShifts.some((s) => s.registered_count > 0)}
               />
             </div>
           </details>

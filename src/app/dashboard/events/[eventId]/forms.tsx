@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { NumberInput } from "@/components/number-input";
 import { ZoneInput } from "@/components/zone-input";
 import { ActionForm } from "@/components/action-form";
@@ -182,21 +182,100 @@ function hasAnswers(form: HTMLFormElement) {
   );
 }
 
-/** "Auto create shifts": split each event day into equal shifts. The button turns green once both answers are in. */
-export function GenerateShiftsForm({ action, windowLabel }: { action: Action; windowLabel: string }) {
+/** Shown once someone tries to submit early: every required box still empty gets a red outline. */
+const MISSING_OUTLINE =
+  "[&_input:invalid]:border-danger [&_input:invalid]:ring-2 [&_input:invalid]:ring-danger/20 [&_select:invalid]:border-danger [&_select:invalid]:ring-2 [&_select:invalid]:ring-danger/20";
+
+/**
+ * The green button for a form that needs its answers first: faded until
+ * they're in, and tapping it early outlines what's missing in red (and jumps
+ * to the first one) instead of doing nothing.
+ */
+function ReadyButton({
+  ready,
+  onMissing,
+  pendingText,
+  className,
+  children,
+}: {
+  ready: boolean;
+  onMissing: () => void;
+  pendingText: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <SubmitButton
+      variant="go"
+      pendingText={pendingText}
+      aria-disabled={!ready}
+      className={`${ready ? "" : "cursor-not-allowed opacity-50"} ${className ?? ""}`}
+      onClick={(e) => {
+        if (ready) return;
+        e.preventDefault();
+        onMissing();
+        e.currentTarget.form?.querySelector<HTMLElement>(":invalid:not(form):not(fieldset)")?.focus();
+      }}
+    >
+      {children}
+    </SubmitButton>
+  );
+}
+
+function MissingNote({ show }: { show: boolean }) {
+  return show ? <p className="text-sm font-semibold text-danger">Fill in the boxes outlined in red.</p> : null;
+}
+
+/**
+ * "Auto create shifts": split each event day into equal shifts. Run again, it
+ * replaces the station's shifts, as long as nobody has signed up for them.
+ */
+export function GenerateShiftsForm({
+  action,
+  windowLabel,
+  existing = 0,
+  signedUp = false,
+}: {
+  action: Action;
+  windowLabel: string;
+  /** How many shifts the station has now. */
+  existing?: number;
+  /** Someone has signed up for one of them: auto create can't replace them. */
+  signedUp?: boolean;
+}) {
   const [ready, setReady] = useState(false);
+  const [missing, setMissing] = useState(false);
   const setEdited = useStepEdits("shifts");
+  if (signedUp) {
+    return (
+      <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
+        Volunteers have signed up for this station&apos;s shifts, so auto create can&apos;t replace them. Edit shifts one at a
+        time below, or create a single shift.
+      </p>
+    );
+  }
   return (
     <ActionForm
       action={action}
-      className="space-y-4"
+      className={`space-y-4 ${missing ? MISSING_OUTLINE : ""}`}
+      confirmMessage={existing ? `Replace this station's ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
       onEdit={(f) => {
         setReady(f.checkValidity());
         setEdited(hasAnswers(f));
       }}
+      onSuccess={() => setMissing(false)}
     >
       <p className="text-sm text-muted">
         Split the event day ({windowLabel}) into equal shifts for this station.
+        {existing > 0 && (
+          <>
+            {" "}
+            <strong className="font-semibold text-foreground">
+              This replaces its {existing} shift{existing === 1 ? "" : "s"}
+            </strong>{" "}
+            (nobody has signed up yet).
+          </>
+        )}
       </p>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Shift length">
@@ -216,9 +295,10 @@ export function GenerateShiftsForm({ action, windowLabel }: { action: Action; wi
         </Field>
       </div>
       <StepNotice step="shifts" />
-      <SubmitButton variant="go" disabled={!ready} pendingText="Creating…">
+      <MissingNote show={missing && !ready} />
+      <ReadyButton ready={ready} onMissing={() => setMissing(true)} pendingText="Creating…">
         Create shifts
-      </SubmitButton>
+      </ReadyButton>
     </ActionForm>
   );
 }
@@ -240,12 +320,14 @@ export function ShiftForm({
 }) {
   // A new shift: the button turns green once every required answer is in.
   const [ready, setReady] = useState(Boolean(initial));
+  const [missing, setMissing] = useState(false);
   const setEdited = useStepEdits(initial ? undefined : "shifts");
   return (
     <ActionForm
       action={action}
-      className="grid gap-4 sm:grid-cols-2"
+      className={`grid gap-4 sm:grid-cols-2 ${missing ? MISSING_OUTLINE : ""}`}
       resetOnSuccess={!initial}
+      onSuccess={() => setMissing(false)}
       onEdit={
         initial
           ? undefined
@@ -292,9 +374,16 @@ export function ShiftForm({
       )}
       <div className="space-y-3 sm:col-span-2">
         {!initial && <StepNotice step="shifts" />}
-        <SubmitButton variant={initial ? "primary" : "go"} disabled={!ready} pendingText="Saving…">
-          {submitLabel}
-        </SubmitButton>
+        {initial ? (
+          <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+        ) : (
+          <>
+            <MissingNote show={missing && !ready} />
+            <ReadyButton ready={ready} onMissing={() => setMissing(true)} pendingText="Saving…">
+              {submitLabel}
+            </ReadyButton>
+          </>
+        )}
       </div>
     </ActionForm>
   );
@@ -306,11 +395,16 @@ export function BuildShifts({
   create,
   windowLabel,
   days,
+  existing = 0,
+  signedUp = false,
 }: {
   generate: Action;
   create: Action;
   windowLabel: string;
   days: string[];
+  /** The station's shifts now, and whether anyone has signed up for one. */
+  existing?: number;
+  signedUp?: boolean;
 }) {
   const [mode, setMode] = useState<"auto" | "single">("auto");
   // Switching forms drops what was typed in the other one.
@@ -341,7 +435,7 @@ export function BuildShifts({
         ))}
       </div>
       {mode === "auto" ? (
-        <GenerateShiftsForm action={generate} windowLabel={windowLabel} />
+        <GenerateShiftsForm action={generate} windowLabel={windowLabel} existing={existing} signedUp={signedUp} />
       ) : (
         <ShiftForm action={create} days={days} />
       )}
@@ -352,14 +446,24 @@ export function BuildShifts({
 /** "1. Create stations": a station's name. Its leads are picked on its row; the rest comes in step 2. */
 export function NewStationForm({ action }: { action: Action }) {
   const [ready, setReady] = useState(false);
+  const [missing, setMissing] = useState(false);
   return (
-    <ActionForm action={action} className="flex flex-col gap-3 sm:flex-row sm:items-end" onEdit={(f) => setReady(f.checkValidity())}>
-      <Field label="New station name" hint="e.g. Parking, Concessions, Ticket Table" className="flex-1">
+    <ActionForm
+      action={action}
+      className={`flex flex-col gap-3 sm:flex-row sm:items-end ${missing ? MISSING_OUTLINE : ""}`}
+      onEdit={(f) => setReady(f.checkValidity())}
+      onSuccess={() => setMissing(false)}
+    >
+      <Field
+        label="New station name"
+        hint={missing && !ready ? <span className="font-semibold text-danger">Type the station&apos;s name first.</span> : "e.g. Parking, Concessions, Ticket Table"}
+        className="flex-1"
+      >
         <Input name="name" required maxLength={80} />
       </Field>
-      <SubmitButton variant="go" disabled={!ready} pendingText="Adding…" className="sm:mb-7">
+      <ReadyButton ready={ready} onMissing={() => setMissing(true)} pendingText="Adding…" className="sm:mb-7">
         Add station
-      </SubmitButton>
+      </ReadyButton>
     </ActionForm>
   );
 }

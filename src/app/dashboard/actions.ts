@@ -564,7 +564,8 @@ const generateSchema = z.object({
 
 /**
  * PRD §4.1: split the event's daily window (e.g. 7 AM–10 PM) into equal blocks
- * (e.g. 3 hours) for one station. Skips blocks that already exist.
+ * (e.g. 3 hours) for one station, replacing its shifts (only while nobody has
+ * signed up for any of them).
  */
 export async function generateShifts(
   eventId: string,
@@ -581,8 +582,13 @@ export async function generateShifts(
   if (!event) return { error: "Event not found." };
 
   const supabase = await createClient();
-  const { data: existing } = await supabase.from("shifts").select("starts_at").eq("station_id", stationId);
-  const taken = new Set((existing ?? []).map((s) => new Date(s.starts_at).getTime()));
+  // Auto create replaces the station's shifts, as long as nobody has signed up for any of them yet.
+  const { data: existing } = await supabase.from("shifts").select("id, registered_count").eq("station_id", stationId);
+  if ((existing ?? []).some((s) => s.registered_count > 0)) {
+    return {
+      error: "Volunteers have signed up for this station's shifts, so auto create can't replace them. Edit them one at a time below, or create a single shift.",
+    };
+  }
 
   const dayStart = utcToZonedTime(event.window_start, event.timezone);
   const dayEnd = utcToZonedTime(event.window_end, event.timezone);
@@ -594,7 +600,6 @@ export async function generateShifts(
     const start = zonedToUtc(day, dayStart, event.timezone).getTime();
     const end = zonedToUtc(day, dayEnd, event.timezone).getTime();
     for (let t = start; t < end; t += blockMs) {
-      if (taken.has(t)) continue;
       const blockEnd = Math.min(t + blockMs, end);
       rows.push({
         station_id: stationId,
@@ -606,12 +611,18 @@ export async function generateShifts(
     }
   }
 
-  if (rows.length === 0) return { ok: true, message: "These shifts already exist, so nothing new was added." };
+  if (rows.length === 0) return { error: "The event's times leave no room for shifts. Check its start and end times." };
+  const replaced = existing?.length ?? 0;
+  if (replaced) {
+    const { error: deleteError } = await supabase.from("shifts").delete().eq("station_id", stationId).eq("registered_count", 0);
+    if (deleteError) return { error: friendlyDbError(deleteError) };
+  }
   const { error } = await supabase.from("shifts").insert(rows);
   if (error) return { error: friendlyDbError(error) };
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `Added ${rows.length} shift${rows.length === 1 ? "" : "s"}.` };
+  const made = `${rows.length} shift${rows.length === 1 ? "" : "s"}`;
+  return { ok: true, message: replaced ? `Replaced this station's shifts with ${made}.` : `Added ${made}.` };
 }
 
 function shiftTitle(start: Date, tz: string) {
