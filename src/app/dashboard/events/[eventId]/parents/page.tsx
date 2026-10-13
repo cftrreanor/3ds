@@ -114,7 +114,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                 </div>
               </div>
               {event.status !== "published" && (
-                <p className="text-sm text-muted">Publish the event from its main page and parents can register.</p>
+                <p className="text-sm text-muted">Publish the event from its main page, then open registration here.</p>
               )}
               {closed === "deadline" && closesAt && (
                 <p className="text-sm">
