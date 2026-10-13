@@ -132,7 +132,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       {access.canManage && (
         <p className="mt-2 text-sm">
           <Link href={`/dashboard/events/${eventId}/announcements`} className="font-medium text-brand underline-offset-4 hover:underline">
-            Post a banner
+            Broadcast Message
           </Link>{" "}
           <span className="text-muted">(a band switch, a delay, an emergency)</span>
         </p>

@@ -390,7 +390,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                       href={`/dashboard/events/${eventId}/announcements`}
                       className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
                     >
-                      Post a banner
+                      Broadcast Message
                     </Link>
                     <Link
                       href={`/dashboard/events/${eventId}/contest-day`}
@@ -455,7 +455,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                       href={`/dashboard/events/${eventId}/announcements`}
                       className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
                     >
-                      Post a banner
+                      Broadcast Message
                     </Link>
                   )}
                   <Link
@@ -566,7 +566,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                     href={`/dashboard/events/${eventId}/announcements`}
                     className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
                   >
-                    Post a banner
+                    Broadcast Message
                   </Link>
                 )}
                 {access.canManage && (
