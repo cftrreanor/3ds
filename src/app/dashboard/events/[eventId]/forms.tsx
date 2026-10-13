@@ -9,7 +9,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
-import { UnsavedNotice, useUnsavedChanges } from "./volunteering/station-steps";
+import { StepNotice, useStepEdits } from "./volunteering/station-steps";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -50,17 +50,13 @@ export function StationForm({
   zones?: readonly string[];
   /** What the station's leads are called ("Station Coordinators" at fairs). */
   leadLabel?: string;
-  /** The station's name: warn before leaving its tab with unsaved changes. */
-  trackUnsaved?: string;
+  /** Step 2's "1. Station details": warn before leaving the station with this unsaved or unfinished. */
+  trackUnsaved?: boolean;
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
-  const setDirty = useUnsavedChanges();
-  const changed = useCallback(() => {
-    if (trackUnsaved) setDirty(trackUnsaved);
-  }, [trackUnsaved, setDirty]);
-  const saved = useCallback(() => {
-    if (trackUnsaved) setDirty(null);
-  }, [trackUnsaved, setDirty]);
+  const setEdited = useStepEdits(trackUnsaved ? "details" : undefined);
+  const changed = useCallback(() => setEdited(true), [setEdited]);
+  const saved = useCallback(() => setEdited(false), [setEdited]);
   return (
     <ActionForm
       action={action}
@@ -167,18 +163,33 @@ export function StationForm({
         </fieldset>
       )}
       <div className="space-y-3 sm:col-span-2">
-        {trackUnsaved && <UnsavedNotice />}
+        {trackUnsaved && <StepNotice step="details" />}
         <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
       </div>
     </ActionForm>
   );
 }
 
+/** Anything typed or picked in a form (hidden fields aside). */
+function hasAnswers(form: HTMLFormElement) {
+  return [...form.elements].some(
+    (el) => (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) && el.type !== "hidden" && el.value.trim() !== "",
+  );
+}
+
 /** "Auto create shifts": split each event day into equal shifts. The button turns green once both answers are in. */
 export function GenerateShiftsForm({ action, windowLabel }: { action: Action; windowLabel: string }) {
   const [ready, setReady] = useState(false);
+  const setEdited = useStepEdits("shifts");
   return (
-    <ActionForm action={action} className="space-y-4" resetOnSuccess={false} onEdit={(f) => setReady(f.checkValidity())}>
+    <ActionForm
+      action={action}
+      className="space-y-4"
+      onEdit={(f) => {
+        setReady(f.checkValidity());
+        setEdited(hasAnswers(f));
+      }}
+    >
       <p className="text-sm text-muted">
         Split the event day ({windowLabel}) into equal shifts for this station.
       </p>
@@ -199,6 +210,7 @@ export function GenerateShiftsForm({ action, windowLabel }: { action: Action; wi
           <NumberInput name="capacity" placeholder="e.g. 4" required />
         </Field>
       </div>
+      <StepNotice step="shifts" />
       <SubmitButton variant="go" disabled={!ready} pendingText="Creating…">
         Create shifts
       </SubmitButton>
@@ -223,12 +235,20 @@ export function ShiftForm({
 }) {
   // A new shift: the button turns green once every required answer is in.
   const [ready, setReady] = useState(Boolean(initial));
+  const setEdited = useStepEdits(initial ? undefined : "shifts");
   return (
     <ActionForm
       action={action}
       className="grid gap-4 sm:grid-cols-2"
       resetOnSuccess={!initial}
-      onEdit={initial ? undefined : (f) => setReady(f.checkValidity())}
+      onEdit={
+        initial
+          ? undefined
+          : (f) => {
+              setReady(f.checkValidity());
+              setEdited(hasAnswers(f));
+            }
+      }
     >
       <Field label="Title" className="sm:col-span-2">
         <Input name="title" required defaultValue={initial?.title} placeholder="e.g. Morning parking crew" />
@@ -261,7 +281,8 @@ export function ShiftForm({
       <Field label="Duties" hint="Optional." className="sm:col-span-2">
         <Textarea name="description" defaultValue={initial?.description ?? ""} />
       </Field>
-      <div className="sm:col-span-2">
+      <div className="space-y-3 sm:col-span-2">
+        {!initial && <StepNotice step="shifts" />}
         <SubmitButton variant={initial ? "primary" : "go"} disabled={!ready} pendingText="Saving…">
           {submitLabel}
         </SubmitButton>
@@ -283,6 +304,8 @@ export function BuildShifts({
   days: string[];
 }) {
   const [mode, setMode] = useState<"auto" | "single">("auto");
+  // Switching forms drops what was typed in the other one.
+  const setEdited = useStepEdits("shifts");
   const options = [
     { value: "auto", label: "Auto create shifts" },
     { value: "single", label: "Create single shift" },
@@ -296,7 +319,10 @@ export function BuildShifts({
             type="button"
             role="radio"
             aria-checked={mode === o.value}
-            onClick={() => setMode(o.value)}
+            onClick={() => {
+              setMode(o.value);
+              setEdited(false);
+            }}
             className={`min-h-10 rounded-sm px-4 text-sm font-semibold transition ${
               mode === o.value ? "bg-brand text-brand-foreground shadow-card" : "text-muted hover:text-foreground"
             }`}

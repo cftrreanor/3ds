@@ -141,11 +141,11 @@ export function StationPanel({
                 locations={locations}
                 zones={zones}
                 leadLabel={leadWords(event.event_type).many}
-                trackUnsaved={station.name}
+                trackUnsaved
               />
             </div>
           </details>
-          <details className="group rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
+          <details id="build-shifts" className="group scroll-mt-6 rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
             <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-1 [&::-webkit-details-marker]:hidden">
               <span className="flex items-center gap-2 font-semibold">
                 <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span>

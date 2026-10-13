@@ -303,7 +303,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             Configure stations
           </h3>
           {current ? (
-            <UnsavedChangesProvider>
+            <UnsavedChangesProvider
+              key={current.id}
+              needsDetails={!current.details_saved_at}
+              needsShifts={currentShifts.length === 0}
+            >
               <p className="mt-1 mb-4 text-sm text-muted">
                 Open each station, then finish its details and shifts. A green check means it&apos;s ready.
               </p>
