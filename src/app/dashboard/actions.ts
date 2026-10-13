@@ -401,24 +401,60 @@ export async function updateStation(
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
 
-  // Section Leads: add the newly ticked ones (in the order shown), remove the unticked.
   if (formData.has("leadsField")) {
-    const { data: current } = await supabase.from("station_leads").select("user_id").eq("station_id", stationId);
-    const had = new Set((current ?? []).map((r) => r.user_id));
-    const want = new Set(leadIds.data);
-    const removed = [...had].filter((id) => !want.has(id));
-    if (removed.length) {
-      const { error: delError } = await supabase.from("station_leads").delete().eq("station_id", stationId).in("user_id", removed);
-      if (delError) return { error: friendlyDbError(delError) };
-    }
-    for (const userId of leadIds.data.filter((id) => !had.has(id))) {
-      const { error: addError } = await supabase.from("station_leads").insert({ station_id: stationId, user_id: userId, event_id: eventId });
-      if (addError) return { error: friendlyDbError(addError) };
-    }
+    const leadError = await syncStationLeads(supabase, eventId, stationId, leadIds.data);
+    if (leadError) return { error: leadError };
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true, message: "Station saved." };
+}
+
+/** A station's leads become exactly these: the newly ticked are added (in the order shown), the unticked removed. */
+async function syncStationLeads(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
+  stationId: string,
+  leadIds: string[],
+): Promise<string | null> {
+  const { data: current } = await supabase.from("station_leads").select("user_id").eq("station_id", stationId);
+  const had = new Set((current ?? []).map((r) => r.user_id));
+  const want = new Set(leadIds);
+  const removed = [...had].filter((id) => !want.has(id));
+  if (removed.length) {
+    const { error } = await supabase.from("station_leads").delete().eq("station_id", stationId).in("user_id", removed);
+    if (error) return friendlyDbError(error);
+  }
+  for (const userId of leadIds.filter((id) => !had.has(id))) {
+    const { error } = await supabase.from("station_leads").insert({ station_id: stationId, user_id: userId, event_id: eventId });
+    if (error) return friendlyDbError(error);
+  }
+  return null;
+}
+
+/** Step 1, on a station's row: who leads it. */
+export async function setStationLeads(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
+  if (!leadIds.success) return { error: "Something went wrong with the leads. Please try again." };
+  const supabase = await createClient();
+  const leadError = await syncStationLeads(supabase, eventId, stationId, leadIds.data);
+  if (leadError) return { error: leadError };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: leadIds.data.length ? "Leads saved." : "Leads removed." };
+}
+
+/** Step 1, on a station's row: its name. */
+export async function renameStation(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const name = text(80).safeParse(formData.get("name") ?? "");
+  if (!name.success) return { error: "Please enter the station's name." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("stations").update({ name: name.data }).eq("id", stationId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "You don't have permission to do that." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: `Renamed to “${name.data}”.` };
 }
 
 /** Moves a check-in station one place earlier or later in the band's path. */
@@ -479,7 +515,8 @@ async function loadEventTiming(eventId: string): Promise<EventTiming | null> {
 
 const shiftSchema = z
   .object({
-    title: text(120),
+    // Optional when creating: a new shift is named from its start time ("Morning shift").
+    title: optionalText(120),
     day: date,
     startTime: time,
     endTime: time,
@@ -495,7 +532,8 @@ export async function createShift(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = shiftSchema.safeParse(Object.fromEntries(formData));
+  // Title and duties are optional (the create form leaves them out).
+  const parsed = shiftSchema.safeParse({ title: "", description: "", ...Object.fromEntries(formData) });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
 
@@ -503,9 +541,11 @@ export async function createShift(
   if (!event) return { error: "Event not found." };
 
   const supabase = await createClient();
+  const startsAt = zonedToUtc(v.day, v.startTime, event.timezone);
+  const title = v.title ?? shiftTitle(startsAt, event.timezone);
   const { error } = await supabase.from("shifts").insert({
     station_id: stationId,
-    title: v.title,
+    title,
     description: v.description,
     starts_at: zonedToUtc(v.day, v.startTime, event.timezone).toISOString(),
     ends_at: zonedToUtc(v.day, v.endTime, event.timezone).toISOString(),
@@ -514,7 +554,7 @@ export async function createShift(
   if (error) return { error: friendlyDbError(error) };
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `Added “${v.title}”.` };
+  return { ok: true, message: `Added “${title}”.` };
 }
 
 const generateSchema = z.object({
@@ -586,7 +626,8 @@ export async function updateShift(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = shiftSchema.safeParse(Object.fromEntries(formData));
+  // Title and duties are optional (the create form leaves them out).
+  const parsed = shiftSchema.safeParse({ title: "", description: "", ...Object.fromEntries(formData) });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
 
@@ -604,7 +645,7 @@ export async function updateShift(
   const { error } = await supabase
     .from("shifts")
     .update({
-      title: v.title,
+      ...(v.title ? { title: v.title } : {}),
       description: v.description,
       starts_at: startsAt,
       ends_at: endsAt,
@@ -617,7 +658,7 @@ export async function updateShift(
     before &&
     (new Date(before.starts_at).getTime() !== new Date(startsAt).getTime() ||
       new Date(before.ends_at).getTime() !== new Date(endsAt).getTime() ||
-      before.title !== v.title);
+      (v.title !== null && before.title !== v.title));
   if (moved) await notifyVolunteersOfChanges([shiftId]);
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
