@@ -155,6 +155,7 @@ async function updateEventRow(eventId: string, values: Record<string, unknown>):
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "Only the event's host can change this." };
   revalidatePath(`/dashboard/events/${eventId}/bands`);
+  revalidatePath(`/dashboard/events/${eventId}/schedule`);
   revalidatePath(`/dashboard/events/${eventId}`);
   return { ok: true };
 }
@@ -311,7 +312,7 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
     if (error.code === "23505") return { error: "The same band is picked for two finals slots." };
     return { error: friendlyDbError(error) };
   }
-  revalidatePath(`/dashboard/events/${eventId}/bands`);
+  revalidatePath(`/dashboard/events/${eventId}/schedule`);
 
   // A new ready position changes every band's ready time in that round.
   const readyChanged = parsed.data.readyMinutes !== event.ready_minutes_before;

@@ -9,8 +9,12 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { sortStations, whereIs, type BandDay, type Checkpoint, type Round, type Stop, type Tone } from "@/lib/contest-day";
 import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
+import { HostSchedule } from "./host-schedule";
 
-export const metadata: Metadata = { title: "Band schedule" };
+export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/schedule">): Promise<Metadata> {
+  const { eventId } = await params;
+  return { title: (await getEventAccess(eventId)).isHost ? "Performance Schedule Setup" : "Band schedule" };
+}
 
 /** What leads may know about a band (event_bands): no contact details. Counts are for Volunteer Leads only. */
 export type LeadBand = BandDay & {
@@ -41,12 +45,11 @@ function Status({ band, round, track }: { band: LeadBand; round: Round; track: T
   return <Badge tone={BADGE_TONE[w.tone]}>{w.label}</Badge>;
 }
 
-/** Read-only schedule and band status for Volunteer Leads and Section Leads. */
-export default async function LeadSchedulePage({ params }: PageProps<"/dashboard/events/[eventId]/schedule">) {
+/** Hosts: Performance Schedule Setup. Volunteer Leads and Section Leads: the read-only schedule and band status. */
+export default async function SchedulePage({ params }: PageProps<"/dashboard/events/[eventId]/schedule">) {
   const { eventId } = await params;
   const access = await getEventAccess(eventId);
-  // Hosts build and edit the schedule on the Bands page.
-  if (access.isHost) redirect(`/dashboard/events/${eventId}/bands`);
+  if (access.isHost) return <HostSchedule eventId={eventId} />;
 
   const supabase = await createClient();
   const { data: onTeam } = await supabase.rpc("is_event_staff", { ev: eventId });

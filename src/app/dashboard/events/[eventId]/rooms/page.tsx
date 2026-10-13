@@ -15,7 +15,7 @@ import { saveRooms, saveRoomSchedule, setRoomSchedulePosted } from "./actions";
 import { RoomsEditor } from "./rooms-editor";
 import { ScheduleEditor, type ScheduleGroup } from "./schedule-editor";
 
-export const metadata: Metadata = { title: "Rooms & schedule" };
+export const metadata: Metadata = { title: "Rooms & Schedule Setup" };
 
 /** Group events: hosts set up the rooms and the groups' order; the team sees the schedule. */
 export default async function RoomsPage({ params }: PageProps<"/dashboard/events/[eventId]/rooms">) {
@@ -79,7 +79,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
         ← Back to {event.name}
       </Link>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Rooms &amp; schedule</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Rooms &amp; Schedule Setup</h1>
         <Badge tone={event.performance_order_published ? "brand" : "neutral"}>
           {event.performance_order_published ? "Posted: directors and the public can see it" : "Not posted yet"}
         </Badge>

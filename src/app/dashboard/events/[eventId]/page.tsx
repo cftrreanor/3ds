@@ -633,7 +633,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       {groupsHere && (
       <section className="mt-10" aria-labelledby="bands-heading">
         <h2 id="bands-heading" className="text-xl font-semibold">
-          {access.isHost ? `${words.One} registration` : words.Many}
+          {access.isHost ? `${words.One} Registration` : words.Many}
         </h2>
         <Card className="mt-4 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -641,21 +641,19 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               {bands.length
                 ? `${bands.length} ${bands.length === 1 ? words.one : words.many} registered.`
                 : `No ${words.many} registered yet.`}{" "}
-              {roomsHere
-                ? access.isHost
-                  ? "Registration, rooms and each group's schedule."
-                  : "See each group's times in every room."
-                : access.isHost
-                  ? "Registration, the performance schedule and finals."
+              {access.isHost
+                ? `Settings, opening registration and inviting ${words.one} directors.`
+                : roomsHere
+                  ? "See each group's times in every room."
                   : "See the performance order and each band's status on the day."}
             </p>
             <div className="flex flex-wrap gap-2">
-              {roomsHere && (
+              {roomsHere && !access.isHost && (
                 <Link
                   href={`/dashboard/events/${eventId}/rooms`}
-                  className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium ${access.isHost ? "border border-border bg-surface hover:bg-background" : "bg-brand text-brand-foreground hover:opacity-90"}`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
                 >
-                  {access.isHost ? "Rooms & schedule" : "Room schedule"}
+                  Room schedule
                 </Link>
               )}
               {(access.isHost || !roomsHere) && (
@@ -671,6 +669,32 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
         </Card>
       </section>
+      )}
+
+      {groupsHere && access.isHost && (
+        <section className="mt-10" aria-labelledby="schedule-heading">
+          <h2 id="schedule-heading" className="text-xl font-semibold">
+            {roomsHere ? "Rooms & Schedule Setup" : "Performance Schedule Setup"}
+          </h2>
+          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={event.performance_order_published ? "success" : "neutral"}>
+                {event.performance_order_published ? "Published" : "Not published"}
+              </Badge>
+              <span className="text-sm text-muted">
+                {roomsHere
+                  ? "Your rooms, the path every group follows, and each group's times."
+                  : "The running order, breaks and finals. Directors are emailed their times when you publish."}
+              </span>
+            </div>
+            <Link
+              href={`/dashboard/events/${eventId}/${roomsHere ? "rooms" : "schedule"}`}
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+            >
+              {roomsHere ? "Set up rooms & schedule" : "Set up the schedule"}
+            </Link>
+          </Card>
+        </section>
       )}
 
       {roomsHere && groupStatus && (
@@ -803,13 +827,13 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
     const live: Live[] = [
       ...(facts.stations > 0 || facts.eventType === "volunteer" ? [open("Volunteer sign-up", facts.volunteerSignupOpen, "volunteering")] : []),
       ...(hasEnsembles(facts.eventType) ? [open(`${words.One} registration`, facts.bandRegistrationOpen, "bands")] : []),
-      ...(facts.eventType === "band_contest" ? [shown("Performance schedule", facts.scheduleShared, "bands")] : []),
+      ...(facts.eventType === "band_contest" ? [shown("Performance schedule", facts.scheduleShared, "schedule")] : []),
       ...(facts.eventType === "band_contest" && facts.finalsSlots > 0
         ? [
             shown(
               "Finals schedule",
               facts.finalsPublished,
-              "bands",
+              "schedule",
               facts.finalsPublished && !facts.finalistsRevealed ? "Finalist names not revealed yet" : undefined,
             ),
           ]
