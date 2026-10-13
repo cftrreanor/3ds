@@ -76,14 +76,14 @@ export default async function AnnouncementsPage({ params }: PageProps<"/dashboar
       <div className="flex flex-col gap-3">
         <SetupStep
           id="post"
-          title="1. Post a banner"
-          status={<StepStatus done={false} todoLabel="Ready to post" />}
+          title="1. Broadcast a message"
+          status={<StepStatus done={false} todoLabel="Ready to send" />}
           open
           intro={
             event.status !== "published" ? (
               <span className="text-warning">This event isn&apos;t published, so the public won&apos;t see banners yet.</span>
             ) : (
-              "Say what's happening, pick who it's for, and post it."
+              "Say what's happening, pick who it's for, and broadcast it."
             )
           }
         >

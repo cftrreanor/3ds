@@ -89,8 +89,8 @@ export function PostForm({
           ))}
         </select>
       </Field>
-      <SubmitButton variant={priority === "emergency" ? "warn" : "primary"} pendingText="Posting…">
-        {priority === "emergency" ? "Post emergency banner" : "Post banner"}
+      <SubmitButton variant={priority === "emergency" ? "warn" : "primary"} pendingText="Sending…">
+        {priority === "emergency" ? "Broadcast Emergency" : "Broadcast Message"}
       </SubmitButton>
     </ActionForm>
   );
