@@ -3087,6 +3087,58 @@ do $$ begin
   exception when sqlstate 'P0001' then null;
   end;
 end $$;
+-- Fair zones: the host (and Volunteer Leads) create, rename and delete them,
+-- carrying booths along; Station Coordinators only read; strangers see none.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  insert into public.fair_zones (event_id, name) values
+    ('10000000-0000-0000-0000-0000000000f1', 'Activity Stations'),
+    ('10000000-0000-0000-0000-0000000000f1', 'Game Zone');
+  begin
+    insert into public.fair_zones (event_id, name) values ('10000000-0000-0000-0000-00000000000a', 'Not a fair');
+    raise exception 'FAIL: a zone on a band contest';
+  exception when sqlstate 'P0001' then null;
+  end;
+  perform public.rename_fair_zone('10000000-0000-0000-0000-0000000000f1', 'Activity Stations', 'Activities');
+  assert (select zone from public.fair_booths where title = 'Dunk Tank') = 'Activities', 'renaming a zone moves its booths';
+  assert exists (select 1 from public.fair_zones where event_id = '10000000-0000-0000-0000-0000000000f1' and name = 'Activities'), 'and renames the zone';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.fair_zones where event_id = '10000000-0000-0000-0000-0000000000f1') = 2, 'a Station Coordinator sees the zones';
+  begin
+    insert into public.fair_zones (event_id, name) values ('10000000-0000-0000-0000-0000000000f1', 'Sneaky zone');
+    raise exception 'FAIL: a Station Coordinator added a zone';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.rename_fair_zone('10000000-0000-0000-0000-0000000000f1', 'Game Zone', 'Mine');
+    raise exception 'FAIL: a Station Coordinator renamed a zone';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.delete_fair_zone('10000000-0000-0000-0000-0000000000f1', 'Activities');
+    raise exception 'FAIL: a Station Coordinator deleted a zone';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.fair_zones) = 0, 'strangers can''t read zones';
+  begin
+    perform public.delete_fair_zone('10000000-0000-0000-0000-0000000000f1', 'Activities');
+    raise exception 'FAIL: a stranger deleted a zone';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  perform public.delete_fair_zone('10000000-0000-0000-0000-0000000000f1', 'Activities');
+  assert (select zone is null from public.fair_booths where title = 'Dunk Tank'), 'deleting a zone leaves its booths with no zone';
+  assert not exists (select 1 from public.fair_zones where name = 'Activities'), 'and removes the zone';
+end $$;
+reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000f1';
 
 -- ---------------------------------------------------------------------------

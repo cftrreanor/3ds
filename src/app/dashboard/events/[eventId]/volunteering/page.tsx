@@ -82,20 +82,20 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   }));
   const checkpoints = stations.filter((s) => s.checkpoint_kind);
 
-  // Fairs: zone suggestions are the usual five plus any the host has made up
-  // (on booths or other stations).
-  const { data: boothZones } = hasBooths(event.event_type)
-    ? await supabase.from("fair_booths").select("zone").eq("event_id", eventId).not("zone", "is", null)
-    : { data: [] };
-  const zones = hasBooths(event.event_type)
-    ? [
-        ...new Set([
-          ...FAIR_ZONES,
-          ...stations.map((s) => (s as { zone?: string | null }).zone),
-          ...(boothZones ?? []).map((b) => b.zone),
-        ].filter((z): z is string => Boolean(z))),
-      ]
-    : undefined;
+  // Fairs: zone suggestions for stations.
+  const [{ data: zoneRows }, { data: boothZones }] = hasBooths(event.event_type)
+    ? await Promise.all([
+        supabase.from("fair_zones").select("name").eq("event_id", eventId).order("created_at"),
+        supabase.from("fair_booths").select("zone").eq("event_id", eventId).not("zone", "is", null),
+      ])
+    : [{ data: [] }, { data: [] }];
+  // The fair's zones (made on Booths & Partners), or the usual five until there are some.
+  const made = [
+    ...(zoneRows ?? []).map((z) => z.name),
+    ...stations.map((s) => (s as { zone?: string | null }).zone),
+    ...(boothZones ?? []).map((b) => b.zone),
+  ].filter((z): z is string => Boolean(z));
+  const zones = hasBooths(event.event_type) ? [...new Set(made.length ? made : FAIR_ZONES)] : undefined;
 
   const shifts = (shiftData ?? []) as Shift[];
   const staffRows = (staff ?? []) as unknown as StaffRow[];
