@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SuccessToast } from "@/components/toaster";
 import { redirect } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -55,8 +56,10 @@ type Invitation = {
 
 const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
 
-export default async function EventPage({ params }: PageProps<"/dashboard/events/[eventId]">) {
+export default async function EventPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]">) {
   const { eventId } = await params;
+  // Back from demo mode (demo-actions backToMe).
+  const demoEnded = (await searchParams).demo === "ended";
   const user = await requireUser();
   const supabase = await createClient();
 
@@ -312,6 +315,7 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
 
   return (
     <div className={checklist ? "pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8 lg:pb-0" : undefined}>
+      {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
       {checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
@@ -754,8 +758,8 @@ export default async function EventPage({ params }: PageProps<"/dashboard/events
               a demo person in that role: a co-host, a Volunteer Lead, a Section Lead (of the first stations),
               {groupsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift, or a parent
               looking at the public page.
-              A bar at the top switches roles; <strong className="text-foreground">Back to me</strong> emails you a
-              sign-in link to get back to your own account.
+              A bar at the top switches roles; <strong className="text-foreground">Back to me</strong> takes the demo
+              people and sample data back off and returns you here, still signed in.
             </p>
             <p className="text-sm leading-6 text-muted">
               The first time, the event also fills with sample data for its kind: stations and shifts with a dozen

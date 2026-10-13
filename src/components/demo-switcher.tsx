@@ -88,10 +88,10 @@ export function DemoSwitcher({
             variant="secondary"
             className="min-h-9 shrink-0 px-3"
             disabled={leaving}
-            title="Signs out and emails a sign-in link to your own address"
+            title="Removes the demo people and sample data, and takes you back to your own account"
             onClick={() => start(() => backToMe())}
           >
-            {leaving ? "Sending link…" : "Back to me"}
+            {leaving ? "Going back…" : "Back to me"}
           </Button>
         </div>
         {eventId && <RoleButtons eventId={eventId} personas={personas} current={current} scroll />}

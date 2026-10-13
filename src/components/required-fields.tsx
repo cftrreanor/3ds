@@ -8,9 +8,10 @@ import { useEffect } from "react";
  *
  *   - A form's submit buttons look faded until its required boxes are filled
  *     in (they still work, so tapping one early isn't a dead end).
- *   - Tapping one early outlines each box still needed in red, says what to
- *     do under the form, and jumps to the first one, instead of the
- *     browser's one-at-a-time pop-up.
+ *   - Only once they try to save with a required box empty does anything
+ *     turn red: each box still needed is outlined, a line under the form says
+ *     what to do, and the first one gets the focus (instead of the browser's
+ *     one-at-a-time pop-up).
  *
  * It works from the browser's own `required` (and type/pattern) checks, so a
  * form opts in just by marking its required boxes. Forms with `noValidate`
@@ -22,7 +23,8 @@ export function RequiredFields() {
 
     const update = (form: HTMLFormElement) => {
       if (!checkable(form)) return;
-      const ready = form.checkValidity();
+      // Not form.checkValidity(): that reports every empty box as if they'd tried to save.
+      const ready = [...form.elements].every((el) => !(el as HTMLInputElement).willValidate || (el as HTMLInputElement).validity.valid);
       for (const button of form.querySelectorAll<HTMLButtonElement>("button[type=submit], button:not([type])")) {
         button.toggleAttribute("data-not-ready", !ready);
       }

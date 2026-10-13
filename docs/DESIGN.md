@@ -117,7 +117,7 @@ Mark a box `required` and the pattern comes for free (`src/components/required-f
 in the root layout; styles at the end of `globals.css`):
 
 - The form's submit button looks faded (50%) until every required box is filled in. It still works.
-- Tapping it early outlines each box still needed in red (`danger` border and a soft red ring), says
+- Nothing turns red while they're typing. Only tapping save with a required box empty outlines each box still needed in red (`danger` border and a soft red ring), says
   "Fill in the boxes outlined in red." under the form ("Check…" when something's in the wrong
   format, like an email), and jumps to the first one. No browser pop-ups.
 - Optional boxes are never outlined. Say "(optional)" in their label or hint instead.
