@@ -72,3 +72,36 @@ export function BoothForm({
     </ActionForm>
   );
 }
+
+/** Just a booth's zone. Everything else rides along unchanged. */
+export function ZoneForm({
+  action,
+  booth,
+  zones,
+}: {
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  booth: BoothValues;
+  zones: string[];
+}) {
+  const keep: [string, string | null][] = [
+    ["title", booth.title],
+    ["hostName", booth.host_name],
+    ["location", booth.location],
+    ["description", booth.description],
+    ["contactName", booth.contact_name],
+    ["contactEmail", booth.contact_email],
+    ["contactPhone", booth.contact_phone],
+    ["showPublicly", booth.show_publicly ? "on" : null],
+  ];
+  return (
+    <ActionForm action={action} resetOnSuccess={false} className="flex flex-wrap items-start gap-3">
+      {keep.map(([name, value]) => value !== null && <input key={name} type="hidden" name={name} value={value} />)}
+      <Field label="Zone" className="min-w-0 flex-1 basis-64">
+        <ZoneInput zones={zones} defaultValue={booth.zone} />
+      </Field>
+      <div className="sm:pt-7">
+        <SubmitButton>Save zone</SubmitButton>
+      </div>
+    </ActionForm>
+  );
+}

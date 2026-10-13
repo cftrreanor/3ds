@@ -12,7 +12,7 @@ export async function BoothsCard({ eventId, isDay }: { eventId: string; isDay: b
   return (
     <section className="mt-10" aria-labelledby="booths-heading">
       <h2 id="booths-heading" className="text-xl font-semibold">
-        Booths &amp; partners
+        Booths &amp; Partners
       </h2>
       <Card className={`mt-4 ${isDay ? "border-brand" : ""}`}>
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -38,7 +38,7 @@ export async function BoothsCard({ eventId, isDay }: { eventId: string; isDay: b
             href={`/dashboard/events/${eventId}/booths`}
             className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
           >
-            {isDay ? "Partner check-in" : booths.length ? "Booths & partners" : "Add booths"}
+            {isDay ? "Partner check-in" : booths.length ? "Manage booths" : "Add booths"}
           </Link>
         </div>
       </Card>
