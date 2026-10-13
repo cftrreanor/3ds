@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Card } from "@/components/ui";
+import { SetupStep, StepStatus } from "@/components/setup-step";
 import { EVENT_TYPES, eventTypeLabel, groupWords, hasBands, hasBooths, hasEnsembles, hasParents } from "@/lib/event-types";
 import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
@@ -33,8 +33,10 @@ const SWITCH_NOTE = {
   fair: "Booths and partners by zone, partner check-in and the public \u201cWhat's at the event\u201d list are added; band registration and the performance schedule go away.",
 };
 
-export default async function EditEventPage({ params }: PageProps<"/dashboard/events/[eventId]/edit">) {
+/** Edit details, as setup steps (see "Setup pages" in docs/DESIGN.md). ?step=files opens Maps & documents. */
+export default async function EditEventPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/edit">) {
   const { eventId } = await params;
+  const { step } = await searchParams;
   const access = await getEventAccess(eventId);
   if (!access.isHost) redirect(`/dashboard/events/${eventId}`);
 
@@ -80,41 +82,49 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Edit event details</h1>
-      <Card className="mt-8">
-        <EventForm
-          action={updateEvent.bind(null, eventId)}
-          organizationId={event.organization_id}
-          initial={{
-            name: event.name,
-            startsOn: event.starts_on,
-            endsOn: event.ends_on,
-            startTime: utcToZonedTime(event.window_start, event.timezone),
-            endTime: utcToZonedTime(event.window_end, event.timezone),
-            timezone: event.timezone,
-            venue: {
-              name: event.venue_name,
-              address: event.venue_address,
-              placeId: event.venue_place_id,
-              lat: event.venue_lat,
-              lng: event.venue_lng,
-            },
-          }}
-          venueSearchEnabled={isPlacesConfigured}
-          submitLabel="Save changes"
-          hasShifts={(count ?? 0) > 0}
-        />
-      </Card>
+      <div className="mt-6 flex flex-col gap-3">
+        <SetupStep
+          id="details"
+          title="1. Event details"
+          status={<StepStatus done doneLabel="Saved" />}
+          open={step !== "files" && step !== "kind"}
+          intro="The name, dates, times and venue everyone sees."
+        >
+          <EventForm
+            action={updateEvent.bind(null, eventId)}
+            organizationId={event.organization_id}
+            initial={{
+              name: event.name,
+              startsOn: event.starts_on,
+              endsOn: event.ends_on,
+              startTime: utcToZonedTime(event.window_start, event.timezone),
+              endTime: utcToZonedTime(event.window_end, event.timezone),
+              timezone: event.timezone,
+              venue: {
+                name: event.venue_name,
+                address: event.venue_address,
+                placeId: event.venue_place_id,
+                lat: event.venue_lat,
+                lng: event.venue_lng,
+              },
+            }}
+            venueSearchEnabled={isPlacesConfigured}
+            submitLabel="Save changes"
+            hasShifts={(count ?? 0) > 0}
+          />
+        </SetupStep>
 
-      <section className="mt-10" aria-labelledby="files-heading">
-        <h2 id="files-heading" className="text-xl font-semibold">
-          Maps &amp; documents
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          {groupsHere
-            ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers or your team.`
-            : "Share a site map, parking map or volunteer guide. Choose who sees each one: the public page, volunteers or your team."}
-        </p>
-        <Card className="mt-4">
+        <SetupStep
+          id="files"
+          title="2. Maps & documents"
+          status={<StepStatus done={files.length > 0} doneLabel={`${files.length} ${files.length === 1 ? "file" : "files"}`} todoLabel="Optional" />}
+          open={step === "files"}
+          intro={
+            groupsHere
+              ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers or your team.`
+              : "Share a site map, parking map or volunteer guide. Choose who sees each one: the public page, volunteers or your team."
+          }
+        >
           <FilesManager
             files={files}
             audiences={groupsHere ? AUDIENCES : AUDIENCES.filter((a) => a.value !== "directors")}
@@ -123,45 +133,48 @@ export default async function EditEventPage({ params }: PageProps<"/dashboard/ev
             deleteFile={deleteFile.bind(null, eventId)}
             canNotify={bandsHere}
           />
-        </Card>
-      </section>
+        </SetupStep>
 
-      <section className="mt-10" aria-labelledby="type-heading">
-        <h2 id="type-heading" className="text-xl font-semibold">
-          Kind of event
-        </h2>
-        <Card className="mt-4 space-y-3">
-          <p>
-            This is a <strong>{eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
-            <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
-          </p>
-          {groupsHere && (bandCount ?? 0) > 0 ? (
-            <p className="text-sm text-muted">
-              {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
-              {eventTypeLabel(event.event_type).toLowerCase()}.
+        <SetupStep
+          id="kind"
+          title="3. Kind of event"
+          status={<StepStatus done doneLabel={eventTypeLabel(event.event_type)} />}
+          open={step === "kind"}
+          intro="What the event is for decides which pages and tools it has."
+        >
+          <div className="space-y-3">
+            <p>
+              This is a <strong>{eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
+              <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
             </p>
-          ) : hasBooths(event.event_type) && (boothCount ?? 0) > 0 ? (
-            <p className="text-sm text-muted">This fair has booths and partners, so it has to stay a school fair.</p>
-          ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
-            <p className="text-sm text-muted">
-              {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest")).map((t) => (
-                <ActionButton
-                  key={t.value}
-                  action={setEventType.bind(null, eventId, t.value)}
-                  variant="secondary"
-                  confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value]} Volunteers and shifts stay as they are.`}
-                >
-                  Make it a {t.label.toLowerCase()}
-                </ActionButton>
-              ))}
-            </div>
-          )}
-        </Card>
-      </section>
+            {groupsHere && (bandCount ?? 0) > 0 ? (
+              <p className="text-sm text-muted">
+                {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
+                {eventTypeLabel(event.event_type).toLowerCase()}.
+              </p>
+            ) : hasBooths(event.event_type) && (boothCount ?? 0) > 0 ? (
+              <p className="text-sm text-muted">This fair has booths and partners, so it has to stay a school fair.</p>
+            ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
+              <p className="text-sm text-muted">
+                {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest")).map((t) => (
+                  <ActionButton
+                    key={t.value}
+                    action={setEventType.bind(null, eventId, t.value)}
+                    variant="secondary"
+                    confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value]} Volunteers and shifts stay as they are.`}
+                  >
+                    Make it a {t.label.toLowerCase()}
+                  </ActionButton>
+                ))}
+              </div>
+            )}
+          </div>
+        </SetupStep>
+      </div>
     </div>
   );
 }

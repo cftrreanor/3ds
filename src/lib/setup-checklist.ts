@@ -138,7 +138,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       id: "files",
       label: "Add maps or documents",
       hint: "Parking maps, packets, schedules.",
-      href: `${base}/edit#files-heading`,
+      href: `${base}/edit?step=files`,
       done: f.files > 0,
       required: false,
     },
