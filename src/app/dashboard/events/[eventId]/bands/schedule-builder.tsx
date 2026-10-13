@@ -762,19 +762,18 @@ export function ScheduleBuilder({
             onDismiss={() => setChanges(null)}
           />
         )}
-        {!editing && <FormMessage error={result.error} success={result.ok ? result.message : null} />}
-        {editing && <p className="text-sm text-muted">Save or cancel your changes below before publishing.</p>}
+        <FormMessage error={result.error} success={result.ok ? result.message : null} />
         <div className="space-y-2">
           <PublishLine label="Preliminaries" status={orderPublished ? "Published" : "Not published"} on={orderPublished}>
             {orderPublished ? (
-              <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={busy || pending} onClick={() => run(() => publishOrder(false))}>
+              <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishOrder(false))}>
                 Unpublish
               </Button>
             ) : (
               <Button
                 type="button"
                 className="min-h-9 px-3"
-                disabled={busy || pending}
+                disabled={pending}
                 onClick={() => {
                   const unscheduled = saved.bands.filter((b) => !b.perform).length;
                   run(
@@ -802,19 +801,19 @@ export function ScheduleBuilder({
               }
             >
               {!finalsPublished ? (
-                <Button type="button" className="min-h-9 px-3" disabled={busy || pending} onClick={() => run(() => publishFinals(true))}>
+                <Button type="button" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishFinals(true))}>
                   Publish schedule
                 </Button>
               ) : !finalistsRevealed ? (
                 <>
-                  <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={busy || pending} onClick={() => run(() => publishFinals(false))}>
+                  <Button type="button" variant="secondary" className="min-h-9 px-3" disabled={pending} onClick={() => run(() => publishFinals(false))}>
                     Unpublish
                   </Button>
                   <Button
                     type="button"
                     variant="warn"
                     className="min-h-9 px-3"
-                    disabled={busy || pending || picked === 0}
+                    disabled={pending || picked === 0}
                     onClick={() =>
                       run(
                         () => revealFinalists(true),
@@ -831,7 +830,7 @@ export function ScheduleBuilder({
                     type="button"
                     variant="secondary"
                     className="min-h-9 px-3"
-                    disabled={busy || pending}
+                    disabled={pending}
                     onClick={() => run(() => revealFinalists(false), "Hide the finalist names again? The finals times stay published.")}
                   >
                     Hide names
@@ -840,7 +839,7 @@ export function ScheduleBuilder({
                     type="button"
                     variant="secondary"
                     className="min-h-9 px-3"
-                    disabled={busy || pending || picked === 0}
+                    disabled={pending || picked === 0}
                     onClick={() => run(emailFinalists, `Email the ${picked} finalist band director(s) their finals times?`)}
                   >
                     Email finalists
@@ -891,11 +890,12 @@ function saveLabel(e: NonNullable<Editing>) {
 
 /** Publishing only: what's live, and the buttons to publish, reveal or hide it. */
 function ActionBar({ editing, children }: { editing: boolean; children: ReactNode }) {
-  // On a phone it's pinned to the bottom, by the thumb, and steps aside while
-  // something is being edited so that edit's Save and Cancel can take its place.
+  // Pinned under the title on a computer and to the bottom on a phone. It steps
+  // aside while something is being edited, so that edit's Save and Cancel are the
+  // only bar on screen.
   return (
     <div
-      className={`sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:block sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg ${editing ? "hidden" : ""}`}
+      className={`sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg ${editing ? "hidden" : ""}`}
     >
       {children}
     </div>
