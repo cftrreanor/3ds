@@ -3,7 +3,7 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
-import { Badge, Card } from "@/components/ui";
+import { SetupStep, StepStatus } from "@/components/setup-step";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { hasParents } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
@@ -19,9 +19,15 @@ import { importParents } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { GRADE_CHOICES, importFields } from "@/lib/imports";
 
-export const metadata: Metadata = { title: "Parent check-in" };
+export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/parents">): Promise<Metadata> {
+  const { eventId } = await params;
+  return { title: (await getEventAccess(eventId)).isHost ? "Parent Registration" : "Parent check-in" };
+}
 
-/** School visitor events: who registered, and checking parents in at the door. Hosts and the team. */
+/**
+ * School visitor events. Hosts: Parent Registration, as setup steps (see
+ * "Setup pages" in docs/DESIGN.md), then door check-in. The team: door check-in.
+ */
 export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/events/[eventId]/parents">) {
   const { eventId } = await params;
   const supabase = await createClient();
@@ -76,63 +82,35 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Parent check-in</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
+        {access.isHost ? "Parent Registration" : "Parent check-in"}
+      </h1>
+      {access.isHost && (
+        <p className="mt-2 text-sm text-muted">
+          {parents.length} {parents.length === 1 ? "family" : "families"} registered · Registration {closed ? "closed" : "open"}
+        </p>
+      )}
 
       {access.isHost && (
-        <Card className="mt-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1 space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={!closed ? "brand" : "neutral"}>
-                  {closed === "draft"
-                    ? "Event not published"
-                    : closed === "over"
-                      ? "Event over"
-                      : closed === "deadline"
-                        ? "Closed automatically"
-                        : closed === "closed"
-                          ? "Registration closed"
-                          : "Registration open"}
-                </Badge>
-                <span className="text-sm text-muted">
-                  {parents.length} {parents.length === 1 ? "family" : "families"} · {adultCount} {adultCount === 1 ? "adult" : "adults"} · {childCount}{" "}
-                  {childCount === 1 ? "child" : "children"}
-                </span>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Registration link</p>
-                <p className="mt-1 break-all text-sm text-muted">{link}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <CopyLinkButton url={link} label="Copy link" />
-                  <a
-                    href={`/e/${event.slug}/parents`}
-                    target="_blank"
-                    className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
-                  >
-                    Preview page
-                  </a>
-                </div>
-              </div>
-              {event.status !== "published" && (
-                <p className="text-sm text-muted">Publish the event from its main page, then open registration here.</p>
-              )}
-              {closed === "deadline" && closesAt && (
-                <p className="text-sm">
-                  Registration closed on its own on {closesAtLabel(closesAt, event.timezone)}. To reopen it, change or remove
-                  the closing time.
-                </p>
-              )}
-              {event.status === "published" && (closed === null || closed === "closed") && (
-                <ActionButton
-                  action={setParentRegistrationOpen.bind(null, eventId, !event.parent_registration_open)}
-                  variant={event.parent_registration_open ? "stop" : "go"}
-                  confirmMessage={event.parent_registration_open ? "Close parent registration? Parents won't be able to register." : undefined}
-                >
-                  {event.parent_registration_open ? "Close registration now" : "Open registration"}
-                </ActionButton>
-              )}
-              {closed !== "over" && (
-                <div className="border-t border-border pt-4">
+        <div className="mt-6 flex flex-col gap-3">
+          <SetupStep
+            id="registration-settings"
+            title="1. Registration settings"
+            status={
+              <StepStatus
+                done={Boolean(closesAt)}
+                doneLabel={`${closed === "deadline" ? "Closed" : "Closes"} ${closesAt ? closesAtLabel(closesAt, event.timezone) : ""}`}
+                todoLabel="Optional"
+              />
+            }
+            open={false}
+            intro="When registration closes on its own, and whether parents who didn't register can still come."
+          >
+            {closed === "over" ? (
+              <p className="text-sm text-muted">The event is over.</p>
+            ) : (
+              <div className="space-y-5">
+                <div>
                   <p className="text-sm font-medium">
                     {closesAt
                       ? `${closed === "deadline" ? "Closed" : "Closes"} automatically ${closesAtLabel(closesAt, event.timezone)}`
@@ -148,8 +126,6 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                     />
                   </div>
                 </div>
-              )}
-              {closed !== "over" && (
                 <div className="border-t border-border pt-4">
                   <p className="text-sm font-medium">Can parents who didn&apos;t register still attend?</p>
                   <p className="mt-1 text-sm text-muted">
@@ -175,60 +151,133 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                     )}
                   </div>
                 </div>
-              )}
-              <p className="text-sm text-muted">
-                Parents get a reminder to bring their photo ID the day before. Children&apos;s details are deleted 30 days after
-                the event{over ? `, on ${formatDate(addDays(event.ends_on, 31), { year: undefined })}` : ""}.
-              </p>
+              </div>
+            )}
+          </SetupStep>
+
+          <SetupStep
+            id="open-registration"
+            title="2. Open registration"
+            status={
+              closed === null ? (
+                <StepStatus done doneLabel="Open" />
+              ) : (
+                <StepStatus
+                  done={false}
+                  todoLabel={
+                    closed === "draft"
+                      ? "Publish the event first"
+                      : closed === "over"
+                        ? "Event over"
+                        : closed === "deadline"
+                          ? "Closed automatically"
+                          : parents.length > 0
+                            ? "Closed"
+                            : "Needs to be done"
+                  }
+                />
+              )
+            }
+            open={closed === "draft" || (closed === "closed" && parents.length === 0)}
+            intro="Share the link or QR code with families, then open registration so they can sign up."
+          >
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1 space-y-4">
+                {event.status !== "published" && (
+                  <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm">
+                    Publish the event from its main page first, then open registration here.
+                  </p>
+                )}
+                {closed === "deadline" && closesAt && (
+                  <p className="text-sm">
+                    Registration closed on its own on {closesAtLabel(closesAt, event.timezone)}. To reopen it, change or
+                    remove the closing time in step 1.
+                  </p>
+                )}
+                <div>
+                  <p className="text-sm font-medium">Registration link</p>
+                  <p className="mt-1 break-all text-sm text-muted">{link}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <CopyLinkButton url={link} label="Copy link" />
+                    <a
+                      href={`/e/${event.slug}/parents`}
+                      target="_blank"
+                      className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                    >
+                      Preview page
+                    </a>
+                  </div>
+                </div>
+                {event.status === "published" && (closed === null || closed === "closed") && (
+                  <ActionButton
+                    action={setParentRegistrationOpen.bind(null, eventId, !event.parent_registration_open)}
+                    variant={event.parent_registration_open ? "stop" : "go"}
+                    confirmMessage={event.parent_registration_open ? "Close parent registration? Parents won't be able to register." : undefined}
+                  >
+                    {event.parent_registration_open ? "Close registration now" : "Open registration"}
+                  </ActionButton>
+                )}
+                <p className="text-sm text-muted">
+                  Parents get a reminder to bring their photo ID the day before. Children&apos;s details are deleted 30
+                  days after the event{over ? `, on ${formatDate(addDays(event.ends_on, 31), { year: undefined })}` : ""}.
+                </p>
+              </div>
+              <div className="flex flex-col items-center gap-2 self-center sm:self-start">
+                <div
+                  className="rounded-lg border border-border bg-white p-2"
+                  aria-label="QR code for the registration link"
+                  role="img"
+                  dangerouslySetInnerHTML={{ __html: qrSvg }}
+                />
+                <a href={qrPng} download={`${event.slug}-parent-registration-qr.png`} className="text-xs font-medium text-brand underline-offset-4 hover:underline">
+                  Download QR code
+                </a>
+              </div>
             </div>
-            <div className="flex flex-col items-center gap-2 self-center sm:self-start">
-              <div
-                className="rounded-lg border border-border bg-white p-2"
-                aria-label="QR code for the registration link"
-                role="img"
-                dangerouslySetInnerHTML={{ __html: qrSvg }}
+          </SetupStep>
+
+          {closed !== "over" && (
+            <SetupStep
+              id="import-families"
+              title="3. Import families"
+              status={<StepStatus done={false} todoLabel="Optional" />}
+              open={false}
+              intro="Already collected registrations, like from a Google Form? Add them so they're on the check-in list. One row per child; rows with the same email become one family. Families already registered are left as they are."
+            >
+              <SpreadsheetImport
+                kind="parents"
+                fields={importFields("parents")}
+                choices={{ grade: GRADE_CHOICES }}
+                noun={{ one: "family", many: "families" }}
+                templateName="parent-registrations.csv"
+                emailOption="Email each family a confirmation with their link, a calendar invite and the photo ID reminder"
+                action={importParents.bind(null, eventId)}
               />
-              <a href={qrPng} download={`${event.slug}-parent-registration-qr.png`} className="text-xs font-medium text-brand underline-offset-4 hover:underline">
-                Download QR code
-              </a>
-            </div>
-          </div>
-        </Card>
+            </SetupStep>
+          )}
+        </div>
       )}
 
-      <p className="mt-6 mb-4 leading-7 text-muted">
-        Find the family, check each adult&apos;s <strong className="text-foreground">government-issued photo ID</strong>{" "}
-        matches their name, then tap <strong className="text-foreground">Check in</strong> beside that person. Adults in a
-        family can arrive at different times.{" "}
-        {event.parent_walk_ins_allowed
-          ? "Walk-ins are allowed at this event: anyone who isn't on the list goes through the school's usual visitor process with their photo ID."
-          : "Anyone who isn't on the list goes through the school's usual visitor process."}
-      </p>
-      <Door parents={parents} toggle={setParentCheckedIn.bind(null, eventId)} />
-
-      {access.isHost && closed !== "over" && (
-        <section className="mt-10" aria-labelledby="import-heading">
-          <h2 id="import-heading" className="text-xl font-semibold">
-            Import families from a spreadsheet
-          </h2>
-          <p className="mt-1 mb-4 text-sm text-muted">
-            Already collected registrations, like from a Google Form? Add them here so they&apos;re on the check-in list.
-            One row per child; rows with the same email become one family. Families already registered are left as they
-            are.
-          </p>
-          <Card>
-            <SpreadsheetImport
-              kind="parents"
-              fields={importFields("parents")}
-              choices={{ grade: GRADE_CHOICES }}
-              noun={{ one: "family", many: "families" }}
-              templateName="parent-registrations.csv"
-              emailOption="Email each family a confirmation with their link, a calendar invite and the photo ID reminder"
-              action={importParents.bind(null, eventId)}
-            />
-          </Card>
-        </section>
-      )}
+      <section className={access.isHost ? "mt-10" : undefined} aria-label="Door check-in">
+        {access.isHost && (
+          <>
+            <h2 className="text-xl font-semibold">Door check-in</h2>
+            <p className="mt-1 text-sm text-muted">
+              {parents.length} {parents.length === 1 ? "family" : "families"} · {adultCount} {adultCount === 1 ? "adult" : "adults"} ·{" "}
+              {childCount} {childCount === 1 ? "child" : "children"}
+            </p>
+          </>
+        )}
+        <p className="mt-6 mb-4 leading-7 text-muted">
+          Find the family, check each adult&apos;s <strong className="text-foreground">government-issued photo ID</strong>{" "}
+          matches their name, then tap <strong className="text-foreground">Check in</strong> beside that person. Adults in a
+          family can arrive at different times.{" "}
+          {event.parent_walk_ins_allowed
+            ? "Walk-ins are allowed at this event: anyone who isn't on the list goes through the school's usual visitor process with their photo ID."
+            : "Anyone who isn't on the list goes through the school's usual visitor process."}
+        </p>
+        <Door parents={parents} toggle={setParentCheckedIn.bind(null, eventId)} />
+      </section>
     </div>
   );
 }
