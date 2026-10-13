@@ -187,7 +187,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   if (hasParents(f.eventType)) {
     after.push({
       id: "parents-open",
-      label: "Parent registration is open",
+      label: "Open parent registration",
       hint: "Share the registration link or QR code with families.",
       href: `${base}/parents`,
       done: f.published && f.parentRegistrationOpen,

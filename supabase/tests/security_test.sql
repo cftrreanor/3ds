@@ -2177,6 +2177,21 @@ values ('10000000-0000-0000-0000-0000000000c1',
         (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a'),
         'Open House', 'open-house', 'published', 'school_visit', current_date + 3, current_date + 3,
         now() + interval '3 days', now() + interval '3 days 3 hours', '1 School Rd');
+-- Registration starts closed, even once the event is published: nobody can register until the host opens it.
+set role service_role;
+do $$ begin
+  assert not (select parent_registration_open from public.events where id = '10000000-0000-0000-0000-0000000000c1'),
+         'parent registration starts closed';
+  begin
+    perform public.register_parents('10000000-0000-0000-0000-0000000000c1', 'Early Parent', 'early@example.com', null,
+            '[{"name":"Early Kid","teacher":"Smith","grade":"3rd"}]');
+    raise exception 'registered before the host opened registration';
+  exception when raise_exception then
+    if sqlerrm not like '%closed%' then raise; end if;
+  end;
+end $$;
+reset role;
+update public.events set parent_registration_open = true where id = '10000000-0000-0000-0000-0000000000c1';
 insert into public.event_staff (event_id, user_id, role)
 values ('10000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000003', 'section_lead');
 set role service_role;
@@ -3655,8 +3670,9 @@ do $$ begin
 end $$;
 
 -- Saved band details go once the event is over.
-update public.events set starts_on = current_date - 1, ends_on = current_date - 1,
-       window_start = now() - interval '1 day', window_end = now() - interval '20 hours'
+-- (Two days back, so it's over in the event's own time zone at any hour.)
+update public.events set starts_on = current_date - 2, ends_on = current_date - 2,
+       window_start = now() - interval '2 days', window_end = now() - interval '44 hours'
  where id = '10000000-0000-0000-0000-0000000000f1';
 set role service_role;
 do $$ begin
