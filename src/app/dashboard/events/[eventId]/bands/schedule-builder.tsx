@@ -48,7 +48,8 @@ type Editing =
 /**
  * The host's performance schedule: breaks for the whole day, the preliminaries
  * and an optional finals round. Each part is viewed read-only and edited on
- * its own; every save and publish action lives in the sticky footer.
+ * its own; every save and publish action lives in the action bar (pinned to the top on a
+ * computer, the bottom on a phone).
  */
 export function ScheduleBuilder({
   initialBands,
@@ -464,7 +465,9 @@ export function ScheduleBuilder({
   const timed = saved.bands.filter((b) => b.perform).length;
 
   return (
-    <div className="space-y-3">
+    // On a phone the action bar sits at the bottom, by the thumb; on a computer
+    // it's at the top, under the title, where it's seen first.
+    <div className="flex flex-col gap-3">
       <BreaksPanel
         open={startOpen.breaks}
         breaks={breaks}
@@ -487,7 +490,7 @@ export function ScheduleBuilder({
           />
         }
         open={startOpen.prelims}
-        intro="Put the bands in order and give each a time. Publish from the bar at the bottom: each director is emailed their times."
+        intro="Put the bands in order and give each a time. Publish from the outlined bar: each director is emailed their times."
       >
         <div className="space-y-4">
           {editing?.kind !== "prelims" && (
@@ -662,7 +665,7 @@ export function ScheduleBuilder({
         </div>
       </SetupStep>
 
-      <Footer>
+      <ActionBar>
         {changes && (
           <ChangeNotice
             names={[...new Set([...changes.order, ...changes.finals])].map((id) => saved.bands.find((b) => b.id === id)?.name ?? "A band")}
@@ -828,7 +831,7 @@ export function ScheduleBuilder({
             )}
           </div>
         )}
-      </Footer>
+      </ActionBar>
     </div>
   );
 }
@@ -868,9 +871,9 @@ function saveLabel(e: NonNullable<Editing>) {
 }
 
 /** The one place for Save, Cancel and Publish: always on screen, however long the lists get. */
-function Footer({ children }: { children: ReactNode }) {
+function ActionBar({ children }: { children: ReactNode }) {
   return (
-    <div className="sticky bottom-0 z-10 -mx-4 space-y-2 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+    <div className="sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:rounded-lg sm:border-2 sm:border-brand sm:bg-surface sm:px-5 sm:shadow-lg">
       {children}
     </div>
   );
