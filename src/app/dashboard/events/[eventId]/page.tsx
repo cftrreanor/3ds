@@ -396,7 +396,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       {parentsHere && (
         <section className="mt-10" aria-labelledby="parents-heading">
           <h2 id="parents-heading" className="text-xl font-semibold">
-            Parent registration
+            {access.isHost ? "Parent Registration" : "Parent check-in"}
           </h2>
           <Card className="mt-4">
             {isEventDay && <AutoRefresh seconds={30} />}
