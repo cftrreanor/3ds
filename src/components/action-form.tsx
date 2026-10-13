@@ -31,6 +31,7 @@ export function ActionForm({
   onSuccess,
   validate,
   noValidate,
+  onEdit,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   children: ReactNode;
@@ -41,20 +42,29 @@ export function ActionForm({
   validate?: (data: FormData) => ActionState | null;
   /** Skip the browser's own one-at-a-time pop-ups, when `validate` shows every problem itself. */
   noValidate?: boolean;
+  /** Called as the user types or picks anything (after a reset too), with the form. */
+  onEdit?: (form: HTMLFormElement) => void;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   // A problem found in the browser, shown instead of the last server answer.
   const [checked, setChecked] = useState<ActionState | null>(null);
   const shown = checked ?? state;
   const ref = useRef<HTMLFormElement>(null);
+  const onEditRef = useRef(onEdit);
+  useEffect(() => {
+    onEditRef.current = onEdit;
+  });
 
   useEffect(() => {
     if (state.ok) {
       if (resetOnSuccess) ref.current?.reset();
       if (state.message) toast(state.message);
       onSuccess?.();
+      if (resetOnSuccess && ref.current) onEditRef.current?.(ref.current);
     }
-  }, [state, resetOnSuccess, onSuccess]);
+    // Only when a new answer comes back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   useEffect(() => {
     const form = ref.current;
@@ -74,6 +84,8 @@ export function ActionForm({
       className={className}
       noValidate={noValidate}
       action={formAction}
+      onInput={onEdit ? (e) => onEdit(e.currentTarget) : undefined}
+      onChange={onEdit ? (e) => onEdit(e.currentTarget) : undefined}
       onSubmit={(e) => {
         // Submit manually so React doesn't wipe the inputs when we show an error.
         e.preventDefault();

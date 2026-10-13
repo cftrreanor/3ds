@@ -12,7 +12,8 @@ import { importVolunteers } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields, type Choice } from "@/lib/imports";
 import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
-import { ActionButton, CopyLinkButton, StationForm, type LeadOption } from "../forms";
+import { ActionButton, CopyLinkButton, NewStationForm, type LeadOption } from "../forms";
+import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
@@ -47,11 +48,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     : { data: [] };
   const locations = (roomData ?? []).map((r) => [r.name, r.note].filter(Boolean).join(" · "));
 
-  const [{ data: stationData }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
+  const [{ data: stationData, error: stationsError }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
     supabase
       .from("stations")
       .select(
-        `id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id${hasBooths(event.event_type) ? ", zone" : ""}`,
+        `id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id, details_saved_at${hasBooths(event.event_type) ? ", zone" : ""}`,
       )
       .eq("event_id", eventId)
       .order("sort_order")
@@ -73,6 +74,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       : Promise.resolve({ data: [] }),
   ]);
   // Check-in stations first, in the band's order, matching the volunteer signup page.
+  // The newest columns are missing until the database update is run.
+  if (stationsError) missing();
   const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
     ...st,
     lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
@@ -99,7 +102,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const hosts = (hostData ?? []) as unknown as HostRow[];
 
   // The open tab: ?station=<id>, "new" to add one, or the first station.
-  const current = tab === "new" || stations.length === 0 ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
+  const current = stations.length === 0 ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
   const roster =
     current && current.lead_ids.includes(user.id)
@@ -223,6 +226,29 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           Each station is a place or job volunteers are assigned to, like Parking or Concessions, with its own shift schedule.
         </p>
 
+        <Card className="mt-4">
+          <h3 className="flex items-center gap-2 text-lg font-semibold">
+            <span className="flex size-7 items-center justify-center rounded-full bg-brand text-sm text-brand-foreground">1</span>
+            Create stations
+          </h3>
+          <p className="mt-1 text-sm text-muted">Name each station and pick who leads it. You&apos;ll set up the rest in step 2.</p>
+          {stations.length > 0 && (
+            <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
+              {stations.map((st) => (
+                <li key={st.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 text-sm">
+                  <span className="font-medium">{st.name}</span>
+                  <span className="text-muted">
+                    {st.lead_ids.length ? st.lead_ids.map((id) => nameOf(id) ?? "Team member").join(", ") : `No ${leadWords(event.event_type).one} yet`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-4">
+            <NewStationForm action={createStation.bind(null, eventId)} leads={leadOptions} leadLabel={leadWords(event.event_type).many} />
+          </div>
+        </Card>
+
         {hasBands(event.event_type) && (
         <Card className="mt-4 p-4">
           <h3 className="text-sm font-semibold">Band check-in order</h3>
@@ -271,78 +297,56 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         </Card>
         )}
 
-        <nav aria-label="Stations" className="-mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <ul className="flex min-w-max gap-1 border-b border-border">
-            {stations.map((s) => {
-              const st = shifts.filter((x) => x.station_id === s.id);
-              const f = st.reduce((n, x) => n + x.registered_count, 0);
-              const c = st.reduce((n, x) => n + x.max_capacity, 0);
-              const active = current?.id === s.id;
-              return (
-                <li key={s.id}>
-                  <Link
-                    href={tabHref(s.id)}
-                    scroll={false}
-                    aria-current={active ? "page" : undefined}
-                    className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-                      active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-                    }`}
-                  >
-                    <span className="whitespace-nowrap">{s.name}</span>
-                    <span className="text-xs font-normal tabular-nums text-muted">{c ? `${f}/${c} filled` : "No shifts"}</span>
-                  </Link>
-                </li>
-              );
-            })}
-            <li>
-              <Link
-                href={tabHref("new")}
-                scroll={false}
-                aria-current={!current ? "page" : undefined}
-                className={`-mb-px flex h-full items-center border-b-2 px-4 py-2 text-sm font-medium ${
-                  !current ? "border-brand text-foreground" : "border-transparent text-brand hover:text-foreground"
-                }`}
-              >
-                + Add station
-              </Link>
-            </li>
-          </ul>
-        </nav>
-
-        <div className="mt-6">
+        <div className="mt-8">
+          <h3 className="flex items-center gap-2 text-lg font-semibold">
+            <span className="flex size-7 items-center justify-center rounded-full bg-brand text-sm text-brand-foreground">2</span>
+            Configure stations
+          </h3>
           {current ? (
-            <StationPanel
-              // A fresh panel per station, so its forms never keep the previous tab's choices.
+            <UnsavedChangesProvider
               key={current.id}
-              eventId={eventId}
-              station={current}
-              stationShifts={currentShifts}
-              event={event}
-              days={days}
-              windowLabel={windowLabel}
-              userId={user.id}
-              canManage
-              locations={locations}
-              zones={zones}
-              leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
-              leadOptions={leadOptions}
-              roster={roster}
-            />
-          ) : (
-            <Card>
-              <h3 className="mb-1 font-semibold">Add a station</h3>
-              <p className="mb-4 text-sm text-muted">
-                {stations.length === 0
-                  ? "Start with your first station, like Parking, Concessions or a Warm-Up area. You'll set up its shifts next."
-                  : "It gets its own tab and shift schedule."}
+              needsDetails={!current.details_saved_at}
+              needsShifts={currentShifts.length === 0}
+            >
+              <p className="mt-1 mb-4 text-sm text-muted">
+                Open each station, then finish its details and shifts. A green check means it&apos;s ready.
               </p>
-              <StationForm
-                action={createStation.bind(null, eventId)}
-                bands={hasBands(event.event_type)}
-                locations={locations}
-                zones={zones}
+              <StationTabs
+                tabs={stations.map((st) => {
+                  const own = shifts.filter((x) => x.station_id === st.id);
+                  return {
+                    id: st.id,
+                    name: st.name,
+                    href: tabHref(st.id),
+                    active: current.id === st.id,
+                    configured: Boolean(st.details_saved_at) && own.length > 0,
+                    filled: own.reduce((n, x) => n + x.registered_count, 0),
+                    capacity: own.reduce((n, x) => n + x.max_capacity, 0),
+                  };
+                })}
               />
-            </Card>
+              <div className="mt-6">
+                <StationPanel
+                  // A fresh panel per station, so its forms never keep the previous tab's choices.
+                  key={current.id}
+                  eventId={eventId}
+                  station={current}
+                  stationShifts={currentShifts}
+                  event={event}
+                  days={days}
+                  windowLabel={windowLabel}
+                  userId={user.id}
+                  canManage
+                  locations={locations}
+                  zones={zones}
+                  leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
+                  leadOptions={leadOptions}
+                  roster={roster}
+                />
+              </div>
+            </UnsavedChangesProvider>
+          ) : (
+            <p className="mt-1 text-sm text-muted">Add a station in step 1 first.</p>
           )}
         </div>
       </section>

@@ -324,12 +324,18 @@ async function nextCheckpointOrder(supabase: Awaited<ReturnType<typeof createCli
   return (data?.[0]?.checkpoint_order ?? 0) + 1;
 }
 
+/**
+ * Step 1 of Stations & shifts: a new station, with its name and leads. Its
+ * other details are filled in later, in "1. Station details".
+ */
 export async function createStation(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const parsed = stationSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
   const kind = checkpointKind(formData);
+  const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
+  if (!leadIds.success) return { error: "Something went wrong with the Section Leads. Please try again." };
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -349,10 +355,13 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
     .select("id")
     .single();
   if (error) return { error: friendlyDbError(error) };
+  for (const userId of leadIds.data) {
+    const { error: addError } = await supabase.from("station_leads").insert({ station_id: data.id, user_id: userId, event_id: eventId });
+    if (addError) return { error: friendlyDbError(addError) };
+  }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  // Open the new station's tab, ready for its shifts.
-  redirect(`/dashboard/events/${eventId}/volunteering?station=${data.id}`);
+  return { ok: true, message: `Added “${v.name}”. Set it up in step 2.` };
 }
 
 export async function updateStation(
@@ -385,6 +394,8 @@ export async function updateStation(
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
       ...zoneOf(formData),
+      // Marks "1. Station details" done.
+      details_saved_at: new Date().toISOString(),
     })
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
