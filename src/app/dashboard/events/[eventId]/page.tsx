@@ -708,7 +708,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       {access.canManage && (
         <section className="mt-10" aria-labelledby="volunteers-heading">
           <h2 id="volunteers-heading" className="text-xl font-semibold">
-            Volunteer registration
+            Volunteer Setup
           </h2>
           <Card className="mt-4 space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1074,7 +1074,7 @@ function LogisticsTotals({ bands, noTrucks = false }: { bands: BandTotals[]; noT
   );
 }
 
-/** The Volunteer registration card's numbers: how full the day is and where help is needed. */
+/** The Volunteer Setup card's numbers: how full the day is and where help is needed. */
 function VolunteerStats({
   filled,
   capacity,

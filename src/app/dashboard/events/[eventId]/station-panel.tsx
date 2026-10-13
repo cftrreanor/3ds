@@ -51,7 +51,7 @@ export type RosterEntry = {
 
 /**
  * One station: its shifts (with editing for organizers), and for the station's
- * lead, who's signed up. Used on the Volunteer Registration tabs and, for
+ * lead, who's signed up. Used on the Volunteer Setup tabs and, for
  * Section Leads, on the event page.
  */
 export function StationPanel({
