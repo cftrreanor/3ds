@@ -92,8 +92,8 @@ export async function HostSchedule({ eventId }: { eventId: string }) {
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Performance Schedule Setup</h1>
       <p className="mt-2 mb-6 text-sm text-muted">
-        All times {zoneName(tz)}. Directors and the public only see a round once you publish it from the bar at the
-        bottom. Conflicts directors reported are shown with ⚠️.
+        All times {zoneName(tz)}. Directors and the public only see a round once you publish it. Conflicts directors
+        reported are shown with ⚠️.
         {bands.length === 0 && (
           <>
             {" "}

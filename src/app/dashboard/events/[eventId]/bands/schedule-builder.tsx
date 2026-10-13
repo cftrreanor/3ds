@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import { SetupStep, StepStatus } from "@/components/setup-step";
 import type { ChangedBands, ScheduleSaveState } from "@/app/dashboard/band-actions";
 import { NumberInput } from "@/components/number-input";
-import { Badge, Button, Field, FormMessage, Input, Select } from "@/components/ui";
+import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { displayTime, formatDuration, performTimes, toMinutes, toTime } from "@/lib/schedule";
 import { formatDate } from "@/lib/time";
@@ -13,7 +14,6 @@ import {
   BreakForm,
   breakSpans,
   DURATIONS,
-  RoundHeading,
   TimesEditor,
   type BreakDraft,
   type FinalsSlot,
@@ -117,6 +117,16 @@ export function ScheduleBuilder({
   // and warm-up location back, in the new order. null = nothing to update.
   const [before, setBefore] = useState<{ ids: string[]; slots: Times[] } | null>(null);
 
+  // The steps: 1. Breaks (optional), 2. Preliminaries, 3. Finals (optional).
+  // Only the step still to do starts open; after that each stays as the host leaves it.
+  const [startOpen] = useState(() => {
+    const anyTimes = initialBands.some((b) => b.perform);
+    return {
+      breaks: initialBreaks.length === 0 && !anyTimes,
+      prelims: !orderPublished,
+      finals: orderPublished && initialFinals.length > 0 && !finalistsRevealed,
+    };
+  });
   const roundEditing = editing?.kind === "prelims" || editing?.kind === "finals";
   const breaks = roundEditing ? breaksWork : saved.breaks;
   const breaksEditable = editing === null || roundEditing;
@@ -451,13 +461,12 @@ export function ScheduleBuilder({
       {label}
     </Button>
   );
-  const status = (published: boolean) => (
-    <Badge tone={published ? "live" : "off"}>{published ? "Published" : "Not published"}</Badge>
-  );
+  const timed = saved.bands.filter((b) => b.perform).length;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-3">
       <BreaksPanel
+        open={startOpen.breaks}
         breaks={breaks}
         canEdit={breaksEditable}
         openKey={breakOpenKey("list")}
@@ -467,164 +476,191 @@ export function ScheduleBuilder({
         onAdd={addBreak}
       />
 
-      <section className="space-y-4">
-        <RoundHeading aside={<>{status(orderPublished)}{editing?.kind !== "prelims" && editButton("Edit preliminaries", () => start({ kind: "prelims" }))}</>}>
-          Preliminaries
-        </RoundHeading>
-        {editing?.kind === "prelims" ? (
-          <>
-            <AutoFill
-              title="Fill in times automatically"
-              noun={bands.length === 1 ? "band" : "bands"}
-              count={bands.length}
+      <SetupStep
+        id="preliminaries"
+        title="2. Preliminaries"
+        status={
+          <StepStatus
+            done={orderPublished}
+            doneLabel="Published"
+            todoLabel={timed === saved.bands.length ? "Ready to publish" : "Needs to be done"}
+          />
+        }
+        open={startOpen.prelims}
+        intro="Put the bands in order and give each a time. Publish from the bar at the bottom: each director is emailed their times."
+      >
+        <div className="space-y-4">
+          {editing?.kind !== "prelims" && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-muted">
+                {timed} of {saved.bands.length} bands have a time
+              </span>
+              {editButton("Edit preliminaries", () => start({ kind: "prelims" }))}
+            </div>
+          )}
+          {editing?.kind === "prelims" ? (
+            <>
+              <AutoFill
+                title="Fill in times automatically"
+                noun={bands.length === 1 ? "band" : "bands"}
+                count={bands.length}
+                days={days}
+                defaultDay={days[0]}
+                defaultFirst="09:00"
+                zoneLabel={zoneLabel}
+                breaks={breaks}
+                readyText={readyText}
+                readyHint="Same for every band in the preliminaries, 0 to 60."
+                onReadyText={(v) => {
+                  setReadyText(v);
+                  touched();
+                }}
+                onFill={(times) => {
+                  setBands(bands.map((b, i) => ({ ...b, ...times[i] })));
+                  setBefore(null);
+                  touched();
+                }}
+                extraAction={updateButton}
+              />
+              <ol className="space-y-3">
+                {bands.map((b, i) => (
+                  <BreakDividers
+                    key={b.id}
+                    breaks={breaks}
+                    prev={bands[i - 1]}
+                    cur={b}
+                    onOpenBreak={(key) => openBreak(key, "order")}
+                    openBreakKey={breakOpenKey("order")}
+                    breakEditor={breakEditor}
+                  >
+                    <li className="rounded-xl border border-border bg-surface p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-semibold text-brand-foreground">
+                          {i + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold">{b.name}</p>
+                          <p className="text-sm text-muted">
+                            {b.school} · {b.classification}
+                          </p>
+                          {b.conflicts && <p className="mt-1 text-sm">⚠️ {b.conflicts}</p>}
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-1">
+                          <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${b.name} earlier`}>
+                            ↑
+                          </Button>
+                          <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, 1)} disabled={i === bands.length - 1} aria-label={`Move ${b.name} later`}>
+                            ↓
+                          </Button>
+                        </div>
+                      </div>
+                      <TimesEditor
+                        value={b}
+                        days={days}
+                        breaks={breaks}
+                        readyMinutes={readyMinutes}
+                        onChange={(patch) => {
+                          setBands(bands.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+                          touched();
+                        }}
+                      />
+                    </li>
+                  </BreakDividers>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <RoundRows
+              rows={orderRows}
+              breaks={breaks}
+              readyMinutes={readyMinutes}
               days={days}
-              defaultDay={days[0]}
-              defaultFirst="09:00"
+              editIndex={editing?.kind === "row" && editing.round === "order" ? editing.index : null}
+              rowEditor={rowEditorFor("order", saved.bands)}
+              canEdit={!busy}
+              onEditRow={(i) => editRow("order", i)}
+              onOpenBreak={(key) => openBreak(key, "order")}
+              openBreakKey={breakOpenKey("order")}
+              breakEditor={breakEditor}
+            />
+          )}
+        </div>
+      </SetupStep>
+
+      <SetupStep
+        id="finals"
+        title="3. Finals"
+        status={
+          saved.finals.length === 0 ? (
+            <StepStatus done={false} todoLabel="Optional" />
+          ) : (
+            <StepStatus
+              done={finalsPublished}
+              doneLabel={finalistsRevealed ? "Finalists revealed" : "Published"}
+              todoLabel="Not published"
+            />
+          )
+        }
+        open={startOpen.finals}
+        intro="If the contest has a finals round, set up its time slots now and pick the finalists once results are in."
+      >
+        <div className="space-y-4">
+          {saved.finals.length > 0 && editing?.kind !== "finals" && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-muted">
+                {picked} of {saved.finals.length} finalists picked
+                {finalsPublished && !finalistsRevealed ? " · names not revealed yet" : ""}
+              </span>
+              {editButton("Edit finals", () => start({ kind: "finals" }))}
+            </div>
+          )}
+          {editing?.kind === "finals" ? (
+            <FinalsEditor
+              finals={finals}
+              bands={saved.bands}
+              days={days}
               zoneLabel={zoneLabel}
               breaks={breaks}
-              readyText={readyText}
-              readyHint="Same for every band in the preliminaries, 0 to 60."
+              readyText={finalsReadyText}
+              readyMinutes={finalsReadyMinutes}
               onReadyText={(v) => {
-                setReadyText(v);
+                setFinalsReadyText(v);
                 touched();
               }}
-              onFill={(times) => {
-                setBands(bands.map((b, i) => ({ ...b, ...times[i] })));
-                setBefore(null);
+              onChange={(next) => {
+                setFinals(next);
                 touched();
               }}
-              extraAction={updateButton}
+              onOpenBreak={(key) => openBreak(key, "finals")}
+              openBreakKey={breakOpenKey("finals")}
+              breakEditor={breakEditor}
+              published={finalsPublished}
+              revealed={finalistsRevealed}
             />
-            <ol className="space-y-3">
-              {bands.map((b, i) => (
-                <BreakDividers
-                  key={b.id}
-                  breaks={breaks}
-                  prev={bands[i - 1]}
-                  cur={b}
-                  onOpenBreak={(key) => openBreak(key, "order")}
-                  openBreakKey={breakOpenKey("order")}
-                  breakEditor={breakEditor}
-                >
-                  <li className="rounded-xl border border-border bg-surface p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-semibold text-brand-foreground">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold">{b.name}</p>
-                        <p className="text-sm text-muted">
-                          {b.school} · {b.classification}
-                        </p>
-                        {b.conflicts && <p className="mt-1 text-sm">⚠️ {b.conflicts}</p>}
-                      </div>
-                      <div className="flex shrink-0 flex-col gap-1">
-                        <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${b.name} earlier`}>
-                          ↑
-                        </Button>
-                        <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, 1)} disabled={i === bands.length - 1} aria-label={`Move ${b.name} later`}>
-                          ↓
-                        </Button>
-                      </div>
-                    </div>
-                    <TimesEditor
-                      value={b}
-                      days={days}
-                      breaks={breaks}
-                      readyMinutes={readyMinutes}
-                      onChange={(patch) => {
-                        setBands(bands.map((x, k) => (k === i ? { ...x, ...patch } : x)));
-                        touched();
-                      }}
-                    />
-                  </li>
-                </BreakDividers>
-              ))}
-            </ol>
-          </>
-        ) : (
-          <RoundRows
-            rows={orderRows}
-            breaks={breaks}
-            readyMinutes={readyMinutes}
-            days={days}
-            editIndex={editing?.kind === "row" && editing.round === "order" ? editing.index : null}
-            rowEditor={rowEditorFor("order", saved.bands)}
-            canEdit={!busy}
-            onEditRow={(i) => editRow("order", i)}
-            onOpenBreak={(key) => openBreak(key, "order")}
-            openBreakKey={breakOpenKey("order")}
-            breakEditor={breakEditor}
-          />
-        )}
-      </section>
-
-      <section className="space-y-4">
-        <RoundHeading
-          aside={
-            <>
-              {saved.finals.length > 0 && (
-                <Badge tone={finalsPublished ? "brand" : "neutral"}>
-                  {finalistsRevealed ? "Finalists revealed" : finalsPublished ? "Schedule published" : "Not published"}
-                </Badge>
-              )}
-              {saved.finals.length > 0 && (
-                <span className="text-sm text-muted">
-                  {picked} of {saved.finals.length} picked
-                </span>
-              )}
-              {saved.finals.length > 0 && editing?.kind !== "finals" && editButton("Edit finals", () => start({ kind: "finals" }))}
-            </>
-          }
-        >
-          🏆 Finals
-        </RoundHeading>
-        {editing?.kind === "finals" ? (
-          <FinalsEditor
-            finals={finals}
-            bands={saved.bands}
-            days={days}
-            zoneLabel={zoneLabel}
-            breaks={breaks}
-            readyText={finalsReadyText}
-            readyMinutes={finalsReadyMinutes}
-            onReadyText={(v) => {
-              setFinalsReadyText(v);
-              touched();
-            }}
-            onChange={(next) => {
-              setFinals(next);
-              touched();
-            }}
-            onOpenBreak={(key) => openBreak(key, "finals")}
-            openBreakKey={breakOpenKey("finals")}
-            breakEditor={breakEditor}
-            published={finalsPublished}
-            revealed={finalistsRevealed}
-          />
-        ) : saved.finals.length === 0 ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-muted">Does this contest have a finals round?</p>
-            <Button type="button" variant="secondary" disabled={busy} onClick={() => start({ kind: "finals" })}>
-              Set up finals
-            </Button>
-          </div>
-        ) : (
-          <RoundRows
-            rows={finalsRows}
-            breaks={breaks}
-            readyMinutes={finalsReadyMinutes}
-            days={days}
-            editIndex={editing?.kind === "row" && editing.round === "finals" ? editing.index : null}
-            rowEditor={rowEditorFor("finals", saved.finals)}
-            canEdit={!busy}
-            onEditRow={(i) => editRow("finals", i)}
-            onOpenBreak={(key) => openBreak(key, "finals")}
-            openBreakKey={breakOpenKey("finals")}
-            breakEditor={breakEditor}
-          />
-        )}
-      </section>
+          ) : saved.finals.length === 0 ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-muted">Does this contest have a finals round?</p>
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => start({ kind: "finals" })}>
+                Set up finals
+              </Button>
+            </div>
+          ) : (
+            <RoundRows
+              rows={finalsRows}
+              breaks={breaks}
+              readyMinutes={finalsReadyMinutes}
+              days={days}
+              editIndex={editing?.kind === "row" && editing.round === "finals" ? editing.index : null}
+              rowEditor={rowEditorFor("finals", saved.finals)}
+              canEdit={!busy}
+              onEditRow={(i) => editRow("finals", i)}
+              onOpenBreak={(key) => openBreak(key, "finals")}
+              openBreakKey={breakOpenKey("finals")}
+              breakEditor={breakEditor}
+            />
+          )}
+        </div>
+      </SetupStep>
 
       <Footer>
         {changes && (
@@ -854,6 +890,7 @@ function PublishLine({ label, status, on, children }: { label: string; status: s
 
 /** Breaks apply to the whole contest day: preliminaries and finals. */
 function BreaksPanel({
+  open,
   breaks,
   canEdit,
   openKey,
@@ -862,6 +899,7 @@ function BreaksPanel({
   onOpen,
   onAdd,
 }: {
+  open: boolean;
   breaks: BreakDraft[];
   canEdit: boolean;
   openKey: number | null;
@@ -872,16 +910,16 @@ function BreaksPanel({
 }) {
   const sorted = [...breaks].sort((a, b) => (a.day + a.start).localeCompare(b.day + b.start));
   return (
-    <Accordion
-      title="Breaks for the whole day"
-      meta={breaks.length ? sorted.map((b) => b.label || "Break").join(", ") : "None yet"}
-      defaultOpen={breaks.length === 0 || openKey !== null || adding !== null}
+    <SetupStep
+      id="breaks"
+      title="1. Breaks"
+      status={
+        <StepStatus done={breaks.length > 0} doneLabel={`${breaks.length} break${breaks.length === 1 ? "" : "s"}`} todoLabel="Optional" />
+      }
+      open={open}
+      intro="Lunch, judges' breaks, awards, for the whole day. Filling in times skips over them, and they show between bands. Tap a break to change it."
     >
       <div className="space-y-3">
-        <p className="text-sm text-muted">
-          Lunch, judges&apos; breaks, awards. They apply to the preliminaries and the finals: filling in times skips over
-          them, and they show on the schedule between bands. Tap a break to change it.
-        </p>
         {sorted.length > 0 && (
           <ul className="space-y-2">
             {sorted.map((b) => (
@@ -911,7 +949,7 @@ function BreaksPanel({
           </Button>
         )}
       </div>
-    </Accordion>
+    </SetupStep>
   );
 }
 
