@@ -178,7 +178,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         id: "schedule",
         label: hasRooms(f.eventType) ? "Build and post the room schedule" : "Build and publish the performance schedule",
         hint: "Directors are emailed their times when you publish it.",
-        href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/bands`,
+        href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/schedule`,
         done: f.scheduleShared,
         required: false,
       },

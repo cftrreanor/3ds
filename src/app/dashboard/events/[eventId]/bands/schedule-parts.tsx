@@ -255,13 +255,3 @@ export function Accordion({
     </details>
   );
 }
-
-/** "Preliminaries" / "Finals": the big dividers of the schedule. */
-export function RoundHeading({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b-2 border-brand pb-2">
-      <h3 className="text-lg font-bold tracking-tight sm:text-xl">{children}</h3>
-      {aside}
-    </div>
-  );
-}

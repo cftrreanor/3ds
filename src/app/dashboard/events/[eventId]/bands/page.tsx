@@ -1,16 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  emailFinalists,
-  emailTimeChanges,
-  publishFinals,
-  revealFinalists,
-  publishRunningOrder,
-  saveSchedule,
-  setBandRegistrationOpen,
-  updateBandSettings,
-} from "@/app/dashboard/band-actions";
+import { setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
 import { Card } from "@/components/ui";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import { requireUser } from "@/lib/auth";
@@ -25,21 +16,11 @@ import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { eachDate, formatDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
+import { formatDate, utcToZonedDate } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
-import { ScheduleBuilder, type FinalsSlot, type OrderBand, type ScheduleBreak } from "./schedule-builder";
 import { BandSettingsForm } from "./settings-form";
 
 export const metadata: Metadata = { title: "Registration" };
-
-type Slot = {
-  band_id: string;
-  performance_order: number;
-  warm_up_at: string | null;
-  warm_up_minutes: number | null;
-  perform_at: string | null;
-  warm_up_location: string | null;
-};
 
 export default async function BandsPage({ params }: PageProps<"/dashboard/events/[eventId]/bands">) {
   const { eventId } = await params;
@@ -50,7 +31,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, performance_order_published, chaperone_limit, classifications, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed")
+    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -59,15 +40,8 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const w = groupWords(event.event_type);
 
   const user = await requireUser();
-  const [{ data: bandData }, { data: slotData }, { data: breakData }, { data: finalsData }, { data: contact }, { data: contactPhone }, { data: profile }] = await Promise.all([
+  const [{ data: bandData }, { data: contact }, { data: contactPhone }, { data: profile }] = await Promise.all([
     supabase.from("bands").select(BAND_COLUMNS).eq("event_id", eventId).order("created_at"),
-    supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, warm_up_minutes, perform_at, warm_up_location").eq("event_id", eventId),
-    supabase.from("schedule_breaks").select("starts_at, minutes, label").eq("event_id", eventId).order("starts_at"),
-    supabase
-      .from("finals_slots")
-      .select("slot_number, band_id, warm_up_at, warm_up_minutes, perform_at, warm_up_location")
-      .eq("event_id", eventId)
-      .order("slot_number"),
     supabase.from("event_director_contacts").select("name, email").eq("event_id", eventId).maybeSingle(),
     supabase.rpc("director_contact_phone", { ev: eventId }),
     supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle(),
@@ -117,57 +91,21 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const regOpen = registrationIsOpen(event);
   const pastDeadline = event.band_registration_open && deadlinePassed(event);
   const bands = (bandData ?? []) as BandRow[];
-  const slots = new Map(((slotData ?? []) as Slot[]).map((s) => [s.band_id, s]));
-  const tz = event.timezone;
-  const days = eachDate(event.starts_on, event.ends_on);
   const origin = await getOrigin();
   const registrationUrl = `${origin}/e/${event.slug}/bands`;
 
-  // Scheduled bands in their order, then anyone not yet placed.
-  const ordered = [...bands].sort((a, b) => {
-    const sa = slots.get(a.id)?.performance_order ?? Infinity;
-    const sb = slots.get(b.id)?.performance_order ?? Infinity;
-    return sa - sb || a.created_at.localeCompare(b.created_at);
-  });
-  // Stored times → wall-clock times on the event's days, for the builder.
-  const toTimes = (s: Omit<Slot, "band_id" | "performance_order"> | undefined, fallbackDay: string) => {
-    const ref = s?.perform_at ?? s?.warm_up_at;
-    return {
-      day: ref ? utcToZonedDate(ref, tz) : fallbackDay,
-      warmUp: s?.warm_up_at ? utcToZonedTime(s.warm_up_at, tz) : "",
-      warmUpMinutes: s?.warm_up_minutes ?? 0,
-      perform: s?.perform_at ? utcToZonedTime(s.perform_at, tz) : "",
-      location: s?.warm_up_location ?? "",
-    };
-  };
-  const builderBands: OrderBand[] = ordered.map((b) => ({
-    id: b.id,
-    name: b.band_name,
-    school: b.school_name,
-    classification: b.classification,
-    conflicts: b.contest_day_conflicts,
-    ...toTimes(slots.get(b.id), days[0]),
-  }));
-  const builderBreaks: ScheduleBreak[] = (breakData ?? []).map((b) => ({
-    day: utcToZonedDate(b.starts_at, tz),
-    start: utcToZonedTime(b.starts_at, tz),
-    minutes: b.minutes,
-    label: b.label,
-  }));
-  const finalsSlots = (finalsData ?? []) as (Omit<Slot, "band_id" | "performance_order"> & { slot_number: number; band_id: string | null })[];
-  const builderFinals: FinalsSlot[] = finalsSlots.map((f) => ({ bandId: f.band_id ?? "", ...toTimes(f, days.at(-1)!) }));
 
 
   // The steps, in order. Inviting directors is optional, so it never holds the others back.
+  // (The performance schedule has its own page: Performance Schedule Setup.)
   const settingsDone = Boolean(contact);
   const published = event.status === "published";
-  const scheduleDone = event.performance_order_published;
   const invitesSent = (inviteData ?? []).length > 0;
   const toInvite = directors.some((d) => !d.registered && !d.invited);
   // Registration counts as dealt with once it's open, or it closed after directors registered.
   const registrationDone = regOpen || pastDeadline || bands.length > 0;
   // Open the first step that still needs doing; the rest stay folded.
-  const openStep = !settingsDone ? 1 : !registrationDone ? 2 : regOpen && toInvite ? 3 : !scheduleDone ? 4 : 0;
+  const openStep = !settingsDone ? 1 : !registrationDone ? 2 : regOpen && toInvite ? 3 : 0;
   const registrationStatus = regOpen ? (
     <StepStatus done doneLabel="Open" />
   ) : (
@@ -296,46 +234,6 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               )}
             </div>
           </div>
-        </SetupStep>
-
-        <SetupStep
-          id="schedule"
-          title={roomsHere ? "4. Rooms & schedule" : "4. Performance schedule"}
-          status={<StepStatus done={scheduleDone} doneLabel="Published" />}
-          open={openStep === 4}
-          intro={
-            roomsHere
-              ? "Set up your rooms and the path every group follows, then put the groups in order. Each group's times are worked out for you."
-              : `All times ${zoneName(tz)}. Directors and the public only see a round once you publish it from the bar at the bottom. Conflicts directors reported are shown with ⚠️.`
-          }
-        >
-          {roomsHere ? (
-            <Link
-              href={`/dashboard/events/${eventId}/rooms`}
-              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-            >
-              Open rooms &amp; schedule
-            </Link>
-          ) : (
-            <ScheduleBuilder
-              initialBands={builderBands}
-              initialBreaks={builderBreaks}
-              initialFinals={builderFinals}
-              initialReadyMinutes={event.ready_minutes_before}
-              initialFinalsReadyMinutes={event.finals_ready_minutes_before}
-              days={days}
-              zoneLabel={zoneName(tz)}
-              orderPublished={event.performance_order_published}
-              finalsPublished={event.finals_published}
-              finalistsRevealed={event.finalists_revealed}
-              revealFinalists={revealFinalists.bind(null, eventId)}
-              save={saveSchedule.bind(null, eventId)}
-              emailChanges={emailTimeChanges.bind(null, eventId)}
-              publishOrder={publishRunningOrder.bind(null, eventId)}
-              publishFinals={publishFinals.bind(null, eventId)}
-              emailFinalists={emailFinalists.bind(null, eventId)}
-            />
-          )}
         </SetupStep>
       </div>
 
