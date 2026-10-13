@@ -19,7 +19,7 @@ import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
 
-export const metadata: Metadata = { title: "Volunteer Registration" };
+export const metadata: Metadata = { title: "Volunteer Setup" };
 
 type HostRow = { user_id: string; role: "owner" | "admin"; profiles: { full_name: string; email: string } | null };
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: { full_name: string; email: string } | null };
@@ -158,7 +158,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer Registration</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer Setup</h1>
       <p className="mt-1 text-sm text-muted">
         🔒 Volunteers&apos; names and contact details (under-18 helpers too) are deleted 10 days after the event. Shift totals stay.
       </p>
