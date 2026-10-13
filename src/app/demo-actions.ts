@@ -1,5 +1,6 @@
 "use server";
 
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -89,7 +90,10 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
     console.error("Demo sign-in failed", signInError);
     redirect("/login");
   }
-  (await cookies()).set(DEMO_COOKIE, "1", { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: 60 * 60 * 24 * 7 });
+  const jar = await cookies();
+  jar.set(DEMO_COOKIE, "1", { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: DEMO_DAYS * 86400 });
+  // Started from the admin's own account: this browser may come straight back to it.
+  if (!mine) jar.set(RETURN_COOKIE, signReturn(ownerId), { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: DEMO_DAYS * 86400 });
 
   revalidatePath("/", "layout");
   redirect(
@@ -151,7 +155,33 @@ async function demoAccount(admin: Admin, ownerId: string, persona: Persona): Pro
   return { id, email };
 }
 
-/** Leave demo mode: sign out and email a sign-in link to the admin's own address. */
+const DEMO_DAYS = 7;
+/** Proof that this browser started the demo from the admin's own account. */
+const RETURN_COOKIE = "fc_demo_return";
+
+const signingKey = () => process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+function returnSignature(payload: string) {
+  return createHmac("sha256", signingKey() ?? "").update(`demo-return:${payload}`).digest("base64url");
+}
+function signReturn(ownerId: string) {
+  const payload = `${ownerId}.${Date.now() + DEMO_DAYS * 86400_000}`;
+  return `${payload}.${returnSignature(payload)}`;
+}
+/** The admin this browser started the demo as, if its return cookie is genuine and current. */
+function returnOwner(cookie: string | undefined): string | null {
+  const [ownerId, expires, sig] = (cookie ?? "").split(".");
+  if (!ownerId || !expires || !sig || !signingKey() || Number(expires) < Date.now()) return null;
+  const want = Buffer.from(returnSignature(`${ownerId}.${expires}`));
+  const got = Buffer.from(sig);
+  return want.length === got.length && timingSafeEqual(want, got) ? ownerId : null;
+}
+
+/**
+ * Leave demo mode. In the browser that started the demo: take the demo people
+ * and sample data off the event, sign straight back in as the admin, and open
+ * the event. Anywhere else (no proof this browser is the admin's): sign out and
+ * email a sign-in link to the admin's own address.
+ */
 export async function backToMe(): Promise<void> {
   const user = await requireUser();
   const admin = createAdminClient();
@@ -162,18 +192,38 @@ export async function backToMe(): Promise<void> {
     .select("owner_id, profiles!demo_accounts_owner_id_fkey(email)")
     .eq("user_id", user.id)
     .maybeSingle();
+  const returning = returnOwner(jar.get(RETURN_COOKIE)?.value);
   await supabase.auth.signOut({ scope: "local" });
   jar.delete(DEMO_COOKIE);
+  jar.delete(RETURN_COOKIE);
   const email = (acct?.profiles as unknown as { email: string } | null)?.email;
-  if (!email) redirect("/login");
+  if (!acct || !email) redirect("/login");
 
   const { data: latest } = await admin
     .from("demo_events")
     .select("event_id")
-    .eq("owner_id", acct!.owner_id)
+    .eq("owner_id", acct.owner_id)
     .order("last_used_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  const eventPage = latest ? `/dashboard/events/${latest.event_id}` : "/dashboard";
+
+  if (returning === acct.owner_id) {
+    if (latest) {
+      const { error } = await admin.rpc("demo_leave", { p_owner: acct.owner_id, p_event: latest.event_id });
+      if (error) console.error("demo_leave failed", error);
+    }
+    const link = await admin.auth.admin.generateLink({ type: "magiclink", email });
+    const { error } = link.error
+      ? { error: link.error }
+      : await supabase.auth.verifyOtp({ token_hash: link.data.properties.hashed_token, type: "email" });
+    if (!error) {
+      revalidatePath("/", "layout");
+      redirect(`${eventPage}?demo=ended`);
+    }
+    console.error("Back-to-me sign-in failed", error);
+  }
+
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: `${await getOrigin()}/auth/callback`, shouldCreateUser: false },
@@ -184,13 +234,7 @@ export async function backToMe(): Promise<void> {
   }
   // The sign-in link lands back on the event (see /auth/callback).
   if (latest) {
-    jar.set("fc_next", `/dashboard/events/${latest.event_id}`, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      maxAge: 60 * 60,
-      path: "/",
-    });
+    jar.set("fc_next", eventPage, { httpOnly: true, sameSite: "lax", secure: true, maxAge: 60 * 60, path: "/" });
   }
   revalidatePath("/", "layout");
   redirect(`/login?email=${encodeURIComponent(email)}&sent=1`);
