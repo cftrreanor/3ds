@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
 import { RoomSchedule, type ScheduleSlot } from "@/components/room-schedule";
-import { Badge, Card } from "@/components/ui";
+import { PublishBar, PublishLine } from "@/components/publish-bar";
+import { SetupStep, StepStatus } from "@/components/setup-step";
+import { Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { hasRooms } from "@/lib/event-types";
 import type { GroupPlan, Room } from "@/lib/rooms";
@@ -15,9 +17,15 @@ import { saveRooms, saveRoomSchedule, setRoomSchedulePosted } from "./actions";
 import { RoomsEditor } from "./rooms-editor";
 import { ScheduleEditor, type ScheduleGroup } from "./schedule-editor";
 
-export const metadata: Metadata = { title: "Rooms & Schedule Setup" };
+export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/rooms">): Promise<Metadata> {
+  const { eventId } = await params;
+  return { title: (await getEventAccess(eventId)).isHost ? "Rooms & Schedule Setup" : "Room schedule" };
+}
 
-/** Group events: hosts set up the rooms and the groups' order; the team sees the schedule. */
+/**
+ * Group events. Hosts: Rooms & Schedule Setup, as setup steps with a publish
+ * bar (see "Setup pages" in docs/DESIGN.md). The team: the schedule.
+ */
 export default async function RoomsPage({ params }: PageProps<"/dashboard/events/[eventId]/rooms">) {
   const { eventId } = await params;
   const supabase = await createClient();
@@ -66,6 +74,8 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
     classification: b.classification,
     conflicts: b.contest_day_conflicts ?? null,
   }));
+  // Step 1 is done once at least one room is on the path.
+  const roomsDone = rooms.some((r) => r.path_order !== null);
   const order: GroupPlan[] = ((orderData ?? []) as { band_id: string; skipped_room_ids: string[]; extra_minutes_before: number }[]).map((o) => ({
     bandId: o.band_id,
     skipped: o.skipped_room_ids,
@@ -78,12 +88,10 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Rooms &amp; Schedule Setup</h1>
-        <Badge tone={event.performance_order_published ? "brand" : "neutral"}>
-          {event.performance_order_published ? "Posted: directors and the public can see it" : "Not posted yet"}
-        </Badge>
-      </div>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
+        {access.isHost ? "Rooms & Schedule Setup" : "Room schedule"}
+      </h1>
+      <p className="mt-2 text-sm text-muted">All times {zoneName(tz)}.</p>
 
       {slots.length > 0 && (
         <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 p-4">
@@ -101,25 +109,61 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
       )}
 
       {access.isHost && (
-        <>
-          <section className="mt-8" aria-labelledby="rooms-heading">
-            <h2 id="rooms-heading" className="text-xl font-semibold">
-              Rooms
-            </h2>
-            <p className="mt-1 mb-4 text-sm text-muted">
-              Everything is at the event&apos;s address; use the note for a room number or directions inside the building.
-            </p>
-            <RoomsEditor key={rooms.map((r) => `${r.id}:${r.path_order}:${r.minutes}`).join(",")} rooms={rooms} save={saveRooms.bind(null, eventId)} />
-          </section>
+        <div className="mt-6 flex flex-col gap-3">
+          <PublishBar>
+            <PublishLine
+              label="Schedule"
+              on={event.performance_order_published}
+              status={
+                event.performance_order_published
+                  ? "Posted: directors and the public can see it"
+                  : event.status !== "published"
+                    ? "Publish the event from its main page first"
+                    : slots.length === 0
+                      ? "Not posted. Save the group order first"
+                      : "Not posted"
+              }
+            >
+              {event.status === "published" && (event.performance_order_published || slots.length > 0) && (
+                <ActionButton
+                  action={setRoomSchedulePosted.bind(null, eventId, !event.performance_order_published)}
+                  variant={event.performance_order_published ? "secondary" : "primary"}
+                  pendingText={event.performance_order_published ? "Hiding…" : "Posting…"}
+                  confirmMessage={
+                    event.performance_order_published
+                      ? "Hide the schedule? Directors and the public won't see times until you post it again."
+                      : "Post the schedule? It goes on the public page and every director is emailed their group's times."
+                  }
+                >
+                  {event.performance_order_published ? "Hide" : "Post the schedule"}
+                </ActionButton>
+              )}
+            </PublishLine>
+          </PublishBar>
 
-          <section className="mt-10" aria-labelledby="order-heading">
-            <h2 id="order-heading" className="text-xl font-semibold">
-              Group order
-            </h2>
-            <p className="mt-1 mb-4 text-sm text-muted">
-              Every group follows the path in order. Groups start one gap apart, so a room is never double-booked. Directors&apos;
-              scheduling conflicts are marked ⚠️.
-            </p>
+          <SetupStep
+            id="rooms"
+            title="1. Rooms"
+            status={<StepStatus done={roomsDone} doneLabel={`${rooms.length} ${rooms.length === 1 ? "room" : "rooms"}`} />}
+            open={!roomsDone}
+            intro="The rooms groups visit, in the order they visit them. Everything is at the event's address; use the note for a room number or directions inside the building."
+          >
+            <RoomsEditor key={rooms.map((r) => `${r.id}:${r.path_order}:${r.minutes}`).join(",")} rooms={rooms} save={saveRooms.bind(null, eventId)} />
+          </SetupStep>
+
+          <SetupStep
+            id="group-order"
+            title="2. Group order & times"
+            status={
+              <StepStatus
+                done={slots.length > 0}
+                doneLabel="Saved"
+                todoLabel={!roomsDone ? "Set up rooms first" : groups.length === 0 ? "Waiting for groups to register" : "Needs to be done"}
+              />
+            }
+            open={roomsDone && slots.length === 0}
+            intro="Every group follows the path in order. Groups start one gap apart, so a room is never double-booked. Directors' scheduling conflicts are marked ⚠️. Post it from the outlined bar: each director is emailed their group's times."
+          >
             <ScheduleEditor
               key={`${order.map((o) => `${o.bandId}:${o.extraMinutes}`).join(",")}|${start}|${bands.length}|${rooms.length}`}
               groups={groups}
@@ -135,47 +179,22 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
               posted={event.performance_order_published}
               save={saveRoomSchedule.bind(null, eventId)}
             />
-          </section>
-
-          <section className="mt-10">
-            <Card className="flex flex-wrap items-center justify-between gap-4">
-              <p className="text-sm leading-6 text-muted">
-                {event.performance_order_published
-                  ? "The schedule is on the public page and on each director's page."
-                  : event.status !== "published"
-                    ? "Publish the event from its main page, then post the schedule."
-                    : "When it looks right, post it: it goes on the public page and each director gets their group's times by email."}
-              </p>
-              {event.status === "published" && (
-                <ActionButton
-                  action={setRoomSchedulePosted.bind(null, eventId, !event.performance_order_published)}
-                  variant={event.performance_order_published ? "stop" : "go"}
-                  pendingText={event.performance_order_published ? "Hiding…" : "Posting…"}
-                  confirmMessage={
-                    event.performance_order_published
-                      ? "Hide the schedule? Directors and the public won't see times until you post it again."
-                      : "Post the schedule? It goes on the public page and every director is emailed their group's times."
-                  }
-                >
-                  {event.performance_order_published ? "Hide the schedule" : "Post the schedule"}
-                </ActionButton>
-              )}
-            </Card>
-          </section>
-        </>
+          </SetupStep>
+        </div>
       )}
 
       <section className="mt-10" aria-labelledby="board-heading">
         <h2 id="board-heading" className="text-xl font-semibold">
           {access.isHost ? "Saved schedule, room by room" : "Schedule, room by room"}
         </h2>
-        <p className="mt-1 mb-4 text-sm text-muted">All times {zoneName(tz)}.</p>
         {rooms.length === 0 ? (
-          <Card>
+          <Card className="mt-4">
             <p className="text-muted">The host hasn&apos;t set up the rooms yet.</p>
           </Card>
         ) : (
-          <RoomSchedule rooms={rooms} slots={slots} timezone={tz} live={isEventDay} />
+          <div className="mt-4">
+            <RoomSchedule rooms={rooms} slots={slots} timezone={tz} live={isEventDay} />
+          </div>
         )}
       </section>
     </div>

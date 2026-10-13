@@ -203,7 +203,7 @@ export function ScheduleEditor({
       </ol>
       <p className="text-sm text-muted">Tap a room to skip it for that group (for example, a group that isn&apos;t sight-reading).</p>
 
-      <div className="sticky bottom-0 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border">
+      <div className="space-y-2 border-t border-border pt-3">
         <FormMessage error={state.error} success={state.ok ? state.message : null} />
         <div className="flex flex-wrap items-center gap-3">
           <Button

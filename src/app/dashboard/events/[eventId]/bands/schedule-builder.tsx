@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import { PublishBar, PublishLine } from "@/components/publish-bar";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import type { ChangedBands, ScheduleSaveState } from "@/app/dashboard/band-actions";
 import { NumberInput } from "@/components/number-input";
@@ -744,7 +745,7 @@ export function ScheduleBuilder({
         </div>
       </SetupStep>
 
-      <ActionBar>
+      <PublishBar>
         {changes && (
           <ChangeNotice
             names={[...new Set([...changes.order, ...changes.finals])].map((id) => saved.bands.find((b) => b.id === id)?.name ?? "A band")}
@@ -844,7 +845,7 @@ export function ScheduleBuilder({
             </PublishLine>
           )}
         </div>
-      </ActionBar>
+      </PublishBar>
     </div>
   );
 }
@@ -881,30 +882,6 @@ function saveLabel(e: NonNullable<Editing>) {
     case "row":
       return "Save";
   }
-}
-
-/** Publishing only: what's live, and the buttons to publish, reveal or hide it. */
-function ActionBar({ children }: { children: ReactNode }) {
-  // Always on screen: pinned under the title on a computer, to the bottom on a phone.
-  return (
-    <div
-      className="sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg"
-    >
-      {children}
-    </div>
-  );
-}
-
-function PublishLine({ label, status, on, children }: { label: string; status: string; on: boolean; children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${on ? "bg-success" : "border-2 border-muted"}`} aria-hidden="true" />
-      <span className="min-w-0 flex-1 text-sm leading-5">
-        <span className="font-semibold">{label}</span> <span className="text-muted">· {status}</span>
-      </span>
-      <div className="flex shrink-0 gap-2">{children}</div>
-    </div>
-  );
 }
 
 /** Breaks apply to the whole contest day: preliminaries and finals. */
