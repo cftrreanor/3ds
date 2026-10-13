@@ -123,6 +123,36 @@ in the root layout; styles at the end of `globals.css`):
 - Optional boxes are never outlined. Say "(optional)" in their label or hint instead.
 - A form that checks everything itself (`noValidate`, like the pilot request) is left alone.
 
+## Setup pages
+
+How a host sets something up (Volunteer Setup, Band Registration). Same feel everywhere:
+
+1. **Numbered steps.** Break the job into steps in the order it's done, each a `SetupStep` accordion
+   (`src/components/setup-step.tsx`) titled "1. Registration settings", "2. Open registration"…, with
+   one line under the title saying what the step is for.
+2. **Progress at a glance.** Each step's title shows `StepStatus`: a green ✓ "Done" (or a better
+   word: "Open", "Published") or a muted "Needs to be done". An optional step says "Optional" and
+   never holds the others back. Only the first step still to do starts open; finished ones fold
+   away. A list of things that each need setting up (stations) gets tabs with a green ✓ or a
+   yellow dot.
+3. **Ask once.** Never ask again for something an earlier step already has (the station name),
+   and fill in what we can work out (shift titles from their times, the host's own contact details).
+4. **Actions where the thing lives.** Each row carries its own buttons (Assign a Section Lead,
+   Rename, Delete). Show a button only when it can be used; otherwise say how to make it possible
+   ("Add Section Leads on the Team page").
+5. **A quick way and a careful way.** Where both make sense, a simple toggle between them (Auto
+   create shifts / Create single shift). Redoing the quick way replaces what it made, as long as
+   no real people depend on it yet.
+6. **Required answers turn red only after a save attempt** (see above).
+7. **Gentle reminders, not alarms.** Leaving a step unsaved or unfinished shows a light red note
+   by its save button (`border-danger/30 bg-danger/5`) saying what's left, with a way to go anyway
+   ("leave without saving", "finish it later"). Nobody gets trapped.
+8. **Destructive means red, and honest.** Delete buttons are red and say exactly what they do
+   ("Delete Station"); the confirmation says what really happens. If it would hurt people who've
+   already signed up, refuse and say why.
+9. **Plain, matching names.** A page's title matches the card that links to it. Buttons say what
+   they do ("Create shifts", "Open band registration"), never "Submit".
+
 ## Dark theme
 
 Background `#06121F`, surface `#0C1F33`, raised `#132A42`, border `#253A51`,

@@ -5,7 +5,7 @@ import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
 import { BuildShifts, DeleteButton, ShiftForm, StationForm } from "./forms";
-import { StepStatus } from "./volunteering/station-steps";
+import { SetupStep, StepStatus } from "@/components/setup-step";
 
 export type Shift = {
   id: string;
@@ -120,49 +120,39 @@ export function StationPanel({
 
       {canManage && (
         <div className="mt-4 flex flex-col gap-3">
-          <details id="station-details" className="group scroll-mt-6 rounded-lg border border-border px-4 py-3" open={!detailsDone}>
-            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-1 [&::-webkit-details-marker]:hidden">
-              <span className="flex items-center gap-2 font-semibold">
-                <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span>
-                1. Station details
-              </span>
-              <StepStatus done={detailsDone} />
-            </summary>
-            <p className="mt-2 text-sm text-muted">
-              Where volunteers report and what they should know. Save to finish this step.
-            </p>
-            <div className="mt-4">
-              <StationForm
-                action={updateStation.bind(null, eventId, station.id)}
-                initial={station}
-                submitLabel="Save station details"
-                bands={hasBands(event.event_type)}
-                locations={locations}
-                zones={zones}
-                leadLabel={leadWords(event.event_type).many}
-                trackUnsaved
-              />
-            </div>
-          </details>
-          <details id="build-shifts" className="group scroll-mt-6 rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
-            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-1 [&::-webkit-details-marker]:hidden">
-              <span className="flex items-center gap-2 font-semibold">
-                <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span>
-                2. Build shifts
-              </span>
-              <StepStatus done={stationShifts.length > 0} />
-            </summary>
-            <div className="mt-4">
-              <BuildShifts
-                generate={generateShifts.bind(null, eventId, station.id)}
-                create={createShift.bind(null, eventId, station.id)}
-                windowLabel={windowLabel}
-                days={days}
-                existing={stationShifts.length}
-                signedUp={stationShifts.some((s) => s.registered_count > 0)}
-              />
-            </div>
-          </details>
+          <SetupStep
+            id="station-details"
+            title="1. Station details"
+            status={<StepStatus done={detailsDone} />}
+            open={!detailsDone}
+            intro="Where volunteers report and what they should know. Save to finish this step."
+          >
+            <StationForm
+              action={updateStation.bind(null, eventId, station.id)}
+              initial={station}
+              submitLabel="Save station details"
+              bands={hasBands(event.event_type)}
+              locations={locations}
+              zones={zones}
+              leadLabel={leadWords(event.event_type).many}
+              trackUnsaved
+            />
+          </SetupStep>
+          <SetupStep
+            id="build-shifts"
+            title="2. Build shifts"
+            status={<StepStatus done={stationShifts.length > 0} />}
+            open={stationShifts.length === 0}
+          >
+            <BuildShifts
+              generate={generateShifts.bind(null, eventId, station.id)}
+              create={createShift.bind(null, eventId, station.id)}
+              windowLabel={windowLabel}
+              days={days}
+              existing={stationShifts.length}
+              signedUp={stationShifts.some((s) => s.registered_count > 0)}
+            />
+          </SetupStep>
         </div>
       )}
       <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
