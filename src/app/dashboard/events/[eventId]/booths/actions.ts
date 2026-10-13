@@ -69,3 +69,39 @@ export async function checkInBooth(eventId: string, boothId: string, arrived: bo
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
+
+/** Add a zone, from the form (a typed name) or a suggestion (name given). */
+export async function addZone(eventId: string, name: string | null, _prev?: ActionState, formData?: FormData): Promise<ActionState> {
+  await requireUser();
+  const zone = (name ?? String(formData?.get("name") ?? "")).trim().slice(0, 60);
+  if (!zone) return { error: "Give the zone a name, e.g. Game Zone." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("fair_zones").insert({ event_id: eventId, name: zone });
+  if (error?.code === "23505") return { error: `There's already a zone called ${zone}.` };
+  if (error) return { error: friendlyDbError(error) };
+  const { data: event } = await supabase.from("events").select("slug").eq("id", eventId).maybeSingle();
+  refresh(eventId, event?.slug);
+  return { ok: true, message: `Added ${zone}.` };
+}
+
+/** Rename a zone; its booths and stations move with it. */
+export async function renameZone(eventId: string, oldName: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("rename_fair_zone", { p_event: eventId, p_old: oldName, p_new: String(formData.get("name") ?? "") });
+  if (error) return { error: friendlyDbError(error) };
+  const { data: event } = await supabase.from("events").select("slug").eq("id", eventId).maybeSingle();
+  refresh(eventId, event?.slug);
+  return { ok: true, message: "Zone renamed." };
+}
+
+/** Delete a zone; its booths and stations stay, with no zone. */
+export async function deleteZone(eventId: string, name: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_fair_zone", { p_event: eventId, p_name: name });
+  if (error) return { error: friendlyDbError(error) };
+  const { data: event } = await supabase.from("events").select("slug").eq("id", eventId).maybeSingle();
+  refresh(eventId, event?.slug);
+  return { ok: true, message: `Deleted ${name}.` };
+}

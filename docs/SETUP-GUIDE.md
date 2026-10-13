@@ -129,6 +129,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261118000000_spreadsheet_imports.sql` | Import from a spreadsheet (.csv or Excel): band and group directors' details are saved for them to review and register (and removed after the event), volunteers are added to their shifts, and parent registrations are added to the check-in list | ✅ run |
 | `20261119000000_parent_registration_starts_closed.sql` | Parent registration starts closed: publishing a school visitor event no longer opens it; the host opens it on the Parent check-in page | ✅ run |
 | `20261120000000_station_setup_steps.sql` | Stations & shifts, step by step: each station shows whether "1. Station details" has been saved (needed before the Volunteering page opens) | ✅ run |
+| `20261121000000_fair_zones.sql` | Booths & Partners, zones first: a fair's zones are made in "1. Zones" (rename or delete one and its booths follow), then booths go into them. Zones fairs already use are copied in | ⬜ not run yet |
 
 ## Pilot requests
 

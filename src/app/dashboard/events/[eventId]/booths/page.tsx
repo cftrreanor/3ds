@@ -11,10 +11,10 @@ import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatTime } from "@/lib/time";
-import { DeleteButton } from "../forms";
-import { checkInBooth, deleteBooth, saveBooth } from "./actions";
+import { ActionButton, DeleteButton } from "../forms";
+import { addZone, checkInBooth, deleteBooth, deleteZone, renameZone, saveBooth } from "./actions";
 import { ArrivedButton } from "./arrived-button";
-import { BoothForm, ZoneForm, type BoothValues } from "./booth-form";
+import { BoothForm, NewZoneForm, ZoneForm, ZoneRow, type BoothValues } from "./booth-form";
 
 export const metadata: Metadata = { title: "Booths & Partners" };
 
@@ -49,13 +49,20 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
   const isDay = eventPhase(event, new Date()) === "day";
   const partners = booths.filter((b) => b.host_name);
   const arrived = partners.filter((b) => b.arrived_at).length;
-  // Zone suggestions: the usual five plus any the host has made up (on booths or stations).
-  const { data: stationZones } = await supabase.from("stations").select("zone").eq("event_id", eventId).not("zone", "is", null);
+  // The fair's zones (step 1), in the order they were made, plus any a booth or
+  // station already uses (sample data, older events).
+  const [{ data: zoneRows }, { data: stationZones }] = await Promise.all([
+    supabase.from("fair_zones").select("name").eq("event_id", eventId).order("created_at"),
+    supabase.from("stations").select("zone").eq("event_id", eventId).not("zone", "is", null),
+  ]);
   const zones = [
     ...new Set(
-      [...FAIR_ZONES, ...booths.map((b) => b.zone), ...(stationZones ?? []).map((s) => s.zone)].filter((z): z is string => Boolean(z)),
+      [...(zoneRows ?? []).map((z) => z.name), ...booths.map((b) => b.zone), ...(stationZones ?? []).map((s) => s.zone)].filter(
+        (z): z is string => Boolean(z),
+      ),
     ),
   ];
+  const suggestions = FAIR_ZONES.filter((z) => !zones.includes(z));
   const unzoned = booths.filter((b) => !b.zone);
   const groups = [...new Set(booths.map((b) => b.zone ?? ""))].map((zone) => ({ zone, booths: booths.filter((b) => (b.zone ?? "") === zone) }));
 
@@ -76,47 +83,80 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
       {canManage && (
         <div className="flex flex-col gap-3">
           <SetupStep
-            id="add-booths"
-            title="1. Add booths"
-            status={<StepStatus done={booths.length > 0} doneLabel={`${booths.length} ${booths.length === 1 ? "booth" : "booths"}`} />}
-            open={booths.length === 0}
-            intro="Your games, activities, vendors and showcases, and the partner who hosts each one. Add as many as you like; edit or delete one from the list below."
+            id="zones"
+            title="1. Zones"
+            status={<StepStatus done={zones.length > 0} doneLabel={`${zones.length} ${zones.length === 1 ? "zone" : "zones"}`} />}
+            open={zones.length === 0}
+            intro="The areas of your fair, like Game Zone or Marketplace. Booths go into them, and they group booths on the public page so families can find their way around."
           >
-            <BoothForm action={saveBooth.bind(null, eventId, null)} zones={zones} />
+            <div className="space-y-4">
+              {zones.length > 0 && (
+                <ul className="divide-y divide-border rounded-lg border border-border">
+                  {zones.map((z) => (
+                    <ZoneRow
+                      key={z}
+                      name={z}
+                      booths={booths.filter((b) => b.zone === z).length}
+                      rename={renameZone.bind(null, eventId, z)}
+                      remove={deleteZone.bind(null, eventId, z)}
+                    />
+                  ))}
+                </ul>
+              )}
+              <NewZoneForm action={addZone.bind(null, eventId, null)} />
+              {suggestions.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted">Or add a common one:</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {suggestions.map((z) => (
+                      <ActionButton key={z} action={addZone.bind(null, eventId, z)} variant="secondary" pendingText="Adding…">
+                        + {z}
+                      </ActionButton>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </SetupStep>
 
           <SetupStep
-            id="zones"
-            title="2. Zones"
+            id="booths"
+            title="2. Booths"
             status={
-              <StepStatus
-                done={booths.length > 0 && unzoned.length === 0}
-                doneLabel="Every booth has a zone"
-                todoLabel={booths.length === 0 ? "Add booths first" : `${unzoned.length} ${unzoned.length === 1 ? "needs" : "need"} a zone`}
-              />
+              booths.length > 0 && unzoned.length > 0 ? (
+                <StepStatus done={false} todoLabel={`${unzoned.length} ${unzoned.length === 1 ? "needs" : "need"} a zone`} />
+              ) : (
+                <StepStatus
+                  done={booths.length > 0}
+                  doneLabel={`${booths.length} ${booths.length === 1 ? "booth" : "booths"}`}
+                  todoLabel={zones.length === 0 ? "Add zones first" : "Needs to be done"}
+                />
+              )
             }
-            open={booths.length > 0 && unzoned.length > 0}
-            intro="Zones group booths on the public page, so families can find their way around."
+            open={zones.length > 0 && (booths.length === 0 || unzoned.length > 0)}
+            intro="Your games, activities, vendors and showcases, the partner who hosts each one, and its zone. Edit or delete one from the list below."
           >
-            {booths.length === 0 ? (
-              <p className="text-sm text-muted">Add a booth in step 1 first.</p>
-            ) : unzoned.length === 0 ? (
-              <p className="text-sm text-muted">Every booth is in a zone. To move one, use its Edit in the list below.</p>
-            ) : (
-              <ul className="space-y-3">
-                {unzoned.map((b) => (
-                  <li key={b.id} className="rounded-lg border border-border px-4 py-3">
-                    <p className="font-semibold">
-                      {b.title}
-                      {b.host_name && <span className="font-normal text-muted"> · {b.host_name}</span>}
-                    </p>
-                    <div className="mt-3">
-                      <ZoneForm action={saveBooth.bind(null, eventId, b.id)} booth={b} zones={zones} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="space-y-6">
+              <BoothForm action={saveBooth.bind(null, eventId, null)} zones={zones} />
+              {unzoned.length > 0 && (
+                <div>
+                  <h3 className="font-semibold">Pick a zone for these</h3>
+                  <ul className="mt-3 space-y-3">
+                    {unzoned.map((b) => (
+                      <li key={b.id} className="rounded-lg border border-border px-4 py-3">
+                        <p className="font-semibold">
+                          {b.title}
+                          {b.host_name && <span className="font-normal text-muted"> · {b.host_name}</span>}
+                        </p>
+                        <div className="mt-3">
+                          <ZoneForm action={saveBooth.bind(null, eventId, b.id)} booth={b} zones={zones} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </SetupStep>
         </div>
       )}
