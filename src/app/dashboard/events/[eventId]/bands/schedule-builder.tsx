@@ -318,17 +318,11 @@ export function ScheduleBuilder({
       : editing?.kind === "row" && editing.round === "finals" && editing.bandId && editing.bandId !== saved.finals[editing.index]?.bandId
         ? 1
         : 0;
-  // Save and Cancel sit with the boxes being edited: under the round's list (pinned
-  // to the bottom of the screen while it's in view), or inside a break or row editor.
-  const editActions = (pinned: boolean) =>
+  // Save and Cancel sit with the boxes being edited: under the round's list, or
+  // inside a break or row editor.
+  const editActions = () =>
     editing && (
-      <div
-        className={
-          pinned
-            ? "sticky bottom-0 z-10 -mx-4 mt-2 space-y-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border"
-            : "space-y-2 border-t border-border pt-3"
-        }
-      >
+      <div className="mt-2 space-y-2 border-t border-border pt-3">
         <FormMessage error={result.error} />
         <p className="text-sm">
           <span className="font-semibold">{editingLabel(editing, saved)}</span>
@@ -450,7 +444,7 @@ export function ScheduleBuilder({
             </label>
           </div>
         )}
-        {editActions(false)}
+        {editActions()}
       </div>
     ) : inlineDraft ? (
       <div className="mt-2 space-y-3 rounded-xl border border-brand bg-surface p-4 text-foreground">
@@ -511,7 +505,7 @@ export function ScheduleBuilder({
         onShiftLater={(shiftLater) => setEditing({ ...editing, shiftLater })}
         note={round === "finals" ? <FinalistPrivacyNote published={finalsPublished} revealed={finalistsRevealed} /> : undefined}
       />
-      {editActions(false)}
+      {editActions()}
       </>
     );
   };
@@ -652,7 +646,7 @@ export function ScheduleBuilder({
                   </BreakDividers>
                 ))}
               </ol>
-              {editActions(true)}
+              {editActions()}
             </>
           ) : (
             <RoundRows
@@ -723,7 +717,7 @@ export function ScheduleBuilder({
               published={finalsPublished}
               revealed={finalistsRevealed}
             />
-            {editActions(true)}
+            {editActions()}
             </>
           ) : saved.finals.length === 0 ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -750,7 +744,7 @@ export function ScheduleBuilder({
         </div>
       </SetupStep>
 
-      <ActionBar editing={busy}>
+      <ActionBar>
         {changes && (
           <ChangeNotice
             names={[...new Set([...changes.order, ...changes.finals])].map((id) => saved.bands.find((b) => b.id === id)?.name ?? "A band")}
@@ -763,7 +757,7 @@ export function ScheduleBuilder({
           />
         )}
         {!editing && <FormMessage error={result.error} success={result.ok ? result.message : null} />}
-        {editing && <p className="text-sm text-muted">Save or cancel your changes below before publishing.</p>}
+        {editing && <p className="text-sm text-muted">Save or cancel your changes first, then publish.</p>}
         <div className="space-y-2">
           <PublishLine label="Preliminaries" status={orderPublished ? "Published" : "Not published"} on={orderPublished}>
             {orderPublished ? (
@@ -890,12 +884,11 @@ function saveLabel(e: NonNullable<Editing>) {
 }
 
 /** Publishing only: what's live, and the buttons to publish, reveal or hide it. */
-function ActionBar({ editing, children }: { editing: boolean; children: ReactNode }) {
-  // On a phone it's pinned to the bottom, by the thumb, and steps aside while
-  // something is being edited so that edit's Save and Cancel can take its place.
+function ActionBar({ children }: { children: ReactNode }) {
+  // Always on screen: pinned under the title on a computer, to the bottom on a phone.
   return (
     <div
-      className={`sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:block sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg ${editing ? "hidden" : ""}`}
+      className="sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg"
     >
       {children}
     </div>
