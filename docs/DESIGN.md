@@ -111,6 +111,18 @@ sticky headers, square-cornered tags, and health dots (green healthy, blue new, 
 red at risk, always with a word). Controls are 32px tall there, since it's used at a desk; the
 customer app keeps its 44px touch targets. Same tokens, fonts and dark theme.
 
+## Required answers (every form)
+
+Mark a box `required` and the pattern comes for free (`src/components/required-fields.tsx`, mounted
+in the root layout; styles at the end of `globals.css`):
+
+- The form's submit button looks faded (50%) until every required box is filled in. It still works.
+- Tapping it early outlines each box still needed in red (`danger` border and a soft red ring), says
+  "Fill in the boxes outlined in red." under the form ("Check…" when something's in the wrong
+  format, like an email), and jumps to the first one. No browser pop-ups.
+- Optional boxes are never outlined. Say "(optional)" in their label or hint instead.
+- A form that checks everything itself (`noValidate`, like the pilot request) is left alone.
+
 ## Dark theme
 
 Background `#06121F`, surface `#0C1F33`, raised `#132A42`, border `#253A51`,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { NumberInput } from "@/components/number-input";
 import { ZoneInput } from "@/components/zone-input";
 import { ActionForm } from "@/components/action-form";
@@ -182,50 +182,6 @@ function hasAnswers(form: HTMLFormElement) {
   );
 }
 
-/** Shown once someone tries to submit early: every required box still empty gets a red outline. */
-const MISSING_OUTLINE =
-  "[&_input:invalid]:border-danger [&_input:invalid]:ring-2 [&_input:invalid]:ring-danger/20 [&_select:invalid]:border-danger [&_select:invalid]:ring-2 [&_select:invalid]:ring-danger/20";
-
-/**
- * The green button for a form that needs its answers first: faded until
- * they're in, and tapping it early outlines what's missing in red (and jumps
- * to the first one) instead of doing nothing.
- */
-function ReadyButton({
-  ready,
-  onMissing,
-  pendingText,
-  className,
-  children,
-}: {
-  ready: boolean;
-  onMissing: () => void;
-  pendingText: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <SubmitButton
-      variant="go"
-      pendingText={pendingText}
-      aria-disabled={!ready}
-      className={`${ready ? "" : "cursor-not-allowed opacity-50"} ${className ?? ""}`}
-      onClick={(e) => {
-        if (ready) return;
-        e.preventDefault();
-        onMissing();
-        e.currentTarget.form?.querySelector<HTMLElement>(":invalid:not(form):not(fieldset)")?.focus();
-      }}
-    >
-      {children}
-    </SubmitButton>
-  );
-}
-
-function MissingNote({ show }: { show: boolean }) {
-  return show ? <p className="text-sm font-semibold text-danger">Fill in the boxes outlined in red.</p> : null;
-}
-
 /**
  * "Auto create shifts": split each event day into equal shifts. Run again, it
  * replaces the station's shifts, as long as nobody has signed up for them.
@@ -243,8 +199,6 @@ export function GenerateShiftsForm({
   /** Someone has signed up for one of them: auto create can't replace them. */
   signedUp?: boolean;
 }) {
-  const [ready, setReady] = useState(false);
-  const [missing, setMissing] = useState(false);
   const setEdited = useStepEdits("shifts");
   if (signedUp) {
     return (
@@ -257,13 +211,9 @@ export function GenerateShiftsForm({
   return (
     <ActionForm
       action={action}
-      className={`space-y-4 ${missing ? MISSING_OUTLINE : ""}`}
+      className="space-y-4"
       confirmMessage={existing ? `Replace this station's ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
-      onEdit={(f) => {
-        setReady(f.checkValidity());
-        setEdited(hasAnswers(f));
-      }}
-      onSuccess={() => setMissing(false)}
+      onEdit={(f) => setEdited(hasAnswers(f))}
     >
       <p className="text-sm text-muted">
         Split the event day ({windowLabel}) into equal shifts for this station.
@@ -295,10 +245,9 @@ export function GenerateShiftsForm({
         </Field>
       </div>
       <StepNotice step="shifts" />
-      <MissingNote show={missing && !ready} />
-      <ReadyButton ready={ready} onMissing={() => setMissing(true)} pendingText="Creating…">
+      <SubmitButton variant="go" pendingText="Creating…">
         Create shifts
-      </ReadyButton>
+      </SubmitButton>
     </ActionForm>
   );
 }
@@ -319,23 +268,13 @@ export function ShiftForm({
   submitLabel?: string;
 }) {
   // A new shift: the button turns green once every required answer is in.
-  const [ready, setReady] = useState(Boolean(initial));
-  const [missing, setMissing] = useState(false);
   const setEdited = useStepEdits(initial ? undefined : "shifts");
   return (
     <ActionForm
       action={action}
-      className={`grid gap-4 sm:grid-cols-2 ${missing ? MISSING_OUTLINE : ""}`}
+      className="grid gap-4 sm:grid-cols-2"
       resetOnSuccess={!initial}
-      onSuccess={() => setMissing(false)}
-      onEdit={
-        initial
-          ? undefined
-          : (f) => {
-              setReady(f.checkValidity());
-              setEdited(hasAnswers(f));
-            }
-      }
+      onEdit={initial ? undefined : (f) => setEdited(hasAnswers(f))}
     >
       {initial && (
         <Field label="Title" className="sm:col-span-2">
@@ -374,16 +313,9 @@ export function ShiftForm({
       )}
       <div className="space-y-3 sm:col-span-2">
         {!initial && <StepNotice step="shifts" />}
-        {initial ? (
-          <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
-        ) : (
-          <>
-            <MissingNote show={missing && !ready} />
-            <ReadyButton ready={ready} onMissing={() => setMissing(true)} pendingText="Saving…">
-              {submitLabel}
-            </ReadyButton>
-          </>
-        )}
+        <SubmitButton variant={initial ? "primary" : "go"} pendingText="Saving…">
+          {submitLabel}
+        </SubmitButton>
       </div>
     </ActionForm>
   );
@@ -445,25 +377,14 @@ export function BuildShifts({
 
 /** "1. Create stations": a station's name. Its leads are picked on its row; the rest comes in step 2. */
 export function NewStationForm({ action }: { action: Action }) {
-  const [ready, setReady] = useState(false);
-  const [missing, setMissing] = useState(false);
   return (
-    <ActionForm
-      action={action}
-      className={`flex flex-col gap-3 sm:flex-row sm:items-end ${missing ? MISSING_OUTLINE : ""}`}
-      onEdit={(f) => setReady(f.checkValidity())}
-      onSuccess={() => setMissing(false)}
-    >
-      <Field
-        label="New station name"
-        hint={missing && !ready ? <span className="font-semibold text-danger">Type the station&apos;s name first.</span> : "e.g. Parking, Concessions, Ticket Table"}
-        className="flex-1"
-      >
+    <ActionForm action={action} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+      <Field label="New station name" hint="e.g. Parking, Concessions, Ticket Table" className="flex-1">
         <Input name="name" required maxLength={80} />
       </Field>
-      <ReadyButton ready={ready} onMissing={() => setMissing(true)} pendingText="Adding…" className="sm:mb-7">
+      <SubmitButton variant="go" pendingText="Adding…" className="sm:mb-7">
         Add station
-      </ReadyButton>
+      </SubmitButton>
     </ActionForm>
   );
 }

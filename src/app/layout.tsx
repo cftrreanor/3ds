@@ -4,6 +4,7 @@ import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 import { Toaster } from "@/components/toaster";
+import { RequiredFields } from "@/components/required-fields";
 
 // The design system's faces: Inter (variable, so the in-between 460/540 weights
 // render) for everything, JetBrains Mono for codes.
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col font-sans">
         {children}
         <Toaster />
+        <RequiredFields />
       </body>
     </html>
   );
