@@ -546,8 +546,8 @@ export function ScheduleBuilder({
   const timed = saved.bands.filter((b) => b.perform).length;
 
   return (
-    // The publish bar comes first, under the title (pinned while scrolling on a
-    // computer). Save and Cancel sit with whatever is being edited.
+    // The publish bar: pinned under the title on a computer, to the bottom on a
+    // phone. Save and Cancel sit with whatever is being edited.
     <div className="flex flex-col gap-3">
       <BreaksPanel
         open={startOpen.breaks}
@@ -750,7 +750,7 @@ export function ScheduleBuilder({
         </div>
       </SetupStep>
 
-      <ActionBar>
+      <ActionBar editing={busy}>
         {changes && (
           <ChangeNotice
             names={[...new Set([...changes.order, ...changes.finals])].map((id) => saved.bands.find((b) => b.id === id)?.name ?? "A band")}
@@ -890,9 +890,13 @@ function saveLabel(e: NonNullable<Editing>) {
 }
 
 /** Publishing only: what's live, and the buttons to publish, reveal or hide it. */
-function ActionBar({ children }: { children: ReactNode }) {
+function ActionBar({ editing, children }: { editing: boolean; children: ReactNode }) {
+  // On a phone it's pinned to the bottom, by the thumb, and steps aside while
+  // something is being edited so that edit's Save and Cancel can take its place.
   return (
-    <div className="order-first mb-3 space-y-2 rounded-lg border-2 border-brand bg-surface px-4 py-3 shadow-lg sm:sticky sm:top-0 sm:z-10 sm:px-5">
+    <div
+      className={`sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:block sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg ${editing ? "hidden" : ""}`}
+    >
       {children}
     </div>
   );
