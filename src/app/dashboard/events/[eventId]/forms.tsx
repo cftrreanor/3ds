@@ -182,21 +182,50 @@ function hasAnswers(form: HTMLFormElement) {
   );
 }
 
-/** "Auto create shifts": split each event day into equal shifts. The button turns green once both answers are in. */
-export function GenerateShiftsForm({ action, windowLabel }: { action: Action; windowLabel: string }) {
-  const [ready, setReady] = useState(false);
+/**
+ * "Auto create shifts": split each event day into equal shifts. Run again, it
+ * replaces the station's shifts, as long as nobody has signed up for them.
+ */
+export function GenerateShiftsForm({
+  action,
+  windowLabel,
+  existing = 0,
+  signedUp = false,
+}: {
+  action: Action;
+  windowLabel: string;
+  /** How many shifts the station has now. */
+  existing?: number;
+  /** Someone has signed up for one of them: auto create can't replace them. */
+  signedUp?: boolean;
+}) {
   const setEdited = useStepEdits("shifts");
+  if (signedUp) {
+    return (
+      <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
+        Volunteers have signed up for this station&apos;s shifts, so auto create can&apos;t replace them. Edit shifts one at a
+        time below, or create a single shift.
+      </p>
+    );
+  }
   return (
     <ActionForm
       action={action}
       className="space-y-4"
-      onEdit={(f) => {
-        setReady(f.checkValidity());
-        setEdited(hasAnswers(f));
-      }}
+      confirmMessage={existing ? `Replace this station's ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
+      onEdit={(f) => setEdited(hasAnswers(f))}
     >
       <p className="text-sm text-muted">
         Split the event day ({windowLabel}) into equal shifts for this station.
+        {existing > 0 && (
+          <>
+            {" "}
+            <strong className="font-semibold text-foreground">
+              This replaces its {existing} shift{existing === 1 ? "" : "s"}
+            </strong>{" "}
+            (nobody has signed up yet).
+          </>
+        )}
       </p>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Shift length">
@@ -216,7 +245,7 @@ export function GenerateShiftsForm({ action, windowLabel }: { action: Action; wi
         </Field>
       </div>
       <StepNotice step="shifts" />
-      <SubmitButton variant="go" disabled={!ready} pendingText="Creating…">
+      <SubmitButton variant="go" pendingText="Creating…">
         Create shifts
       </SubmitButton>
     </ActionForm>
@@ -239,21 +268,13 @@ export function ShiftForm({
   submitLabel?: string;
 }) {
   // A new shift: the button turns green once every required answer is in.
-  const [ready, setReady] = useState(Boolean(initial));
   const setEdited = useStepEdits(initial ? undefined : "shifts");
   return (
     <ActionForm
       action={action}
       className="grid gap-4 sm:grid-cols-2"
       resetOnSuccess={!initial}
-      onEdit={
-        initial
-          ? undefined
-          : (f) => {
-              setReady(f.checkValidity());
-              setEdited(hasAnswers(f));
-            }
-      }
+      onEdit={initial ? undefined : (f) => setEdited(hasAnswers(f))}
     >
       {initial && (
         <Field label="Title" className="sm:col-span-2">
@@ -292,7 +313,7 @@ export function ShiftForm({
       )}
       <div className="space-y-3 sm:col-span-2">
         {!initial && <StepNotice step="shifts" />}
-        <SubmitButton variant={initial ? "primary" : "go"} disabled={!ready} pendingText="Saving…">
+        <SubmitButton variant={initial ? "primary" : "go"} pendingText="Saving…">
           {submitLabel}
         </SubmitButton>
       </div>
@@ -306,11 +327,16 @@ export function BuildShifts({
   create,
   windowLabel,
   days,
+  existing = 0,
+  signedUp = false,
 }: {
   generate: Action;
   create: Action;
   windowLabel: string;
   days: string[];
+  /** The station's shifts now, and whether anyone has signed up for one. */
+  existing?: number;
+  signedUp?: boolean;
 }) {
   const [mode, setMode] = useState<"auto" | "single">("auto");
   // Switching forms drops what was typed in the other one.
@@ -341,7 +367,7 @@ export function BuildShifts({
         ))}
       </div>
       {mode === "auto" ? (
-        <GenerateShiftsForm action={generate} windowLabel={windowLabel} />
+        <GenerateShiftsForm action={generate} windowLabel={windowLabel} existing={existing} signedUp={signedUp} />
       ) : (
         <ShiftForm action={create} days={days} />
       )}
@@ -351,13 +377,12 @@ export function BuildShifts({
 
 /** "1. Create stations": a station's name. Its leads are picked on its row; the rest comes in step 2. */
 export function NewStationForm({ action }: { action: Action }) {
-  const [ready, setReady] = useState(false);
   return (
-    <ActionForm action={action} className="flex flex-col gap-3 sm:flex-row sm:items-end" onEdit={(f) => setReady(f.checkValidity())}>
+    <ActionForm action={action} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
       <Field label="New station name" hint="e.g. Parking, Concessions, Ticket Table" className="flex-1">
         <Input name="name" required maxLength={80} />
       </Field>
-      <SubmitButton variant="go" disabled={!ready} pendingText="Adding…" className="sm:mb-7">
+      <SubmitButton variant="go" pendingText="Adding…" className="sm:mb-7">
         Add station
       </SubmitButton>
     </ActionForm>

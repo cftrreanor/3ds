@@ -205,3 +205,32 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Required answers, on every form (components/required-fields.tsx): submit
+   buttons look faded until the required boxes are filled in; tapping one
+   early outlines each box still needed in red and says so under the form. */
+form [data-not-ready] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+form[data-missing] :is(input, select, textarea):invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+form[data-missing] :is(input[type="checkbox"], input[type="radio"]):invalid {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+form[data-missing]::after {
+  content: "Fill in the boxes outlined in red.";
+  display: block;
+  grid-column: 1 / -1;
+  flex-basis: 100%;
+  margin-top: 0.5rem;
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+form[data-missing="fix"]::after {
+  content: "Check the boxes outlined in red.";
+}

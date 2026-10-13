@@ -127,8 +127,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261116000000_volunteer_reminders.sql` | Volunteers get a reminder email the day before their shifts (station, time, where to report, their lead) | ✅ |
 | `20261117000000_data_retention.sql` | The privacy policy's deletion schedule, run by the daily job: you can close an account (Admin → account → Close account) and it's deleted 90 days later; pilot requests that never became an account go after 1 year; directors' details 2 years after the event (band name and headcounts stay); fair booth contacts after 15 months; uploaded files 30 days after the event | ✅ run |
 | `20261118000000_spreadsheet_imports.sql` | Import from a spreadsheet (.csv or Excel): band and group directors' details are saved for them to review and register (and removed after the event), volunteers are added to their shifts, and parent registrations are added to the check-in list | ✅ run |
-| `20261119000000_parent_registration_starts_closed.sql` | Parent registration starts closed: publishing a school visitor event no longer opens it; the host opens it on the Parent check-in page | ⬜ not yet |
-| `20261120000000_station_setup_steps.sql` | Stations & shifts, step by step: each station shows whether "1. Station details" has been saved (needed before the Volunteering page opens) | ⬜ not yet |
+| `20261119000000_parent_registration_starts_closed.sql` | Parent registration starts closed: publishing a school visitor event no longer opens it; the host opens it on the Parent check-in page | ✅ run |
+| `20261120000000_station_setup_steps.sql` | Stations & shifts, step by step: each station shows whether "1. Station details" has been saved (needed before the Volunteering page opens) | ✅ run |
 
 ## Pilot requests
 
