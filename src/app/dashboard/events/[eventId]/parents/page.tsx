@@ -258,7 +258,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
         </div>
       )}
 
-      <section className={access.isHost ? "mt-10" : undefined} aria-label="Door check-in">
+      <section id="door-check-in" className={`scroll-mt-6 ${access.isHost ? "mt-10" : ""}`} aria-label="Door check-in">
         {access.isHost && (
           <>
             <h2 className="text-xl font-semibold">Door check-in</h2>

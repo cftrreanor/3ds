@@ -365,139 +365,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
 
       {setup && checklist && <PublishPanel facts={setup} remaining={checklist.remaining} />}
+
       <PublicPageCard url={publicUrl} published={event.status === "published"} slug={event.slug} qr={publicQr} />
 
-      {(files.length > 0 || access.isHost) && (
-        <section className="mt-10" aria-labelledby="files-heading">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="files-heading" className="text-xl font-semibold">
-              Maps &amp; documents
-            </h2>
-            {access.isHost && (
-              <Link href={`/dashboard/events/${eventId}/edit#files-heading`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
-                {files.length ? "Manage" : "Add a map or document"}
-              </Link>
-            )}
-          </div>
-          {files.length ? (
-            <FileLinks files={files} details={uploaded} className="mt-3" />
-          ) : (
-            <p className="mt-1 text-sm text-muted">
-              {groupsHere
-                ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
-                : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
-            </p>
-          )}
-        </section>
-      )}
-
-      {hasBooths(event.event_type) && <BoothsCard eventId={eventId} isDay={isEventDay} />}
-
-      {parentsHere && (
-        <section className="mt-10" aria-labelledby="parents-heading">
-          <h2 id="parents-heading" className="text-xl font-semibold">
-            {access.isHost ? "Parent Registration" : "Parent check-in"}
-          </h2>
-          <Card className="mt-4">
-            {isEventDay && <AutoRefresh seconds={30} />}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-1 text-sm leading-6">
-                <p className="font-medium">
-                  {doorLocked
-                    ? "Door check-in opens on event day."
-                    : isEventDay
-                      ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
-                      : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
-                </p>
-                <p className="text-muted">
-                  {event.status !== "published"
-                    ? "Parents can register once the event is published."
-                    : !parentRegistrationClosed(event)
-                      ? `Registration is open${event.parent_registration_closes_at ? ` until ${closesAtLabel(event.parent_registration_closes_at, event.timezone)}` : ""}. Parents are reminded to bring a photo ID.`
-                      : "Registration is closed."}
-                </p>
-                <p className="text-muted">
-                  {doorLocked
-                    ? `🔒 Children's details open for Section Leads on event day (${formatDate(event.starts_on, { year: undefined })}), for door check-in.`
-                    : "🔒 Children's details are seen only by your team (Section Leads on event day) and deleted 30 days after the event."}
-                </p>
-              </div>
-              {!doorLocked && (
-                <Link
-                  href={`/dashboard/events/${eventId}/parents`}
-                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                >
-                  {access.isHost ? "Registration & door check-in" : "Open door check-in"}
-                </Link>
-              )}
-            </div>
-            {!doorLocked && parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
-          </Card>
-        </section>
-      )}
-
-      {!bandsHere && (access.canManage || myStations.length > 0) && (
-        <section className="mt-10" aria-labelledby="day-heading">
-          <h2 id="day-heading" className="text-xl font-semibold">
-            Event day
-          </h2>
-          <Card className="mt-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-1 text-sm leading-6">
-                {access.canManage ? (
-                  <p>
-                    {isEventDay ? (
-                      <span className="font-medium">
-                        {checkedIn.done} of {checkedIn.of} volunteers checked in.
-                      </span>
-                    ) : (
-                      <>
-                        <span className="font-medium">Check volunteers in at the desk on {formatDate(event.starts_on, { year: undefined })}.</span>{" "}
-                        <span className="text-muted">Walk-ups can fill open spots, and you can release no-shows.</span>
-                      </>
-                    )}
-                  </p>
-                ) : null}
-                {myStations.length > 0 && (
-                  <p>
-                    <span className="font-medium">You lead {myStations.map((s) => s.name).join(", ")}.</span>{" "}
-                    <span className="text-muted">
-                      {myVolunteers} {myVolunteers === 1 ? "volunteer" : "volunteers"} signed up.
-                    </span>
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {myStations.length > 0 && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/contest-day`}
-                    className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${access.canManage ? "border border-border bg-surface hover:bg-background" : "bg-brand text-brand-foreground hover:bg-brand-hover"}`}
-                  >
-                    My stations
-                  </Link>
-                )}
-                {access.canManage && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/announcements`}
-                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
-                  >
-                    Post a banner
-                  </Link>
-                )}
-                {access.canManage && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/volunteers`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                  >
-                    Open check-in desk
-                  </Link>
-                )}
-              </div>
-            </div>
-          </Card>
-        </section>
-      )}
-
+      {/* Event day comes first after publishing, so it's easy to find on the day. */}
       {bandsHere && (access.canManage || myStations.length > 0) && (
         <section className="mt-10" aria-labelledby="day-heading">
           <h2 id="day-heading" className="text-xl font-semibold">
@@ -600,6 +471,188 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
+      {roomsHere && groupStatus && (
+        <section className="mt-10" aria-labelledby="group-day-heading">
+          <h2 id="group-day-heading" className="text-xl font-semibold">
+            Event day
+          </h2>
+          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            {isEventDay && <AutoRefresh seconds={30} />}
+            <div className="space-y-1 text-sm leading-6">
+              <p>
+                <span className="font-medium">
+                  {groupStatus.here} of {groupStatus.total} groups here
+                </span>
+                {groupStatus.finished > 0 && <span className="text-muted"> · {groupStatus.finished} finished every room</span>}
+              </p>
+              {groupStatus.late.length > 0 && (
+                <p className="text-danger">Not here yet: {groupStatus.late.map((d) => groupName(d.bandId)).join(", ")}</p>
+              )}
+              {groupStatus.behind.length > 0 && (
+                <p className="text-danger">Running over: {[...new Set(groupStatus.behind.map((b) => groupName(b.bandId)))].join(", ")}</p>
+              )}
+              {!isEventDay && <p className="text-muted">Check groups in and track each room on {formatDate(event.starts_on, { year: undefined })}.</p>}
+            </div>
+            <Link
+              href={`/dashboard/events/${eventId}/event-day`}
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+            >
+              Open event day
+            </Link>
+          </Card>
+        </section>
+      )}
+
+      {!bandsHere && (access.canManage || myStations.length > 0) && (
+        <section className={roomsHere && groupStatus ? "mt-4" : "mt-10"} aria-labelledby={roomsHere && groupStatus ? "group-day-heading" : "day-heading"}>
+          {!(roomsHere && groupStatus) && (
+            <h2 id="day-heading" className="text-xl font-semibold">
+              Event day
+            </h2>
+          )}
+          <Card className={roomsHere && groupStatus ? "" : "mt-4"}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1 text-sm leading-6">
+                {access.canManage ? (
+                  <p>
+                    {isEventDay ? (
+                      <span className="font-medium">
+                        {checkedIn.done} of {checkedIn.of} volunteers checked in.
+                      </span>
+                    ) : (
+                      <>
+                        <span className="font-medium">Check volunteers in at the desk on {formatDate(event.starts_on, { year: undefined })}.</span>{" "}
+                        <span className="text-muted">Walk-ups can fill open spots, and you can release no-shows.</span>
+                      </>
+                    )}
+                  </p>
+                ) : null}
+                {myStations.length > 0 && (
+                  <p>
+                    <span className="font-medium">You lead {myStations.map((s) => s.name).join(", ")}.</span>{" "}
+                    <span className="text-muted">
+                      {myVolunteers} {myVolunteers === 1 ? "volunteer" : "volunteers"} signed up.
+                    </span>
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {myStations.length > 0 && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/contest-day`}
+                    className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${access.canManage ? "border border-border bg-surface hover:bg-background" : "bg-brand text-brand-foreground hover:bg-brand-hover"}`}
+                  >
+                    My stations
+                  </Link>
+                )}
+                {parentsHere && !doorLocked && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/parents#door-check-in`}
+                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                  >
+                    Parent door check-in
+                  </Link>
+                )}
+                {hasBooths(event.event_type) && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/booths`}
+                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                  >
+                    Partner check-in
+                  </Link>
+                )}
+                {access.canManage && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/announcements`}
+                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                  >
+                    Post a banner
+                  </Link>
+                )}
+                {access.canManage && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/volunteers`}
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+                  >
+                    Open check-in desk
+                  </Link>
+                )}
+              </div>
+            </div>
+          </Card>
+        </section>
+      )}
+
+
+      {(files.length > 0 || access.isHost) && (
+        <section className="mt-10" aria-labelledby="files-heading">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="files-heading" className="text-xl font-semibold">
+              Maps &amp; documents
+            </h2>
+            {access.isHost && (
+              <Link href={`/dashboard/events/${eventId}/edit#files-heading`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
+                {files.length ? "Manage" : "Add a map or document"}
+              </Link>
+            )}
+          </div>
+          {files.length ? (
+            <FileLinks files={files} details={uploaded} className="mt-3" />
+          ) : (
+            <p className="mt-1 text-sm text-muted">
+              {groupsHere
+                ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
+                : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
+            </p>
+          )}
+        </section>
+      )}
+
+      {hasBooths(event.event_type) && <BoothsCard eventId={eventId} isDay={isEventDay} />}
+
+      {parentsHere && (
+        <section className="mt-10" aria-labelledby="parents-heading">
+          <h2 id="parents-heading" className="text-xl font-semibold">
+            {access.isHost ? "Parent Registration" : "Parent check-in"}
+          </h2>
+          <Card className="mt-4">
+            {isEventDay && <AutoRefresh seconds={30} />}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1 text-sm leading-6">
+                <p className="font-medium">
+                  {doorLocked
+                    ? "Door check-in opens on event day."
+                    : isEventDay
+                      ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
+                      : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
+                </p>
+                <p className="text-muted">
+                  {event.status !== "published"
+                    ? "Parents can register once the event is published."
+                    : !parentRegistrationClosed(event)
+                      ? `Registration is open${event.parent_registration_closes_at ? ` until ${closesAtLabel(event.parent_registration_closes_at, event.timezone)}` : ""}. Parents are reminded to bring a photo ID.`
+                      : "Registration is closed."}
+                </p>
+                <p className="text-muted">
+                  {doorLocked
+                    ? `🔒 Children's details open for Section Leads on event day (${formatDate(event.starts_on, { year: undefined })}), for door check-in.`
+                    : "🔒 Children's details are seen only by your team (Section Leads on event day) and deleted 30 days after the event."}
+                </p>
+              </div>
+              {!doorLocked && (
+                <Link
+                  href={`/dashboard/events/${eventId}/parents`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+                >
+                  {access.isHost ? "Registration & door check-in" : "Open door check-in"}
+                </Link>
+              )}
+            </div>
+            {!doorLocked && parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
+          </Card>
+        </section>
+      )}
+
       {access.canManage && (
         <section className="mt-10" aria-labelledby="team-heading">
           <h2 id="team-heading" className="text-xl font-semibold">
@@ -692,38 +745,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
             >
               {roomsHere ? "Set up rooms & schedule" : "Set up the schedule"}
-            </Link>
-          </Card>
-        </section>
-      )}
-
-      {roomsHere && groupStatus && (
-        <section className="mt-10" aria-labelledby="group-day-heading">
-          <h2 id="group-day-heading" className="text-xl font-semibold">
-            Event day
-          </h2>
-          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            {isEventDay && <AutoRefresh seconds={30} />}
-            <div className="space-y-1 text-sm leading-6">
-              <p>
-                <span className="font-medium">
-                  {groupStatus.here} of {groupStatus.total} groups here
-                </span>
-                {groupStatus.finished > 0 && <span className="text-muted"> · {groupStatus.finished} finished every room</span>}
-              </p>
-              {groupStatus.late.length > 0 && (
-                <p className="text-danger">Not here yet: {groupStatus.late.map((d) => groupName(d.bandId)).join(", ")}</p>
-              )}
-              {groupStatus.behind.length > 0 && (
-                <p className="text-danger">Running over: {[...new Set(groupStatus.behind.map((b) => groupName(b.bandId)))].join(", ")}</p>
-              )}
-              {!isEventDay && <p className="text-muted">Check groups in and track each room on {formatDate(event.starts_on, { year: undefined })}.</p>}
-            </div>
-            <Link
-              href={`/dashboard/events/${eventId}/event-day`}
-              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-            >
-              Open event day
             </Link>
           </Card>
         </section>
