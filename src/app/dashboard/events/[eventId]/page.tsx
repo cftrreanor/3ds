@@ -591,7 +591,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               Maps &amp; documents
             </h2>
             {access.isHost && (
-              <Link href={`/dashboard/events/${eventId}/edit#files-heading`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
+              <Link href={`/dashboard/events/${eventId}/edit?step=files`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
                 {files.length ? "Manage" : "Add a map or document"}
               </Link>
             )}
