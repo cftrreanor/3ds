@@ -388,13 +388,13 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/dashboard/events/${eventId}/announcements`}
-                      className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                     >
                       Broadcast Message
                     </Link>
                     <Link
                       href={`/dashboard/events/${eventId}/contest-day`}
-                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                     >
                       Open contest day
                     </Link>
@@ -453,14 +453,14 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   {access.canManage && (
                     <Link
                       href={`/dashboard/events/${eventId}/announcements`}
-                      className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                      className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                     >
                       Broadcast Message
                     </Link>
                   )}
                   <Link
                     href={`/dashboard/events/${eventId}/contest-day`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                   >
                     Open contest day
                   </Link>
@@ -495,7 +495,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             </div>
             <Link
               href={`/dashboard/events/${eventId}/event-day`}
-              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+              className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
             >
               Open event day
             </Link>
@@ -540,7 +540,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 {myStations.length > 0 && (
                   <Link
                     href={`/dashboard/events/${eventId}/contest-day`}
-                    className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${access.canManage ? "border border-border bg-surface hover:bg-background" : "bg-brand text-brand-foreground hover:bg-brand-hover"}`}
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                   >
                     My stations
                   </Link>
@@ -548,7 +548,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 {parentsHere && !doorLocked && (
                   <Link
                     href={`/dashboard/events/${eventId}/parents#door-check-in`}
-                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                   >
                     Parent door check-in
                   </Link>
@@ -556,7 +556,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 {hasBooths(event.event_type) && (
                   <Link
                     href={`/dashboard/events/${eventId}/booths`}
-                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                   >
                     Partner check-in
                   </Link>
@@ -564,7 +564,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 {access.canManage && (
                   <Link
                     href={`/dashboard/events/${eventId}/announcements`}
-                    className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-semibold hover:bg-background"
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                   >
                     Broadcast Message
                   </Link>
@@ -574,7 +574,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                     href={`/dashboard/events/${eventId}/volunteers`}
                     className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
                   >
-                    Open check-in desk
+                    Volunteer Check-in
                   </Link>
                 )}
               </div>
