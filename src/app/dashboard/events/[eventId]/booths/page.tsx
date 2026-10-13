@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { SetupStep, StepStatus } from "@/components/setup-step";
 import { Badge, Card } from "@/components/ui";
 import { eventPhase } from "@/lib/contest-day";
 import { getEventAccess } from "@/lib/data";
@@ -13,15 +14,16 @@ import { formatTime } from "@/lib/time";
 import { DeleteButton } from "../forms";
 import { checkInBooth, deleteBooth, saveBooth } from "./actions";
 import { ArrivedButton } from "./arrived-button";
-import { BoothForm, type BoothValues } from "./booth-form";
+import { BoothForm, ZoneForm, type BoothValues } from "./booth-form";
 
-export const metadata: Metadata = { title: "Booths & partners" };
+export const metadata: Metadata = { title: "Booths & Partners" };
 
 type Booth = BoothValues & { id: string; arrived_at: string | null };
 
 /**
  * A fair's booths and community partners, by zone. The host and Volunteer
- * Leads add and edit them; on fair day anyone on the team taps partners in.
+ * Leads set them up in steps (see "Setup pages" in docs/DESIGN.md); on fair
+ * day anyone on the team taps partners in.
  */
 export default async function BoothsPage({ params }: PageProps<"/dashboard/events/[eventId]/booths">) {
   const { eventId } = await params;
@@ -54,6 +56,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
       [...FAIR_ZONES, ...booths.map((b) => b.zone), ...(stationZones ?? []).map((s) => s.zone)].filter((z): z is string => Boolean(z)),
     ),
   ];
+  const unzoned = booths.filter((b) => !b.zone);
   const groups = [...new Set(booths.map((b) => b.zone ?? ""))].map((zone) => ({ zone, booths: booths.filter((b) => (b.zone ?? "") === zone) }));
 
   return (
@@ -63,12 +66,60 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
         <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
           ← Back to {event.name}
         </Link>
-        <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Booths &amp; partners</h1>
+        <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Booths &amp; Partners</h1>
         <p className="mt-1 text-muted">
           Everything at the event, by zone: games, activities, vendors and showcases, and who hosts each one.
           {event.status === "published" ? " Listed ones show on the public page." : " Listed ones show on the public page once the event is published."}
         </p>
       </div>
+
+      {canManage && (
+        <div className="flex flex-col gap-3">
+          <SetupStep
+            id="add-booths"
+            title="1. Add booths"
+            status={<StepStatus done={booths.length > 0} doneLabel={`${booths.length} ${booths.length === 1 ? "booth" : "booths"}`} />}
+            open={booths.length === 0}
+            intro="Your games, activities, vendors and showcases, and the partner who hosts each one. Add as many as you like; edit or delete one from the list below."
+          >
+            <BoothForm action={saveBooth.bind(null, eventId, null)} zones={zones} />
+          </SetupStep>
+
+          <SetupStep
+            id="zones"
+            title="2. Zones"
+            status={
+              <StepStatus
+                done={booths.length > 0 && unzoned.length === 0}
+                doneLabel="Every booth has a zone"
+                todoLabel={booths.length === 0 ? "Add booths first" : `${unzoned.length} ${unzoned.length === 1 ? "needs" : "need"} a zone`}
+              />
+            }
+            open={booths.length > 0 && unzoned.length > 0}
+            intro="Zones group booths on the public page, so families can find their way around."
+          >
+            {booths.length === 0 ? (
+              <p className="text-sm text-muted">Add a booth in step 1 first.</p>
+            ) : unzoned.length === 0 ? (
+              <p className="text-sm text-muted">Every booth is in a zone. To move one, use its Edit in the list below.</p>
+            ) : (
+              <ul className="space-y-3">
+                {unzoned.map((b) => (
+                  <li key={b.id} className="rounded-lg border border-border px-4 py-3">
+                    <p className="font-semibold">
+                      {b.title}
+                      {b.host_name && <span className="font-normal text-muted"> · {b.host_name}</span>}
+                    </p>
+                    <div className="mt-3">
+                      <ZoneForm action={saveBooth.bind(null, eventId, b.id)} booth={b} zones={zones} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SetupStep>
+        </div>
+      )}
 
       {partners.length > 0 && (
         <Card className={isDay ? "border-brand" : ""}>
@@ -92,18 +143,6 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
                 .join(", ")}
             </p>
           )}
-        </Card>
-      )}
-
-      {canManage && (
-        <Card>
-          <h2 className="text-xl font-semibold">Add a booth</h2>
-          {booths.length === 0 && (
-            <p className="mt-1 text-sm text-muted">Start with your first one: a game hosted by a community partner, an activity, a vendor or a showcase.</p>
-          )}
-          <div className="mt-4">
-            <BoothForm action={saveBooth.bind(null, eventId, null)} zones={zones} />
-          </div>
         </Card>
       )}
 
