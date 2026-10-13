@@ -9,7 +9,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
-import { useUnsavedChanges } from "./volunteering/station-steps";
+import { UnsavedNotice, useUnsavedChanges } from "./volunteering/station-steps";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -166,7 +166,8 @@ export function StationForm({
           )}
         </fieldset>
       )}
-      <div className="sm:col-span-2">
+      <div className="space-y-3 sm:col-span-2">
+        {trackUnsaved && <UnsavedNotice />}
         <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
       </div>
     </ActionForm>
