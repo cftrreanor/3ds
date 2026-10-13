@@ -150,9 +150,10 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
 8. **Destructive means red, and honest.** Delete buttons are red and say exactly what they do
    ("Delete Station"); the confirmation says what really happens. If it would hurt people who've
    already signed up, refuse and say why.
-9. **One action bar, easy to find.** When a page has a single place for Save and Publish (like
-   Performance Schedule Setup), it's an outlined bar pinned to the top of the screen on a
-   computer, under the title, and to the bottom on a phone, by the thumb.
+9. **Save with the boxes, publish in its own bar.** Save, Cancel and Update sit right under the
+   boxes they save. Going live (Publish, Unpublish, Reveal) is a separate, outlined bar: pinned
+   under the page title on a computer, pinned to the bottom on a phone. On a phone it steps aside
+   while something is being edited, so that edit's Save and Cancel take the bottom instead.
 10. **Plain, matching names.** A page's title matches the card that links to it. Buttons say what
    they do ("Create shifts", "Open band registration"), never "Submit".
 
