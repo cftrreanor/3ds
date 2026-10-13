@@ -330,7 +330,8 @@ async function nextCheckpointOrder(supabase: Awaited<ReturnType<typeof createCli
  */
 export async function createStation(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
-  const parsed = stationSchema.safeParse(Object.fromEntries(formData));
+  // Step 1 asks only for the name and leads: the rest starts blank.
+  const parsed = stationSchema.safeParse({ location: "", instructions: "", ...Object.fromEntries(formData) });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
   const kind = checkpointKind(formData);
