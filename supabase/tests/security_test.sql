@@ -3682,4 +3682,34 @@ reset role;
 delete from public.events where id in ('10000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-0000000000f2',
                                        '10000000-0000-0000-0000-0000000000f3');
 
+-- Stations, step by step: hosts and Volunteer Leads mark a station's details
+-- as saved; a Section Lead or a stranger can't.
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000fa', :'org_id', 'Steps Fair', 'steps-fair', 'draft',
+        current_date + 40, current_date + 40, now() + interval '40 days', now() + interval '40 days 4 hours', '4 Step Rd');
+insert into public.stations (id, event_id, name, station_type) values
+  ('20000000-0000-0000-0000-0000000000fa', '10000000-0000-0000-0000-0000000000fa', 'Ticket Table', 'passive');
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000000fa', '00000000-0000-0000-0000-000000000002', 'volunteer_director'),
+  ('10000000-0000-0000-0000-0000000000fa', '00000000-0000-0000-0000-000000000003', 'section_lead');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+update public.stations set details_saved_at = now() where id = '20000000-0000-0000-0000-0000000000fa';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+update public.stations set details_saved_at = now() where id = '20000000-0000-0000-0000-0000000000fa';
+reset role;
+do $$ begin
+  assert (select details_saved_at is null from public.stations where id = '20000000-0000-0000-0000-0000000000fa'),
+         'a Section Lead or a stranger can''t mark station details saved';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+update public.stations set details_saved_at = now() where id = '20000000-0000-0000-0000-0000000000fa';
+reset role;
+do $$ begin
+  assert (select details_saved_at is not null from public.stations where id = '20000000-0000-0000-0000-0000000000fa'),
+         'a Volunteer Lead marks station details saved';
+end $$;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000fa';
+
 \echo 'All database security tests passed.'

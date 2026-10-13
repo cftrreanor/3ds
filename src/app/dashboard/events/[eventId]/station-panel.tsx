@@ -4,7 +4,8 @@ import { hasBands, leadWords } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
-import { DeleteButton, GenerateShiftsForm, ShiftForm, StationForm, type LeadOption } from "./forms";
+import { BuildShifts, DeleteButton, ShiftForm, StationForm, type LeadOption } from "./forms";
+import { StepStatus } from "./volunteering/station-steps";
 
 export type Shift = {
   id: string;
@@ -30,6 +31,8 @@ export type Station = {
   lead_user_id: string | null;
   /** Everyone leading this station, first-added first. */
   lead_ids: string[];
+  /** When "1. Station details" was last saved (null: not done yet). */
+  details_saved_at?: string | null;
 };
 
 export type RosterEntry = {
@@ -85,6 +88,7 @@ export function StationPanel({
 }) {
   const tz = event.timezone;
   const multiDay = days.length > 1;
+  const detailsDone = Boolean(station.details_saved_at);
   return (
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -116,34 +120,46 @@ export function StationPanel({
 
       {canManage && (
         <div className="mt-4 flex flex-col gap-3">
-          <details className="rounded-lg border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">{leadWords(event.event_type).many} &amp; station details</summary>
+          <details id="station-details" className="group scroll-mt-6 rounded-lg border border-border px-4 py-3" open={!detailsDone}>
+            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-1 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2 font-semibold">
+                <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span>
+                1. Station details
+              </span>
+              <StepStatus done={detailsDone} />
+            </summary>
+            <p className="mt-2 text-sm text-muted">
+              Where volunteers report, what they should know, and its {leadWords(event.event_type).many}. Save to finish this step.
+            </p>
             <div className="mt-4">
               <StationForm
                 action={updateStation.bind(null, eventId, station.id)}
                 initial={station}
                 leads={leadOptions}
-                submitLabel="Save station"
+                submitLabel="Save station details"
                 bands={hasBands(event.event_type)}
                 locations={locations}
                 zones={zones}
                 leadLabel={leadWords(event.event_type).many}
+                trackUnsaved={station.name}
               />
             </div>
           </details>
-          <details className="rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
-            <summary className="cursor-pointer text-sm font-medium">Fill the day with shifts</summary>
+          <details className="group rounded-lg border border-border px-4 py-3" open={stationShifts.length === 0}>
+            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-1 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center gap-2 font-semibold">
+                <span aria-hidden className="text-muted transition group-open:rotate-90">▸</span>
+                2. Build shifts
+              </span>
+              <StepStatus done={stationShifts.length > 0} />
+            </summary>
             <div className="mt-4">
-              <GenerateShiftsForm
-                action={generateShifts.bind(null, eventId, station.id)}
+              <BuildShifts
+                generate={generateShifts.bind(null, eventId, station.id)}
+                create={createShift.bind(null, eventId, station.id)}
                 windowLabel={windowLabel}
+                days={days}
               />
-            </div>
-          </details>
-          <details className="rounded-lg border border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">Add a single shift</summary>
-            <div className="mt-4">
-              <ShiftForm action={createShift.bind(null, eventId, station.id)} days={days} />
             </div>
           </details>
         </div>
