@@ -15,7 +15,7 @@ export async function BoothsCard({ eventId, isDay }: { eventId: string; isDay: b
         Booths &amp; Partners
       </h2>
       <Card className={`mt-4 ${isDay ? "border-brand" : ""}`}>
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
           <p className="text-sm leading-6">
             {booths.length === 0 ? (
               "Add your games, activities, vendors and showcases, and the partners who host them."
