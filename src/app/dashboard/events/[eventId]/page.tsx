@@ -586,25 +586,29 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
       {(files.length > 0 || access.isHost) && (
         <section className="mt-10" aria-labelledby="files-heading">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="files-heading" className="text-xl font-semibold">
-              Maps &amp; documents
-            </h2>
-            {access.isHost && (
-              <Link href={`/dashboard/events/${eventId}/edit?step=files`} className="text-sm font-medium text-brand underline-offset-4 hover:underline">
-                {files.length ? "Manage" : "Add a map or document"}
-              </Link>
-            )}
-          </div>
-          {files.length ? (
-            <FileLinks files={files} details={uploaded} className="mt-3" />
-          ) : (
-            <p className="mt-1 text-sm text-muted">
-              {groupsHere
-                ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
-                : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
-            </p>
-          )}
+          <h2 id="files-heading" className="text-xl font-semibold">
+            Maps &amp; documents
+          </h2>
+          <Card className="mt-4 space-y-5">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
+              <p className="text-sm leading-6 text-muted">
+                {files.length
+                  ? `${files.length} ${files.length === 1 ? "file" : "files"} shared.`
+                  : groupsHere
+                    ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
+                    : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
+              </p>
+              {access.isHost && (
+                <Link
+                  href={`/dashboard/events/${eventId}/edit?step=files`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                >
+                  {files.length ? "Manage maps & documents" : "Add a map or document"}
+                </Link>
+              )}
+            </div>
+            <FileLinks files={files} details={uploaded} />
+          </Card>
         </section>
       )}
 
@@ -617,7 +621,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           </h2>
           <Card className="mt-4">
             {isEventDay && <AutoRefresh seconds={30} />}
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
               <div className="space-y-1 text-sm leading-6">
                 <p className="font-medium">
                   {doorLocked
@@ -659,7 +663,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             Team
           </h2>
           <Card className="mt-4 space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
               <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads and {leadWords(event.event_type).many}, and their invitations.</p>
               <Link
                 href={`/dashboard/events/${eventId}/team`}
@@ -689,7 +693,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           {access.isHost ? `${words.One} Registration` : words.Many}
         </h2>
         <Card className="mt-4 space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <p className="text-sm leading-6 text-muted">
               {bands.length
                 ? `${bands.length} ${bands.length === 1 ? words.one : words.many} registered.`
@@ -729,7 +733,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           <h2 id="schedule-heading" className="text-xl font-semibold">
             {roomsHere ? "Rooms & Schedule Setup" : "Performance Schedule Setup"}
           </h2>
-          <Card className="mt-4 flex flex-wrap items-center justify-between gap-4">
+          <Card className="mt-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={event.performance_order_published ? "success" : "neutral"}>
                 {event.performance_order_published ? "Published" : "Not published"}
@@ -756,7 +760,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             Volunteer Setup
           </h2>
           <Card className="mt-4 space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={event.status === "published" && event.volunteer_signup_open ? "brand" : "neutral"}>
                   {event.status !== "published" ? "Event not published" : event.volunteer_signup_open ? "Signup open" : "Signup closed"}
