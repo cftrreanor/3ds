@@ -377,6 +377,7 @@ export function StationRow({
   leadWord,
   setLeads,
   rename,
+  remove,
 }: {
   name: string;
   leadNames: string[];
@@ -387,6 +388,7 @@ export function StationRow({
   leadWord: { one: string; many: string };
   setLeads: Action;
   rename: Action;
+  remove: Action;
 }) {
   const [open, setOpen] = useState<"leads" | "rename" | null>(null);
   const toggle = (which: "leads" | "rename") => setOpen(open === which ? null : which);
@@ -406,6 +408,13 @@ export function StationRow({
           <Button type="button" variant="ghost" className="min-h-10 px-2 text-sm" onClick={() => toggle("rename")} aria-expanded={open === "rename"}>
             Rename
           </Button>
+          <DeleteButton
+            action={remove}
+            label={`Delete station ${name}`}
+            text="Delete Station"
+            destructive
+            confirmMessage={`Delete “${name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
+          />
         </div>
       </div>
       {open === "leads" && (

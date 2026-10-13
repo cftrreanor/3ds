@@ -11,7 +11,7 @@ import { eachDate, formatDate, formatTimeRange, utcToZonedDate } from "@/lib/tim
 import { importVolunteers } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields, type Choice } from "@/lib/imports";
-import { createStation, moveCheckpoint, renameStation, setStationLeads, setVolunteerSignupOpen } from "../../../actions";
+import { createStation, deleteStation, moveCheckpoint, renameStation, setStationLeads, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, NewStationForm, StationRow, type LeadOption } from "../forms";
 import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
@@ -247,6 +247,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   leadWord={leadWords(event.event_type)}
                   setLeads={setStationLeads.bind(null, eventId, st.id)}
                   rename={renameStation.bind(null, eventId, st.id)}
+                  remove={deleteStation.bind(null, eventId, st.id)}
                 />
               ))}
             </ul>

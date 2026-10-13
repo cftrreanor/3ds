@@ -113,7 +113,7 @@ export function StationPanel({
             label={`Delete station ${station.name}`}
             text="Delete Station"
             destructive
-            confirmMessage={`Delete “${station.name}”? Its shifts, and everyone's sign-ups for them, are deleted too. This can't be undone.`}
+            confirmMessage={`Delete “${station.name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
           />
         )}
       </div>
