@@ -255,7 +255,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           {!hasSectionLeads && stations.length > 0 && (
             <p className="mt-2 text-sm text-muted">
               To assign {leadWords(event.event_type).many}, invite them on the{" "}
-              <Link href={`/dashboard/events/${eventId}/team`} className="font-medium text-brand underline">
+              <Link href={`/dashboard/events/${eventId}/team?tab=section-leads`} className="font-medium text-brand underline">
                 Team page
               </Link>
               .
