@@ -14,6 +14,7 @@ export const STAGES = [
   { value: "invited", label: "Invited", hint: "Host invitation sent" },
   { value: "set_up", label: "Set up", hint: "Organization created" },
   { value: "active", label: "Active", hint: "Published an event" },
+  { value: "teacher", label: "Teacher (free)", hint: "Signed up for a free teacher account" },
   { value: "declined", label: "Declined", hint: "Not going ahead" },
 ] as const;
 export type Stage = (typeof STAGES)[number]["value"];

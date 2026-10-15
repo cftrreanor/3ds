@@ -404,6 +404,17 @@ function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } })
 
 /** Hosts: when their free pilot or trial ends (and what that means). */
 function PlanNotice({ org }: { org: Organization }) {
+  if (org.suspended_at) {
+    return (
+      <p className="rounded-lg border border-danger/40 bg-warning-soft px-4 py-3 text-sm leading-6">
+        <strong>This account is suspended.</strong> Its events are offline and can&apos;t be published. Email{" "}
+        <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">
+          {brand.supportEmail}
+        </a>{" "}
+        if you think this is a mistake.
+      </p>
+    );
+  }
   const free = freeStatus(org);
   if (!free) return null;
   if (free.ended) {

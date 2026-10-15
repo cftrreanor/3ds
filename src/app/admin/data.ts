@@ -3,6 +3,7 @@ import { cache } from "react";
 import { planLabel } from "@/lib/admin";
 import { accountHealth, type HealthLevel } from "@/lib/admin-crm";
 import { getOrigin } from "@/lib/data";
+import { isSchemaError } from "@/lib/schema-check";
 import { firstName, siteLinks, type MergeVars } from "@/lib/merge-fields";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
@@ -30,6 +31,11 @@ export type Account = {
   free_until: string | null;
   default_timezone: string;
   created_at: string;
+  /** "teacher" for free teacher accounts (missing before 20261127000000_teacher_accounts.sql). */
+  account_kind?: string;
+  school?: string | null;
+  /** Missing before 20261128000000_teacher_admin.sql. */
+  suspended_at?: string | null;
   organization_members: AccountMember[];
   events: AccountEvent[];
   owner: { full_name: string; email: string } | null;
@@ -37,8 +43,20 @@ export type Account = {
   health: { level: HealthLevel; reasons: string[] };
 };
 
-const ACCOUNT_COLUMNS =
+const BASE_COLUMNS =
   "id, name, slug, subscription_status, free_until, default_timezone, created_at, organization_members(user_id, role, profiles(full_name, email)), events(id, name, status, event_type, starts_on, ends_on, created_at)";
+// Newest first; each fallback is for a database update that hasn't been run yet.
+const ACCOUNT_COLUMNS = [`${BASE_COLUMNS}, account_kind, school, suspended_at`, `${BASE_COLUMNS}, account_kind, school`, BASE_COLUMNS];
+
+/** organizations rows, with the newest columns the database has. */
+async function selectAccounts(id?: string) {
+  for (const columns of ACCOUNT_COLUMNS) {
+    const q = createAdminClient().from("organizations").select(columns);
+    const res = id ? await q.eq("id", id).maybeSingle() : await q.order("created_at", { ascending: false });
+    if (!isSchemaError(res.error)) return res;
+  }
+  return { data: null, error: null };
+}
 
 function enrich(raw: Omit<Account, "owner" | "lastHostSignIn" | "health">, logins: Map<string, SignIn>): Account {
   const lastHostSignIn =
@@ -57,19 +75,13 @@ function enrich(raw: Omit<Account, "owner" | "lastHostSignIn" | "health">, login
 
 /** Every organization, with hosts, events, last host sign-in and health. */
 export const loadAccounts = cache(async (): Promise<Account[]> => {
-  const [{ data, error }, logins] = await Promise.all([
-    createAdminClient().from("organizations").select(ACCOUNT_COLUMNS).order("created_at", { ascending: false }),
-    signIns(),
-  ]);
+  const [{ data, error }, logins] = await Promise.all([selectAccounts(), signIns()]);
   if (error) console.error("accounts load failed", error.message);
   return ((data ?? []) as unknown as Omit<Account, "owner" | "lastHostSignIn" | "health">[]).map((o) => enrich(o, logins));
 });
 
 export async function loadAccount(id: string): Promise<Account | null> {
-  const [{ data }, logins] = await Promise.all([
-    createAdminClient().from("organizations").select(ACCOUNT_COLUMNS).eq("id", id).maybeSingle(),
-    signIns(),
-  ]);
+  const [{ data }, logins] = await Promise.all([selectAccounts(id), signIns()]);
   return data ? enrich(data as unknown as Omit<Account, "owner" | "lastHostSignIn" | "health">, logins) : null;
 }
 
@@ -185,4 +197,18 @@ export async function loadTemplates(): Promise<TemplateRow[]> {
 export async function myName(userId: string) {
   const { data } = await createAdminClient().from("profiles").select("full_name").eq("id", userId).maybeSingle();
   return (data?.full_name as string | undefined) ?? "";
+}
+
+/** Conference bookings per teacher account (counted in the database). */
+export async function bookingsByAccount(accounts: Account[]) {
+  const admin = createAdminClient();
+  const entries = await Promise.all(
+    accounts.map(async (a) => {
+      const ids = a.events.filter((e) => e.event_type === "conference").map((e) => e.id);
+      if (!ids.length) return [a.id, 0] as const;
+      const { count } = await admin.from("conference_bookings").select("id", { count: "exact", head: true }).in("event_id", ids);
+      return [a.id, count ?? 0] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as Record<string, number>;
 }

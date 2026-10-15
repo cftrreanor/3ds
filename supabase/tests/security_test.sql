@@ -4173,4 +4173,80 @@ begin
   assert ok, 'the conferences-only rule holds for everyone';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Admin tools for teacher accounts: pipeline card, suspend, upgrade
+-- ---------------------------------------------------------------------------
+select set_config('test.tia_org', id::text, false) from public.organizations where school = 'Oak Elementary';
+do $$ begin
+  assert (select status from public.pilot_requests
+           where organization_id = current_setting('test.tia_org')::uuid) = 'teacher',
+         'a teacher sign-up adds a Teacher (free) pipeline card';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000a-0000-0000-0000-000000000001","email":"teacher@example.com"}';
+do $$
+declare
+  org uuid := current_setting('test.tia_org')::uuid;
+  ok boolean := false;
+begin
+  begin
+    perform public.admin_upgrade_teacher(org, null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a teacher can''t upgrade their own account';
+  ok := false;
+  begin
+    perform public.admin_unsuspend_account(org, null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'only admins can unsuspend';
+end $$;
+reset role;
+update public.events set status = 'published' where slug = 'tia-fall';
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare
+  org uuid := current_setting('test.tia_org')::uuid;
+begin
+  assert public.admin_suspend_account(org, 'Spam') = 1, 'suspending unpublishes the account''s events';
+end $$;
+reset role;
+do $$
+declare
+  org uuid := current_setting('test.tia_org')::uuid;
+  ok boolean := false;
+begin
+  assert (select status from public.events where slug = 'tia-fall') = 'draft', 'the conference is offline';
+  assert exists (select 1 from public.admin_log where organization_id = org and action = 'account_suspended'), 'suspending is logged';
+  begin
+    update public.events set status = 'published' where slug = 'tia-fall';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a suspended account can''t publish';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare
+  org uuid := current_setting('test.tia_org')::uuid;
+begin
+  perform public.admin_unsuspend_account(org, null);
+  perform public.admin_upgrade_teacher(org, 'Joined the pilot');
+end $$;
+reset role;
+do $$
+declare
+  org uuid := current_setting('test.tia_org')::uuid;
+begin
+  assert (select account_kind from public.organizations where id = org) = 'standard', 'an admin upgrades a teacher account';
+  assert (select status from public.pilot_requests where organization_id = org) = 'set_up', 'its pipeline card moves to Set up';
+  update public.events set status = 'published' where slug = 'tia-fall';
+  insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+  values (org, 'Fun Run', 'tia-run2', 'volunteer', current_date + 5, current_date + 5,
+          now() + interval '5 days', now() + interval '5 days 3 hours', '1 Oak St');
+end $$;
+delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
+
 \echo 'All database security tests passed.'

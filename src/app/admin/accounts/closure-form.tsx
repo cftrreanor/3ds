@@ -35,3 +35,31 @@ export function ClosureForm({
     </ActionForm>
   );
 }
+
+/** An account action with an optional note for the activity log: upgrade, suspend, unsuspend. */
+export function NoteActionForm({
+  action,
+  label,
+  pendingText,
+  danger = false,
+  confirmMessage,
+  placeholder,
+}: {
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  label: string;
+  pendingText: string;
+  danger?: boolean;
+  confirmMessage?: string;
+  placeholder?: string;
+}) {
+  return (
+    <ActionForm action={action} className="space-y-3" confirmMessage={confirmMessage}>
+      <Field label="Note (optional)" hint="Why, for the admin activity log.">
+        <Input name="note" maxLength={500} placeholder={placeholder} />
+      </Field>
+      <SubmitButton variant={danger ? "danger" : "secondary"} pendingText={pendingText}>
+        {label}
+      </SubmitButton>
+    </ActionForm>
+  );
+}
