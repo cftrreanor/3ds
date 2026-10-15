@@ -4003,8 +4003,8 @@ do $$ begin
 end $$;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
 do $$ begin
-  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1') = 1,
-         'the conference''s team reads its bookings';
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1') = 0,
+         'only the teacher sees bookings, not the event''s team';
   delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1';
 end $$;
 reset role;
@@ -4015,6 +4015,8 @@ end $$;
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 do $$ begin
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1') = 1,
+         'the teacher sees their bookings';
   delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1';
 end $$;
 reset role;
