@@ -171,12 +171,14 @@ export default async function EventPublicPage({ params }: Params) {
       <header className="mt-6">
         <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
         <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
-        <p className="mt-1 text-muted">
-          {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
-          <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
-            Directions
-          </a>
-        </p>
+        {event.venue_address && (
+          <p className="mt-1 text-muted">
+            {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
+            <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
+              Directions
+            </a>
+          </p>
+        )}
         {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
       </header>
 

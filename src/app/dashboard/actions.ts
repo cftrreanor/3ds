@@ -124,12 +124,15 @@ const eventSchema = z
     startTime: time,
     endTime: time,
     timezone,
+    eventType: z.string().optional(),
     venueName: optionalText(120),
-    venueAddress: text(300),
+    // Conferences ask for the school later, in Conference Setup (step 2).
+    venueAddress: optionalText(300),
     venuePlaceId: optionalText(300).optional(),
     venueLat: coordinate(90),
     venueLng: coordinate(180),
   })
+  .refine((v) => v.eventType === "conference" || Boolean(v.venueAddress), { message: "Required", path: ["venueAddress"] })
   .refine((v) => v.endsOn >= v.startsOn, { message: "End date can't be before the start date", path: ["endsOn"] })
   .refine((v) => v.endsOn > v.startsOn || v.endTime > v.startTime, {
     message: "End time must be after the start time",
@@ -157,7 +160,7 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
       window_start: zonedToUtc(v.startsOn, v.startTime, v.timezone).toISOString(),
       window_end: zonedToUtc(v.endsOn, v.endTime, v.timezone).toISOString(),
       venue_name: v.venueName,
-      venue_address: v.venueAddress,
+      venue_address: v.venueAddress ?? "",
       venue_place_id: v.venuePlaceId ?? null,
       venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
       venue_lng: v.venuePlaceId ? (v.venueLng ?? null) : null,
@@ -180,18 +183,25 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   const supabase = await createClient();
   const { data: before } = await supabase
     .from("events")
-    .select("timezone, starts_on, window_start, venue_name, venue_address, name")
+    .select("timezone, starts_on, window_start, venue_name, venue_address, name, event_type")
     .eq("id", eventId)
     .maybeSingle();
+  // A conference's school is set in Conference Setup, not here.
+  const conference = before?.event_type === "conference";
+  if (!conference && !v.venueAddress) return { error: "Venue: Required" };
   const details = await supabase
     .from("events")
     .update({
       name: v.name,
-      venue_name: v.venueName,
-      venue_address: v.venueAddress,
-      venue_place_id: v.venuePlaceId ?? null,
-      venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
-      venue_lng: v.venuePlaceId ? (v.venueLng ?? null) : null,
+      ...(conference
+        ? {}
+        : {
+            venue_name: v.venueName,
+            venue_address: v.venueAddress,
+            venue_place_id: v.venuePlaceId ?? null,
+            venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
+            venue_lng: v.venuePlaceId ? (v.venueLng ?? null) : null,
+          }),
     })
     .eq("id", eventId)
     .select("id");
@@ -215,8 +225,8 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
     before &&
     (before.starts_on !== v.startsOn ||
       before.timezone !== v.timezone ||
-      before.venue_address !== v.venueAddress ||
-      (before.venue_name ?? null) !== v.venueName ||
+      (!conference && before.venue_address !== v.venueAddress) ||
+      (!conference && (before.venue_name ?? null) !== v.venueName) ||
       before.name !== v.name);
   if (changed) {
     const { data: shiftRows } = await supabase.from("shifts").select("id").eq("event_id", eventId);

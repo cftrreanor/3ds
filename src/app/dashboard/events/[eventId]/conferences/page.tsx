@@ -13,6 +13,7 @@ import {
   type ConferenceSettings,
 } from "@/lib/conferences";
 import { getEventAccess } from "@/lib/data";
+import { isPlacesConfigured } from "@/lib/places";
 import { hasConferences } from "@/lib/event-types";
 import { displayTime } from "@/lib/schedule";
 import { missing } from "@/lib/schema-check";
@@ -37,7 +38,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, window_start, window_end")
+    .select("id, name, status, event_type, timezone, starts_on, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -54,7 +55,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
   const hours = `${displayTime(start)} – ${displayTime(end)}`;
   const starts = meetingStarts(start, end, settings);
   const timesDone = Boolean(saved?.times_saved_at);
-  const placeTodo = placeMissing(saved);
+  const placeTodo = placeMissing(saved, event.venue_address);
   const published = event.status === "published";
 
   return (
@@ -68,7 +69,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
       </p>
 
       <ConferenceSetup>
-        <ConferencePublishBar published={published} missing={notReady(saved)}>
+        <ConferencePublishBar published={published} missing={notReady(saved, event.venue_address)}>
           {published ? (
             <ActionButton
               action={setEventPublished.bind(null, eventId, false)}
@@ -92,14 +93,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
           open={!timesDone}
           intro="How long each meeting is, and any breaks. Your hours are cut into meetings families can book."
         >
-          <MeetingTimesForm
-            action={saveMeetingTimes.bind(null, eventId)}
-            initial={settings}
-            day={formatDate(event.starts_on, { year: undefined, weekday: "long" })}
-            start={start}
-            end={end}
-            editHref={`/dashboard/events/${eventId}/edit`}
-          />
+          <MeetingTimesForm action={saveMeetingTimes.bind(null, eventId)} initial={settings} date={event.starts_on} start={start} end={end} />
         </SetupStep>
 
         <SetupStep
@@ -109,7 +103,20 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
           open={timesDone && Boolean(placeTodo)}
           intro="Your room, a video link, or both. Either way, families wait until you're ready for them."
         >
-          <MeetingPlaceForm action={saveMeetingPlace.bind(null, eventId)} initial={settings} hours={hours} />
+          <MeetingPlaceForm
+            action={saveMeetingPlace.bind(null, eventId)}
+            initial={settings}
+            hours={hours}
+            venue={{
+              name: event.venue_name,
+              address: event.venue_address,
+              placeId: event.venue_place_id,
+              lat: event.venue_lat,
+              lng: event.venue_lng,
+            }}
+            venueSearchEnabled={isPlacesConfigured}
+            timezone={tz}
+          />
         </SetupStep>
       </ConferenceSetup>
     </div>

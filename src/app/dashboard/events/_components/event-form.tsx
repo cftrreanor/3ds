@@ -101,13 +101,13 @@ export function EventForm({
         </Field>
       </fieldset>
 
-      <fieldset className="grid gap-4">
-        <legend className="mb-3 text-sm font-medium">{conference ? "Your school" : "Where"}</legend>
-        {conference && (
-          <p className="-mt-1 text-sm text-muted">Even for video meetings. You&apos;ll add your room or meeting link next.</p>
-        )}
-        <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} />
-      </fieldset>
+      {/* Conferences ask for the school in Conference Setup, with the room, and only for in-person meetings. */}
+      {!conference && (
+        <fieldset className="grid gap-4">
+          <legend className="mb-3 text-sm font-medium">Where</legend>
+          <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} />
+        </fieldset>
+      )}
 
       {eventType === "school_visit" && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
