@@ -31,7 +31,7 @@ import { DemoStart } from "@/components/demo-switcher";
 import { EventBannerSlot } from "@/components/event-banner-slot";
 import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
-import { PERSONAS } from "@/lib/demo";
+import { personasFor } from "@/lib/demo";
 import { eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
 import { meetingStarts, meetingSummary, modeLabel, notReady, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
@@ -848,6 +848,29 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
+      {demo && conferenceHere && (
+        <section className="mt-10" aria-labelledby="demo-heading">
+          <h2 id="demo-heading" className="text-xl font-semibold">
+            Demo this event
+          </h2>
+          <Card className="mt-4 space-y-3">
+            <p className="text-sm leading-6 text-muted">
+              Show a teacher how conferences work. Tap <strong className="text-foreground">Host</strong> to see it as the
+              teacher, or <strong className="text-foreground">Parent</strong> to see the booking page a family gets
+              (publish the conference first, so families can see it). A bar at the top switches between them;{" "}
+              <strong className="text-foreground">Back to me</strong> returns you here.
+            </p>
+            <p className="text-sm leading-6 text-muted">
+              The first time, about two of every three meeting times fill with sample families (up to eight): a child, one
+              or two parents, in person or video, some with a note. If the conference has no meeting times yet, sample ones
+              are set up (15-minute meetings, parent&apos;s choice, Room 214). Sample families never get emails, and{" "}
+              <strong className="text-foreground">Remove demo people</strong> takes all of it back off.
+            </p>
+            <DemoStart eventId={eventId} personas={personasFor(event.event_type)} active={demo.active} />
+          </Card>
+        </section>
+      )}
+
       {demo && !conferenceHere && (
         <section className="mt-10" aria-labelledby="demo-heading">
           <h2 id="demo-heading" className="text-xl font-semibold">
@@ -874,7 +897,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               you can do anything a host can, including emailing its {groupsHere ? `${words.many} and volunteers` : "volunteers"}. Demo people never get
               emails.
             </p>
-            <DemoStart eventId={eventId} personas={groupsHere ? PERSONAS : PERSONAS.filter((p) => p.value !== "director")} active={demo.active} />
+            <DemoStart eventId={eventId} personas={personasFor(event.event_type)} active={demo.active} />
           </Card>
         </section>
       )}

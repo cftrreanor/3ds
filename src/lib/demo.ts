@@ -21,6 +21,17 @@ export type Persona = (typeof PERSONAS)[number]["value"];
 
 export const personaLabel = (p: Persona) => PERSONAS.find((x) => x.value === p)!.label;
 
+/**
+ * The roles worth trying on an event of this kind: a conference is just the
+ * teacher (Host) and families (Parent); directors only come to band contests
+ * and group events.
+ */
+export function personasFor(eventType: string | null | undefined) {
+  if (eventType === "conference") return PERSONAS.filter((p) => p.value === "host" || p.value === "parent");
+  if (eventType === "band_contest" || eventType === "group_event" || !eventType) return PERSONAS;
+  return PERSONAS.filter((p) => p.value !== "director");
+}
+
 /** e.g. section-lead-1f0c…@demo.fieldcommandevents.com (one per admin and role). */
 export const demoEmail = (ownerId: string, persona: Persona) =>
   `${persona.replace("_", "-")}-${ownerId.replace(/-/g, "")}@${DEMO_EMAIL_DOMAIN}`;
@@ -31,7 +42,7 @@ export const DEMO_COOKIE = "fc_demo";
 export type DemoState = {
   ownerId: string;
   persona: Persona;
-  event: { id: string; name: string; slug: string } | null;
+  event: { id: string; name: string; slug: string; event_type: string } | null;
 };
 
 /** The demo account this browser is signed in as (and the event being demoed), or null. */
@@ -44,7 +55,7 @@ export async function getDemoState(): Promise<DemoState | null> {
   if (!acct) return null;
   const { data: latest } = await admin
     .from("demo_events")
-    .select("events(id, name, slug)")
+    .select("events(id, name, slug, event_type)")
     .eq("owner_id", acct.owner_id)
     .order("last_used_at", { ascending: false })
     .limit(1)

@@ -1,5 +1,5 @@
 import { DemoSwitcher } from "@/components/demo-switcher";
-import { getDemoState, PERSONAS } from "@/lib/demo";
+import { getDemoState, personasFor } from "@/lib/demo";
 
 /** Shows the demo bar while this browser is signed in as a demo person. */
 export async function DemoBar() {
@@ -10,7 +10,7 @@ export async function DemoBar() {
       eventId={demo.event?.id ?? null}
       eventName={demo.event?.name ?? null}
       current={demo.persona}
-      personas={PERSONAS}
+      personas={personasFor(demo.event?.event_type)}
     />
   );
 }
