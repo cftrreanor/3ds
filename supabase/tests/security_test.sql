@@ -3227,6 +3227,41 @@ end $$;
 reset role;
 delete from public.events where id::text like '10000000-0000-0000-0000-0000000000d%';
 
+-- Demo sample data for a conference: sample families booked into most of its
+-- times (setting up sample times if it has none), never emailed, and gone
+-- again with the demo people.
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address)
+select '10000000-0000-0000-0000-0000000000d6', e.organization_id, 'Demo Conferences', 'demo-sample-6', 'draft', 'conference', 'America/Chicago',
+       current_date + 20, current_date + 20,
+       ((current_date + 20) + time '15:00') at time zone 'America/Chicago',
+       ((current_date + 20) + time '17:00') at time zone 'America/Chicago', ''
+  from public.events e where e.id = '10000000-0000-0000-0000-00000000000a';
+insert into public.demo_events (owner_id, event_id) values ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000000d6');
+set role service_role;
+do $$
+declare
+  owner constant uuid := '00000000-0000-0000-0000-000000000001';
+  ev    constant uuid := '10000000-0000-0000-0000-0000000000d6';
+begin
+  perform public.demo_seed(owner, ev, null);
+  perform public.demo_seed(owner, ev, null);  -- a second switch adds nothing
+  assert (select times_saved_at is not null from public.conference_settings where event_id = ev), 'sample meeting times are set up';
+  assert (select count(*) from public.conference_bookings where event_id = ev) = 6,
+         'two of every three 15-minute times are booked (6 of 8)';
+  assert not exists (select 1 from public.stations where event_id = ev), 'a conference gets no stations';
+  assert not exists (select 1 from public.volunteers where event_id = ev), 'or volunteers';
+  assert not exists (select 1 from public.conference_bookings b, jsonb_array_elements(b.parents) p
+                      where b.event_id = ev and p ->> 'email' not like '%@demo.fieldcommandevents.com'),
+         'sample families are never emailed';
+  assert (select count(*) from public.conference_open_times('demo-sample-6')) = 0, 'a draft still lists no times';
+  perform public.demo_leave(owner, ev);
+  assert not exists (select 1 from public.conference_bookings where event_id = ev), 'sample bookings are gone';
+  assert not exists (select 1 from public.conference_settings where event_id = ev), 'and the sample meeting times';
+  assert not exists (select 1 from public.demo_samples where event_id = ev), 'nothing left on the list';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d6';
+
 -- Pilot requests: only known event types can be saved.
 do $$ begin
   begin
