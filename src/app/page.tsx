@@ -9,7 +9,7 @@ import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
-import { audiences } from "@/lib/audiences";
+import { audiences, CONFERENCES_PAGE } from "@/lib/audiences";
 import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
@@ -69,6 +69,17 @@ const kinds = [
       "Parents register ahead with each child, teacher and grade",
       "Reminders to bring a photo ID, and a calendar invite",
       "Easy parent and visitor check-in at the event door",
+    ],
+  },
+  {
+    icon: CONFERENCES_PAGE.icon,
+    title: "Parent-teacher conferences",
+    href: CONFERENCES_PAGE.path,
+    examples: "Fall and spring conferences, in person or on video",
+    points: [
+      "Families book their own meeting time from one link",
+      "Calendar invites, a reminder the day before, and easy changes",
+      "Only the teacher sees children's names",
     ],
   },
 ];
@@ -234,7 +245,7 @@ const jsonLd = {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       description:
-        "School event management for band contests, choir and group festivals, school fairs and fundraisers, volunteer events and school visitor days: registration, volunteer sign-ups and scheduling, and check-in on any phone.",
+        "School event management for band contests, choir and group festivals, school fairs and fundraisers, volunteer events, school visitor days and parent-teacher conferences: registration, volunteer sign-ups and scheduling, and check-in on any phone.",
       audience: {
         "@type": "Audience",
         audienceType:
@@ -293,8 +304,8 @@ export default async function Home() {
             </p>
             <h1 className="mt-6 max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">School events, without the clipboards.</h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
-              Band contests, choir and group festivals, school fairs, volunteer events and school visitor days,
-              all in one place. Replace the spreadsheets, signup forms, group texts and paper sign-in sheets
+              Band contests, choir and group festivals, school fairs, volunteer events, school visitor days and
+              parent-teacher conferences, all in one place. Replace the spreadsheets, signup forms, group texts and paper sign-in sheets
               with simple links your volunteers, visiting groups and parents use on their own phones, and keep
               everyone&apos;s personal information private while you do it.
             </p>

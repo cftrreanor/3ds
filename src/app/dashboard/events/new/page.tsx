@@ -15,9 +15,10 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
   const org = await getMyOrganization();
   if (!org) redirect("/dashboard");
   const { type } = await searchParams;
+  const teacherOnly = org.account_kind === "teacher";
 
-  // No kind picked yet (e.g. a bookmarked link): ask first.
-  if (!isEventType(type)) {
+  // No kind picked yet (e.g. a bookmarked link), or one a free teacher account can't host: ask first.
+  if (!isEventType(type) || (teacherOnly && type !== "conference")) {
     return (
       <div className="mx-auto max-w-2xl">
         <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
@@ -26,7 +27,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">What kind of event is this?</h1>
         <p className="mt-2 leading-7 text-muted">You can change this later, as long as no bands have registered.</p>
         <div className="mt-8">
-          <EventTypeChoices />
+          <EventTypeChoices teacherOnly={teacherOnly} />
         </div>
       </div>
     );

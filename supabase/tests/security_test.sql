@@ -4085,4 +4085,92 @@ begin
 end $$;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
 
+-- ---------------------------------------------------------------------------
+-- Free teacher accounts: self-serve, conferences only
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('0000000a-0000-0000-0000-000000000001', 'teacher@example.com', '{}');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000a-0000-0000-0000-000000000001","email":"teacher@example.com"}';
+do $$
+declare
+  org public.organizations;
+  ok boolean := false;
+begin
+  begin
+    perform public.create_teacher_account('Tia Teacher', '', 'America/Chicago');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a teacher account needs a school';
+  ok := false;
+  begin
+    perform public.create_teacher_account('Tia Teacher', 'Oak Elementary', 'Not/AZone');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a teacher account needs a real time zone';
+
+  org := public.create_teacher_account('Tia Teacher', 'Oak Elementary', 'America/Chicago');
+  assert org.account_kind = 'teacher' and org.school = 'Oak Elementary', 'a teacher signs up without an invitation';
+  assert (select full_name from public.profiles where id = auth.uid()) = 'Tia Teacher', 'their name is saved';
+  ok := false;
+  begin
+    perform public.create_teacher_account('Tia Teacher', 'Oak Elementary', 'America/Chicago');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'one account per person';
+
+  insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+  values (org.id, 'Fall Conferences', 'tia-fall', 'conference', current_date + 5, current_date + 5,
+          now() + interval '5 days', now() + interval '5 days 3 hours', '');
+  ok := false;
+  begin
+    insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+    values (org.id, 'Fun Run', 'tia-run', 'volunteer', current_date + 5, current_date + 5,
+            now() + interval '5 days', now() + interval '5 days 3 hours', '1 Oak St');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'teacher accounts can only create conferences';
+
+  ok := false;
+  begin
+    update public.organizations set account_kind = 'standard' where id = org.id;
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a teacher can''t upgrade their own account';
+end $$;
+-- A host with an organization can't also make a teacher account.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.create_teacher_account('Hana Host', 'Oak Elementary', 'America/Chicago');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'people who already host can''t make a second account';
+end $$;
+set role anon;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.create_teacher_account('Anon', 'Oak Elementary', 'America/Chicago');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'signing up needs a sign-in';
+end $$;
+reset role;
+do $$
+declare ok boolean := false;
+begin
+  -- Even the server can't add other kinds of events to a teacher account.
+  begin
+    insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+    values ((select id from public.organizations where school = 'Oak Elementary'), 'Fair', 'tia-fair', 'fair',
+            current_date + 5, current_date + 5, now() + interval '5 days', now() + interval '5 days 3 hours', '1 Oak St');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'the conferences-only rule holds for everyone';
+end $$;
+
 \echo 'All database security tests passed.'
