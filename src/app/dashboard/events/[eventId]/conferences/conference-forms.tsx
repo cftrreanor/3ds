@@ -382,7 +382,7 @@ function PlaceForm({
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {[
                 { own: false, label: "Paste it here", hint: "We send it to each family in their confirmation and reminder." },
-                { own: true, label: "I'll send it myself", hint: "You add it to your own calendar invite or message to each family." },
+                { own: true, label: "I'll add it to each invite", hint: "You add a video link to each meeting's calendar invite yourself." },
               ].map((o) => (
                 <label
                   key={o.label}
@@ -406,8 +406,9 @@ function PlaceForm({
           </fieldset>
           {ownLink ? (
             <p className="rounded-md bg-background px-3 py-2 text-sm">
-              Families are told you&apos;ll send them the video link before their meeting. You&apos;ll see each family&apos;s
-              email on your list once they book.
+              <strong>You&apos;ll need to add a video link to the calendar invite for each meeting.</strong> We won&apos;t
+              send families a link; they&apos;re told it will come in your invite before their meeting. Each family&apos;s
+              email is on your list once they book.
             </p>
           ) : (
             <>
