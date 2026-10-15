@@ -3,6 +3,7 @@ import { FileLinks } from "@/components/file-links";
 import { filesFor } from "@/lib/event-files";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Fragment } from "react";
 import { Badge, Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
@@ -89,6 +90,8 @@ export default async function EventPublicPage({ params }: Params) {
   const { slug } = await params;
   const event = await loadEvent(slug);
   if (!event) missing();
+  // A parent-teacher conference's page is its booking page.
+  if (event.event_type === "conference") redirect(`/e/${slug}/book`);
 
   // Volunteering isn't advertised to the public: hosts share the volunteer link
   // directly. People who already signed up (on this device, or with the

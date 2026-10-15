@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
+import { BOOKING_COLUMNS, bookingEmail, bookingLink, type Booking } from "@/lib/conference-bookings";
+import { DEFAULT_SETTINGS, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
 import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
 import { runRetention } from "@/lib/retention";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -29,6 +31,9 @@ export async function GET(request: NextRequest) {
 
   const { data: purged, error: purgeError } = await admin.rpc("purge_parent_registrations");
   if (purgeError) console.error("purge_parent_registrations failed", purgeError);
+  // Conference bookings (children's names, parents' notes) 30 days after the conference.
+  const { data: bookingsPurged, error: bookingPurgeError } = await admin.rpc("purge_conference_bookings");
+  if (bookingPurgeError && !isSchemaError(bookingPurgeError)) console.error("purge_conference_bookings failed", bookingPurgeError);
   // Volunteers' details (and under-18 helpers) are deleted 10 days after the event.
   const { data: volunteersPurged, error: volunteerPurgeError } = await admin.rpc("purge_volunteers");
   if (volunteerPurgeError) console.error("purge_volunteers failed", volunteerPurgeError);
@@ -88,6 +93,50 @@ export async function GET(request: NextRequest) {
   }
   if (unsent) console.error(`Daily job: ${unsent} parent reminder(s) not sent`);
 
+  // Parent-teacher conferences tomorrow: remind every parent on each booking.
+  let conferencesReminded = 0;
+  let conferencesUnsent = 0;
+  const { data: confEvents } = await admin
+    .from("events")
+    .select("id, slug, name, starts_on, timezone, venue_name, venue_address, created_by")
+    .eq("event_type", "conference")
+    .eq("status", "published")
+    .gte("starts_on", shift(0))
+    .lte("starts_on", shift(2));
+  for (const event of (confEvents ?? []).filter((e) => {
+    const local = utcToZonedDate(new Date(started).toISOString(), e.timezone);
+    const next = new Date(`${local}T12:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    return e.starts_on === next.toISOString().slice(0, 10);
+  })) {
+    const [{ data: settings }, { data: teacherRow }, { data: bookings }] = await Promise.all([
+      admin.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", event.id).maybeSingle(),
+      event.created_by ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle() : Promise.resolve({ data: null }),
+      admin.from("conference_bookings").select(`${BOOKING_COLUMNS}, access_token`).eq("event_id", event.id).is("reminded_at", null),
+    ]);
+    const s = { ...DEFAULT_SETTINGS, ...(settings ?? {}) } as ConferenceSettings;
+    const teacher = { name: teacherRow?.full_name?.trim() || "Your teacher", email: teacherRow?.email ?? null };
+    for (const b of (bookings ?? []) as (Booking & { access_token: string })[]) {
+      if (Date.now() - started > 270_000) {
+        conferencesUnsent++;
+        continue;
+      }
+      let all = true;
+      for (const p of b.parents) {
+        const message = bookingEmail("reminder", b, event, s, teacher, bookingLink(origin, event.slug, b.access_token), p);
+        all = (await sendEmail({ to: p.email, ...message, replyTo: teacher.email ?? undefined })) && all;
+        await pause();
+      }
+      if (all) {
+        await admin.from("conference_bookings").update({ reminded_at: new Date().toISOString() }).eq("id", b.id);
+        conferencesReminded++;
+      } else {
+        conferencesUnsent++;
+      }
+    }
+  }
+  if (conferencesUnsent) console.error(`Daily job: ${conferencesUnsent} conference reminder(s) not sent`);
+
   // Volunteers: shifts that start tomorrow in their event's time zone, at published events.
   let volunteersReminded = 0;
   let volunteersUnsent = 0;
@@ -141,6 +190,9 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     purged: purged ?? 0,
+    bookingsPurged: bookingsPurged ?? 0,
+    conferencesReminded,
+    conferencesUnsent,
     volunteersPurged: volunteersPurged ?? 0,
     emailsPurged: emailsPurged ?? 0,
     ...retention,

@@ -3915,4 +3915,137 @@ delete from public.events where id in ('10000000-0000-0000-0000-0000000000c1', '
                                        '10000000-0000-0000-0000-0000000000c3');
 update public.organizations set subscription_status = 'comped' where id = :'org_id';
 
+-- Conference bookings: families book open times (one family per time, one
+-- meeting per child), the public sees only open times, the team reads
+-- bookings, families change or cancel by link, and old bookings are purged.
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000d1', :'org_id', 'Ms. Smith Conferences', 'conf-d1', 'published', 'conference', 'America/Chicago',
+        current_date + 3, current_date + 3,
+        ((current_date + 3) + time '15:00') at time zone 'America/Chicago',
+        ((current_date + 3) + time '16:00') at time zone 'America/Chicago', '1 School Rd');
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room)
+values ('10000000-0000-0000-0000-0000000000d1', 15, 0, '[{"start": "15:30", "minutes": 15, "label": "Break"}]', now(), 'in_person', 'Room 214');
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000003', 'section_lead');
+do $$
+declare
+  d   date := current_date + 3;
+  s1  timestamptz := (d + time '15:00') at time zone 'America/Chicago';
+  s2  timestamptz := (d + time '15:15') at time zone 'America/Chicago';
+  s3  timestamptz := (d + time '15:45') at time zone 'America/Chicago';
+  t1  uuid;
+  ok  boolean;
+  fam jsonb := '[{"name": "Maria Lopez", "email": "Maria@Example.com"}, {"name": "Jo Lopez", "email": "jo@example.com"}]';
+begin
+  assert (select array_agg(t order by t) from public.conference_slot_starts('10000000-0000-0000-0000-0000000000d1') t) = array[s1, s2, s3],
+         'meeting times skip the break';
+  t1 := public.book_conference('10000000-0000-0000-0000-0000000000d1', s1, 'Ava Lopez', fam, 'video', 'Reading');
+  assert (select meeting_mode from public.conference_bookings where access_token = t1) = 'in_person',
+         'an in-person conference books in person, whatever the form says';
+  assert (select parents -> 0 ->> 'email' from public.conference_bookings where access_token = t1) = 'maria@example.com',
+         'parents'' emails are stored lower case';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000d1', s1, 'Ben Park', '[{"name": "Kim Park", "email": "kim@example.com"}]', null, null);
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%just taken%';
+  end;
+  assert ok, 'a booked time can''t be booked again';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000d1', s2, ' ava lopez ', fam, null, null);
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%already has a meeting%';
+  end;
+  assert ok, 'a child has one meeting';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000d1', s1 + interval '5 minutes', 'Cy Diaz', '[{"name": "Al Diaz", "email": "al@example.com"}]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'only real meeting times can be booked';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000d1', s2, 'Cy Diaz', '[{"name": "Al Diaz", "email": "not-an-email"}]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'each parent needs an email address';
+  -- Change from the link: a new time, and a new calendar version.
+  perform public.change_conference_booking(t1, s3, null);
+  assert (select starts_at = s3 and calendar_sequence = 1 from public.conference_bookings where access_token = t1),
+         'a family moves their meeting';
+end $$;
+-- The public sees only open times, and can't read or make bookings directly.
+set role anon;
+set request.jwt.claims = '';
+do $$
+declare ok boolean := false; n integer;
+begin
+  assert (select count(*) from public.conference_open_times('conf-d1')) = 2, 'the public sees the two open times';
+  assert not exists (select 1 from public.conference_open_times('conf-d1') o
+                      join (select ((current_date + 3) + time '15:45') at time zone 'America/Chicago' as t) b on o.starts_at = b.t),
+         'a booked time isn''t listed';
+  begin
+    select count(*) into n from public.conference_bookings;
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'anonymous visitors can''t read bookings';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000d1', now() + interval '3 days', 'X Y', '[]', null, null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'anonymous visitors can''t call the booking function directly';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.conference_bookings) = 0, 'strangers can''t read bookings';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1') = 1,
+         'the conference''s team reads its bookings';
+  delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1';
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1') = 1,
+         'the team can''t cancel bookings';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1';
+end $$;
+reset role;
+do $$
+declare
+  t uuid;
+  ok boolean := false;
+begin
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d1') = 0,
+         'the host can cancel a booking';
+  -- Cancel by link.
+  t := public.book_conference('10000000-0000-0000-0000-0000000000d1', ((current_date + 3) + time '15:15') at time zone 'America/Chicago',
+                              'Dee Fox', '[{"name": "Ann Fox", "email": "ann@example.com"}]', null, null);
+  perform public.cancel_conference_booking(t);
+  assert not exists (select 1 from public.conference_bookings where access_token = t), 'a family cancels by link';
+  -- Drafts take no bookings.
+  update public.events set status = 'draft' where id = '10000000-0000-0000-0000-0000000000d1';
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000d1', ((current_date + 3) + time '15:15') at time zone 'America/Chicago',
+                                   'Dee Fox', '[{"name": "Ann Fox", "email": "ann@example.com"}]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'an unpublished conference takes no bookings';
+  assert (select count(*) from public.conference_open_times('conf-d1')) = 0, 'and lists no times';
+  -- Purged 30 days after.
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000d1';
+  perform public.book_conference('10000000-0000-0000-0000-0000000000d1', ((current_date + 3) + time '15:15') at time zone 'America/Chicago',
+                                 'Dee Fox', '[{"name": "Ann Fox", "email": "ann@example.com"}]', null, null);
+  update public.events set starts_on = current_date - 40, ends_on = current_date - 40 where id = '10000000-0000-0000-0000-0000000000d1';
+  assert public.purge_conference_bookings() = 1, 'bookings are deleted 30 days after the conference';
+end $$;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
+
 \echo 'All database security tests passed.'
