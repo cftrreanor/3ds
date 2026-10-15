@@ -130,7 +130,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261119000000_parent_registration_starts_closed.sql` | Parent registration starts closed: publishing a school visitor event no longer opens it; the host opens it on the Parent check-in page | ✅ run |
 | `20261120000000_station_setup_steps.sql` | Stations & shifts, step by step: each station shows whether "1. Station details" has been saved (needed before the Volunteering page opens) | ✅ run |
 | `20261121000000_fair_zones.sql` | Booths & Partners, zones first: a fair's zones are made in "1. Zones" (rename or delete one and its booths follow), then booths go into them. Zones fairs already use are copied in | ✅ run |
-| `20261122000000_conferences.sql` | Parent-teacher conferences, a free kind of event for teachers: meeting times (length, gap, breaks) and where they meet (room, a video link with a waiting room, or the family's choice). Conferences publish without a paid plan, one at a time per account, once they're set up; they're one day and can't switch to another kind | ⬜ not run yet |
+| `20261122000000_conferences.sql` | Parent-teacher conferences, a free kind of event for teachers: meeting times (length, gap, breaks) and where they meet (room, a video link with a waiting room, or the family's choice). Conferences publish without a paid plan, one at a time per account, once they're set up; they're one day and can't switch to another kind | ✅ run |
 
 ## Pilot requests
 
