@@ -1,4 +1,4 @@
-import { groupWords, hasBooths, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
+import { groupWords, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
 
 /**
  * The host's setup checklist for one event: what to do before publishing,
@@ -38,6 +38,8 @@ export type SetupFacts = {
   booths: number;
   parentRegistrationOpen: boolean;
   parentClosesAt: boolean;
+  /** Conferences: what's still needed before publishing (null when ready). */
+  conferenceMissing?: string | null;
 };
 
 export type SetupChecklist = {
@@ -107,6 +109,16 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       required: true,
     });
   }
+  if (hasConferences(f.eventType)) {
+    before.push({
+      id: "conference",
+      label: "Set meeting times and where you'll meet",
+      hint: f.conferenceMissing ?? "Your meetings, and your room or video link.",
+      href: `${base}/conferences`,
+      done: !f.conferenceMissing,
+      required: true,
+    });
+  }
   if (hasParents(f.eventType)) {
     before.push({
       id: "parents-close",
@@ -117,32 +129,35 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       required: false,
     });
   }
-  before.push(
-    {
-      id: "shifts",
-      label: "Add volunteer stations and shifts",
-      hint: volunteerEvent ? "What volunteers sign up for." : "Only if you need volunteers.",
-      href: `${base}/volunteering`,
-      done: hasShifts,
-      required: volunteerEvent,
-    },
-    {
-      id: "team",
-      label: "Invite your team",
-      hint: "Co-hosts and leads who help you run the day.",
-      href: `${base}/team`,
-      done: f.team > 0,
-      required: false,
-    },
-    {
-      id: "files",
-      label: "Add maps or documents",
-      hint: "Parking maps, packets, schedules.",
-      href: `${base}/edit?step=files`,
-      done: f.files > 0,
-      required: false,
-    },
-  );
+  // A teacher's conference is just them: no volunteers, team or documents.
+  if (!hasConferences(f.eventType)) {
+    before.push(
+      {
+        id: "shifts",
+        label: "Add volunteer stations and shifts",
+        hint: volunteerEvent ? "What volunteers sign up for." : "Only if you need volunteers.",
+        href: `${base}/volunteering`,
+        done: hasShifts,
+        required: volunteerEvent,
+      },
+      {
+        id: "team",
+        label: "Invite your team",
+        hint: "Co-hosts and leads who help you run the day.",
+        href: `${base}/team`,
+        done: f.team > 0,
+        required: false,
+      },
+      {
+        id: "files",
+        label: "Add maps or documents",
+        hint: "Parking maps, packets, schedules.",
+        href: `${base}/edit?step=files`,
+        done: f.files > 0,
+        required: false,
+      },
+    );
+  }
 
   const publish: SetupStep = {
     id: "publish",
@@ -154,7 +169,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   };
 
   const after: SetupStep[] = [];
-  if (hasShifts || volunteerEvent) {
+  if ((hasShifts || volunteerEvent) && !hasConferences(f.eventType)) {
     after.push({
       id: "signup",
       label: "Open volunteer sign-up",
@@ -210,6 +225,14 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
 export function publishEffects(f: SetupFacts): string[] {
   const words = groupWords(f.eventType);
   const lines = ["Your public page goes online, so anyone with the link can see it."];
+  if (hasConferences(f.eventType)) {
+    return [
+      ...lines,
+      "Free: you can have one published conference at a time. To publish another, unpublish this one first.",
+      "Nobody is emailed or notified. Families only find out when you share your link.",
+      "You can keep editing everything, and unpublish at any time.",
+    ];
+  }
   if (f.stations > 0 || f.eventType === "volunteer") {
     lines.push(
       f.volunteerSignupOpen

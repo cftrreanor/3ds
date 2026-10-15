@@ -6,7 +6,8 @@ const HOME_ORDER = ["band_contest", "group_event", "fair", "volunteer", "school_
 
 /** The event types a pilot request can ask about (the five kinds, plus "something else"). */
 export const PILOT_EVENT_TYPES = [
-  ...EVENT_TYPES.map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as string })).sort(
+  // Conferences are free for teachers, so there's no pilot to ask for.
+  ...EVENT_TYPES.filter((t) => t.value !== "conference").map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as string })).sort(
     (a, b) => HOME_ORDER.indexOf(a.value) - HOME_ORDER.indexOf(b.value),
   ),
   { value: "other", label: "Something else", icon: "✨" },
