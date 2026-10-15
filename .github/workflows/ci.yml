@@ -19,18 +19,18 @@ jobs:
 
   database:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        # The same official image, from AWS's mirror: Docker Hub rate-limits CI pulls.
-        image: public.ecr.aws/docker/library/postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports: ["5432:5432"]
-        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
     env:
       PGHOST: localhost
       PGUSER: postgres
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
+      # GitHub's runner already has PostgreSQL installed, so nothing is
+      # downloaded (Docker Hub and AWS's mirror both rate-limit image pulls).
+      - name: Start PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          for i in $(seq 1 30); do pg_isready -h localhost && break; sleep 1; done
+          sudo -u postgres psql -c "alter user postgres password 'postgres';"
+          psql -c "select version();"
       - run: bash scripts/test-db.sh
