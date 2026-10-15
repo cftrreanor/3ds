@@ -17,6 +17,17 @@ import { PilotForm } from "./pilot-form";
 // The kinds of event (src/lib/event-types.ts), as the page's main pitch.
 const kinds = [
   {
+    icon: CONFERENCES_PAGE.icon,
+    title: "Parent-teacher conferences",
+    href: CONFERENCES_PAGE.path,
+    examples: "Fall and spring conferences, in person or on video",
+    points: [
+      "Families book their own meeting time from one link",
+      "Calendar invites, a reminder the day before, and easy changes",
+      "Only the teacher sees children's names",
+    ],
+  },
+  {
     icon: "🎺",
     title: "Band contests",
     href: audiences.bands.path,
@@ -69,17 +80,6 @@ const kinds = [
       "Parents register ahead with each child, teacher and grade",
       "Reminders to bring a photo ID, and a calendar invite",
       "Easy parent and visitor check-in at the event door",
-    ],
-  },
-  {
-    icon: CONFERENCES_PAGE.icon,
-    title: "Parent-teacher conferences",
-    href: CONFERENCES_PAGE.path,
-    examples: "Fall and spring conferences, in person or on video",
-    points: [
-      "Families book their own meeting time from one link",
-      "Calendar invites, a reminder the day before, and easy changes",
-      "Only the teacher sees children's names",
     ],
   },
 ];
