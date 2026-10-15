@@ -9,6 +9,7 @@ import { formatDate, formatTime, formatTimeRange, zoneName } from "@/lib/time";
 import { bookConference } from "./actions";
 import { BookingForm } from "./booking-form";
 import { loadConference } from "./data";
+import { PrivacyNote } from "./privacy-note";
 
 type Params = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -69,10 +70,10 @@ export default async function BookConferencePage({ params, searchParams }: Param
           {published ? (
             <>
               <BookingForm action={bookConference.bind(null, event.id)} times={times} askMode={settings.meeting_mode === "either"} />
-              <p className="mt-6 text-sm text-muted">
-                All times are {zoneName(event.timezone)}. 🔒 Other families never see who booked. Your child&apos;s name and
-                your note are seen only by {teacher.name} and deleted 30 days after the conference.
-              </p>
+              <p className="mt-4 text-sm text-muted">All times are {zoneName(event.timezone)}.</p>
+              <div className="mt-6">
+                <PrivacyNote teacher={teacher.name} />
+              </div>
             </>
           ) : (
             <Card>

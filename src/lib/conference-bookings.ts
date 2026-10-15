@@ -33,6 +33,10 @@ export type Teacher = { name: string; email: string | null };
 
 export const BOOKING_COLUMNS = "id, starts_at, child_name, parents, meeting_mode, note, calendar_sequence";
 
+/** The privacy promise, in one line (emails). The pages show it in full (book/privacy-note). */
+export const privacyLine = (teacher: Teacher) =>
+  `Only ${teacher.name} sees your child's name, your details and your note. Other families never see who booked. Everything is deleted 30 days after the conference.`;
+
 /** A family's link to see, change or cancel their meeting. */
 export const bookingLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/book/r/${token}`;
 
@@ -115,7 +119,7 @@ export function bookingEmail(
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
   const place = meetingPlace(b, event, s, teacher);
   const first = to.name.split(" ")[0];
-  const footer = `Sent by ${brand.name} for ${teacher.name}. Your child's name and your note are deleted 30 days after the conference.`;
+  const footer = `Sent by ${brand.name} for ${teacher.name}.`;
   // Subjects never name the child: our sent-email log keeps subjects (lib/email), and the child's name is only kept 30 days.
 
   if (kind === "canceled") {
@@ -124,7 +128,7 @@ export function bookingEmail(
       ...emailLayout({
         heading: "Your conference was canceled",
         paragraphs: [
-          `Hi ${first}, the conference for ${b.child_name} with ${teacher.name} (${when}) is canceled.`,
+          `Hi ${first}, the conference for ${b.child_name} with ${teacher.name} (${when}) is canceled, and your booking details (your child's name, your contact details and your note) have been deleted.`,
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
         button: { label: "Book another time", url: link },
@@ -159,6 +163,7 @@ export function bookingEmail(
           links: place.link ? [{ label: "Join the meeting", url: place.link }] : undefined,
         },
         ...(b.parents.length > 1 ? [{ title: "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
+        { title: "Your child's privacy", detail: privacyLine(teacher) },
       ],
       button: { label: "Change or cancel", url: link },
       footer,

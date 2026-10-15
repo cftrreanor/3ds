@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatTime } from "@/lib/time";
 import { cancelBooking, changeBooking } from "../../actions";
 import { loadBooking, loadConference } from "../../data";
+import { PrivacyNote } from "../../privacy-note";
 import { CancelBookingButton, ChangeBookingForm } from "./manage-forms";
 
 export const metadata: Metadata = { title: "Your conference" };
@@ -111,6 +112,9 @@ export default async function ManageBookingPage({ params }: Params) {
             </section>
           </>
         )}
+        <div className="mt-8">
+          <PrivacyNote teacher={teacher.name} />
+        </div>
       </main>
     </>
   );
