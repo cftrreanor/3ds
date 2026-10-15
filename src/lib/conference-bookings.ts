@@ -116,10 +116,11 @@ export function bookingEmail(
   const place = meetingPlace(b, event, s, teacher);
   const first = to.name.split(" ")[0];
   const footer = `Sent by ${brand.name} for ${teacher.name}. Your child's name and your note are deleted 30 days after the conference.`;
+  // Subjects never name the child: our sent-email log keeps subjects (lib/email), and the child's name is only kept 30 days.
 
   if (kind === "canceled") {
     return {
-      subject: `Canceled: conference for ${b.child_name}`,
+      subject: `Canceled: your conference with ${teacher.name}`,
       ...emailLayout({
         heading: "Your conference was canceled",
         paragraphs: [
@@ -136,10 +137,10 @@ export function bookingEmail(
   const heading = kind === "confirmation" ? "Your conference is booked" : kind === "changed" ? "Your conference was changed" : "Your conference is tomorrow";
   const subject =
     kind === "confirmation"
-      ? `Booked: conference for ${b.child_name}, ${when}`
+      ? `Booked: your conference with ${teacher.name}, ${when}`
       : kind === "changed"
-        ? `New time: conference for ${b.child_name}, ${when}`
-        : `Tomorrow: conference for ${b.child_name}, ${when}`;
+        ? `New time: your conference with ${teacher.name}, ${when}`
+        : `Tomorrow: your conference with ${teacher.name}, ${when}`;
   return {
     subject,
     ...emailLayout({
