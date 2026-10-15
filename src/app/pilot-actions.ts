@@ -3,7 +3,8 @@
 import { fieldErrorState, type ActionState } from "@/lib/action-state";
 import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
-import { emailLayout, sendEmail } from "@/lib/email";
+import { notifyAdmins } from "@/lib/admin-alerts";
+import { emailLayout } from "@/lib/email";
 import { checkPilotRequest, pilotEventTypeLabels } from "@/lib/pilot";
 import { isSchemaError } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -11,7 +12,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 /**
  * "Join the pilot" from the home page. Visitors aren't signed in, so this
  * saves with the server's private key; the table itself can't be written
- * from a browser. Then it emails the request to us (reply goes to them).
+ * from a browser. Then it emails the request to us and every admin (replies go to them).
  */
 export async function requestPilot(_prev: ActionState, formData: FormData): Promise<ActionState> {
   // Bot traps: a hidden field people never fill in, a minimum time on the page,
@@ -67,7 +68,7 @@ export async function requestPilot(_prev: ActionState, formData: FormData): Prom
     rows,
     button: { label: "Open the pilot pipeline", url: `${origin}/admin/pipeline` },
   });
-  await sendEmail({ to: brand.supportEmail, subject: `Pilot request: ${d.organization}`, html, text, replyTo: d.email });
+  await notifyAdmins({ subject: `Pilot request: ${d.organization}`, html, text, replyTo: d.email });
 
   // The form shows its own "Request sent" panel, so no toast message here.
   return { ok: true };

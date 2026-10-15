@@ -473,4 +473,7 @@ export const audiences = {
 } satisfies Record<string, Audience>;
 
 /** In the order of the home page's event-type cards. */
+/** Parent-teacher conferences have their own page (free for teachers, so no pilot form). */
+export const CONFERENCES_PAGE = { path: "/parent-teacher-conferences", name: "Parent-teacher conferences", icon: "🍎" } as const;
+
 export const AUDIENCES: Audience[] = [audiences.bands, audiences.groups, audiences.fairs, audiences.volunteers, audiences.parents];

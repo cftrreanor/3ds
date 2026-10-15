@@ -135,6 +135,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261124000000_conference_bookings.sql` | Parent-teacher conferences, part 2: families book a meeting time (only open times are shown; one family per time, one meeting per child), every parent on a booking is emailed with a calendar invite, and families change or cancel from their link. Bookings are deleted 30 days after the conference | ✅ run |
 | `20261125000000_conference_booking_privacy.sql` | Conference bookings are seen only by the teacher (the people on their own account), not the event's team, so the privacy promise to families holds | ✅ run |
 | `20261126000000_conference_demo.sql` | Demo mode for parent-teacher conferences: “Demo this event” fills about two of every three meeting times with sample families (never emailed), and Remove demo people takes them back off | ✅ run |
+| `20261127000000_teacher_accounts.sql` | Free teacher accounts: a teacher signs up on their own (no invitation) and can host parent-teacher conferences only. Adds the account kind and school to each account | ⬜ not run yet |
 
 ## Pilot requests
 

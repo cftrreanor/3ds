@@ -164,7 +164,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           icon="🏟️"
           title="Hosting"
           description={`Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`}
-          action={<NewEventButton />}
+          action={<NewEventButton teacherOnly={org.account_kind === "teacher"} />}
           notice={org && <PlanNotice org={org} />}
           items={hosted.map((e) => ({ key: e.id, past: isPast(e), node: <HostedCard event={e} /> }))}
           empty={
