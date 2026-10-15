@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
+import { HowItWorks, type HowStep } from "@/components/how-it-works";
 import { SiteFooter } from "@/components/site-footer";
 import { CONFERENCES_PAGE } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
@@ -15,10 +16,25 @@ export const metadata: Metadata = {
 /** "Free for teachers": signing in from here lands on the teacher setup page. */
 const START = "/login?next=/dashboard/teacher";
 
-const steps = [
-  { title: "Set your day and hours", body: "Pick the meeting length and a few minutes between meetings. Add breaks if you need them." },
-  { title: "Say where you'll meet", body: "Your classroom, video, or let each family choose. Paste a video link, or add one to each invite yourself." },
-  { title: "Share one link", body: "Families pick an open time. Booked times disappear, so no one is ever double-booked." },
+const steps: HowStep[] = [
+  {
+    title: "Set your day and hours",
+    body: "Pick the meeting length and a few minutes between meetings. Add breaks if you need them.",
+    screen: "/screens/conference-meeting-times.webp",
+    alt: "Conference Setup: the day and hours, 15-minute meetings with 5 minutes between them, and breaks.",
+  },
+  {
+    title: "Families pick a time",
+    body: "Share one link. Families see only open times, so no one is ever double-booked, and choose in person or video.",
+    screen: "/screens/conference-booking-page.webp",
+    alt: "A parent booking a conference: open times to pick from, their child's name, and their own details.",
+  },
+  {
+    title: "Everyone gets the details",
+    body: "Each parent gets a calendar invite and a reminder, and can change or cancel from their own link.",
+    screen: "/screens/conference-family-booking.webp",
+    alt: "A family's booking page: when and where they meet the teacher, who's coming, and a way to change the time.",
+  },
 ];
 
 const points = [
@@ -76,22 +92,7 @@ export default function ConferencesPage() {
           </div>
         </section>
 
-        <section className="border-b border-border bg-surface">
-          <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-            <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-4xl">Ready in a few minutes</h2>
-            <ol className="mt-8 grid gap-6 sm:grid-cols-3">
-              {steps.map((s, i) => (
-                <li key={s.title}>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-brand-foreground">
-                    {i + 1}
-                  </span>
-                  <h3 className="mt-3 text-lg font-semibold">{s.title}</h3>
-                  <p className="mt-1 leading-7 text-muted">{s.body}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
+        <HowItWorks steps={steps} className="" />
 
         <section className="mx-auto grid max-w-6xl gap-4 px-4 py-14 sm:px-6 md:grid-cols-[2fr_3fr] md:gap-10">
           <h2 className="text-2xl font-medium leading-tight tracking-tight sm:text-3xl">Families are taken care of</h2>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requestPilot } from "@/app/pilot-actions";
 import { PilotForm } from "@/app/pilot-form";
 import { FaqList } from "@/components/faq-list";
+import { HowItWorks } from "@/components/how-it-works";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
@@ -92,8 +93,8 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
               <JumpLink href="#join" className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
                 {CTA}
               </JumpLink>
-              <JumpLink href="#faq" className="rounded-md px-5 py-3 font-medium text-white ring-1 ring-white/30 hover:bg-white/10">
-                Common questions
+              <JumpLink href="#how" className="rounded-md px-5 py-3 font-medium text-white ring-1 ring-white/30 hover:bg-white/10">
+                See how it works
               </JumpLink>
             </div>
           </div>
@@ -109,6 +110,8 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
             </ul>
           </div>
         </section>
+
+        <HowItWorks steps={a.steps} className="" />
 
         <div className="mx-auto max-w-6xl divide-y divide-border px-4 sm:px-6">
           {a.sections.map((s) => (
