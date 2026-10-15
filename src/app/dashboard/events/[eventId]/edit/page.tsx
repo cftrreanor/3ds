@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SetupStep, StepStatus } from "@/components/setup-step";
-import { EVENT_TYPES, eventTypeLabel, groupWords, hasBands, hasBooths, hasEnsembles, hasParents } from "@/lib/event-types";
+import { EVENT_TYPES, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents } from "@/lib/event-types";
 import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
@@ -22,6 +22,7 @@ const TYPE_SUMMARY = {
   group_event: "Groups (choirs, orchestras, teams and more) register and move through your rooms on a schedule worked out for them, alongside your volunteers.",
   volunteer: "Volunteers, shifts, check-in and your team only. No band registration or performance schedule.",
   school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers. Children's details are seen only by your team and permanently deleted 30 days after the event.",
+  conference: "Families book a meeting time with you, in person or on video. Free: you can have one published conference at a time.",
 };
 
 // What switching to each kind adds or removes.
@@ -111,6 +112,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
             venueSearchEnabled={isPlacesConfigured}
             submitLabel="Save changes"
             hasShifts={(count ?? 0) > 0}
+            eventType={event.event_type}
           />
         </SetupStep>
 
@@ -144,10 +146,12 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
         >
           <div className="space-y-3">
             <p>
-              This is a <strong>{eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
+              This is a <strong>{hasConferences(event.event_type) ? "parent-teacher conference" : eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
               <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
             </p>
-            {groupsHere && (bandCount ?? 0) > 0 ? (
+            {hasConferences(event.event_type) ? (
+              <p className="text-sm text-muted">A conference stays a conference. For another kind of event, create a new one.</p>
+            ) : groupsHere && (bandCount ?? 0) > 0 ? (
               <p className="text-sm text-muted">
                 {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
                 {eventTypeLabel(event.event_type).toLowerCase()}.
@@ -160,12 +164,12 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest")).map((t) => (
+                {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest") && t.value !== "conference").map((t) => (
                   <ActionButton
                     key={t.value}
                     action={setEventType.bind(null, eventId, t.value)}
                     variant="secondary"
-                    confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value]} Volunteers and shifts stay as they are.`}
+                    confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value as keyof typeof SWITCH_NOTE]} Volunteers and shifts stay as they are.`}
                   >
                     Make it a {t.label.toLowerCase()}
                   </ActionButton>

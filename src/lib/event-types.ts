@@ -31,6 +31,12 @@ export const EVENT_TYPES = [
     icon: "🎪",
     blurb: "Carnivals, fall festivals and fundraisers: your booths and community partners by zone, a quick partner check-in on the day, volunteer shifts with Station Coordinators, and a public \u201cWhat's at the event\u201d page.",
   },
+  {
+    value: "conference",
+    label: "Parent-teacher conferences",
+    icon: "🍎",
+    blurb: "Free for teachers. Set aside a day, and families book a meeting time, in person or on video, with reminders and a link to change or cancel.",
+  },
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number]["value"];
 
@@ -55,6 +61,9 @@ export function groupWords(type: string | null | undefined) {
 
 /** Parent registration and door check-in: school visitor events. */
 export const hasParents = (type: string | null | undefined) => type === "school_visit";
+
+/** Meeting times families book: parent-teacher conferences (free; one published at a time per account). */
+export const hasConferences = (type: string | null | undefined) => type === "conference";
 
 /** Booths, partners and vendors, by zone: school fairs. */
 export const hasBooths = (type: string | null | undefined) => type === "fair";

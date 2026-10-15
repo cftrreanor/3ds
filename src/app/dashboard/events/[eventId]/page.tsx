@@ -17,6 +17,7 @@ import {
   formatTime,
   formatTimeRange,
   utcToZonedDate,
+  utcToZonedTime,
   zoneName,
 } from "@/lib/time";
 import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
@@ -31,7 +32,8 @@ import { EventBannerSlot } from "@/components/event-banner-slot";
 import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
 import { PERSONAS } from "@/lib/demo";
-import { eventTypeLabel, groupWords, hasBands, hasBooths, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
+import { eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
+import { meetingStarts, meetingSummary, modeLabel, notReady, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
@@ -75,6 +77,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   // Band contests and group events both take registrations; groups move through rooms.
   const groupsHere = hasEnsembles(event.event_type);
   const roomsHere = hasRooms(event.event_type);
+  const conferenceHere = hasConferences(event.event_type);
   const words = groupWords(event.event_type);
 
   const access = await getEventAccess(eventId);
@@ -280,6 +283,12 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         ])
       : null;
 
+  // Conferences: meeting times and where they meet (hosts and the team can read them).
+  const conference = conferenceHere
+    ? (((await supabase.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", eventId).maybeSingle()).data ??
+        null) as ConferenceSettings | null)
+    : null;
+
   // Hosts: the setup checklist and what publishing will do.
   const setup: SetupFacts | null = access.isHost
     ? {
@@ -309,6 +318,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           : 0,
         parentRegistrationOpen: event.parent_registration_open,
         parentClosesAt: Boolean(event.parent_registration_closes_at),
+        conferenceMissing: conferenceHere ? notReady(conference) : null,
       }
     : null;
   const checklist = setup ? setupChecklist(setup) : null;
@@ -503,7 +513,41 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
-      {!bandsHere && (access.canManage || myStations.length > 0) && (
+      {conferenceHere && access.isHost && (
+        <section className="mt-10" aria-labelledby="conference-heading">
+          <h2 id="conference-heading" className="text-xl font-semibold">
+            Conference Setup
+          </h2>
+          <Card className="mt-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
+              <div className="space-y-1 text-sm leading-6">
+                {conference?.times_saved_at ? (
+                  <p className="font-medium">
+                    {meetingSummary(
+                      meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference),
+                      conference.meeting_minutes,
+                    )}
+                    {conference.meeting_mode && ` · ${modeLabel(conference.meeting_mode)}`}
+                  </p>
+                ) : (
+                  <p className="font-medium">Set your meeting length, breaks, and your room or video link.</p>
+                )}
+                <p className="text-muted">
+                  {notReady(conference) ?? "Ready to publish."}
+                </p>
+              </div>
+              <Link
+                href={`/dashboard/events/${eventId}/conferences`}
+                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+              >
+                {notReady(conference) ? "Set up conferences" : "Manage conferences"}
+              </Link>
+            </div>
+          </Card>
+        </section>
+      )}
+
+      {!bandsHere && !conferenceHere && (access.canManage || myStations.length > 0) && (
         <section className={roomsHere && groupStatus ? "mt-4" : "mt-10"} aria-labelledby={roomsHere && groupStatus ? "group-day-heading" : "day-heading"}>
           {!(roomsHere && groupStatus) && (
             <h2 id="day-heading" className="text-xl font-semibold">
@@ -584,7 +628,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       )}
 
 
-      {(files.length > 0 || access.isHost) && (
+      {!conferenceHere && (files.length > 0 || access.isHost) && (
         <section className="mt-10" aria-labelledby="files-heading">
           <h2 id="files-heading" className="text-xl font-semibold">
             Maps &amp; documents
@@ -657,7 +701,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
-      {access.canManage && (
+      {access.canManage && !conferenceHere && (
         <section className="mt-10" aria-labelledby="team-heading">
           <h2 id="team-heading" className="text-xl font-semibold">
             Team
@@ -754,7 +798,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
-      {access.canManage && (
+      {access.canManage && !conferenceHere && (
         <section className="mt-10" aria-labelledby="volunteers-heading">
           <h2 id="volunteers-heading" className="text-xl font-semibold">
             Volunteer Setup
@@ -796,7 +840,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
-      {demo && (
+      {demo && !conferenceHere && (
         <section className="mt-10" aria-labelledby="demo-heading">
           <h2 id="demo-heading" className="text-xl font-semibold">
             Demo this event

@@ -17,7 +17,12 @@ export function EventTypeChoices() {
             <span aria-hidden className="text-3xl">
               {t.icon}
             </span>
-            <span className="mt-3 text-lg font-semibold">{t.label}</span>
+            <span className="mt-3 flex flex-wrap items-center gap-2 text-lg font-semibold">
+              {t.label}
+              {t.value === "conference" && (
+                <span className="rounded-sm bg-success-soft px-2 py-0.5 text-xs font-semibold text-success">Free</span>
+              )}
+            </span>
             <span className="mt-1 text-sm leading-6 text-muted">{t.blurb}</span>
           </Link>
         </li>

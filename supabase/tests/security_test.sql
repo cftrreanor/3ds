@@ -3764,4 +3764,139 @@ do $$ begin
 end $$;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000fa';
 
+-- Parent-teacher conferences: free (no plan needed), one published per
+-- account, ready before publishing; one day; never switch kinds. Settings
+-- (with the video link) are for the event's hosts and team only.
+reset role;
+update public.organizations set subscription_status = 'none' where id = :'org_id';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+values
+  ('10000000-0000-0000-0000-0000000000c1', :'org_id', 'Fall Conferences', 'fall-conf', 'draft', 'conference',
+   current_date + 20, current_date + 20, now() + interval '20 days', now() + interval '20 days 4 hours', '1 School Rd'),
+  ('10000000-0000-0000-0000-0000000000c2', :'org_id', 'Spring Conferences', 'spring-conf', 'draft', 'conference',
+   current_date + 30, current_date + 30, now() + interval '30 days', now() + interval '30 days 4 hours', '1 School Rd'),
+  ('10000000-0000-0000-0000-0000000000c3', :'org_id', 'Book Fair Helpers', 'book-fair-helpers', 'draft', 'volunteer',
+   current_date + 30, current_date + 30, now() + interval '30 days', now() + interval '30 days 4 hours', '1 School Rd');
+reset role;
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000003', 'section_lead');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean;
+begin
+  -- One day only.
+  ok := false;
+  begin
+    update public.events set ends_on = starts_on + 1 where id = '10000000-0000-0000-0000-0000000000c1';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a conference can''t span two days';
+  -- Never switches kinds, either way.
+  ok := false;
+  begin
+    update public.events set event_type = 'volunteer' where id = '10000000-0000-0000-0000-0000000000c1';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a conference can''t become another kind of event';
+  ok := false;
+  begin
+    update public.events set event_type = 'conference' where id = '10000000-0000-0000-0000-0000000000c3';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'another kind of event can''t become a conference';
+  -- Settings only on conferences.
+  ok := false;
+  begin
+    insert into public.conference_settings (event_id) values ('10000000-0000-0000-0000-0000000000c3');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'meeting times only belong to conferences';
+  -- Not ready yet: publishing says what's missing.
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c1';
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%meeting times%';
+  end;
+  assert ok, 'a conference without meeting times can''t be published';
+  insert into public.conference_settings (event_id, meeting_minutes, times_saved_at, meeting_mode, video_link)
+  values ('10000000-0000-0000-0000-0000000000c1', 15, now(), 'video', 'https://zoom.us/j/123');
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c1';
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%waiting room%';
+  end;
+  assert ok, 'a video conference needs the waiting room ticked';
+  ok := false;
+  begin
+    update public.conference_settings set video_link = 'javascript:alert(1)' where event_id = '10000000-0000-0000-0000-0000000000c1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'the meeting link must be an https link';
+  update public.conference_settings set waiting_room_confirmed = true where event_id = '10000000-0000-0000-0000-0000000000c1';
+  -- Free: publishes without a plan.
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c1';
+  assert (select status from public.events where id = '10000000-0000-0000-0000-0000000000c1') = 'published',
+         'a ready conference publishes without a paid plan';
+  -- Only one published at a time.
+  insert into public.conference_settings (event_id, meeting_minutes, times_saved_at, meeting_mode, room)
+  values ('10000000-0000-0000-0000-0000000000c2', 20, now(), 'in_person', 'Room 214, purple hallway');
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c2';
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%Fall Conferences%';
+  end;
+  assert ok, 'only one conference can be published at a time';
+  update public.events set status = 'draft' where id = '10000000-0000-0000-0000-0000000000c1';
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c2';
+  -- Other kinds still need a plan.
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c3';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'other kinds of event still need a plan to publish';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  assert (select video_link from public.conference_settings where event_id = '10000000-0000-0000-0000-0000000000c1') = 'https://zoom.us/j/123',
+         'the conference''s team can read its settings';
+  update public.conference_settings set video_link = 'https://evil.example' where event_id = '10000000-0000-0000-0000-0000000000c1';
+  assert (select video_link from public.conference_settings where event_id = '10000000-0000-0000-0000-0000000000c1') = 'https://zoom.us/j/123',
+         'the team can''t change the settings';
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c1';
+  exception when others then ok := true;
+  end;
+  assert ok or (select status from public.events where id = '10000000-0000-0000-0000-0000000000c1') = 'draft',
+         'the team can''t publish a conference';
+  assert public.conference_not_ready('10000000-0000-0000-0000-0000000000c1') like 'Only the event%',
+         'readiness is for the event''s hosts';
+  assert public.other_published_conference('10000000-0000-0000-0000-0000000000c1') is null,
+         'and so is the other published conference';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.conference_settings) = 0, 'strangers can''t read conference settings';
+end $$;
+set role anon;
+set request.jwt.claims = '';
+do $$
+declare n integer;
+begin
+  begin
+    select count(*) into n from public.conference_settings;
+    raise exception 'FAIL: anonymous visitors read conference settings';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000c1', '10000000-0000-0000-0000-0000000000c2',
+                                       '10000000-0000-0000-0000-0000000000c3');
+update public.organizations set subscription_status = 'comped' where id = :'org_id';
+
 \echo 'All database security tests passed.'
