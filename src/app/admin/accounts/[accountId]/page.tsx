@@ -6,14 +6,14 @@ import { eventTypeLabel } from "@/lib/event-types";
 import { isSchemaError, missing } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
-import { closeAccount, reopenAccount, setPlan } from "../../actions";
+import { closeAccount, reopenAccount, setPlan, suspendAccount, unsuspendAccount, upgradeTeacher } from "../../actions";
 import { EMAIL_COLUMNS, loadAccount, NOTE_COLUMNS, signIns, type EmailRow, type NoteRow } from "../../data";
 import { EmptyRow, Facts, HealthPill, PageHeader, Panel, RecordLink, Table, Tag, Td, Th, Tr } from "../../kit";
 import { NoteComposer } from "../../note-composer";
 import { addNote } from "../../notes-actions";
 import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
-import { ClosureForm } from "../closure-form";
+import { ClosureForm, NoteActionForm } from "../closure-form";
 import { PlanForm } from "../plan-form";
 
 export const metadata: Metadata = { title: "Account" };
@@ -68,6 +68,11 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
   const free = freeStatus(account);
   const openFollowUps = notes.filter((n) => n.follow_up_on && !n.done_at);
   const events = [...account.events].sort((a, b) => b.starts_on.localeCompare(a.starts_on));
+  const teacher = account.account_kind === "teacher";
+  // Before 20261128000000_teacher_admin.sql there's no suspended_at.
+  const suspendable = "suspended_at" in account;
+  const suspendedAt = account.suspended_at ?? null;
+  const published = account.events.filter((e) => e.status === "published").length;
 
   const items: TimelineItem[] = [
     { at: account.created_at, kind: "account", title: "Organization set up" },
@@ -113,6 +118,8 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
             </Tag>
             {free && <span className={free.ended || free.soon ? "text-warning" : ""}>{free.text}</span>}
             <span>Joined {formatDate(utcToZonedDate(account.created_at, ADMIN_TZ), { weekday: undefined })}</span>
+            {teacher && <Tag tone="brand">Teacher (free){account.school ? ` · ${account.school}` : ""}</Tag>}
+            {suspendedAt && <Tag tone="danger">Suspended</Tag>}
             {closedAt && <Tag tone="warning">Closed · deleted {deleteOn}</Tag>}
           </span>
         }
@@ -219,6 +226,44 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
               </div>
             </details>
           </Panel>
+
+          {teacher && (
+            <Panel title="Free teacher account">
+              <p className="mb-3 text-sm text-muted">
+                {account.school ? `${account.school}. ` : ""}Parent-teacher conferences only, one published at a time. Upgrading lets them create
+                every kind of event; set their plan under Details afterwards.
+              </p>
+              <NoteActionForm
+                action={upgradeTeacher.bind(null, account.id)}
+                label="Upgrade to full account"
+                pendingText="Upgrading…"
+                placeholder="e.g. Joined the school-wide pilot"
+                confirmMessage="Upgrade this teacher to a full account? They'll be able to create every kind of event."
+              />
+            </Panel>
+          )}
+
+          {suspendable && (
+            <Panel title={suspendedAt ? "Account suspended" : "Suspend account"}>
+              <p className="mb-3 text-sm text-muted">
+                {suspendedAt
+                  ? `Suspended ${formatDate(utcToZonedDate(suspendedAt, ADMIN_TZ), { weekday: undefined })}. Its events are offline and it can't publish. Lifting the suspension lets the host publish again; nothing republishes on its own.`
+                  : `Takes ${published ? `its ${published} published event${published === 1 ? "" : "s"}` : "any published events"} offline and stops it publishing until you lift the suspension. Nothing is deleted.`}
+              </p>
+              <NoteActionForm
+                action={(suspendedAt ? unsuspendAccount : suspendAccount).bind(null, account.id)}
+                label={suspendedAt ? "Lift suspension" : "Suspend account"}
+                pendingText={suspendedAt ? "Lifting…" : "Suspending…"}
+                danger={!suspendedAt}
+                placeholder={suspendedAt ? "e.g. Sorted out with the school" : "e.g. Spam sign-up"}
+                confirmMessage={
+                  suspendedAt
+                    ? undefined
+                    : `Suspend ${account.name}? ${published ? `Its ${published} published event${published === 1 ? " goes" : "s go"} offline right away` : "It"} and it can't publish until you lift the suspension.`
+                }
+              />
+            </Panel>
+          )}
 
           <Panel title={closedAt ? "Account closed" : "Close account"}>
             {!closable ? (

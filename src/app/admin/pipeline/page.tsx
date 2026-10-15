@@ -63,7 +63,7 @@ export default async function PipelinePage() {
       accountId: r.organization_id,
     };
   });
-  const open = requests.filter((r) => r.status !== "declined" && r.status !== "active").length;
+  const open = requests.filter((r) => r.status !== "declined" && r.status !== "active" && r.status !== "teacher").length;
 
   return (
     <div>

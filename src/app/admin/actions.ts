@@ -50,3 +50,37 @@ export async function reopenAccount(orgId: string, _prev: ActionState, formData:
   revalidatePath("/admin", "layout");
   return { ok: true, message: "Account reopened. Nothing will be deleted." };
 }
+
+/** Make a free teacher account a full account (every event type). Its plan is set separately. */
+export async function upgradeTeacher(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePlatformAdmin();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_upgrade_teacher", { p_org: orgId, p_note: note || null });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "Upgraded to a full account. Set their plan under Details if it should change." };
+}
+
+/** Suspend an account: its published events go offline and it can't publish until unsuspended. */
+export async function suspendAccount(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePlatformAdmin();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_suspend_account", { p_org: orgId, p_note: note || null });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin", "layout");
+  const n = Number(data ?? 0);
+  return { ok: true, message: `Account suspended.${n ? ` ${n} event${n === 1 ? " was" : "s were"} taken offline.` : ""}` };
+}
+
+/** Lift a suspension. Events taken offline stay unpublished until the host publishes them again. */
+export async function unsuspendAccount(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePlatformAdmin();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_unsuspend_account", { p_org: orgId, p_note: note || null });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "Suspension lifted. The host can publish again." };
+}

@@ -56,6 +56,7 @@ export type AdminLogRow = {
     to?: { status: string; free_until: string | null };
     note?: string | null;
     email?: string;
+    unpublished?: number;
   };
   created_at: string;
   admin: { full_name: string; email: string } | null;
@@ -74,5 +75,9 @@ export function describeAdminLog(r: AdminLogRow) {
   if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host`;
   if (r.action === "account_closed") return "Closed the account (deleted 90 days later)";
   if (r.action === "account_reopened") return "Reopened the account";
+  if (r.action === "teacher_upgraded") return "Upgraded from a free teacher account to a full account";
+  if (r.action === "account_suspended")
+    return `Suspended the account${r.details.unpublished ? ` (${r.details.unpublished} event${r.details.unpublished === 1 ? "" : "s"} taken offline)` : ""}`;
+  if (r.action === "account_unsuspended") return "Lifted the suspension";
   return r.action.replaceAll("_", " ");
 }

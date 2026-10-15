@@ -39,7 +39,7 @@ export async function createTeacherAccount(_prev: ActionState, formData: FormDat
         { title: "School", detail: school },
         { title: "Time zone", detail: zoneName(tz) },
       ],
-      button: { label: "Open accounts", url: `${origin}/admin/accounts` },
+      button: { label: "Open teacher accounts", url: `${origin}/admin/accounts?kind=teacher` },
     });
     await notifyAdmins({ subject: `New teacher account: ${fullName}, ${school}`, html, text, replyTo: user.email });
   });
