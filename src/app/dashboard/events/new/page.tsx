@@ -42,7 +42,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
       </h1>
       <p className="mt-2 leading-7 text-muted">
         {type === "conference"
-          ? "Free for teachers. Just the day, your hours and your school for now. You'll set meeting times and where you'll meet next."
+          ? "Free for teachers. Just the day and your hours for now. You'll set meeting times and where you'll meet next."
           : "Just the basics for now. You'll add stations and volunteer shifts next."}{" "}
         <Link href="/dashboard/events/new" className="font-medium text-brand underline-offset-4 hover:underline">
           Change the kind of event

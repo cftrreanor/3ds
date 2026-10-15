@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { createContext, use, useState, type ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
 import { PublishBar, PublishLine } from "@/components/publish-bar";
 import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
+import { VenuePicker, type VenueValue } from "@/components/venue-picker";
 import type { ActionState } from "@/lib/action-state";
 import {
   GAP_LENGTHS,
@@ -18,6 +18,7 @@ import {
   type MeetingMode,
 } from "@/lib/conferences";
 import { displayTime, formatDuration } from "@/lib/schedule";
+import { formatDate } from "@/lib/time";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -89,12 +90,11 @@ type BreakDraft = { key: number; start: string; minutes: string; label: string }
 type TimesProps = {
   action: Action;
   initial: ConferenceSettings;
-  /** "Thursday, Oct 23" */
-  day: string;
+  /** The conference day, "YYYY-MM-DD". */
+  date: string;
   /** The conference's hours, "HH:MM" in the event's time zone. */
   start: string;
   end: string;
-  editHref: string;
 };
 
 /** Step 1: how long each meeting is, a gap between them, and breaks, with the meetings they make. */
@@ -118,10 +118,9 @@ export function MeetingTimesForm(props: TimesProps) {
 function TimesForm({
   action,
   initial,
-  day,
+  date,
   start,
   end,
-  editHref,
   editing,
   setEditing,
   onCancel,
@@ -132,7 +131,12 @@ function TimesForm({
     initial.breaks.map((b, i) => ({ key: i, start: b.start, minutes: String(b.minutes), label: b.label })),
   );
   const [nextKey, setNextKey] = useState(initial.breaks.length);
-  const starts = meetingStarts(start, end, {
+  // The day and hours can be changed right here; saving moves the event too.
+  const [changingHours, setChangingHours] = useState(false);
+  const [day, setDay] = useState(date);
+  const [from, setFrom] = useState(start);
+  const [to, setTo] = useState(end);
+  const starts = meetingStarts(from, to, {
     meeting_minutes: meeting,
     gap_minutes: gap,
     breaks: breaks.map((b) => ({ start: b.start, minutes: Number(b.minutes) || 0, label: b.label })),
@@ -145,16 +149,40 @@ function TimesForm({
       resetOnSuccess={false}
       className="space-y-5"
       onEdit={() => setEditing(true)}
-      onSuccess={() => setEditing(false)}
+      onSuccess={() => {
+        setEditing(false);
+        setChangingHours(false);
+      }}
     >
-      <p className="rounded-md bg-background px-3 py-2 text-sm">
-        <span className="font-medium">
-          {day} · {displayTime(start)} – {displayTime(end)}
-        </span>{" "}
-        <Link href={editHref} className="font-medium text-brand underline-offset-4 hover:underline">
-          Change the day or hours
-        </Link>
-      </p>
+      {changingHours ? (
+        <div className="grid gap-4 rounded-lg border border-border p-3 sm:grid-cols-3">
+          <Field label="Conference day">
+            <Input type="date" name="conferenceDay" required value={day} onChange={(e) => setDay(e.target.value)} />
+          </Field>
+          <Field label="First meeting starts">
+            <Input type="time" name="startTime" required value={from} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="Last meeting ends by">
+            <Input type="time" name="endTime" required value={to} onChange={(e) => setTo(e.target.value)} />
+          </Field>
+        </div>
+      ) : (
+        <p className="rounded-md bg-background px-3 py-2 text-sm">
+          <span className="font-medium">
+            {formatDate(day, { year: undefined, weekday: "long" })} · {displayTime(from)} – {displayTime(to)}
+          </span>{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setChangingHours(true);
+              setEditing(true);
+            }}
+            className="font-medium text-brand underline underline-offset-4"
+          >
+            Change the day or hours
+          </button>
+        </p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Each meeting">
@@ -249,6 +277,10 @@ type PlaceProps = {
   initial: ConferenceSettings;
   /** "3:00 PM – 7:00 PM" */
   hours: string;
+  /** The school, kept on the event: shown on the public page and in calendar invites. */
+  venue: VenueValue;
+  venueSearchEnabled: boolean;
+  timezone: string;
 };
 
 /** Step 2: in person, video (one meeting with a waiting room for the whole time), or the family's choice. */
@@ -273,12 +305,16 @@ function PlaceForm({
   action,
   initial,
   hours,
+  venue,
+  venueSearchEnabled,
+  timezone,
   editing,
   setEditing,
   onCancel,
 }: PlaceProps & { editing: boolean; setEditing: (on: boolean) => void; onCancel: () => void }) {
   const [mode, setMode] = useState<MeetingMode | null>(initial.meeting_mode);
   const [link, setLink] = useState(initial.video_link ?? "");
+  const [ownLink, setOwnLink] = useState(initial.own_link);
   const inPerson = mode === "in_person" || mode === "either";
   const video = mode === "video" || mode === "either";
   const linkOk = /^https:\/\/\S+$/.test(link.trim());
@@ -318,6 +354,14 @@ function PlaceForm({
       </fieldset>
 
       {inPerson && (
+        <fieldset className="grid gap-4">
+          <legend className="mb-1 text-sm font-semibold">Your school</legend>
+          <p className="-mt-2 text-sm text-muted">Shown on your public page and in families&apos; calendar invites.</p>
+          <VenuePicker searchEnabled={venueSearchEnabled} initial={venue} timezone={timezone} kind="School" example="e.g. Cedar Ridge Elementary" />
+        </fieldset>
+      )}
+
+      {inPerson && (
         <Field label="Room and directions" hint="Families get this in their confirmation and reminder.">
           <Textarea
             name="room"
@@ -333,41 +377,78 @@ function PlaceForm({
       {video && (
         <div className="space-y-4">
           <WaitingRoomGuide hours={hours} />
-          <Field label="Meeting link" hint="Only families who book get it, in their confirmation and reminder. It's never on your public page.">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                name="videoLink"
-                type="url"
-                required
-                maxLength={500}
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-                placeholder="https://zoom.us/j/… or https://meet.google.com/…"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                className="shrink-0"
-                disabled={!linkOk}
-                onClick={() => window.open(link.trim(), "_blank", "noopener,noreferrer")}
-              >
-                Test the link
-              </Button>
+          <fieldset>
+            <legend className="text-sm font-semibold">How do families get the link?</legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {[
+                { own: false, label: "Paste it here", hint: "We send it to each family in their confirmation and reminder." },
+                { own: true, label: "I'll add it to each invite", hint: "You add a video link to each meeting's calendar invite yourself." },
+              ].map((o) => (
+                <label
+                  key={o.label}
+                  className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${ownLink === o.own ? "border-brand bg-brand-soft" : "border-field-border"}`}
+                >
+                  <input
+                    type="radio"
+                    name="linkSource"
+                    value={o.own ? "own" : "here"}
+                    checked={ownLink === o.own}
+                    onChange={() => setOwnLink(o.own)}
+                    className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+                  />
+                  <span>
+                    <span className="block font-semibold">{o.label}</span>
+                    <span className="block text-sm text-muted">{o.hint}</span>
+                  </span>
+                </label>
+              ))}
             </div>
-          </Field>
-          <label className="flex gap-3 rounded-lg border border-field-border p-3 text-sm leading-6">
-            <input
-              type="checkbox"
-              name="waitingRoom"
-              required
-              defaultChecked={initial.waiting_room_confirmed}
-              className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
-            />
-            <span>
-              <span className="font-semibold">My meeting has a waiting room, and it runs the whole time ({hours}).</span>{" "}
-              <span className="text-muted">Families wait there until you let them in, so meetings never overlap.</span>
-            </span>
-          </label>
+          </fieldset>
+          {ownLink ? (
+            <p className="rounded-md bg-background px-3 py-2 text-sm">
+              <strong>You&apos;ll need to add a video link to the calendar invite for each meeting.</strong> We won&apos;t
+              send families a link; they&apos;re told it will come in your invite before their meeting. Each family&apos;s
+              email is on your list once they book.
+            </p>
+          ) : (
+            <>
+              <Field label="Meeting link" hint="Only families who book get it, in their confirmation and reminder. It's never on your public page.">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    name="videoLink"
+                    type="url"
+                    required
+                    maxLength={500}
+                    value={link}
+                    onChange={(e) => setLink(e.target.value)}
+                    placeholder="https://zoom.us/j/… or https://meet.google.com/…"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={!linkOk}
+                    onClick={() => window.open(link.trim(), "_blank", "noopener,noreferrer")}
+                  >
+                    Test the link
+                  </Button>
+                </div>
+              </Field>
+              <label className="flex gap-3 rounded-lg border border-field-border p-3 text-sm leading-6">
+                <input
+                  type="checkbox"
+                  name="waitingRoom"
+                  required
+                  defaultChecked={initial.waiting_room_confirmed}
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+                />
+                <span>
+                  <span className="font-semibold">My meeting has a waiting room, and it runs the whole time ({hours}).</span>{" "}
+                  <span className="text-muted">Families wait there until you let them in, so meetings never overlap.</span>
+                </span>
+              </label>
+            </>
+          )}
         </div>
       )}
 

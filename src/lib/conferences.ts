@@ -23,6 +23,8 @@ export type ConferenceSettings = {
   room: string | null;
   video_link: string | null;
   waiting_room_confirmed: boolean;
+  /** The teacher sends families the video link themselves (in their own calendar invite). */
+  own_link: boolean;
 };
 
 export const DEFAULT_SETTINGS: ConferenceSettings = {
@@ -34,10 +36,11 @@ export const DEFAULT_SETTINGS: ConferenceSettings = {
   room: null,
   video_link: null,
   waiting_room_confirmed: false,
+  own_link: false,
 };
 
 export const SETTINGS_COLUMNS =
-  "meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room, video_link, waiting_room_confirmed";
+  "meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room, video_link, waiting_room_confirmed, own_link";
 
 /**
  * Each meeting's start between `start` and `end`: back to back (plus the
@@ -75,20 +78,26 @@ export function meetingSummary(starts: string[], meetingMinutes: number) {
   return `${starts.length} ${starts.length === 1 ? "meeting" : "meetings"} · ${displayTime(starts[0])} – ${displayTime(last)}`;
 }
 
-/** What step 2 (where you'll meet) still needs (null when done). */
-export function placeMissing(s: ConferenceSettings | null): string | null {
+/**
+ * What step 2 (where you'll meet) still needs (null when done). In person
+ * needs the school's address (kept on the event) and a room; video needs a
+ * link pasted here with the waiting room ticked, unless the teacher sends
+ * their own.
+ */
+export function placeMissing(s: ConferenceSettings | null, venueAddress: string | null): string | null {
   if (!s?.meeting_mode) return "Choose where you'll meet (step 2).";
+  if (s.meeting_mode !== "video" && !venueAddress?.trim()) return "Add your school's address (step 2).";
   if (s.meeting_mode !== "video" && !s.room?.trim()) return "Add your room and directions (step 2).";
-  if (s.meeting_mode !== "in_person" && !s.video_link) return "Add your meeting link (step 2).";
-  if (s.meeting_mode !== "in_person" && !s.waiting_room_confirmed)
+  if (s.meeting_mode !== "in_person" && !s.own_link && !s.video_link) return "Add your meeting link (step 2).";
+  if (s.meeting_mode !== "in_person" && !s.own_link && !s.waiting_room_confirmed)
     return "Tick that your meeting has a waiting room and runs the whole time (step 2).";
   return null;
 }
 
 /** What's still needed before publishing, matching the database's check (null when ready). */
-export function notReady(s: ConferenceSettings | null): string | null {
+export function notReady(s: ConferenceSettings | null, venueAddress: string | null): string | null {
   if (!s?.times_saved_at) return "Save your meeting times (step 1).";
-  return placeMissing(s);
+  return placeMissing(s, venueAddress);
 }
 
 export const modeLabel = (m: MeetingMode | null) => MEETING_MODES.find((x) => x.value === m)?.label ?? null;

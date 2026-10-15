@@ -3850,7 +3850,23 @@ begin
   end;
   assert ok, 'only one conference can be published at a time';
   update public.events set status = 'draft' where id = '10000000-0000-0000-0000-0000000000c1';
+  -- In person needs the school's address (asked in step 2).
+  update public.events set venue_address = '' where id = '10000000-0000-0000-0000-0000000000c2';
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c2';
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%address%';
+  end;
+  assert ok, 'an in-person conference needs the school''s address';
+  update public.events set venue_address = '1 School Rd' where id = '10000000-0000-0000-0000-0000000000c2';
   update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000c2';
+  -- A teacher who sends their own video link needs no link or waiting-room tick here.
+  update public.conference_settings set video_link = null, waiting_room_confirmed = false, own_link = true
+   where event_id = '10000000-0000-0000-0000-0000000000c1';
+  assert public.conference_not_ready('10000000-0000-0000-0000-0000000000c1') is null,
+         'a video conference whose teacher sends their own link is ready';
+  update public.conference_settings set video_link = 'https://zoom.us/j/123', own_link = false
+   where event_id = '10000000-0000-0000-0000-0000000000c1';
   -- Other kinds still need a plan.
   ok := false;
   begin

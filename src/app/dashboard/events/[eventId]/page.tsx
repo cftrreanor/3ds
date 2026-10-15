@@ -318,7 +318,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           : 0,
         parentRegistrationOpen: event.parent_registration_open,
         parentClosesAt: Boolean(event.parent_registration_closes_at),
-        conferenceMissing: conferenceHere ? notReady(conference) : null,
+        conferenceMissing: conferenceHere ? notReady(conference, event.venue_address) : null,
       }
     : null;
   const checklist = setup ? setupChecklist(setup) : null;
@@ -346,18 +346,20 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
           </p>
           <p className="mt-1 text-sm text-muted">All times are {zoneName(tz)}.</p>
-          <p className="mt-1 text-sm text-muted">
-            {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
-            {" · "}
-            <a
-              href={mapsUrl(event.venue_address, event.venue_place_id)}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-brand underline-offset-4 hover:underline"
-            >
-              Map
-            </a>
-          </p>
+          {event.venue_address && (
+            <p className="mt-1 text-sm text-muted">
+              {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
+              {" · "}
+              <a
+                href={mapsUrl(event.venue_address, event.venue_place_id)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-brand underline-offset-4 hover:underline"
+              >
+                Map
+              </a>
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 flex-row gap-2 sm:flex-col sm:items-stretch">
           {access.isHost && (
@@ -533,14 +535,14 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   <p className="font-medium">Set your meeting length, breaks, and your room or video link.</p>
                 )}
                 <p className="text-muted">
-                  {notReady(conference) ?? "Ready to publish."}
+                  {notReady(conference, event.venue_address) ?? "Ready to publish."}
                 </p>
               </div>
               <Link
                 href={`/dashboard/events/${eventId}/conferences`}
                 className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
               >
-                {notReady(conference) ? "Set up conferences" : "Manage conferences"}
+                {notReady(conference, event.venue_address) ? "Set up conferences" : "Manage conferences"}
               </Link>
             </div>
           </Card>

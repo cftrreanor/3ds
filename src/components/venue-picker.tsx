@@ -25,11 +25,17 @@ export function VenuePicker({
   searchEnabled,
   initial,
   timezone,
+  kind = "Venue",
+  example = "e.g. Panther Stadium",
 }: {
   searchEnabled: boolean;
   initial?: VenueValue;
   /** The event's time zone: suggestions favor that part of the country. */
   timezone?: string;
+  /** What the place is called in labels: "Venue" ("Venue name", "Venue address") or "School". */
+  kind?: string;
+  /** Placeholder for the name. */
+  example?: string;
 }) {
   const [mode, setMode] = useState<"search" | "selected" | "manual">(
     initial?.address ? (initial.placeId ? "selected" : "manual") : searchEnabled ? "search" : "manual",
@@ -51,10 +57,10 @@ export function VenuePicker({
     return (
       <div className="grid gap-4">
         {notice && <p className="text-sm text-muted">{notice}</p>}
-        <Field label="Venue name" hint="Optional.">
-          <Input name="venueName" defaultValue={initial?.name ?? ""} placeholder="e.g. Panther Stadium" />
+        <Field label={`${kind} name`} hint="Optional.">
+          <Input name="venueName" defaultValue={initial?.name ?? ""} placeholder={example} />
         </Field>
-        <Field label="Venue address">
+        <Field label={`${kind} address`}>
           <Input name="venueAddress" defaultValue={initial?.address ?? ""} required autoComplete="street-address" />
         </Field>
         {searchEnabled && (
@@ -82,15 +88,15 @@ export function VenuePicker({
         <input type="hidden" name="venueLng" value={place.lng ?? ""} />
         <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium">{place.name ?? "Venue address"}</p>
+            <p className="text-sm font-medium">{place.name ?? `${kind} address`}</p>
             <p className="text-sm text-muted">{place.address}</p>
           </div>
           <Button type="button" variant="secondary" className="min-h-9 shrink-0" onClick={() => setMode("search")}>
             Change
           </Button>
         </div>
-        <Field label="Venue name" hint="What people call it. You can edit this.">
-          <Input name="venueName" key={place.placeId} defaultValue={place.name ?? ""} placeholder="e.g. Panther Stadium" />
+        <Field label={`${kind} name`} hint="What people call it. You can edit this.">
+          <Input name="venueName" key={place.placeId} defaultValue={place.name ?? ""} placeholder={example} />
         </Field>
       </div>
     );
@@ -98,6 +104,7 @@ export function VenuePicker({
 
   return (
     <VenueSearch
+      kind={kind}
       timezone={timezone}
       onSelect={(p) => {
         setPlace(p);
@@ -113,11 +120,13 @@ export function VenuePicker({
 }
 
 function VenueSearch({
+  kind,
   timezone,
   onSelect,
   onUnavailable,
   onManual,
 }: {
+  kind: string;
   timezone?: string;
   onSelect: (place: Place) => void;
   onUnavailable: (message: string) => void;
@@ -189,7 +198,7 @@ function VenueSearch({
 
   return (
     <div className="grid gap-2">
-      <Field label="Venue" hint="Start typing a stadium, school or street address.">
+      <Field label={kind} hint={kind === "Venue" ? "Start typing a stadium, school or street address." : "Start typing your school's name or address."}>
         <div className="relative">
           <Input
             role="combobox"
