@@ -1,3 +1,4 @@
+import type { HowStep } from "@/components/how-it-works";
 import { brand } from "@/lib/brand";
 
 /**
@@ -22,6 +23,8 @@ export type Audience = {
   examples: string;
   /** What it replaces: the tools people use today. */
   replaces: string[];
+  /** "How it works": 3 or 4 steps, each with a phone screenshot. */
+  steps: HowStep[];
   sections: { title: string; body: string; points: string[] }[];
   privacy: string[];
   faqs: { q: string; a: string }[];
@@ -97,6 +100,32 @@ export const audiences = {
           "Volunteer Leads and Section Leads see only what their role needs",
           "Walk-up volunteers can be added and checked in on the day",
         ],
+      },
+    ],
+    steps: [
+      {
+        title: "Open registration",
+        body: "Set your classifications, a chaperone limit and a deadline, then invite directors from your past contests.",
+        screen: "/screens/band-registration-setup.webp",
+        alt: "The host's Band Registration page: registration settings done, registration open, and three registered bands.",
+      },
+      {
+        title: "Directors register",
+        body: "Directors fill in their school, band, directors, student counts and vehicles, and can update until registration closes.",
+        screen: "/screens/band-registration-form.webp",
+        alt: "A band director filling in the registration form: school name, band name, classification and contact email.",
+      },
+      {
+        title: "Publish the schedule",
+        body: "Post the performance order and finals. Directors and spectators see it on the public page.",
+        screen: "/screens/band-performance-schedule.webp",
+        alt: "The public performance schedule: preliminaries with a lunch break, and the finals.",
+      },
+      {
+        title: "Run contest day",
+        body: "Check bands through parking, check-in and warm-up, and see who's on track at a glance.",
+        screen: "/screens/event-day-dashboard-blue.webp",
+        alt: "The contest day dashboard: a schedule-change banner and how many bands have parked, checked in and warmed up.",
       },
     ],
     privacy: [
@@ -193,6 +222,32 @@ export const audiences = {
         ],
       },
     ],
+    steps: [
+      {
+        title: "Set up rooms and the order",
+        body: "Add the rooms every group visits. Each group's times are worked out for you, room by room.",
+        screen: "/screens/group-rooms-schedule.webp",
+        alt: "Rooms & Schedule Setup: each choir's warm-up, main stage and sight-reading times.",
+      },
+      {
+        title: "Groups register",
+        body: "Directors register their group online with their school, directors and any scheduling conflicts.",
+        screen: "/screens/group-registration-form.webp",
+        alt: "A director registering a choir: school name, group name, classification and contact email.",
+      },
+      {
+        title: "Families follow each room live",
+        body: "The public page shows who's on now and up next in every room.",
+        screen: "/screens/group-room-schedule-live.webp",
+        alt: "The public schedule, room by room, with the group on now and the group up next.",
+      },
+      {
+        title: "Run the day",
+        body: "Tap groups Arrived and Done in each room, and see who's running over.",
+        screen: "/screens/group-event-day.webp",
+        alt: "The event day page: which groups are here, which are running over, and Done buttons for each room.",
+      },
+    ],
     privacy: [
       "Groups' contact details are seen only by your hosts and that group's own director.",
       "Families see room times, never contact details or headcounts.",
@@ -275,6 +330,32 @@ export const audiences = {
           "Post a banner for a weather change or a new start time",
           "Share a map of the grounds with everyone, or a packet with just your volunteers",
         ],
+      },
+    ],
+    steps: [
+      {
+        title: "Add booths by zone",
+        body: "Games, activities, vendors and showcases, each with the partner who runs it.",
+        screen: "/screens/fair-booths-by-zone.webp",
+        alt: "Booths & Partners: zones and booths set up, and partners checked in as they arrive.",
+      },
+      {
+        title: "Staff every booth",
+        body: "Volunteers pick their own shifts on their phone and get a reminder the day before.",
+        screen: "/screens/fair-volunteer-signup.webp",
+        alt: "A volunteer picking a shift on the event's sign-up page.",
+      },
+      {
+        title: "Share what's at the fair",
+        body: "Families see every booth by zone on one public page that thanks your partners.",
+        screen: "/screens/fair-public-page.webp",
+        alt: "The public What's at the event page, with booths grouped into Game Zone and Activity Stations.",
+      },
+      {
+        title: "Check partners in",
+        body: "On the day, anyone on your team taps partners Arrived as they set up.",
+        screen: "/screens/fair-partner-checkin.webp",
+        alt: "The partner check-in list: one booth marked Arrived, others waiting.",
       },
     ],
     privacy: [
@@ -363,6 +444,26 @@ export const audiences = {
         ],
       },
     ],
+    steps: [
+      {
+        title: "Set up stations and shifts",
+        body: "Add stations with their leads, then fill the day with shifts.",
+        screen: "/screens/set-up-shifts-blue.webp",
+        alt: "Setting up a parking station with its morning and late-morning volunteer shifts.",
+      },
+      {
+        title: "Share a link or QR code",
+        body: "Volunteers pick their own shifts, with a confirmation, calendar invite and reminder.",
+        screen: "/screens/volunteer-signup-blue.webp",
+        alt: "A volunteer picking a shift on the event's sign-up page.",
+      },
+      {
+        title: "Check volunteers in",
+        body: "Tap Check in as people arrive, see open spots, and add walk-ups.",
+        screen: "/screens/volunteer-checkin-desk.webp",
+        alt: "The volunteer check-in desk: one shift's volunteers, some checked in, with Check in buttons.",
+      },
+    ],
     privacy: [
       "Volunteers never make an account, and their details are deleted 10 days after the event.",
       "Under-18 helpers are stored by first name and last initial, with their parent's contact details.",
@@ -439,6 +540,26 @@ export const audiences = {
         title: "Registration on your schedule",
         body: "Close registration by hand, or set a date and time for it to close on its own.",
         points: ["Optionally tell families that walk-ins are welcome"],
+      },
+    ],
+    steps: [
+      {
+        title: "Open registration",
+        body: "Share one link or QR code, and close registration whenever you're ready.",
+        screen: "/screens/parent-registration-setup.webp",
+        alt: "The host's Parent Registration page: registration open, and the door check-in list below.",
+      },
+      {
+        title: "Parents register",
+        body: "Each parent adds their children, teachers and grades, and agrees to bring a photo ID.",
+        screen: "/screens/parent-registration-form.webp",
+        alt: "A parent registering for a family lunch: their name, email and phone, then their child.",
+      },
+      {
+        title: "Check adults in at the door",
+        body: "Find the family, check each adult's photo ID, and tap Check in.",
+        screen: "/screens/parent-door-checkin.webp",
+        alt: "Door check-in: a family's children and adults, with a Check in button for each adult.",
       },
     ],
     privacy: [
