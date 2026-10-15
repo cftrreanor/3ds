@@ -132,6 +132,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261121000000_fair_zones.sql` | Booths & Partners, zones first: a fair's zones are made in "1. Zones" (rename or delete one and its booths follow), then booths go into them. Zones fairs already use are copied in | ✅ run |
 | `20261122000000_conferences.sql` | Parent-teacher conferences, a free kind of event for teachers: meeting times (length, gap, breaks) and where they meet (room, a video link with a waiting room, or the family's choice). Conferences publish without a paid plan, one at a time per account, once they're set up; they're one day and can't switch to another kind | ✅ run |
 | `20261123000000_conference_meeting_place.sql` | Conferences: the school's address is asked in Conference Setup (step 2) for in-person meetings instead of when the conference is created, and teachers can choose “I'll send it myself” for the video link instead of pasting it | ✅ run |
+| `20261124000000_conference_bookings.sql` | Parent-teacher conferences, part 2: families book a meeting time (only open times are shown; one family per time, one meeting per child), every parent on a booking is emailed with a calendar invite, and families change or cancel from their link. Bookings are deleted 30 days after the conference | ⬜ not run yet |
 
 ## Pilot requests
 

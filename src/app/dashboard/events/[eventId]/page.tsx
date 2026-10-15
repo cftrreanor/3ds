@@ -288,6 +288,9 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? (((await supabase.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", eventId).maybeSingle()).data ??
         null) as ConferenceSettings | null)
     : null;
+  const conferenceBooked = conferenceHere
+    ? ((await supabase.from("conference_bookings").select("id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
+    : 0;
 
   // Hosts: the setup checklist and what publishing will do.
   const setup: SetupFacts | null = access.isHost
@@ -525,17 +528,20 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               <div className="space-y-1 text-sm leading-6">
                 {conference?.times_saved_at ? (
                   <p className="font-medium">
-                    {meetingSummary(
-                      meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference),
-                      conference.meeting_minutes,
-                    )}
+                    {event.status === "published"
+                      ? `${conferenceBooked} of ${meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference).length} times booked`
+                      : meetingSummary(
+                          meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference),
+                          conference.meeting_minutes,
+                        )}
                     {conference.meeting_mode && ` · ${modeLabel(conference.meeting_mode)}`}
                   </p>
                 ) : (
                   <p className="font-medium">Set your meeting length, breaks, and your room or video link.</p>
                 )}
                 <p className="text-muted">
-                  {notReady(conference, event.venue_address) ?? "Ready to publish."}
+                  {notReady(conference, event.venue_address) ??
+                    (event.status === "published" ? "Families book from your public page link." : "Ready to publish.")}
                 </p>
               </div>
               <Link
