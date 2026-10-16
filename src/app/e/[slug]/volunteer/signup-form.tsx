@@ -85,6 +85,8 @@ export function SignupForm({
               We emailed a confirmation with calendar invites to{" "}
               <strong className="text-foreground">{state.confirmed.email}</strong>.
             </>
+          ) : state.confirmed.shifts.length === 0 ? (
+            <>Your confirmation email went out when you first signed up.</>
           ) : (
             <>Save this page or take a screenshot so you have your times.</>
           )}{" "}

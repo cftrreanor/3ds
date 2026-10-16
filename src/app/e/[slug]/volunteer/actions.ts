@@ -123,14 +123,18 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   const tz = event?.timezone ?? "America/Chicago";
   const multiDay = Boolean(event && event.starts_on !== event.ends_on);
   const entries = await loadCalendarEntries(booked.map((a) => a.id));
-  // The email goes to the inbox owner, so it covers every selected shift.
-  const emailSent = await sendSignupConfirmation(
-    entries,
-    tz,
-    origin,
-    multiDay,
-    others.data.map((c) => (c.minor ? minorName(c.name) : c.name)),
-  );
+  // The email goes to the inbox owner, so it covers every selected shift. Only
+  // when something new was booked: sending the same form again (or a script
+  // doing it) mustn't fill someone's inbox with copies.
+  const emailSent =
+    fresh.length > 0 &&
+    (await sendSignupConfirmation(
+      entries,
+      tz,
+      origin,
+      multiDay,
+      others.data.map((c) => (c.minor ? minorName(c.name) : c.name)),
+    ));
 
   const freshIds = new Set(fresh.map((a) => a.id));
   const rows = entries

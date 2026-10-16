@@ -137,6 +137,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261126000000_conference_demo.sql` | Demo mode for parent-teacher conferences: “Demo this event” fills about two of every three meeting times with sample families (never emailed), and Remove demo people takes them back off | ✅ run |
 | `20261127000000_teacher_accounts.sql` | Free teacher accounts: a teacher signs up on their own (no invitation) and can host parent-teacher conferences only. Adds the account kind and school to each account | ✅ run |
 | `20261128000000_teacher_admin.sql` | Admin tools for free teacher accounts: a "Teacher (free)" pipeline stage (every teacher sign-up gets a card, including ones already signed up), Upgrade to full account, and Suspend (takes the account's events offline and stops it publishing) | ✅ run |
+| `20261129000000_security_hardening.sql` | Security fixes from the penetration test: the same team invitation can be re-sent at most once every 5 minutes, and one account at most 40 invitation emails an hour, so invitations can't be used to flood someone's inbox; visitors who aren't signed in have no permission to change anything in the database directly | |
 
 ## Pilot requests
 
@@ -236,6 +237,39 @@ can run it:
 3. To check it's running: **Vercel → Settings → Cron Jobs** lists `/api/cron/daily`, and
    its **View logs** shows each day's run.
 
+## Error alerts (Sentry)
+Sentry emails you when something breaks on the site: a page that crashes, an email
+that fails to send, or the daily job failing or not running. The code is already in
+place. It stays switched off until you add the key below.
+
+**What Sentry sees:** the error message, the page address, and the line of code. It
+never gets anyone's details. Names typed into forms, cookies, and sign-ins aren't
+sent, email addresses are replaced with `[email]`, and the private part of manage
+links and volunteer passes is replaced with `[token]`.
+
+1. Go to **sentry.io** → **Get started**, and sign up with the business Google account.
+   When asked where to store data, pick **United States**. The free **Developer** plan is enough.
+2. **Create a project:** choose **Next.js** → under *Set your alert frequency* pick
+   **Alert me on every new issue** → name it `field-command-events` → **Create Project**.
+   Sentry then shows setup instructions; skip them (the code is done).
+3. **Copy the DSN:** **Settings → Projects → field-command-events → Client Keys (DSN)** →
+   copy the **DSN** (it starts with `https://` and ends in a number).
+4. In **Vercel → Settings → Environment Variables**, add `NEXT_PUBLIC_SENTRY_DSN` with
+   the DSN, then **Deployments → ⋯ → Redeploy**.
+5. **Readable alerts (recommended):** so each alert points at the real line of code,
+   Sentry needs to receive a map of the code with each build.
+   - Sentry → **Settings → Auth Tokens** (under *Organization*) → **Create New Token** → copy it.
+   - In Vercel add three variables: `SENTRY_AUTH_TOKEN` with the token (turn on
+     **Sensitive**), `SENTRY_ORG` with your organization's short name (it's in Sentry's
+     address bar: `https://<short-name>.sentry.io`), and `SENTRY_PROJECT` with
+     `field-command-events`. Then **Redeploy**.
+6. **Check it's connected:** the day after you redeploy, Sentry → **Crons** lists
+   `daily-job` with a green check. If the daily job ever fails or doesn't run, Sentry
+   opens an issue and emails you.
+
+Alert emails go to the address you signed up with. To add someone, use
+**Settings → Members**; to change what emails you get, use **User Settings → Notifications**.
+
 ---
 
 ## Later: set up when we reach that phase
@@ -274,8 +308,8 @@ Demo people really are on the event while you demo, and as Host you can do anyth
 themselves never get emails.
 
 
-### 6. Sentry: tells us when something breaks (Phase 5)
-sentry.io → sign up with GitHub → create a **Next.js** project. Free tier.
+### 6. Sentry: tells us when something breaks
+Moved up: see **Error alerts (Sentry)** above.
 
 ### 7. PostHog: shows how people use the product (Phase 5)
 posthog.com → sign up → **US Cloud**. Free tier. We'll turn off session recording
