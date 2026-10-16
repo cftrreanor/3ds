@@ -20,7 +20,6 @@ export type Audience = {
   eyebrow: string;
   headline: string;
   intro: string;
-  examples: string;
   /** What it replaces: the tools people use today. */
   replaces: string[];
   /** "How it works": 3 or 4 steps, each with a phone screenshot. */
@@ -43,10 +42,9 @@ export const audiences = {
     metaDescription:
       "Run a marching band contest or jazz festival: online band registration with saved details, a published performance schedule with finals, a live order for spectators, and contest day check-in from parking to the gate.",
     eyebrow: "For band directors and band booster clubs",
-    headline: "Band contests, from registration to the last performance",
+    headline: "Band contests from start to finish",
     intro:
-      "Run a marching invitational, jazz festival, or solo & ensemble without the emailed forms, spreadsheets, and group texts. Directors register online, you publish the schedule, and your volunteers check every band through, from the parking lot to the gate, on their own phones.",
-    examples: "Marching invitationals, jazz festivals, solo & ensemble, concert band contests",
+      "Run a marching invitational, jazz festival, or solo & ensemble from registration to the last performance. Directors register online, you publish the schedule, and volunteers check every band through on their own phones.",
     replaces: [
       "Registration forms emailed back and forth",
       "A schedule retyped and re-sent every time something changes",
@@ -167,10 +165,9 @@ export const audiences = {
     metaDescription:
       "Run a choir or orchestra festival, theater, or speech and debate event: groups register online and move through your rooms on a schedule built for you, while directors and families follow every room live.",
     eyebrow: "For choir directors and fine arts directors",
-    headline: "Choir and group festivals that stay on time",
+    headline: "Festivals that stay on time",
     intro:
-      "Choir and orchestra festivals, theater, and speech and debate: groups register online, then move through your rooms on a schedule built for you. Your team taps each group in and out of every room, and directors and families follow along live.",
-    examples: "Choir and orchestra festivals, theater, speech & debate, UIL academics",
+      "For choir and orchestra festivals, theater, UIL academics, and speech and debate, groups register online and move through your rooms on a schedule built for you. Directors and families follow every room live.",
     replaces: [
       "Room rotations worked out by hand in a spreadsheet",
       "Runners sent to see whether a room is ready",
@@ -287,10 +284,9 @@ export const audiences = {
     metaDescription:
       "Plan a fall festival, carnival, or PTO fundraiser: organize booths and community partners by zone, staff every booth with volunteers, check partners in on the day, and share a public page of everything at the event.",
     eyebrow: "For PTO and PTA leaders",
-    headline: "Fall festivals, carnivals, and fundraisers, organized",
+    headline: "School fairs without the spreadsheets",
     intro:
-      "Keep every booth, community partner, and volunteer shift for your school fair in one place. Partners are checked in as they arrive, volunteers sign up for booths on their own phones, and families see everything at the event on one public page that thanks your partners.",
-    examples: "Fall festivals, carnivals, field days, PTO fundraisers",
+      "Keep every booth, community partner, and volunteer shift for your fall festival, carnival, or fundraiser in one place. Partners check in as they arrive, and families see everything at the event on one public page.",
     replaces: [
       "A booth spreadsheet that only one person can find",
       "Volunteer sign-up sheets passed around at pickup",
@@ -393,10 +389,9 @@ export const audiences = {
     metaDescription:
       "School volunteer management for PTOs, booster clubs, and front offices. Volunteers sign up for shifts without an account and get confirmations, calendar invites, and day-before reminders. Check them in with one tap on any device.",
     eyebrow: "For PTOs, booster clubs, and front offices",
-    headline: "School volunteers, signed up, reminded, and checked in",
+    headline: "Volunteer sign-ups and check-in in one place",
     intro:
-      "Concessions, field day, book fairs, and school parking: build your stations and shifts, share one link, and volunteers sign up on their own phones. Confirmations, calendar invites, and reminders go out on their own, so you know who's coming and who's here.",
-    examples: "Concessions, field day, book fairs, school parking, events of every kind",
+      "For concessions, field day, book fairs, and school parking, volunteers sign up for shifts on their own phones. Confirmations, calendar invites, and reminders go out on their own, so you know who's coming and who's here.",
     replaces: [
       "Paper sign-up sheets and shared spreadsheets",
       "Reminder emails sent one at a time the night before",
@@ -503,10 +498,9 @@ export const audiences = {
     metaDescription:
       "Parent registration and visitor check-in for family lunches, open houses, performances, and award days. Parents register each child, teacher, and grade, get a photo ID reminder, and are checked in at the door on any device.",
     eyebrow: "For school front offices and administrators",
-    headline: "Parent and visitor check-in, without the paper lists",
+    headline: "Parent check-in without the paper lists",
     intro:
-      "For family lunches, open houses, performances, and award days, parents register ahead with each child's name, teacher, and grade. They get a reminder to bring a photo ID, and your front office checks every adult in at the door. Only your team sees children's details, and they're deleted 30 days after the event.",
-    examples: "Family lunches, class parties, open houses, grandparents' days, performances, award days",
+      "For family lunches, class parties, open houses, and award days, parents register ahead with each child's name, teacher, and grade. Your front office checks every adult in at the door, and children's details are deleted 30 days after the event.",
     replaces: [
       "A spreadsheet of children's names that never gets deleted",
       "Printed lists checked off by hand at the front door",

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
+import { infoBox } from "@/components/audience-page";
+import { FaqList } from "@/components/faq-list";
 import { HowItWorks, type HowStep } from "@/components/how-it-works";
 import { SiteFooter } from "@/components/site-footer";
 import { CONFERENCES_PAGE } from "@/lib/audiences";
@@ -50,6 +52,26 @@ const privacy = [
   "Bookings are deleted 30 days after your conferences.",
 ];
 
+// Plain answers to what teachers ask before signing up.
+const faqs = [
+  {
+    q: "Is it really free for teachers?",
+    a: "Yes. A teacher account is free and runs parent-teacher conferences, one published at a time. You sign in with your email, and there's no credit card.",
+  },
+  {
+    q: "Can families meet on video?",
+    a: "Yes. Families choose in person or on video when they book. When you set up, you add your room, a video link, or both.",
+  },
+  {
+    q: "Do families need to make an account?",
+    a: "No. Families book from your link without an account. Each booking gets its own link to change or cancel.",
+  },
+  {
+    q: "Can more than one parent come?",
+    a: "Yes. Up to four parents or guardians can be on one booking, and each one gets the confirmation and calendar invite.",
+  },
+];
+
 /** Parent-teacher conferences: what they do, and a free teacher account to run them. */
 export default function ConferencesPage() {
   return (
@@ -88,7 +110,7 @@ export default function ConferencesPage() {
                 Free for teachers
               </Link>
             </div>
-            <p className="mt-4 text-sm text-on-dark-mute">Sign in with your email. No password or credit card.</p>
+            <p className="mt-4 text-sm text-on-dark-mute">Sign in with your email. No credit card.</p>
           </div>
         </section>
 
@@ -109,15 +131,22 @@ export default function ConferencesPage() {
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-          <div className="rounded-lg bg-brand p-8 text-brand-foreground sm:p-12">
+          <div className={`rounded-lg p-8 sm:p-12 ${infoBox}`}>
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-4xl">Who sees what</h2>
-            <ul className="mt-6 grid max-w-5xl gap-4 leading-7 sm:grid-cols-3">
+            <ul className="mt-6 grid max-w-5xl gap-4 leading-7 sm:grid-cols-2">
               {privacy.map((p) => (
                 <li key={p} className="opacity-90">
                   {p}
                 </li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        <section id="faq" className="scroll-mt-20 border-t border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Common questions</h2>
+            <FaqList faqs={faqs} />
           </div>
         </section>
 
@@ -137,7 +166,7 @@ export default function ConferencesPage() {
 
         <section className="bg-teal-deep text-white">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
-            <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Your conference link, ready today</h2>
+            <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Every detail organized. Every organizer supported.</h2>
             <Link href={START} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
               Free for teachers
             </Link>

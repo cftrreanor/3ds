@@ -7,11 +7,14 @@ import { HowItWorks } from "@/components/how-it-works";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
-import { AUDIENCES, type Audience } from "@/lib/audiences";
+import { AUDIENCES, CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
 
 const CTA = "Join the pilot";
+
+/** The deep-blue "Who sees what" and privacy box. In dark mode it stays navy with white text, like the rest of the page. */
+export const infoBox = "bg-brand text-brand-foreground dark:bg-brand-soft dark:text-white";
 
 /** Title, description and address for one event type's page. */
 export function audienceMetadata(a: Audience): Metadata {
@@ -57,7 +60,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
       },
     ],
   };
-  const others = AUDIENCES.filter((o) => o.path !== a.path);
+  const others = [...AUDIENCES.filter((o) => o.path !== a.path), CONFERENCES_PAGE];
 
   return (
     <div className="flex flex-1 flex-col">
@@ -86,9 +89,6 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
             </p>
             <h1 className="mt-6 max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">{a.headline}</h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">{a.intro}</p>
-            <p className="mt-4 max-w-2xl text-on-dark-mute">
-              <span className="font-semibold text-white">Made for:</span> {a.examples}.
-            </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <JumpLink href="#join" className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
                 {CTA}
@@ -137,7 +137,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
         </div>
 
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6">
-          <div className="rounded-lg bg-brand p-8 text-brand-foreground sm:p-12">
+          <div className={`rounded-lg p-8 sm:p-12 ${infoBox}`}>
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-4xl">Who sees what</h2>
             <ul className="mt-6 grid max-w-5xl gap-4 leading-7 sm:grid-cols-2">
               {a.privacy.map((p) => (
@@ -162,7 +162,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
             <p className="mt-2 max-w-2xl leading-7 text-muted">
               The same {brand.name} account runs every kind of event, all year.
             </p>
-            <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {others.map((o) => (
                 <li key={o.path}>
                   <Link

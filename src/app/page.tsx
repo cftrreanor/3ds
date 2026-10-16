@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { infoBox } from "@/components/audience-page";
 import { CardCarousel } from "@/components/card-carousel";
 import { FaqList } from "@/components/faq-list";
 import { JumpLink } from "@/components/jump-link";
@@ -93,15 +94,9 @@ const kinds = [
 const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%] lg:w-[31%]";
 
 const different = [
-  { title: "Organized", body: "everything for your event on one page" },
-  { title: "Supported", body: "real people, not bots" },
-  { title: "Respectful", body: "no ads and no spam for your families" },
-];
-
-const classroom = [
-  { title: "One form for the whole family", body: "register every adult and every student at once" },
-  { title: "One page, done", body: "no clicking through screen after screen" },
-  { title: "No ads, no spam", body: "emails used for your event and nothing else" },
+  { title: "Organized", body: "Everything for your event is on one page." },
+  { title: "Supported", body: "Real people answer your questions, not bots." },
+  { title: "Respectful", body: "Families sign up in minutes, with no account to make." },
 ];
 
 // "Supported" is a system, not a person on call: no phone numbers,
@@ -301,7 +296,9 @@ export default async function Home() {
         <section className={`hero-sky text-white ${banners.length ? "mt-4" : ""}`}>
           <div className="mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24">
             <h1 className="max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">School events without the clipboards</h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">Contests, school events, and easy sign-ups</p>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
+              Contests, school events, and easy <span className="whitespace-nowrap">sign-ups</span>
+            </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
                 {CTA}
@@ -358,37 +355,7 @@ export default async function Home() {
           </dl>
         </section>
 
-        {/* 4. Classroom sign-ups */}
-        <section className="border-t border-border bg-surface">
-          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-            <h2 className={sectionTitle}>Sign-ups that respect everyone&apos;s time</h2>
-            <p className="mt-3 max-w-2xl leading-7 text-muted">
-              Classroom parties, parent-teacher conferences, and campus visits on one simple page
-            </p>
-            <dl className="mt-10 grid gap-8 sm:grid-cols-3">
-              {classroom.map((c) => (
-                <div key={c.title}>
-                  <dt className="font-semibold">{c.title}</dt>
-                  <dd className="mt-1 leading-7 text-muted">{c.body}</dd>
-                </div>
-              ))}
-            </dl>
-            <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-1">
-              <li>
-                <Link href={CONFERENCES_PAGE.path} className="inline-flex min-h-11 items-center font-medium text-brand underline">
-                  Parent-teacher conferences<span aria-hidden>&nbsp;→</span>
-                </Link>
-              </li>
-              <li>
-                <Link href={audiences.parents.path} className="inline-flex min-h-11 items-center font-medium text-brand underline">
-                  Class parties and campus visits<span aria-hidden>&nbsp;→</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        {/* 5. How support works */}
+        {/* 4. How support works */}
         <section id="support" className="scroll-mt-20 border-t border-border">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className={sectionTitle}>How support works</h2>
@@ -412,7 +379,7 @@ export default async function Home() {
         </section>
 
         <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-          <div className="rounded-lg bg-brand p-8 text-brand-foreground sm:p-12">
+          <div className={`rounded-lg p-8 sm:p-12 ${infoBox}`}>
             <h2 className={sectionTitle}>Privacy by default</h2>
             <dl className="mt-6 grid max-w-5xl gap-6 leading-7 sm:grid-cols-2">
               {privacy.map((p) => (
@@ -469,10 +436,10 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* 6. Closing call to action */}
+        {/* 5. Closing call to action */}
         <section className="bg-teal-deep text-white">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-24">
-            <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Ready for your next event</h2>
+            <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">{TAGLINE}</h2>
             <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free during your pilot. Spots are limited.</p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <JumpLink href={JOIN} className="inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
