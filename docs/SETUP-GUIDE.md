@@ -237,7 +237,10 @@ can run it:
 3. To check it's running: **Vercel → Settings → Cron Jobs** lists `/api/cron/daily`, and
    its **View logs** shows each day's run.
 
-## Error alerts (Sentry)
+## Error alerts (Sentry) ✅
+Set up: Sentry organization `field-command-events-llc`, project `field-command-events`, and
+`NEXT_PUBLIC_SENTRY_DSN` in Vercel. Step 5 (readable alerts) isn't done yet; it's optional.
+
 Sentry emails you when something breaks on the site: a page that crashes, an email
 that fails to send, or the daily job failing or not running. The code is already in
 place. It stays switched off until you add the key below.
