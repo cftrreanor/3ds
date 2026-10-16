@@ -26,21 +26,23 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
 
   return (
     <div className="flex flex-1 flex-col">
-      <DemoBar />
-      <HeaderBar href="/dashboard">
-        {volunteers && (
-          <Link href="/my" className={headerLinkClass}>
-            My shifts
+      <div className="contents print:hidden">
+        <DemoBar />
+        <HeaderBar href="/dashboard">
+          {volunteers && (
+            <Link href="/my" className={headerLinkClass}>
+              My shifts
+            </Link>
+          )}
+          <Link href="/dashboard/account" className={headerLinkClass}>
+            <span className="hidden sm:inline">{user.email}</span>
+            <span className="sm:hidden">Account</span>
           </Link>
-        )}
-        <Link href="/dashboard/account" className={headerLinkClass}>
-          <span className="hidden sm:inline">{user.email}</span>
-          <span className="sm:hidden">Account</span>
-        </Link>
-        <form action="/auth/signout" method="post">
-          <button className={headerLinkClass}>Sign out</button>
-        </form>
-      </HeaderBar>
+          <form action="/auth/signout" method="post">
+            <button className={headerLinkClass}>Sign out</button>
+          </form>
+        </HeaderBar>
+      </div>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <UserBanners userId={user.id} />
         {children}

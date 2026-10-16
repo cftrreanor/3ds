@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { GAP_LENGTHS, MEETING_LENGTHS, type ConferenceBreak, type MeetingMode } from "@/lib/conferences";
-import { createClient } from "@/lib/supabase/server";
+import { loadConference } from "@/app/e/[slug]/book/data";
+import { BOOKING_COLUMNS, bookingEmail, type Booking } from "@/lib/conference-bookings";
+import { getOrigin } from "@/lib/data";
+import { pause, sendEmail } from "@/lib/email";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { zonedToUtc } from "@/lib/time";
 
 const TIME = /^\d{2}:\d{2}$/;
@@ -145,4 +149,40 @@ export async function saveMeetingPlace(eventId: string, _prev: ActionState, form
   if (error) return { error: friendlyDbError(error) };
   refresh(eventId);
   return { ok: true, message: "Saved." };
+}
+
+/**
+ * The teacher cancels one family's meeting: the time opens up again, the
+ * booking (the child's name and the family's details) is deleted, and each
+ * parent is emailed so the invite comes off their calendar.
+ */
+export async function cancelMeeting(eventId: string, bookingId: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  // Only the teacher can see (and delete) their bookings.
+  const { data: seen } = await supabase.from("conference_bookings").select("id").eq("id", bookingId).eq("event_id", eventId).maybeSingle();
+  if (!seen) return { error: "You don't have permission to do that." };
+  const { data: booking } = await createAdminClient().from("conference_bookings").select(BOOKING_COLUMNS).eq("id", bookingId).single();
+  const { data: deleted, error } = await supabase.from("conference_bookings").delete().eq("id", bookingId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!deleted?.length) return { error: "You don't have permission to do that." };
+
+  let emailed = false;
+  const conf = await loadConference({ id: eventId });
+  if (booking && conf) {
+    const b = booking as Booking;
+    const link = `${await getOrigin()}/e/${conf.event.slug}/book`;
+    emailed = true;
+    for (const [i, p] of b.parents.entries()) {
+      if (i) await pause();
+      const message = bookingEmail("canceled", b, conf.event, conf.settings, conf.teacher, link, p, true);
+      emailed = (await sendEmail({ to: p.email, ...message, replyTo: conf.teacher.email ?? undefined })) && emailed;
+    }
+    revalidatePath(`/e/${conf.event.slug}/book`);
+  }
+  refresh(eventId);
+  return {
+    ok: true,
+    message: emailed ? "Canceled. We emailed the family, and the time is open again." : "Canceled, and the time is open again. We couldn't email the family, so please let them know.",
+  };
 }

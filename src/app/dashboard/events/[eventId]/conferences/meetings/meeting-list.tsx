@@ -1,0 +1,186 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { toast } from "@/components/toaster";
+import { Input } from "@/components/ui";
+import type { ActionState } from "@/lib/action-state";
+import { ActionButton } from "../../forms";
+
+export type MeetingParent = {
+  name: string;
+  email: string;
+  phone: string | null;
+  phoneDisplay: string | null;
+};
+
+export type MeetingRow =
+  | {
+      kind: "meeting";
+      key: string;
+      time: string;
+      /** On the day: this meeting is happening now, is up next, or is over. */
+      status: "now" | "next" | "past" | null;
+      booking: {
+        child: string;
+        parents: MeetingParent[];
+        mode: string | null;
+        note: string | null;
+        cancel: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+      } | null;
+    }
+  | { kind: "break"; key: string; time: string; label: string };
+
+const STATUS: Record<"now" | "next" | "past", string> = {
+  now: "Now",
+  next: "Up next",
+  past: "Done",
+};
+
+/** The teacher's meetings in time order, like the parent check-in list: a count, a search box, one card per family. */
+export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booked: number; total: number }) {
+  const [query, setQuery] = useState("");
+  const [openTimes, setOpenTimes] = useState(true);
+  const q = query.trim().toLowerCase();
+  const shown = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (r.kind === "break") return !q && openTimes;
+        if (!r.booking) return !q && openTimes;
+        return (
+          !q ||
+          [r.booking.child, ...r.booking.parents.flatMap((p) => [p.name, p.email, p.phone ?? ""])].some((x) => x.toLowerCase().includes(q))
+        );
+      }),
+    [rows, q, openTimes],
+  );
+  const emails = [...new Set(rows.flatMap((r) => (r.kind === "meeting" && r.booking ? r.booking.parents.map((p) => p.email) : [])))];
+
+  return (
+    <div>
+      <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur print:static print:border-0 print:p-0 sm:mx-0 sm:rounded-lg sm:border">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-medium">
+            <span className="text-2xl font-semibold tabular-nums">{booked}</span>
+            <span className="text-muted">
+              {" "}
+              / {total} times booked · {total - booked} open
+            </span>
+          </p>
+          <Input
+            type="search"
+            placeholder="Child, parent, or email"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="sm:max-w-xs print:hidden"
+            aria-label="Find a family"
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm print:hidden">
+          <label className="inline-flex min-h-11 items-center gap-2">
+            <input type="checkbox" checked={openTimes} onChange={(e) => setOpenTimes(e.target.checked)} className="h-4 w-4" />
+            Show open times and breaks
+          </label>
+          {emails.length > 0 && (
+            <button
+              type="button"
+              className="min-h-11 font-medium text-brand hover:underline"
+              onClick={async () => {
+                const list = emails.join(", ");
+                try {
+                  await navigator.clipboard.writeText(list);
+                  toast(`Copied ${emails.length} parent ${emails.length === 1 ? "email" : "emails"}`);
+                } catch {
+                  window.prompt("Copy these emails:", list);
+                }
+              }}
+            >
+              Copy all parent emails
+            </button>
+          )}
+          <button type="button" className="min-h-11 font-medium text-brand hover:underline" onClick={() => window.print()}>
+            Print
+          </button>
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="mt-6 text-muted">{q ? "No family matches that." : "No meetings booked yet."}</p>
+      ) : (
+        <ol className="mt-5 space-y-3">
+          {shown.map((r) =>
+            r.kind === "break" ? (
+              <li key={r.key} className="flex gap-4 px-3 py-1 text-sm text-muted">
+                <span className="w-36 shrink-0 tabular-nums">{r.time}</span>
+                <span>{r.label}</span>
+              </li>
+            ) : r.booking ? (
+              <li
+                key={r.key}
+                className={`break-inside-avoid rounded-xl border shadow-card print:shadow-none ${
+                  r.status === "now" ? "border-brand ring-2 ring-brand" : "border-border"
+                } ${r.status === "past" ? "bg-background shadow-none" : "bg-surface"}`}
+              >
+                <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <p className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-semibold tabular-nums">{r.time}</span>
+                      {r.status && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            r.status === "now" ? "bg-brand text-brand-foreground" : "bg-background text-muted ring-1 ring-border"
+                          }`}
+                        >
+                          {STATUS[r.status]}
+                        </span>
+                      )}
+                      {r.booking.mode && <span className="text-muted">· {r.booking.mode}</span>}
+                    </p>
+                    <p className="text-lg font-semibold">{r.booking.child}</p>
+                    <ul className="space-y-0.5 text-sm">
+                      {r.booking.parents.map((p) => (
+                        <li key={p.email} className="flex flex-wrap gap-x-3">
+                          <span className="font-medium">{p.name}</span>
+                          <a href={`mailto:${p.email}`} className="text-brand hover:underline">
+                            {p.email}
+                          </a>
+                          {p.phone && (
+                            <a href={`tel:${p.phone}`} className="text-brand hover:underline">
+                              {p.phoneDisplay}
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    {r.booking.note && (
+                      <p className="mt-1 rounded-md bg-background px-3 py-2 text-sm">
+                        <span className="font-medium">Note: </span>
+                        {r.booking.note}
+                      </p>
+                    )}
+                  </div>
+                  {r.status !== "past" && (
+                    <div className="shrink-0 print:hidden">
+                      <ActionButton
+                        action={r.booking.cancel}
+                        variant="secondary"
+                        pendingText="Canceling…"
+                        confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
+                      >
+                        Cancel meeting
+                      </ActionButton>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ) : (
+              <li key={r.key} className="flex gap-4 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm">
+                <span className="w-36 shrink-0 tabular-nums text-muted">{r.time}</span>
+                <span className="text-muted">Open</span>
+              </li>
+            ),
+          )}
+        </ol>
+      )}
+    </div>
+  );
+}
