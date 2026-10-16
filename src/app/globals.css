@@ -50,8 +50,10 @@
     --background: #06121f;
     --surface: #0c1f33;
     --raised: #132a42;
-    --foreground: #f2f5f8;
-    --muted: #a9b8c7;
+    /* Dark mode uses white for all text, supporting text included: no grey. */
+    --foreground: #ffffff;
+    --muted: #ffffff;
+    --on-dark-mute: #ffffff;
     --border: #253a51;
     --field-border: #5f7489;
     --brand: #9cc3ee;
@@ -233,4 +235,15 @@ form[data-missing]::after {
 }
 form[data-missing="fix"]::after {
   content: "Check the boxes outlined in red.";
+}
+
+/* Dark mode: no grey text, so anything faded with opacity elsewhere (past
+   events, finished shifts, small notes) shows at full strength. Outside any
+   layer, so it wins over the utility classes. */
+@media (prefers-color-scheme: dark) {
+  .opacity-90,
+  .opacity-80,
+  .opacity-70 {
+    opacity: 1;
+  }
 }

@@ -14,7 +14,7 @@ colors:
   field-border: "#5F6D77"   # text-box, option and panel edges (5.3:1 on white); dark mode #5F7489
   ink: "#0A0A0A"            # 19.8:1 on white
   ink-mute: "#4B5F72"       # slate blue, 6.6:1 on white, 6.4:1 on surface
-  on-dark-mute: "#B5C3D1"   # 7.0:1 on primary
+  on-dark-mute: "#C8D4E0"   # 8.4:1 on primary; white in dark mode
   success: "#16794A"
   warning: "#854600"
   danger: "#B42318"
@@ -161,7 +161,7 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
 ## Dark theme
 
 Background `#06121F`, surface `#0C1F33`, raised `#132A42`, border `#253A51`,
-text `#F2F5F8`, muted `#A9B8C7`, primary `#9CC3EE` (on-primary `#071A31`),
+text `#FFFFFF`, muted `#FFFFFF` (dark mode has no grey text: supporting text is white too, and opacity-faded text shows at full strength), primary `#9CC3EE` (on-primary `#071A31`),
 accent `#7FB6E0`, success `#64D69A`, warning `#FFC266`, danger `#FF8A80`.
 Header and closing band `#071A31`.
 
