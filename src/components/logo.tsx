@@ -33,4 +33,4 @@ export function HeaderBar({
 
 /** Link styling for use inside the header bar. */
 export const headerLinkClass =
-  "min-h-11 content-center whitespace-nowrap rounded-md px-2 text-white/80 hover:text-white sm:px-3";
+  "min-h-11 content-center whitespace-nowrap rounded-md px-2 text-white/80 hover:text-white dark:text-white sm:px-3";

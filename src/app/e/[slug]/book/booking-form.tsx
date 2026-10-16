@@ -88,7 +88,7 @@ export function BookingForm({
           {times.map((t) => (
             <label
               key={t.value}
-              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border text-sm font-semibold tabular-nums ${
+              className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border text-sm font-semibold tabular-nums has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)] ${
                 picked === t.value ? "border-brand bg-brand text-brand-foreground" : "border-field-border hover:border-brand"
               }`}
             >
@@ -115,7 +115,9 @@ export function BookingForm({
         <legend className="text-lg font-semibold">Parents or guardians coming</legend>
         <p className="-mt-3 text-sm text-muted">Each person gets the confirmation, calendar invite and reminder.</p>
         {parents.map((p, i) => (
-          <div key={i} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
+          <fieldset key={i} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
+            {/* Says which parent each "Name" and "Email" belongs to; shown once there's more than one. */}
+            <legend className={parents.length > 1 ? "px-1 text-sm font-semibold text-muted" : "sr-only"}>Parent or guardian {i + 1}</legend>
             <Field label="Name">
               <Input required maxLength={120} value={p.name} onChange={(e) => set(i, { name: e.target.value })} autoComplete={i ? "off" : "name"} />
             </Field>
@@ -134,12 +136,17 @@ export function BookingForm({
             </Field>
             {parents.length > 1 && (
               <div className="flex items-end">
-                <Button type="button" variant="danger" onClick={() => setParents((list) => list.filter((_, j) => j !== i))}>
+                <Button
+                  type="button"
+                  variant="danger"
+                  aria-label={`Remove parent or guardian ${i + 1}`}
+                  onClick={() => setParents((list) => list.filter((_, j) => j !== i))}
+                >
                   Remove
                 </Button>
               </div>
             )}
-          </div>
+          </fieldset>
         ))}
         {parents.length < 4 && (
           <Button type="button" variant="secondary" onClick={() => setParents((list) => [...list, blankParent()])}>
@@ -180,9 +187,16 @@ export function BookingForm({
       </Field>
 
       <FormMessage error={state.error} />
-      <SubmitButton pendingText="Booking…" disabled={!picked}>
-        Book this time
-      </SubmitButton>
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton pendingText="Booking…" disabled={!picked} aria-describedby={picked ? undefined : "book-hint"}>
+          Book this time
+        </SubmitButton>
+        {!picked && (
+          <p id="book-hint" className="text-sm text-muted">
+            Pick a time above first.
+          </p>
+        )}
+      </div>
     </form>
   );
 }
