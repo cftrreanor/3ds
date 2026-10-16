@@ -145,7 +145,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
         </div>
       )}
 
-      <p className="mt-8 text-sm text-muted">
+      <p className="mt-8 text-sm text-muted print:hidden">
         Only you can see these families and their notes. Everything is deleted 30 days after your conference.
       </p>
     </div>

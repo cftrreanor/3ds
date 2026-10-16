@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DemoBar } from "@/components/demo-bar";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
+import { PrintRecordNote } from "@/components/print-record-note";
 import { UserBanners } from "@/components/user-banners";
 import { requireUser } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -46,6 +47,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <UserBanners userId={user.id} />
         {children}
+        <PrintRecordNote />
       </main>
     </div>
   );

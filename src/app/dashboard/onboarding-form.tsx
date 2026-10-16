@@ -2,6 +2,7 @@
 
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
+import { ACCOUNT_RECORDS_NOTE } from "@/lib/records";
 import { Field, Input, Select } from "@/components/ui";
 import { US_TIMEZONES } from "@/lib/time";
 import { createOrganization } from "./actions";
@@ -27,6 +28,7 @@ export function OnboardingForm() {
           ))}
         </Select>
       </Field>
+      <p className="text-sm text-muted">{ACCOUNT_RECORDS_NOTE}</p>
       <SubmitButton pendingText="Creating…">Create organization</SubmitButton>
     </ActionForm>
   );
