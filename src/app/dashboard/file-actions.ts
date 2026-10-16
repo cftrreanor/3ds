@@ -38,7 +38,7 @@ export async function prepareUpload(
       error:
         file.size > MAX_FILE_BYTES
           ? "That file is over 10 MB. Try a smaller PDF or a photo."
-          : "Please choose a PDF, JPG or PNG file.",
+          : "Please choose a PDF, JPG, or PNG file.",
     };
   }
   if (!(await isHost(eventId))) return { error: "Only hosts can add files." };

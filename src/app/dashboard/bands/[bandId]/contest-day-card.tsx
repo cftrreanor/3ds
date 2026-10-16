@@ -46,7 +46,7 @@ export function ContestDayCard({
             <DayStatusBanner
               status={status}
               phone={phone}
-              doneText={round === "finals" ? "You've performed in the finals. Congratulations! 🎉" : "You've performed. Thank you! 🎉"}
+              doneText={round === "finals" ? "You've performed in the finals. Congratulations." : "You've performed. Thank you."}
             />
           </div>
           {band.equipment_spot != null && (

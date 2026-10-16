@@ -250,7 +250,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                 choices={{ grade: GRADE_CHOICES }}
                 noun={{ one: "family", many: "families" }}
                 templateName="parent-registrations.csv"
-                emailOption="Email each family a confirmation with their link, a calendar invite and the photo ID reminder"
+                emailOption="Email each family a confirmation with their link, a calendar invite, and the photo ID reminder"
                 action={importParents.bind(null, eventId)}
               />
             </SetupStep>

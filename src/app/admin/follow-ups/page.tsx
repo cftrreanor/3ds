@@ -33,7 +33,7 @@ export default async function FollowUpsPage({ searchParams }: PageProps<"/admin/
     <div>
       <PageHeader
         title="Follow-ups"
-        sub={done ? "Finished follow-ups, most recent first." : `${rows.length} open · ${due} due today or overdue. Add one from any account, person or pilot request.`}
+        sub={done ? "Finished follow-ups, most recent first." : `${rows.length} open · ${due} due today or overdue. Add one from any account, person, or pilot request.`}
         actions={
           <nav aria-label="Follow-up views" className="flex rounded-sm border border-border text-sm">
             {VIEWS.map((v) => (

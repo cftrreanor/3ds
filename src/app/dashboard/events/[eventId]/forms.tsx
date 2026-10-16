@@ -125,7 +125,7 @@ export function StationForm({
           </datalist>
         )}
       </Field>
-      <Field label="Instructions for volunteers" hint="Optional. What to wear, bring and do." className="sm:col-span-2">
+      <Field label="Instructions for volunteers" hint="Optional. What to wear, bring, and do." className="sm:col-span-2">
         <Textarea name="instructions" defaultValue={initial?.instructions ?? ""} />
       </Field>
       <label className="flex items-start gap-3 text-sm sm:col-span-2">
@@ -542,7 +542,7 @@ export function InviteForm({
       {role === "host" && (
         <p className="text-sm leading-6 text-muted sm:col-span-2">
           A co-host has the same access you do, on all of your organization&apos;s events: publishing, bands, the
-          schedule, volunteers and the team.
+          schedule, volunteers, and the team.
         </p>
       )}
       {role === "section_lead" && stations.length > 0 && (
@@ -582,7 +582,7 @@ export function CopyLinkButton({ url, label = "Copy invite link" }: { url: strin
         }
       }}
     >
-      {copied ? "Copied!" : label}
+      {copied ? "Copied" : label}
     </Button>
   );
 }

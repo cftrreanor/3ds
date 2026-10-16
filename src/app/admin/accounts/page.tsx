@@ -71,7 +71,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
         </Link>
       </p>
       <FilterBar>
-        <input name="q" defaultValue={q} placeholder="Name, school or host email" aria-label="Search accounts" className={`${smallInput} w-56`} />
+        <input name="q" defaultValue={q} placeholder="Name, school, or host email" aria-label="Search accounts" className={`${smallInput} w-56`} />
         <select name="kind" defaultValue={kind} aria-label="Account type" className={smallInput}>
           <option value="">All accounts</option>
           <option value="teacher">Teachers (free)</option>

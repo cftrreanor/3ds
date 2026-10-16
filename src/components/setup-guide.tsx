@@ -78,7 +78,7 @@ function Steps({ checklist, onNavigate }: { checklist: SetupChecklist; onNavigat
     <div>
       <h2 className="text-lg font-semibold">Setup checklist</h2>
       <p className="mt-1 text-sm text-muted">
-        {checklist.doneCount === checklist.total ? "All set. Nice work!" : `${checklist.doneCount} of ${checklist.total} done`}
+        {checklist.doneCount === checklist.total ? "All set" : `${checklist.doneCount} of ${checklist.total} done`}
       </p>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
         <div className="h-full rounded-full bg-success" style={{ width: `${pct}%` }} />

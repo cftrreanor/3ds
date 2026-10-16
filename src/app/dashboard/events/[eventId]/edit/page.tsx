@@ -18,20 +18,20 @@ import { EventForm } from "../../_components/event-form";
 export const metadata: Metadata = { title: "Edit event" };
 
 const TYPE_SUMMARY = {
-  band_contest: "Bands register, get performance times and are checked in on contest day, alongside your volunteers.",
-  group_event: "Groups (choirs, orchestras, teams and more) register and move through your rooms on a schedule worked out for them, alongside your volunteers.",
-  volunteer: "Volunteers, shifts, check-in and your team only. No band registration or performance schedule.",
+  band_contest: "Bands register, get performance times, and are checked in on contest day, alongside your volunteers.",
+  group_event: "Groups (choirs, orchestras, teams, and more) register and move through your rooms on a schedule worked out for them, alongside your volunteers.",
+  volunteer: "Volunteers, shifts, check-in, and your team only. No band registration or performance schedule.",
   school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers. Children's details are seen only by your team and permanently deleted 30 days after the event.",
   conference: "Families book a meeting time with you, in person or on video. Free: you can have one published conference at a time.",
 };
 
 // What switching to each kind adds or removes.
 const SWITCH_NOTE = {
-  band_contest: "Band registration, the performance schedule and contest day check-in are added.",
-  group_event: "Group registration, rooms and each group's room schedule are added; the single performance order and band check-in stations go away.",
-  volunteer: "Band registration, parent registration and the performance schedule go away; band check-in stations become ordinary stations.",
+  band_contest: "Band registration, the performance schedule, and contest day check-in are added.",
+  group_event: "Group registration, rooms, and each group's room schedule are added; the single performance order and band check-in stations go away.",
+  volunteer: "Band registration, parent registration, and the performance schedule go away; band check-in stations become ordinary stations.",
   school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
-  fair: "Booths and partners by zone, partner check-in and the public \u201cWhat's at the event\u201d list are added; band registration and the performance schedule go away.",
+  fair: "Booths and partners by zone, partner check-in, and the public \u201cWhat's at the event\u201d list are added; band registration and the performance schedule go away.",
 };
 
 /** Edit details, as setup steps (see "Setup pages" in docs/DESIGN.md). ?step=files opens Maps & documents. */
@@ -89,7 +89,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           title="1. Event details"
           status={<StepStatus done doneLabel="Saved" />}
           open={step !== "files" && step !== "kind"}
-          intro="The name, dates, times and venue everyone sees."
+          intro="The name, dates, times, and venue everyone sees."
         >
           <EventForm
             action={updateEvent.bind(null, eventId)}
@@ -123,8 +123,8 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           open={step === "files"}
           intro={
             groupsHere
-              ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers or your team.`
-              : "Share a site map, parking map or volunteer guide. Choose who sees each one: the public page, volunteers or your team."
+              ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map, or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers, or your team.`
+              : "Share a site map, parking map, or volunteer guide. Choose who sees each one: the public page, volunteers, or your team."
           }
         >
           <FilesManager

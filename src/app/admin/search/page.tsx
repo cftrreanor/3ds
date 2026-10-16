@@ -16,7 +16,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/admin/sea
   const { q: raw } = await searchParams;
   const q = typeof raw === "string" ? raw.trim().slice(0, 200) : "";
   const lower = q.toLowerCase();
-  if (!q) return <PageHeader title="Search" sub="Type a name, school or email in the box above." />;
+  if (!q) return <PageHeader title="Search" sub="Type a name, school, or email in the box above." />;
 
   const admin = createAdminClient();
   const pattern = like(q);
@@ -48,7 +48,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/admin/sea
               <HealthPill level={a.health.level} />
             </li>
           ))}
-          {accountHits.length === 0 && <li className="px-3 py-3 text-sm text-muted">No accounts.</li>}
+          {accountHits.length === 0 && <li className="px-3 py-3 text-sm text-muted">No accounts</li>}
         </ul>
       </Panel>
       <Panel title={`People (${people.length})`} flush>
@@ -59,7 +59,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/admin/sea
               <span className="text-muted"> · {p.email}</span>
             </li>
           ))}
-          {people.length === 0 && <li className="px-3 py-3 text-sm text-muted">No one with an account.</li>}
+          {people.length === 0 && <li className="px-3 py-3 text-sm text-muted">No one with an account</li>}
         </ul>
       </Panel>
       <Panel title={`Pilot requests (${requests.length})`} flush>
@@ -76,7 +76,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/admin/sea
               <Tag>{stageLabel(r.status)}</Tag>
             </li>
           ))}
-          {requests.length === 0 && <li className="px-3 py-3 text-sm text-muted">No pilot requests.</li>}
+          {requests.length === 0 && <li className="px-3 py-3 text-sm text-muted">No pilot requests</li>}
         </ul>
       </Panel>
       {q.includes("@") && (

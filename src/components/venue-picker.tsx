@@ -198,7 +198,7 @@ function VenueSearch({
 
   return (
     <div className="grid gap-2">
-      <Field label={kind} hint={kind === "Venue" ? "Start typing a stadium, school or street address." : "Start typing your school's name or address."}>
+      <Field label={kind} hint={kind === "Venue" ? "Start typing a stadium, school, or street address." : "Start typing your school's name or address."}>
         <div className="relative">
           <Input
             role="combobox"

@@ -62,7 +62,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   const before: SetupStep[] = [
     {
       id: "details",
-      label: "Add the date, time and place",
+      label: "Add the date, time, and place",
       hint: "Shown on your public page. You can change them later.",
       href: `${base}/edit`,
       done: true,
@@ -92,7 +92,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       {
         id: "check-in",
         label: "Set your contest day check-in stops",
-        hint: "Like Parking, Check-in and the Gate.",
+        hint: "Like Parking, Check-in, and the Gate.",
         href: `${base}/volunteering`,
         done: f.checkInStops > 0,
         required: false,

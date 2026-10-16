@@ -35,7 +35,7 @@ export const BOOKING_COLUMNS = "id, starts_at, child_name, parents, meeting_mode
 
 /** The privacy promise, in one line (emails). The pages show it in full (book/privacy-note). */
 export const privacyLine = (teacher: Teacher) =>
-  `Only ${teacher.name} sees your child's name, your details and your note. Other families never see who booked. Everything is deleted 30 days after the conference.`;
+  `Only ${teacher.name} sees your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after the conference.`;
 
 /** A family's link to see, change or cancel their meeting. */
 export const bookingLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/book/r/${token}`;
@@ -128,7 +128,7 @@ export function bookingEmail(
       ...emailLayout({
         heading: "Your conference was canceled",
         paragraphs: [
-          `Hi ${first}, the conference for ${b.child_name} with ${teacher.name} (${when}) is canceled, and your booking details (your child's name, your contact details and your note) have been deleted.`,
+          `Hi ${first}, the conference for ${b.child_name} with ${teacher.name} (${when}) is canceled, and your booking details (your child's name, your contact details, and your note) have been deleted.`,
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
         button: { label: "Book another time", url: link },

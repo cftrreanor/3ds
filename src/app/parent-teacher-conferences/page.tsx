@@ -9,7 +9,7 @@ import { brand } from "@/lib/brand";
 export const metadata: Metadata = {
   title: "Parent-Teacher Conference Scheduling, Free for Teachers",
   description:
-    "Free for teachers: set aside a day and families book their own conference time, in person or on video, with calendar invites, reminders and a link to change or cancel.",
+    "Free for teachers: set aside a day and families book their own conference time, in person or on video, with calendar invites, reminders, and a link to change or cancel.",
   alternates: { canonical: CONFERENCES_PAGE.path },
 };
 
@@ -25,7 +25,7 @@ const steps: HowStep[] = [
   },
   {
     title: "Families pick a time",
-    body: "Share one link. Families see only open times, so no one is ever double-booked, and choose in person or video.",
+    body: "Share one link. Families choose an open time, in person or on video. Taken times aren't shown, so no one is double-booked.",
     screen: "/screens/conference-booking-page.webp",
     alt: "A parent booking a conference: open times to pick from, their child's name, and their own details.",
   },
@@ -45,7 +45,7 @@ const points = [
 ];
 
 const privacy = [
-  "Only you see children's names and family notes. No one else at the school, and no other family.",
+  "Only you see children's names and family notes, not anyone else at the school or any other family.",
   "Families never see who else booked. Taken times simply aren't listed.",
   "Bookings are deleted 30 days after your conferences.",
 ];
@@ -77,11 +77,11 @@ export default function ConferencesPage() {
               Parent-teacher conferences
             </p>
             <h1 className="mt-6 max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">
-              Parent-teacher conferences that schedule themselves.
+              Parent-teacher conferences that schedule themselves
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
               Set aside a day, share one link, and families book their own time, in person or on video. No sign-up
-              sheets, no reply-all emails, no double bookings.
+              sheets, no reply-all emails, and no double bookings.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href={START} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
@@ -126,9 +126,9 @@ export default function ConferencesPage() {
             <h2 className="text-2xl font-semibold">What&apos;s free</h2>
             <p className="mt-3 leading-7 text-muted">
               A free teacher account runs parent-teacher conferences, one published at a time. Planning a band contest,
-              school fair, volunteer event or school visitor day?{" "}
+              school fair, volunteer event, or school visitor day?{" "}
               <Link href="/#join" className="font-medium text-brand underline">
-                Request a pilot
+                Join the pilot
               </Link>{" "}
               and we&apos;ll set up {brand.name} for your school.
             </p>
@@ -137,7 +137,7 @@ export default function ConferencesPage() {
 
         <section className="bg-teal-deep text-white">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
-            <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Your conference link, ready today.</h2>
+            <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Your conference link, ready today</h2>
             <Link href={START} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
               Free for teachers
             </Link>

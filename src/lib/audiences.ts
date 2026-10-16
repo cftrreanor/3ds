@@ -31,7 +31,7 @@ export type Audience = {
 };
 
 const VOLUNTEERS_TOO =
-  "Volunteers sign up for shifts on their phone without making an account, get a confirmation, a calendar invite and a reminder the day before, and are checked in at the desk with one tap.";
+  "Volunteers sign up for shifts on their phone without making an account. They get a confirmation, a calendar invite, and a reminder the day before, and they're checked in at the desk with one tap.";
 
 export const audiences = {
   bands: {
@@ -43,20 +43,20 @@ export const audiences = {
     metaDescription:
       "Run a marching band contest or jazz festival: online band registration with saved details, a published performance schedule with finals, a live order for spectators, and contest day check-in from parking to the gate.",
     eyebrow: "For band directors and band booster clubs",
-    headline: "Band contests, from registration to the last performance.",
+    headline: "Band contests, from registration to the last performance",
     intro:
-      "Host a marching invitational, jazz festival or solo & ensemble without the emailed forms, spreadsheets and group texts. Directors register online, you publish the schedule, and your volunteers check every band through, from the parking lot to the gate, on their own phones.",
+      "Run a marching invitational, jazz festival, or solo & ensemble without the emailed forms, spreadsheets, and group texts. Directors register online, you publish the schedule, and your volunteers check every band through, from the parking lot to the gate, on their own phones.",
     examples: "Marching invitationals, jazz festivals, solo & ensemble, concert band contests",
     replaces: [
       "Registration forms emailed back and forth",
       "A schedule retyped and re-sent every time something changes",
-      "Clipboards at the parking lot, check-in table and gate",
+      "Clipboards at the parking lot, check-in table, and gate",
       "Group texts asking where a band is",
     ],
     sections: [
       {
         title: "Band registration that remembers",
-        body: "Share one registration link. Directors enter their school, band, classification, directors, student and chaperone counts, vehicles, scheduling conflicts and any staging or accessibility needs.",
+        body: "Share one registration link. Directors enter their school, band, classification, directors, student and chaperone counts, vehicles, scheduling conflicts, and any staging or accessibility needs.",
         points: [
           "Invite directors from your past contests, and their saved band details are filled in for them",
           "Set your own classifications, a chaperone limit, and a registration deadline that closes on its own",
@@ -66,7 +66,7 @@ export const audiences = {
       },
       {
         title: "A performance schedule everyone can trust",
-        body: "Build the preliminaries running order with warm-up and performance times, locations and breaks, then publish it for directors and spectators.",
+        body: "Build the preliminaries running order with warm-up and performance times, locations, and breaks, then publish it for directors and spectators.",
         points: [
           "Directors are emailed when their time changes, and anyone with the schedule open is told it was updated",
           "Running late? Push the rest of the schedule back in one step, and affected directors are emailed",
@@ -76,10 +76,10 @@ export const audiences = {
       },
       {
         title: "Contest day check-in, your way",
-        body: "Set the stops every band moves through, like Parking, Check-in, Warm-up and the Gate. Volunteers at each stop tap a band through on any phone, tablet or laptop.",
+        body: "Set the stops every band moves through, like Parking, Check-in, Warm-up, and the Gate. Volunteers at each stop tap a band through on any phone, tablet, or laptop.",
         points: [
-          "Assign parking spots for buses, equipment trucks and trailers as bands arrive",
-          "See which bands are on track, running late or still to arrive",
+          "Assign parking spots for buses, equipment trucks, and trailers as bands arrive",
+          "See which bands are on track, running late, or still to arrive",
           "Every tap records who made it and when, and can be undone",
           "Directors see their band's next step on their own phone",
         ],
@@ -95,7 +95,7 @@ export const audiences = {
       },
       {
         title: "Volunteers for every station",
-        body: `Concessions, parking, the gate and hospitality all run on the same event. ${VOLUNTEERS_TOO}`,
+        body: `Concessions, parking, the gate, and hospitality all run on the same event. ${VOLUNTEERS_TOO}`,
         points: [
           "Volunteer Leads and Section Leads see only what their role needs",
           "Walk-up volunteers can be added and checked in on the day",
@@ -105,15 +105,15 @@ export const audiences = {
     steps: [
       {
         title: "Open registration",
-        body: "Set your classifications, a chaperone limit and a deadline, then invite directors from your past contests.",
+        body: "Set your classifications, a chaperone limit, and a deadline, then invite directors from your past contests.",
         screen: "/screens/band-registration-setup.webp",
-        alt: "The host's Band Registration page: registration settings done, registration open, and three registered bands.",
+        alt: "The organizer's Band Registration page: registration settings done, registration open, and three registered bands.",
       },
       {
         title: "Directors register",
-        body: "Directors fill in their school, band, directors, student counts and vehicles, and can update until registration closes.",
+        body: "Directors fill in their school, band, directors, student counts, and vehicles. They can update it until registration closes.",
         screen: "/screens/band-registration-form.webp",
-        alt: "A band director filling in the registration form: school name, band name, classification and contact email.",
+        alt: "A band director filling in the registration form: school name, band name, classification, and contact email.",
       },
       {
         title: "Publish the schedule",
@@ -123,21 +123,21 @@ export const audiences = {
       },
       {
         title: "Run contest day",
-        body: "Check bands through parking, check-in and warm-up, and see who's on track at a glance.",
+        body: "Check bands through parking, check-in, and warm-up, and see who's on track at a glance.",
         screen: "/screens/event-day-dashboard-blue.webp",
-        alt: "The contest day dashboard: a schedule-change banner and how many bands have parked, checked in and warmed up.",
+        alt: "The contest day dashboard: a schedule-change banner and how many bands have parked, checked in, and warmed up.",
       },
     ],
     privacy: [
-      "Bands' contact details are seen only by your hosts and that band's own director.",
-      "Section Leads see each band's name, school and progress; Volunteer Leads also see headcounts and vehicles.",
-      "Directors' personal details are removed 2 years after the contest. The band, school and headcounts stay for your records.",
+      "Only your organizers and each band's own director see that band's contact details.",
+      "Section Leads see each band's name, school, and progress. Volunteer Leads also see headcounts and vehicles.",
+      "Directors' personal details are removed 2 years after the contest. The band, school, and headcounts stay for your records.",
       "Volunteers' details are deleted 10 days after the contest.",
     ],
     faqs: [
       {
         q: "How do band directors register for our contest?",
-        a: "Share one registration link. Directors sign in, register their band with its classification, directors, headcounts, chaperones and vehicles, and can update it while registration is open. They see their performance time as soon as you publish the schedule.",
+        a: "Share one registration link. Directors sign in, register their band with its classification, directors, headcounts, chaperones, and vehicles, and can update it while registration is open. They see their performance time as soon as you publish the schedule.",
       },
       {
         q: "Can returning bands reuse last year's registration?",
@@ -153,7 +153,7 @@ export const audiences = {
       },
       {
         q: "Can parents and fans follow the performance order?",
-        a: "Yes. The public event page shows the schedule live on contest day: who's performing now, who's next and who has performed, with no contact details or headcounts.",
+        a: "Yes. The public event page shows the schedule live on contest day: who's performing now, who's next, and who has performed, with no contact details or headcounts.",
       },
     ],
   },
@@ -167,10 +167,10 @@ export const audiences = {
     metaDescription:
       "Run a choir or orchestra festival, theater, or speech and debate event: groups register online and move through your rooms on a schedule built for you, while directors and families follow every room live.",
     eyebrow: "For choir directors and fine arts directors",
-    headline: "Choir and group festivals that stay on time.",
+    headline: "Choir and group festivals that stay on time",
     intro:
-      "Choir and orchestra festivals, theater, speech and debate: groups register online, then move through your rooms on a schedule built for you. Your team taps each group in and out of every room, and directors and families follow along live.",
-    examples: "Choir and orchestra festivals, theater, speech & debate",
+      "Choir and orchestra festivals, theater, and speech and debate: groups register online, then move through your rooms on a schedule built for you. Your team taps each group in and out of every room, and directors and families follow along live.",
+    examples: "Choir and orchestra festivals, theater, speech & debate, UIL academics",
     replaces: [
       "Room rotations worked out by hand in a spreadsheet",
       "Runners sent to see whether a room is ready",
@@ -180,7 +180,7 @@ export const audiences = {
     sections: [
       {
         title: "Registration for every group",
-        body: "Share one registration link. Directors register their group with its directors, participant and chaperone counts, scheduling conflicts and any accessibility needs.",
+        body: "Share one registration link. Directors register their group with its directors, participant and chaperone counts, scheduling conflicts, and any accessibility needs.",
         points: [
           "Invite directors from your past festivals, and their saved details are filled in for them",
           "Set a registration deadline that closes on its own",
@@ -189,7 +189,7 @@ export const audiences = {
       },
       {
         title: "Your rooms, in order",
-        body: "Add your rooms, such as warm-up, performance, sight-reading or a clinic, and the order every group moves through them, each with its own number of minutes.",
+        body: "Add your rooms, such as warm-up, performance, sight-reading, or a clinic, and the order every group moves through them, each with its own number of minutes.",
         points: [
           "Add a note to each room, like “Room 112, east hallway”",
           "List hospitality and other rooms that aren't part of the rotation",
@@ -197,7 +197,7 @@ export const audiences = {
       },
       {
         title: "A schedule built for you",
-        body: "Set the start time, the minutes between groups and the passing time between rooms, and every group's itinerary is worked out for you.",
+        body: "Set the start time, the minutes between groups, and the passing time between rooms. Every group's itinerary is worked out for you.",
         points: [
           "Change a group's starting order, skip a room for one group, or add a lunch break",
           "Adjust any time by hand, then publish",
@@ -206,7 +206,7 @@ export const audiences = {
       },
       {
         title: "Every room on time",
-        body: "On the day, anyone on your team taps a group Arrived when it reaches the building and Done as it finishes each room, on any phone, tablet or laptop.",
+        body: "On the day, anyone on your team taps a group Arrived when it reaches the building and Done as it finishes each room, on any phone, tablet, or laptop.",
         points: [
           "One view of all groups, plus a view for each room",
           "Taps can be taken back if someone taps the wrong group",
@@ -227,13 +227,13 @@ export const audiences = {
         title: "Set up rooms and the order",
         body: "Add the rooms every group visits. Each group's times are worked out for you, room by room.",
         screen: "/screens/group-rooms-schedule.webp",
-        alt: "Rooms & Schedule Setup: each choir's warm-up, main stage and sight-reading times.",
+        alt: "Rooms & Schedule Setup: each choir's warm-up, main stage, and sight-reading times.",
       },
       {
         title: "Groups register",
-        body: "Directors register their group online with their school, directors and any scheduling conflicts.",
+        body: "Directors register their group online with their school, directors, and any scheduling conflicts.",
         screen: "/screens/group-registration-form.webp",
-        alt: "A director registering a choir: school name, group name, classification and contact email.",
+        alt: "A director registering a choir: school name, group name, classification, and contact email.",
       },
       {
         title: "Families follow each room live",
@@ -249,15 +249,15 @@ export const audiences = {
       },
     ],
     privacy: [
-      "Groups' contact details are seen only by your hosts and that group's own director.",
+      "Only your organizers and each group's own director see that group's contact details.",
       "Families see room times, never contact details or headcounts.",
-      "Directors' personal details are removed 2 years after the festival. The group, school and headcounts stay for your records.",
+      "Directors' personal details are removed 2 years after the festival. The group, school, and headcounts stay for your records.",
       "Volunteers' details are deleted 10 days after the festival.",
     ],
     faqs: [
       {
         q: "How is the room schedule built?",
-        a: "Add your rooms in the order groups move through them and how long each takes, then set the start time, the minutes between groups and the passing time. Every group's itinerary is worked out for you, and you can change the order, skip rooms, add breaks or adjust any time before you publish.",
+        a: "Add your rooms in the order groups move through them and how long each takes, then set the start time, the minutes between groups, and the passing time. Every group's itinerary is worked out for you, and you can change the order, skip rooms, add breaks, or adjust any time before you publish.",
       },
       {
         q: "Does it work for orchestra, theater, or speech and debate?",
@@ -273,7 +273,7 @@ export const audiences = {
       },
       {
         q: "Do visiting directors pay or need an app?",
-        a: `No. Visiting directors use ${brand.name} free, in their phone's web browser. Only the school or organization hosting the festival pays to use it. Any festival fee is set and collected by the host.`,
+        a: `No. Visiting directors use ${brand.name} free, in their phone's web browser. Only the school or organization hosting the festival pays to use it. Any festival fee is set and collected by the organizer.`,
       },
     ],
   },
@@ -285,11 +285,11 @@ export const audiences = {
     name: "School fairs & fundraisers",
     metaTitle: "School Fair, Carnival & Fundraiser Planning Software for PTOs",
     metaDescription:
-      "Plan a fall festival, carnival or PTO fundraiser: organize booths and community partners by zone, staff every booth with volunteers, check partners in on the day, and share a public page of everything at the event.",
+      "Plan a fall festival, carnival, or PTO fundraiser: organize booths and community partners by zone, staff every booth with volunteers, check partners in on the day, and share a public page of everything at the event.",
     eyebrow: "For PTO and PTA leaders",
-    headline: "Fall festivals, carnivals and fundraisers, organized.",
+    headline: "Fall festivals, carnivals, and fundraisers, organized",
     intro:
-      "Keep every booth, community partner and volunteer shift for your school fair in one place. Partners are checked in as they arrive, volunteers sign up for booths on their own phones, and families see everything at the event on one public page that thanks your partners.",
+      "Keep every booth, community partner, and volunteer shift for your school fair in one place. Partners are checked in as they arrive, volunteers sign up for booths on their own phones, and families see everything at the event on one public page that thanks your partners.",
     examples: "Fall festivals, carnivals, field days, PTO fundraisers",
     replaces: [
       "A booth spreadsheet that only one person can find",
@@ -300,9 +300,9 @@ export const audiences = {
     sections: [
       {
         title: "Booths, organized by zone",
-        body: "Add every booth with its location, a short description and the partner or vendor running it, and group them into zones.",
+        body: "Add every booth with its location, a short description, and the partner or vendor running it, then group them into zones.",
         points: [
-          "Start with Game Zone, Activity Stations, Marketplace, Showcase and Food & Drinks, or name your own zones",
+          "Start with Game Zone, Activity Stations, Marketplace, Showcase, and Food & Drinks, or name your own zones",
           "Choose which booths are listed publicly",
           "Keep each partner's contact details private to your team",
         ],
@@ -335,7 +335,7 @@ export const audiences = {
     steps: [
       {
         title: "Add booths by zone",
-        body: "Games, activities, vendors and showcases, each with the partner who runs it.",
+        body: "Games, activities, vendors, and showcases, each with the partner who runs it.",
         screen: "/screens/fair-booths-by-zone.webp",
         alt: "Booths & Partners: zones and booths set up, and partners checked in as they arrive.",
       },
@@ -359,7 +359,7 @@ export const audiences = {
       },
     ],
     privacy: [
-      "Partners' contact details never appear on the public page, and are removed 15 months after the event.",
+      "Partners' contact details never appear on the public page and are removed 15 months after the event.",
       "Volunteers' details are deleted 10 days after the event.",
       "Student volunteers under 18 are stored by first name and last initial, with their parent's contact details.",
       "Station Coordinators see their volunteers' phone numbers only on event day.",
@@ -371,7 +371,7 @@ export const audiences = {
       },
       {
         q: "How do volunteers sign up for booths?",
-        a: "Share one link or QR code. Volunteers pick a station and shift on their phone without making an account, and get a confirmation, a calendar invite and a reminder the day before.",
+        a: "Share one link or QR code. Volunteers pick a station and shift on their phone without making an account, and get a confirmation, a calendar invite, and a reminder the day before.",
       },
       {
         q: "Can students volunteer at our fair?",
@@ -379,7 +379,7 @@ export const audiences = {
       },
       {
         q: "Does it sell tickets or take payments?",
-        a: `No. ${brand.name} organizes your booths, partners and volunteers; keep selling tickets and taking payments the way you do today.`,
+        a: `No. ${brand.name} organizes your booths, partners, and volunteers. Keep selling tickets and taking payments the way you do today.`,
       },
     ],
   },
@@ -391,11 +391,11 @@ export const audiences = {
     name: "School volunteers",
     metaTitle: "School Volunteer Sign-up, Scheduling & Check-in Software",
     metaDescription:
-      "School volunteer management for PTOs, booster clubs and front offices: shift sign-ups with no account needed, confirmations, calendar invites and day-before reminder emails, and one-tap check-in on any device.",
-    eyebrow: "For PTOs, booster clubs and front offices",
-    headline: "School volunteers, signed up, reminded and checked in.",
+      "School volunteer management for PTOs, booster clubs, and front offices. Volunteers sign up for shifts without an account and get confirmations, calendar invites, and day-before reminders. Check them in with one tap on any device.",
+    eyebrow: "For PTOs, booster clubs, and front offices",
+    headline: "School volunteers, signed up, reminded, and checked in",
     intro:
-      "Concessions, field day, book fairs, school parking: build your stations and shifts, share one link, and volunteers sign up on their own phones. Confirmations, calendar invites and reminders go out on their own, and you always know who's coming and who's here.",
+      "Concessions, field day, book fairs, and school parking: build your stations and shifts, share one link, and volunteers sign up on their own phones. Confirmations, calendar invites, and reminders go out on their own, so you know who's coming and who's here.",
     examples: "Concessions, field day, book fairs, school parking, events of every kind",
     replaces: [
       "Paper sign-up sheets and shared spreadsheets",
@@ -406,7 +406,7 @@ export const audiences = {
     sections: [
       {
         title: "Stations and shifts, built with ease",
-        body: "Set up each station, its shifts and how many people each shift needs. Sign-ups stop when a shift is full, so you never end up with ten people at one table and nobody at the next.",
+        body: "Set up each station, its shifts, and how many people each shift needs. Sign-ups stop when a shift is full, so you never end up with ten people at one table and nobody at the next.",
         points: [
           "Add where volunteers should report and who's leading each station",
           "Open and close sign-ups whenever you're ready",
@@ -424,15 +424,15 @@ export const audiences = {
       },
       {
         title: "Reminders that go out on their own",
-        body: "Every volunteer gets a confirmation email with a calendar invite, an update if their shift changes, and a reminder the day before with their station, time, where to report and who their lead is.",
+        body: "Every volunteer gets a confirmation email with a calendar invite, an update if their shift changes, and a reminder the day before with their station, time, where to report, and who their lead is.",
         points: ["No advertisements in any email", "No extra work for you"],
       },
       {
         title: "Check-in on any device",
-        body: "Check volunteers in at the desk with one tap, on any phone, tablet or laptop. Walk-ups can be added and checked in on the spot, even onto a full shift.",
+        body: "Check volunteers in at the desk with one tap, on any phone, tablet, or laptop. Walk-ups can be added and checked in on the spot, even onto a full shift.",
         points: [
           "Release a no-show to free up their spot",
-          "See who's registered, who's arrived and who's still to come",
+          "See who's registered, who's arrived, and who's still to come",
         ],
       },
       {
@@ -453,7 +453,7 @@ export const audiences = {
       },
       {
         title: "Share a link or QR code",
-        body: "Volunteers pick their own shifts, with a confirmation, calendar invite and reminder.",
+        body: "Volunteers pick their own shifts and get a confirmation, calendar invite, and reminder.",
         screen: "/screens/volunteer-signup-blue.webp",
         alt: "A volunteer picking a shift on the event's sign-up page.",
       },
@@ -468,7 +468,7 @@ export const audiences = {
       "Volunteers never make an account, and their details are deleted 10 days after the event.",
       "Under-18 helpers are stored by first name and last initial, with their parent's contact details.",
       "Section Leads see their volunteers' contact details only on event day.",
-      "We never sell anyone's data, and there are no ads.",
+      "No ads, no spam, and emails used only for your event",
     ],
     faqs: [
       {
@@ -477,11 +477,11 @@ export const audiences = {
       },
       {
         q: "Do volunteers get reminders?",
-        a: "Yes. A confirmation email with a calendar invite when they sign up, an update if their shift changes, and a reminder the day before with their station, time, where to report and their lead.",
+        a: "Yes. A confirmation email with a calendar invite when they sign up, an update if their shift changes, and a reminder the day before with their station, time, where to report, and their lead.",
       },
       {
         q: "How do we keep track of who showed up?",
-        a: "Check volunteers in at the desk with one tap on any device. You see who's registered, who's arrived and who's still to come, and you can add walk-ups or release no-shows on the spot.",
+        a: "Check volunteers in at the desk with one tap on any device. You see who's registered, who's arrived, and who's still to come, and you can add walk-ups or release no-shows on the spot.",
       },
       {
         q: "Can parents sign up with their kids?",
@@ -499,16 +499,16 @@ export const audiences = {
     eventType: "school_visit",
     icon: "🏫",
     name: "Parent & visitor check-in",
-    metaTitle: "Parent & Visitor Check-in for Schools: A Google Form Alternative",
+    metaTitle: "Parent & Visitor Check-in for School Events",
     metaDescription:
-      "Parent registration and visitor check-in for family lunches, open houses, performances and award days: parents register each child, teacher and grade, get a photo ID reminder, and are checked in at the door on any device.",
+      "Parent registration and visitor check-in for family lunches, open houses, performances, and award days. Parents register each child, teacher, and grade, get a photo ID reminder, and are checked in at the door on any device.",
     eyebrow: "For school front offices and administrators",
-    headline: "Parent and visitor check-in, without the Google Form.",
+    headline: "Parent and visitor check-in, without the paper lists",
     intro:
-      "For family lunches, open houses, performances and award days, parents register ahead with each child's name, teacher and grade, get a reminder to bring a photo ID, and your front office checks every adult in at the door. Children's details are seen only by your team, and deleted 30 days after.",
-    examples: "Family lunches, open houses, grandparents' days, performances, award days",
+      "For family lunches, open houses, performances, and award days, parents register ahead with each child's name, teacher, and grade. They get a reminder to bring a photo ID, and your front office checks every adult in at the door. Only your team sees children's details, and they're deleted 30 days after the event.",
+    examples: "Family lunches, class parties, open houses, grandparents' days, performances, award days",
     replaces: [
-      "A Google Form, and a spreadsheet of children's names that never gets deleted",
+      "A spreadsheet of children's names that never gets deleted",
       "Printed lists checked off by hand at the front door",
       "Reminder emails about photo ID sent by hand",
       "Headcounts guessed for the cafeteria or gym",
@@ -516,7 +516,7 @@ export const audiences = {
     sections: [
       {
         title: "Parents register ahead",
-        body: "Share one link or QR code. Parents enter their name and email, an optional mobile number, any other adults coming with them, and each child's name, teacher and grade.",
+        body: "Share one link or QR code. Parents enter their name and email, an optional mobile number, any other adults coming with them, and each child's name, teacher, and grade.",
         points: [
           "Register up to eight children in one go",
           "Each adult is checked in separately at the door",
@@ -530,7 +530,7 @@ export const audiences = {
       },
       {
         title: "Check-in at the door",
-        body: "Your team checks off each adult at the door with one tap, on any phone, tablet or laptop, and sees how many have registered and arrived.",
+        body: "Your team checks off each adult at the door with one tap, on any phone, tablet, or laptop, and sees how many have registered and arrived.",
         points: [
           "Your staff still checks each photo ID in person",
           "Registered and arrived numbers at a glance, for planning seating or food",
@@ -547,13 +547,13 @@ export const audiences = {
         title: "Open registration",
         body: "Share one link or QR code, and close registration whenever you're ready.",
         screen: "/screens/parent-registration-setup.webp",
-        alt: "The host's Parent Registration page: registration open, and the door check-in list below.",
+        alt: "The organizer's Parent Registration page: registration open, and the door check-in list below.",
       },
       {
         title: "Parents register",
-        body: "Each parent adds their children, teachers and grades, and agrees to bring a photo ID.",
+        body: "Each parent adds their children, teachers, and grades, and agrees to bring a photo ID.",
         screen: "/screens/parent-registration-form.webp",
-        alt: "A parent registering for a family lunch: their name, email and phone, then their child.",
+        alt: "A parent registering for a family lunch: their name, email, and phone, then their child.",
       },
       {
         title: "Check adults in at the door",
@@ -563,15 +563,15 @@ export const audiences = {
       },
     ],
     privacy: [
-      "Children's names, teachers and grades are seen only by your event team, and Section Leads see them only on event day.",
+      "Only your event team sees children's names, teachers, and grades, and Section Leads see them only on event day.",
       "Every registration, including children's details, is deleted 30 days after the event.",
       "Parents never make an account.",
-      "We never sell anyone's data, and there are no ads.",
+      "No ads, no spam, and emails used only for your event",
     ],
     faqs: [
       {
-        q: "Can we use this instead of a Google Form for parent check-in?",
-        a: "Yes. Parents register ahead with each child's name, teacher and grade, get a reminder to bring a photo ID, and your front office checks every adult in at the door on any device. Unlike a form spreadsheet, children's details are seen only by your event team and are deleted 30 days after the event.",
+        q: "Can we use this instead of an online form for parent check-in?",
+        a: "Yes. Parents register ahead with each child's name, teacher, and grade, get a reminder to bring a photo ID, and your front office checks every adult in at the door on any device. Unlike a form spreadsheet, children's details are seen only by your event team and are deleted 30 days after the event.",
       },
       {
         q: "Do parents need an account or an app?",

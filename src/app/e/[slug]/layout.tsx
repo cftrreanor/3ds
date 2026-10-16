@@ -13,7 +13,7 @@ export default function EventPublicLayout({ children }: LayoutProps<"/e/[slug]">
           <Link href="/" className="font-medium text-foreground underline-offset-4 hover:underline">
             {brand.name}
           </Link>
-          : school event management for bands, choirs, PTOs and front offices.
+          : school event management for bands, choirs, PTOs, and front offices.
         </p>
       </footer>
     </>

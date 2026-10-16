@@ -50,7 +50,7 @@ export function SignupForm({
   if (state.confirmed) {
     return (
       <Card className="space-y-4" role="status">
-        <h2 className="text-xl font-semibold">You&apos;re signed up! 🎉</h2>
+        <h2 className="text-xl font-semibold">You&apos;re signed up</h2>
         {state.confirmed.others.length > 0 && (
           <p className="text-sm">
             Also signed up for {state.confirmed.shifts.length === 1 ? "this shift" : "these shifts"}:{" "}

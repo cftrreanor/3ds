@@ -156,7 +156,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
                     <h2 className="text-sm font-semibold">Current members</h2>
                     <p className="mt-1 text-sm leading-6 text-muted">
                       Hosts and co-hosts have full access to all of your organization&apos;s events: publishing, bands, the
-                      schedule, volunteers and the team.
+                      schedule, volunteers, and the team.
                     </p>
                     <ul className="mt-3 space-y-2">
                       {hosts.map((h) => (
@@ -182,7 +182,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
                   <div>
                     <h2 className="text-sm font-semibold">Current members</h2>
                     <p className="mt-1 text-sm leading-6 text-muted">
-                      Volunteer Leads run volunteers with you: stations, shifts, signups and check-in. They can invite Section
+                      Volunteer Leads run volunteers with you: stations, shifts, sign-ups, and check-in. They can invite Section
                       Leads.
                     </p>
                     {directors.length > 0 ? (

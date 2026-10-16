@@ -74,7 +74,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) return { error: "Please enter a 10-digit mobile phone number.", values };
   if (shiftIds.length === 0) return { error: "Pick at least one shift above.", values };
-  if (shiftIds.length > 12) return { error: "That's a lot of shifts! Please pick 12 or fewer.", values };
+  if (shiftIds.length > 12) return { error: "Please pick 12 shifts or fewer.", values };
 
   const admin = createAdminClient();
 

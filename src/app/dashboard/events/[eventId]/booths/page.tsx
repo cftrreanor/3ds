@@ -75,7 +75,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Booths &amp; Partners</h1>
         <p className="mt-1 text-muted">
-          Everything at the event, by zone: games, activities, vendors and showcases, and who hosts each one.
+          Everything at the event, by zone: games, activities, vendors, and showcases, and who runs each one.
           {event.status === "published" ? " Listed ones show on the public page." : " Listed ones show on the public page once the event is published."}
         </p>
       </div>
@@ -134,7 +134,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
               )
             }
             open={zones.length > 0 && (booths.length === 0 || unzoned.length > 0)}
-            intro="Your games, activities, vendors and showcases, the partner who hosts each one, and its zone. Edit or delete one from the list below."
+            intro="Your games, activities, vendors, and showcases, the partner who runs each one, and its zone. Edit or delete one from the list below."
           >
             <div className="space-y-6">
               <BoothForm action={saveBooth.bind(null, eventId, null)} zones={zones} />

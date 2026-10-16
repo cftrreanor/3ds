@@ -37,7 +37,7 @@ export function ParentsForm({
         <h2 className="text-2xl font-semibold">Check your email</h2>
         <p className="leading-7">
           This email is already registered for this event, so nothing was changed. We&apos;ve emailed{" "}
-          <span className="font-medium">{state.confirmed.email}</span> a link to see, change or cancel that registration.
+          <span className="font-medium">{state.confirmed.email}</span> a link to see, change, or cancel that registration.
         </p>
         <p className="text-sm text-muted">Don&apos;t see it? Check your spam folder. We send it at most once every 10 minutes.</p>
       </Card>
@@ -99,7 +99,7 @@ export function ParentsForm({
           <div>
             <p className="text-sm font-medium">Other adults coming with you</p>
             <p className="text-sm text-muted">
-              A spouse, grandparent or anyone else coming for the same {children.length > 1 ? "children" : "child"}. Each
+              A spouse, grandparent, or anyone else coming for the same {children.length > 1 ? "children" : "child"}. Each
               adult needs their own photo ID, and the name here must match it.
             </p>
           </div>
