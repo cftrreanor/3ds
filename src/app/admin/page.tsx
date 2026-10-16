@@ -83,7 +83,7 @@ export default async function AdminHomePage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 space-y-4">
-          <Panel title="Follow-ups: overdue, today and this week" actions={<Link href="/admin/follow-ups" className="text-brand hover:underline">All follow-ups</Link>} flush>
+          <Panel title="Follow-ups: overdue, today, and this week" actions={<Link href="/admin/follow-ups" className="text-brand hover:underline">All follow-ups</Link>} flush>
             <Table className="rounded-none border-0">
               <thead>
                 <tr>
@@ -178,7 +178,7 @@ export default async function AdminHomePage() {
                   </p>
                 </li>
               ))}
-              {soon.length === 0 && <li className="px-3 py-3 text-sm text-muted">None scheduled.</li>}
+              {soon.length === 0 && <li className="px-3 py-3 text-sm text-muted">None scheduled</li>}
             </ul>
           </Panel>
 
@@ -193,7 +193,7 @@ export default async function AdminHomePage() {
                   </p>
                 </li>
               ))}
-              {log.length === 0 && <li className="px-3 py-3 text-sm text-muted">No changes yet.</li>}
+              {log.length === 0 && <li className="px-3 py-3 text-sm text-muted">No changes yet</li>}
             </ul>
           </Panel>
         </div>

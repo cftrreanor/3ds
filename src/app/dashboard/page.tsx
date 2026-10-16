@@ -124,7 +124,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     return (
       <div className="mx-auto max-w-lg">
         <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">
-          {mayHost ? "Welcome! Let's set up your organization" : `Welcome to ${brand.name}`}
+          {mayHost ? "Welcome. Let's set up your organization" : `Welcome to ${brand.name}`}
         </h1>
         {mayHost ? (
           <>

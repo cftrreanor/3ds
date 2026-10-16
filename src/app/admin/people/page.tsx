@@ -56,7 +56,7 @@ export default async function PeoplePage({ searchParams }: PageProps<"/admin/peo
     <div>
       <PageHeader title="People" sub={`${all.length} account${all.length === 1 ? "" : "s"}. Volunteers and parents don't have accounts; search their email in the top bar to see what we've sent them.`} />
       <FilterBar>
-        <input name="q" defaultValue={q} placeholder="Name, email or phone" aria-label="Search people" className={`${smallInput} w-56`} />
+        <input name="q" defaultValue={q} placeholder="Name, email, or phone" aria-label="Search people" className={`${smallInput} w-56`} />
         <select name="role" defaultValue={role} aria-label="Role" className={smallInput}>
           <option value="">Everyone</option>
           {ROLE_FILTERS.map((r) => (

@@ -24,7 +24,7 @@ export default async function TemplatesPage({ searchParams }: PageProps<"/admin/
     <div className="space-y-6">
       <PageHeader
         title="Email templates"
-        sub="Start an email from one of these on any account, person or pilot request page. Fields like {{first_name}} are filled in for each person."
+        sub="Start an email from one of these on any account, person, or pilot request page. Fields like {{first_name}} are filled in for each person."
         actions={
           editing && (
             <Link href="/admin/templates#builder" className={secondarySmall}>
@@ -83,7 +83,7 @@ export default async function TemplatesPage({ searchParams }: PageProps<"/admin/
             </div>
           ))}
         </dl>
-        <p className="mt-2 text-xs text-muted">Plan, free-through date and next event come from the account, so they&apos;re blank when emailing a person or a pilot request. The sign-in link fills in each person&apos;s email and takes them to their dashboard. Use the toolbar&apos;s &ldquo;Quick button&rdquo; menu to add any link as a button.</p>
+        <p className="mt-2 text-xs text-muted">Plan, free-through date, and next event come from the account, so they&apos;re blank when emailing a person or a pilot request. The sign-in link fills in each person&apos;s email and takes them to their dashboard. Use the toolbar&apos;s &ldquo;Quick button&rdquo; menu to add any link as a button.</p>
       </Panel>
     </div>
   );

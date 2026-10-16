@@ -169,7 +169,7 @@ function FileForm({
     if (!file && !upload) return setError("Please choose a file to upload.");
     let uploaded: UploadedFile | null = null;
     if (upload) {
-      if (!TYPES.includes(upload.type)) return setError("Please choose a PDF, JPG or PNG file.");
+      if (!TYPES.includes(upload.type)) return setError("Please choose a PDF, JPG, or PNG file.");
       if (upload.size > MAX) return setError("That file is over 10 MB. Try a smaller PDF or a photo.");
       setStep("Uploading…");
       const ticket = await prepareUpload({ fileName: upload.name, contentType: upload.type, size: upload.size });
@@ -206,7 +206,7 @@ function FileForm({
       }}
     >
       <p className="text-sm font-semibold">{file ? `Edit “${file.label}”` : "Add a map or document"}</p>
-      <Field label={file ? "Replace the file (optional)" : "File"} hint="PDF, JPG or PNG, up to 10 MB.">
+      <Field label={file ? "Replace the file (optional)" : "File"} hint="PDF, JPG, or PNG, up to 10 MB.">
         <input
           type="file"
           name="file"

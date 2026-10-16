@@ -76,7 +76,7 @@ export function Door({
           </p>
           <Input
             type="search"
-            placeholder="Adult, child or teacher"
+            placeholder="Adult, child, or teacher"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="sm:max-w-xs"

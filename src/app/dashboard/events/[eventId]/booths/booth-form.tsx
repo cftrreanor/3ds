@@ -36,7 +36,7 @@ export function BoothForm({
       <Field label="What it is" hint="e.g. Dunk Tank, Face Painting, Baked Goods">
         <Input name="title" required maxLength={120} defaultValue={initial?.title} />
       </Field>
-      <Field label="Hosted by (optional)" hint="The partner, vendor or group running it, e.g. Verizon">
+      <Field label="Hosted by (optional)" hint="The partner, vendor, or group running it, e.g. Verizon">
         <Input name="hostName" maxLength={120} defaultValue={initial?.host_name ?? ""} />
       </Field>
       <Field label="Zone" hint={zones.length ? "Groups it on the public page." : "Create zones in step 1 first."}>

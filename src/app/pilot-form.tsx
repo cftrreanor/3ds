@@ -46,7 +46,7 @@ export function PilotForm({
         </div>
         <Fields onEmail={setEmail} defaultEventTypes={defaultEventTypes} />
         <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
-          Request a pilot spot
+          Join the pilot
         </SubmitButton>
       </div>
     </ActionForm>
@@ -84,7 +84,7 @@ function Fields({ onEmail, defaultEventTypes }: { onEmail: (email: string) => vo
         <Field label="Phone" hint="10 digits, with area code. We'll use it to set up a short call." {...problem("phone")}>
           <Input name="phone" type="tel" required maxLength={30} autoComplete="tel" {...describe("phone")} />
         </Field>
-        <Field label="School, PTO/PTA, booster club or other organization" {...problem("organization")}>
+        <Field label="School, PTO/PTA, booster club, or other organization" {...problem("organization")}>
           <Input
             name="organization"
             required
@@ -96,7 +96,7 @@ function Fields({ onEmail, defaultEventTypes }: { onEmail: (email: string) => vo
         </Field>
       </div>
       <fieldset>
-        <legend className="text-sm font-semibold">What event types are you interested in planning and hosting?</legend>
+        <legend className="text-sm font-semibold">What kinds of events are you organizing?</legend>
         <p className="mt-1 text-sm text-muted">Pick at least one, or all that apply.</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {PILOT_EVENT_TYPES.map((t) => (
@@ -125,7 +125,7 @@ function Fields({ onEmail, defaultEventTypes }: { onEmail: (email: string) => vo
           </p>
         )}
       </fieldset>
-      <Field label="What's the hardest part about event planning and hosting for you today? (optional)" {...problem("notes")}>
+      <Field label="What's the hardest part of organizing events today? (optional)" {...problem("notes")}>
         <Textarea name="notes" rows={3} maxLength={2000} {...describe("notes")} />
       </Field>
     </>
@@ -140,7 +140,7 @@ function Sent({ email }: { email: string }) {
     <div ref={ref} tabIndex={-1} role="status" className="rounded-xl border border-success bg-surface p-6 outline-none">
       <p className="text-lg font-semibold">✓ Request sent</p>
       <p className="mt-2 leading-7 text-muted">
-        Thanks! We&apos;ll be in touch within a few days{email ? <> at <strong className="text-foreground">{email}</strong></> : null}{" "}
+        Thank you. A real person on our team will email you{email ? <> at <strong className="text-foreground">{email}</strong></> : null}{" "}
         to set up a quick call. If you don&apos;t see our email, check your spam folder.
       </p>
     </div>

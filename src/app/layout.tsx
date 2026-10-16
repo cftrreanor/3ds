@@ -12,7 +12,7 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const jetbrainsMono = JetBrains_Mono({ variable: "--font-jetbrains-mono", subsets: ["latin"] });
 
 const DESCRIPTION =
-  "School event management for band contests, choir festivals, school fairs and fundraisers, volunteer events and parent check-in. Registration, volunteer sign-ups and check-in on any phone, with privacy built in.";
+  "Every detail organized. Every organizer supported. Band contests, choir festivals, school fairs and fundraisers, volunteer events, parent check-in, and parent-teacher conferences, with registration, volunteer sign-ups, and check-in on any phone.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

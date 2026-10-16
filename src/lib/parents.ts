@@ -18,7 +18,7 @@ export const adultNames = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.map((a) => (typeof a === "string" ? a : String((a as OtherAdult)?.name ?? ""))).filter(Boolean) : [];
 
 export const ID_REMINDER =
-  "Bring a valid government-issued photo ID (driver's license, state ID or passport). You won't be let in without it.";
+  "Bring a valid government-issued photo ID (driver's license, state ID, or passport). You won't be let in without it.";
 
 type OpenFields = {
   status: string;
@@ -107,7 +107,7 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "al
         heading: "You're already registered",
         paragraphs: [
           `Hi ${first}, someone (we hope it was you) tried to register this email again for ${event.name} (${when}). Nothing was changed.`,
-          "To see, change or cancel your registration, use the button below. If this wasn't you, you can ignore this email.",
+          "To see, change, or cancel your registration, use the button below. If this wasn't you, you can ignore this email.",
         ],
         button: { label: "View or change my registration", url: link },
         footer,
@@ -146,7 +146,7 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "al
           ? [{ title: "Also coming", detail: `${r.other_adults.join(", ")}. Each adult needs their own photo ID.` }]
           : []),
       ],
-      button: { label: "View, change or cancel my registration", url: link },
+      button: { label: "View, change, or cancel my registration", url: link },
       footer,
     }),
     ...(kind === "confirmation" ? { invite: invite("REQUEST", r, event, link) } : {}),

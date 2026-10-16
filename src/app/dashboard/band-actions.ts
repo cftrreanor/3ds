@@ -379,7 +379,7 @@ function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round
           kind === "changed"
             ? `The host updated the ${round === "finals" ? "finals " : ""}schedule for ${event.name}. Here are your current times; please use these from now on.`
             : round === "finals"
-              ? `Congratulations! ${s.bands.band_name} is performing in finals. Here are your finals times.`
+              ? `Congratulations. ${s.bands.band_name} is performing in finals. Here are your finals times.`
               : `The performance order for ${event.name} is posted. Here are the times for ${s.bands.band_name}.`,
         ],
         rows: [

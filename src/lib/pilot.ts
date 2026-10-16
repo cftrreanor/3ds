@@ -29,7 +29,7 @@ export type PilotRequest = {
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Checks every answer on the "Request a pilot spot" form at once, so the
+ * Checks every answer on the "Join the pilot" form at once, so the
  * browser can point at each problem before sending and the server can
  * check again. `fieldErrors` is keyed by the input's name.
  */

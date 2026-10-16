@@ -54,7 +54,7 @@ export function BookingForm({
             : "We couldn't send every confirmation email, but your time is booked. Save the link below to change or cancel."}
         </p>
         <a href={b.link} className="font-medium text-brand underline underline-offset-4">
-          See, change or cancel this booking
+          See, change, or cancel this booking
         </a>
       </Card>
     );
@@ -113,7 +113,7 @@ export function BookingForm({
 
       <fieldset className="space-y-4">
         <legend className="text-lg font-semibold">Parents or guardians coming</legend>
-        <p className="-mt-3 text-sm text-muted">Each person gets the confirmation, calendar invite and reminder.</p>
+        <p className="-mt-3 text-sm text-muted">Each person gets the confirmation, calendar invite, and reminder.</p>
         {parents.map((p, i) => (
           <fieldset key={i} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
             {/* Says which parent each "Name" and "Email" belongs to; shown once there's more than one. */}

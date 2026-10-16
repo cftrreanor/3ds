@@ -272,8 +272,8 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
               <>
                 <p className="mb-3 text-sm text-muted">
                   {closedAt
-                    ? `Closed ${formatDate(utcToZonedDate(closedAt, ADMIN_TZ), { weekday: undefined })}. On ${deleteOn} the organization, its events and everyone's details in them are deleted, with the sign-in accounts of hosts and team members who have no other role. Reopen it to keep everything.`
-                    : `Closing starts the privacy policy's 90-day countdown: on ${deleteOn} the organization, its events and everyone's details in them are deleted for good. You can reopen it any time before then.`}
+                    ? `Closed ${formatDate(utcToZonedDate(closedAt, ADMIN_TZ), { weekday: undefined })}. On ${deleteOn} the organization, its events, and everyone's details in them are deleted, with the sign-in accounts of hosts and team members who have no other role. Reopen it to keep everything.`
+                    : `Closing starts the privacy policy's 90-day countdown: on ${deleteOn} the organization, its events, and everyone's details in them are deleted for good. You can reopen it any time before then.`}
                 </p>
                 <ClosureForm action={(closedAt ? reopenAccount : closeAccount).bind(null, account.id)} closed={Boolean(closedAt)} deleteOn={deleteOn} />
               </>

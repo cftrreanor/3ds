@@ -22,7 +22,7 @@ export function EventTypeChoices({ teacherOnly = false }: { teacherOnly?: boolea
               <span className="mt-3 text-lg font-semibold text-muted">{t.label}</span>
               <span className="mt-1 text-sm leading-6 text-muted">Not included in free teacher accounts.</span>
               <Link href="/#join" className="mt-auto pt-3 text-sm font-medium text-brand underline underline-offset-4">
-                Request a pilot
+                Join the pilot
               </Link>
             </div>
           ) : (

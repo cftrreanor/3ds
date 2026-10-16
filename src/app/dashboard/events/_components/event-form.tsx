@@ -88,7 +88,7 @@ export function EventForm({
         )}
         <Field
           label="Event time zone"
-          hint="Where the event happens. Every time on volunteer pages, emails and calendar invites uses this zone, whatever someone's phone is set to."
+          hint="Where the event happens. Every time on volunteer pages, emails, and calendar invites uses this zone, whatever someone's phone is set to."
           className="sm:col-span-2"
         >
           <Select name="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
@@ -111,7 +111,7 @@ export function EventForm({
 
       {eventType === "school_visit" && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
-          🔒 <strong>Student privacy:</strong> parents enter their children&apos;s names, teachers and grades. Only your
+          🔒 <strong>Student privacy:</strong> parents enter their children&apos;s names, teachers, and grades. Only your
           event team can see them, and they&apos;re permanently deleted 30 days after the event ends. Parents are told
           this when they register.
         </p>

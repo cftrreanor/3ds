@@ -23,7 +23,7 @@ export function ClosureForm({
       confirmMessage={
         closed
           ? undefined
-          : `Close this account? On ${deleteOn} the organization, its events and everyone's details in them will be deleted for good. You can reopen it before then.`
+          : `Close this account? On ${deleteOn} the organization, its events, and everyone's details in them will be deleted for good. You can reopen it before then.`
       }
     >
       <Field label="Note (optional)" hint="Why, for the admin activity log.">

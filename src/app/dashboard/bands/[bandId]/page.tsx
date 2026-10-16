@@ -117,7 +117,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       </Link>
       {registered && (
         <Card className="mt-4 border-success/30 bg-success-soft" role="status">
-          <p className="font-medium">You&apos;re registered! {group ? "🎉" : "🎺"}</p>
+          <p className="font-medium">You&apos;re registered.</p>
           <p className="mt-1 text-sm text-muted">
             We emailed you a copy. We&apos;ll email again when {group ? "the schedule is" : "performance times are"} posted.
           </p>
@@ -194,7 +194,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           <Card className="mt-6 border-brand">
             <h2 className="font-semibold">Event day</h2>
             <div className="mt-3">
-              <DayStatusBanner status={groupDay} phone={phone} doneText="You've finished every room. Thank you! 🎉" />
+              <DayStatusBanner status={groupDay} phone={phone} doneText="You've finished every room. Thank you." />
             </div>
             <p className="mt-3 text-xs text-muted">Updates as the host&apos;s team checks you in. Your times are below.</p>
           </Card>

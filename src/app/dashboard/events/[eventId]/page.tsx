@@ -647,8 +647,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 {files.length
                   ? `${files.length} ${files.length === 1 ? "file" : "files"} shared.`
                   : groupsHere
-                    ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map or director packet with the public, ${words.one} directors, volunteers or your team.`
-                    : "Share a site map, parking map or volunteer guide with the public, volunteers or your team."}
+                    ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map, or director packet with the public, ${words.one} directors, volunteers, or your team.`
+                    : "Share a site map, parking map, or volunteer guide with the public, volunteers, or your team."}
               </p>
               {access.isHost && (
                 <Link
@@ -716,7 +716,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           </h2>
           <Card className="mt-4 space-y-5">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
-              <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads and {leadWords(event.event_type).many}, and their invitations.</p>
+              <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads, and {leadWords(event.event_type).many}, and their invitations.</p>
               <Link
                 href={`/dashboard/events/${eventId}/team`}
                 className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
@@ -751,7 +751,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 ? `${bands.length} ${bands.length === 1 ? words.one : words.many} registered.`
                 : `No ${words.many} registered yet.`}{" "}
               {access.isHost
-                ? `Settings, opening registration and inviting ${words.one} directors.`
+                ? `Settings, opening registration, and inviting ${words.one} directors.`
                 : roomsHere
                   ? "See each group's times in every room."
                   : "See the performance order and each band's status on the day."}
@@ -793,7 +793,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               <span className="text-sm text-muted">
                 {roomsHere
                   ? "Your rooms, the path every group follows, and each group's times."
-                  : "The running order, breaks and finals. Directors are emailed their times when you publish."}
+                  : "The running order, breaks, and finals. Directors are emailed their times when you publish."}
               </span>
             </div>
             <Link
@@ -1095,7 +1095,7 @@ function PublicPageCard({ url, published, slug, qr }: { url: string; published: 
           dangerouslySetInnerHTML={{ __html: qr[0] }}
         />
         <div className="min-w-0 flex-1 space-y-2 text-sm leading-6">
-          <p className="text-muted">Share the link or QR code in emails, flyers and slides.</p>
+          <p className="text-muted">Share the link or QR code in emails, flyers, and slides.</p>
           <a href={qr[1]} download={`${slug}-qr.png`} className="inline-block font-medium text-brand underline-offset-4 hover:underline">
             Download QR code
           </a>

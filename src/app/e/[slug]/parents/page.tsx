@@ -81,7 +81,7 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
                 {event.venue_name ? ` at ${event.venue_name}` : ""}, and check in at the door.
               </p>
               <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">
-                🪪 Every adult must bring a valid government-issued photo ID (driver&apos;s license, state ID or passport).
+                🪪 Every adult must bring a valid government-issued photo ID (driver&apos;s license, state ID, or passport).
                 You won&apos;t be let in without it.
               </p>
             </Card>

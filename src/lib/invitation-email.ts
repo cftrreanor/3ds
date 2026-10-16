@@ -35,8 +35,8 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
         paragraphs: [
           `${who} invited you to co-host their events on ${brand.name}, starting with ${inv.event_name} (${when}).`,
           bands
-            ? "Co-hosts have the same access as the host on every event: bands, the schedule, volunteers, the team and contest day."
-            : "Co-hosts have the same access as the host on every event: stations, shifts, volunteers, the team and the event day.",
+            ? "Co-hosts have the same access as the host on every event: bands, the schedule, volunteers, the team, and contest day."
+            : "Co-hosts have the same access as the host on every event: stations, shifts, volunteers, the team, and the event day.",
         ],
       }
     : inv.role === "volunteer_director"

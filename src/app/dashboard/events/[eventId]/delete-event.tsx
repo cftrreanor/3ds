@@ -42,9 +42,9 @@ export function DeleteEventButton({
           </h2>
           <p className="mt-3 leading-7">This permanently deletes the event and everything in it. It can&apos;t be undone.</p>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-muted">
-            <li>All volunteer sign-ups, shifts and check-ins</li>
-            <li>All registrations (bands, groups, parents and booths)</li>
-            <li>Schedules, announcements, maps and documents</li>
+            <li>All volunteer sign-ups, shifts, and check-ins</li>
+            <li>All registrations (bands, groups, parents, and booths)</li>
+            <li>Schedules, announcements, maps, and documents</li>
             <li>Your team&apos;s access to the event, and its public page</li>
           </ul>
           <p className="mt-3 text-sm text-muted">Nobody is emailed. People who signed up or registered won&apos;t be told it was deleted.</p>

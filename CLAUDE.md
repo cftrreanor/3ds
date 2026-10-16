@@ -6,6 +6,8 @@
   security-definer functions needs a matching case in supabase/tests/security_test.sql.
 - Run `npm run lint && npm run typecheck && npm run build && npm run test:db` before pushing.
 - Product name comes from src/lib/brand.ts only; don't hard-code it.
+- All website and in-app copy follows docs/brand-voice.md (tagline, no exclamation points, Oxford
+  comma, no periods on incomplete headlines/buttons/bullets/labels, "organizer" for the role, claims guardrails).
 - Number-only fields use `NumberInput` (src/components/number-input.tsx): a type-in box that
   accepts digits only. Never use `<input type="number">` (no up/down arrows).
 - When a page's main data is missing, call `missing()` from src/lib/schema-check.ts, not

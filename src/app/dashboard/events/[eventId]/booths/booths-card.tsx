@@ -18,7 +18,7 @@ export async function BoothsCard({ eventId, isDay }: { eventId: string; isDay: b
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
           <p className="text-sm leading-6">
             {booths.length === 0 ? (
-              "Add your games, activities, vendors and showcases, and the partners who host them."
+              "Add your games, activities, vendors, and showcases, and the partners who run them."
             ) : (
               <>
                 <span className="font-medium">
