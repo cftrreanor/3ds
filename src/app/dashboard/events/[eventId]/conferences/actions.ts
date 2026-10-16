@@ -186,3 +186,13 @@ export async function cancelMeeting(eventId: string, bookingId: string): Promise
     message: emailed ? "Canceled. We emailed the family, and the time is open again." : "Canceled, and the time is open again. We couldn't email the family, so please let them know.",
   };
 }
+
+/** Once a meeting has started, the teacher marks it Met or No-show (null undoes it). */
+export async function setMeetingOutcome(eventId: string, bookingId: string, outcome: "met" | "no_show" | null): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_conference_outcome", { p_id: bookingId, p_outcome: outcome });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}/conferences/meetings`);
+  return { ok: true };
+}

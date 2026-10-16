@@ -8,11 +8,11 @@ import { getEventAccess } from "@/lib/data";
 import { hasConferences } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
-import { missing } from "@/lib/schema-check";
+import { isSchemaError, missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
-import { cancelMeeting } from "../actions";
-import { MeetingList, type MeetingRow } from "./meeting-list";
+import { cancelMeeting, setMeetingOutcome } from "../actions";
+import { MeetingList, type MeetingRow, type Outcome } from "./meeting-list";
 
 export const metadata: Metadata = { title: "Your meetings" };
 
@@ -35,21 +35,27 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
 
-  const [{ data: saved, error: settingsError }, { data: bookingRows, error: bookingsError }] = await Promise.all([
-    supabase.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", eventId).maybeSingle(),
+  const columns = BOOKING_COLUMNS.replace(", calendar_sequence", "");
+  const loadBookings = (extra: string) =>
     supabase
       .from("conference_bookings")
-      .select(BOOKING_COLUMNS.replace(", calendar_sequence", ""))
+      .select(columns + extra)
       .eq("event_id", eventId)
-      .order("starts_at"),
+      .order("starts_at");
+  const [{ data: saved, error: settingsError }, withOutcomes] = await Promise.all([
+    supabase.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", eventId).maybeSingle(),
+    loadBookings(", outcome"),
   ]);
+  // Met / No-show needs the conference outcomes update (20261130000000); until then the list works without it.
+  const outcomesReady = !isSchemaError(withOutcomes.error);
+  const { data: bookingRows, error: bookingsError } = outcomesReady ? withOutcomes : await loadBookings("");
   if (settingsError || bookingsError) missing();
   const settings: ConferenceSettings = {
     ...DEFAULT_SETTINGS,
     ...(saved ?? {}),
     breaks: saved?.breaks ?? [],
   };
-  const bookings = (bookingRows ?? []) as unknown as Omit<Booking, "calendar_sequence">[];
+  const bookings = (bookingRows ?? []) as unknown as (Omit<Booking, "calendar_sequence"> & { outcome?: Outcome })[];
 
   const tz = event.timezone;
   const len = settings.meeting_minutes;
@@ -59,7 +65,9 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
   const times = [...new Set([...starts, ...byTime.keys()])].sort();
 
   const nowIso = new Date().toISOString();
-  const isToday = utcToZonedDate(nowIso, tz) === event.starts_on;
+  const today = utcToZonedDate(nowIso, tz);
+  const isToday = today === event.starts_on;
+  const isOver = today > event.starts_on;
   const now = toMinutes(utcToZonedTime(nowIso, tz));
   const nextBooked = isToday ? times.find((t) => toMinutes(t) > now && byTime.has(t)) : undefined;
   const range = (start: string, minutes: number) => `${displayTime(start)} – ${displayTime(toTime(toMinutes(start) + minutes))}`;
@@ -68,7 +76,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
   const meetings: MeetingRow[] = times.map((t) => {
     const b = byTime.get(t);
     const m = toMinutes(t);
-    const status = !isToday ? null : m + len <= now ? "past" : m <= now ? "now" : t === nextBooked ? "next" : null;
+    const status = isOver ? "past" : !isToday ? null : m + len <= now ? "past" : m <= now ? "now" : t === nextBooked ? "next" : null;
     return {
       kind: "meeting",
       key: t,
@@ -86,6 +94,9 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
             mode: showMode ? (b.meeting_mode === "video" ? "Video" : "In person") : null,
             note: b.note,
             cancel: cancelMeeting.bind(null, eventId, b.id),
+            started: isOver || (isToday && m <= now),
+            outcome: outcomesReady ? (b.outcome ?? null) : undefined,
+            setOutcome: setMeetingOutcome.bind(null, eventId, b.id),
           }
         : null,
     };

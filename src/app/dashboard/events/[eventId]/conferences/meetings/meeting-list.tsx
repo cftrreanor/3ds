@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { startTransition, useMemo, useOptimistic, useState } from "react";
 import { toast } from "@/components/toaster";
 import { Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { ActionButton } from "../../forms";
+
+export type Outcome = "met" | "no_show" | null;
 
 export type MeetingParent = {
   name: string;
@@ -26,9 +28,19 @@ export type MeetingRow =
         mode: string | null;
         note: string | null;
         cancel: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+        /** The meeting's time has come: Met / No-show replace Cancel. */
+        started: boolean;
+        /** undefined until the conference outcomes database update has been run. */
+        outcome: Outcome | undefined;
+        setOutcome: (outcome: Outcome) => Promise<ActionState>;
       } | null;
     }
   | { kind: "break"; key: string; time: string; label: string };
+
+const OUTCOMES: { value: "met" | "no_show"; label: string; on: string }[] = [
+  { value: "met", label: "Met", on: "border-success bg-success-soft" },
+  { value: "no_show", label: "No-show", on: "border-warning bg-warning-soft" },
+];
 
 const STATUS: Record<"now" | "next" | "past", string> = {
   now: "Now",
@@ -39,6 +51,32 @@ const STATUS: Record<"now" | "next" | "past", string> = {
 /** The teacher's meetings in time order, like the parent check-in list: a count, a search box, one card per family. */
 export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booked: number; total: number }) {
   const [query, setQuery] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  // Taps show at once, like parent check-in; the page catches up when the save lands.
+  const [outcomes, setOptimistic] = useOptimistic(
+    Object.fromEntries(rows.flatMap((r) => (r.kind === "meeting" && r.booking ? [[r.key, r.booking.outcome]] : []))) as Record<
+      string,
+      Outcome | undefined
+    >,
+    (state, change: { key: string; outcome: Outcome }) => ({ ...state, [change.key]: change.outcome }),
+  );
+  const marked = Object.values(outcomes);
+  const met = marked.filter((o) => o === "met").length;
+  const noShows = marked.filter((o) => o === "no_show").length;
+
+  function mark(key: string, current: Outcome | undefined, value: "met" | "no_show", save: (o: Outcome) => Promise<ActionState>) {
+    const next = current === value ? null : value;
+    setError(null);
+    startTransition(async () => {
+      setOptimistic({ key, outcome: next });
+      try {
+        const result = await save(next);
+        if (result.error) setError(result.error);
+      } catch {
+        setError("That didn't go through. Check your signal and tap again.");
+      }
+    });
+  }
   const [openTimes, setOpenTimes] = useState(true);
   const q = query.trim().toLowerCase();
   const shown = useMemo(
@@ -64,6 +102,7 @@ export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booke
             <span className="text-muted">
               {" "}
               / {total} times booked · {total - booked} open
+              {met + noShows > 0 && ` · ${met} met · ${noShows} ${noShows === 1 ? "no-show" : "no-shows"}`}
             </span>
           </p>
           <Input
@@ -101,6 +140,11 @@ export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booke
             Print
           </button>
         </div>
+        {error && (
+          <p className="mt-2 text-sm text-danger" role="alert">
+            {error}
+          </p>
+        )}
       </div>
 
       {shown.length === 0 ? (
@@ -134,6 +178,9 @@ export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booke
                         </span>
                       )}
                       {r.booking.mode && <span className="text-muted">· {r.booking.mode}</span>}
+                      {outcomes[r.key] && (
+                        <span className="hidden font-semibold print:inline">· {outcomes[r.key] === "met" ? "Met" : "No-show"}</span>
+                      )}
                     </p>
                     <p className="text-lg font-semibold">{r.booking.child}</p>
                     <ul className="space-y-0.5 text-sm">
@@ -158,17 +205,44 @@ export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booke
                       </p>
                     )}
                   </div>
-                  {r.status !== "past" && (
-                    <div className="shrink-0 print:hidden">
-                      <ActionButton
-                        action={r.booking.cancel}
-                        variant="secondary"
-                        pendingText="Canceling…"
-                        confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
-                      >
-                        Cancel meeting
-                      </ActionButton>
+                  {r.booking.started && r.booking.outcome !== undefined ? (
+                    <div
+                      className="flex shrink-0 gap-2 print:hidden"
+                      role="group"
+                      aria-label={`How the meeting with ${r.booking.child}'s family went`}
+                    >
+                      {OUTCOMES.map((o) => {
+                        const on = outcomes[r.key] === o.value;
+                        const booking = r.booking!;
+                        return (
+                          <button
+                            key={o.value}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => mark(r.key, outcomes[r.key], o.value, booking.setOutcome)}
+                            className={`min-h-11 min-w-24 rounded-md border px-3 text-sm font-semibold transition ${
+                              on ? `${o.on} text-foreground` : "border-field-border bg-surface hover:border-brand"
+                            }`}
+                          >
+                            {on && <span aria-hidden>✓ </span>}
+                            {o.label}
+                          </button>
+                        );
+                      })}
                     </div>
+                  ) : (
+                    !r.booking.started && (
+                      <div className="shrink-0 print:hidden">
+                        <ActionButton
+                          action={r.booking.cancel}
+                          variant="secondary"
+                          pendingText="Canceling…"
+                          confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
+                        >
+                          Cancel meeting
+                        </ActionButton>
+                      </div>
+                    )
                   )}
                 </div>
               </li>
