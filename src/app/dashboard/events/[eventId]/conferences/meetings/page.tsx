@@ -81,6 +81,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
       kind: "meeting",
       key: t,
       time: range(t, len),
+      over: isOver || (isToday && m + len <= now),
       status: b ? status : null,
       booking: b
         ? {
@@ -107,6 +108,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
       kind: "break",
       key: `break-${b.start}`,
       time: range(b.start, b.minutes),
+      over: isOver || (isToday && toMinutes(b.start) + b.minutes <= now),
       label: b.label?.trim() || "Break",
     }));
   const rows = [...meetings, ...breaks].sort((a, b) => toMinutes(a.key.replace("break-", "")) - toMinutes(b.key.replace("break-", "")));

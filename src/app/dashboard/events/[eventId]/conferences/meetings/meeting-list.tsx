@@ -20,6 +20,8 @@ export type MeetingRow =
       kind: "meeting";
       key: string;
       time: string;
+      /** Its time has passed (on or after the day). */
+      over: boolean;
       /** On the day: this meeting is happening now, is up next, or is over. */
       status: "now" | "next" | "past" | null;
       booking: {
@@ -35,7 +37,7 @@ export type MeetingRow =
         setOutcome: (outcome: Outcome) => Promise<ActionState>;
       } | null;
     }
-  | { kind: "break"; key: string; time: string; label: string };
+  | { kind: "break"; key: string; time: string; label: string; over: boolean };
 
 const OUTCOMES: { value: "met" | "no_show"; label: string; on: string }[] = [
   { value: "met", label: "Met", on: "border-success bg-success-soft" },
@@ -92,6 +94,114 @@ export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booke
     [rows, q, openTimes],
   );
   const emails = [...new Set(rows.flatMap((r) => (r.kind === "meeting" && r.booking ? r.booking.parents.map((p) => p.email) : [])))];
+
+  // Marked meetings drop to Past meetings, so the next one is always at the top.
+  // On the day, open times and breaks that are over drop out too.
+  const isDone = (r: MeetingRow) => r.kind === "meeting" && Boolean(r.booking) && Boolean(outcomes[r.key]);
+  const upcoming = shown.filter((r) => !isDone(r) && !(r.over && (r.kind === "break" || !r.booking)));
+  const finished = shown.filter(isDone);
+
+  const row = (r: MeetingRow) =>
+    r.kind === "break" ? (
+      <li key={r.key} className="flex gap-4 px-3 py-1 text-sm text-muted">
+        <span className="w-36 shrink-0 tabular-nums">{r.time}</span>
+        <span>{r.label}</span>
+      </li>
+    ) : r.booking ? (
+      <li
+        key={r.key}
+        className={`break-inside-avoid rounded-xl border shadow-card print:shadow-none ${
+          r.status === "now" ? "border-brand ring-2 ring-brand" : "border-border"
+        } ${r.status === "past" ? "bg-background shadow-none" : "bg-surface"}`}
+      >
+        <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-1">
+            <p className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-semibold tabular-nums">{r.time}</span>
+              {r.status && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    r.status === "now" ? "bg-brand text-brand-foreground" : "bg-background text-muted ring-1 ring-border"
+                  }`}
+                >
+                  {STATUS[r.status]}
+                </span>
+              )}
+              {r.booking.mode && <span className="text-muted">· {r.booking.mode}</span>}
+              {outcomes[r.key] && (
+                <span className="hidden font-semibold print:inline">· {outcomes[r.key] === "met" ? "Met" : "No-show"}</span>
+              )}
+            </p>
+            <p className="text-lg font-semibold">{r.booking.child}</p>
+            <ul className="space-y-0.5 text-sm">
+              {r.booking.parents.map((p) => (
+                <li key={p.email} className="flex flex-wrap gap-x-3">
+                  <span className="font-medium">{p.name}</span>
+                  <a href={`mailto:${p.email}`} className="text-brand hover:underline">
+                    {p.email}
+                  </a>
+                  {p.phone && (
+                    <a href={`tel:${p.phone}`} className="text-brand hover:underline">
+                      {p.phoneDisplay}
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {r.booking.note && (
+              <p className="mt-1 rounded-md bg-background px-3 py-2 text-sm">
+                <span className="font-medium">Note: </span>
+                {r.booking.note}
+              </p>
+            )}
+          </div>
+          {r.booking.started && r.booking.outcome !== undefined ? (
+            <div
+              className="flex shrink-0 gap-2 print:hidden"
+              role="group"
+              aria-label={`How the meeting with ${r.booking.child}'s family went`}
+            >
+              {OUTCOMES.map((o) => {
+                const on = outcomes[r.key] === o.value;
+                const booking = r.booking!;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => mark(r.key, outcomes[r.key], o.value, booking.setOutcome)}
+                    className={`min-h-11 min-w-24 rounded-md border px-3 text-sm font-semibold transition ${
+                      on ? `${o.on} text-foreground` : "border-field-border bg-surface hover:border-brand"
+                    }`}
+                  >
+                    {on && <span aria-hidden>✓ </span>}
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            !r.booking.started && (
+              <div className="shrink-0 print:hidden">
+                <ActionButton
+                  action={r.booking.cancel}
+                  variant="secondary"
+                  pendingText="Canceling…"
+                  confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
+                >
+                  Cancel meeting
+                </ActionButton>
+              </div>
+            )
+          )}
+        </div>
+      </li>
+    ) : (
+      <li key={r.key} className="flex gap-4 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm">
+        <span className="w-36 shrink-0 tabular-nums text-muted">{r.time}</span>
+        <span className="text-muted">Open</span>
+      </li>
+    );
 
   return (
     <div>
@@ -150,110 +260,22 @@ export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booke
       {shown.length === 0 ? (
         <p className="mt-6 text-muted">{q ? "No family matches that." : "No meetings booked yet."}</p>
       ) : (
-        <ol className="mt-5 space-y-3">
-          {shown.map((r) =>
-            r.kind === "break" ? (
-              <li key={r.key} className="flex gap-4 px-3 py-1 text-sm text-muted">
-                <span className="w-36 shrink-0 tabular-nums">{r.time}</span>
-                <span>{r.label}</span>
-              </li>
-            ) : r.booking ? (
-              <li
-                key={r.key}
-                className={`break-inside-avoid rounded-xl border shadow-card print:shadow-none ${
-                  r.status === "now" ? "border-brand ring-2 ring-brand" : "border-border"
-                } ${r.status === "past" ? "bg-background shadow-none" : "bg-surface"}`}
-              >
-                <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <p className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="font-semibold tabular-nums">{r.time}</span>
-                      {r.status && (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            r.status === "now" ? "bg-brand text-brand-foreground" : "bg-background text-muted ring-1 ring-border"
-                          }`}
-                        >
-                          {STATUS[r.status]}
-                        </span>
-                      )}
-                      {r.booking.mode && <span className="text-muted">· {r.booking.mode}</span>}
-                      {outcomes[r.key] && (
-                        <span className="hidden font-semibold print:inline">· {outcomes[r.key] === "met" ? "Met" : "No-show"}</span>
-                      )}
-                    </p>
-                    <p className="text-lg font-semibold">{r.booking.child}</p>
-                    <ul className="space-y-0.5 text-sm">
-                      {r.booking.parents.map((p) => (
-                        <li key={p.email} className="flex flex-wrap gap-x-3">
-                          <span className="font-medium">{p.name}</span>
-                          <a href={`mailto:${p.email}`} className="text-brand hover:underline">
-                            {p.email}
-                          </a>
-                          {p.phone && (
-                            <a href={`tel:${p.phone}`} className="text-brand hover:underline">
-                              {p.phoneDisplay}
-                            </a>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                    {r.booking.note && (
-                      <p className="mt-1 rounded-md bg-background px-3 py-2 text-sm">
-                        <span className="font-medium">Note: </span>
-                        {r.booking.note}
-                      </p>
-                    )}
-                  </div>
-                  {r.booking.started && r.booking.outcome !== undefined ? (
-                    <div
-                      className="flex shrink-0 gap-2 print:hidden"
-                      role="group"
-                      aria-label={`How the meeting with ${r.booking.child}'s family went`}
-                    >
-                      {OUTCOMES.map((o) => {
-                        const on = outcomes[r.key] === o.value;
-                        const booking = r.booking!;
-                        return (
-                          <button
-                            key={o.value}
-                            type="button"
-                            aria-pressed={on}
-                            onClick={() => mark(r.key, outcomes[r.key], o.value, booking.setOutcome)}
-                            className={`min-h-11 min-w-24 rounded-md border px-3 text-sm font-semibold transition ${
-                              on ? `${o.on} text-foreground` : "border-field-border bg-surface hover:border-brand"
-                            }`}
-                          >
-                            {on && <span aria-hidden>✓ </span>}
-                            {o.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    !r.booking.started && (
-                      <div className="shrink-0 print:hidden">
-                        <ActionButton
-                          action={r.booking.cancel}
-                          variant="secondary"
-                          pendingText="Canceling…"
-                          confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
-                        >
-                          Cancel meeting
-                        </ActionButton>
-                      </div>
-                    )
-                  )}
-                </div>
-              </li>
-            ) : (
-              <li key={r.key} className="flex gap-4 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm">
-                <span className="w-36 shrink-0 tabular-nums text-muted">{r.time}</span>
-                <span className="text-muted">Open</span>
-              </li>
-            ),
+        <>
+          {upcoming.length > 0 ? (
+            <ol className="mt-5 space-y-3">{upcoming.map(row)}</ol>
+          ) : (
+            <p className="mt-6 text-muted">{finished.length ? "Every meeting is marked." : "No meetings left."}</p>
           )}
-        </ol>
+          {finished.length > 0 && (
+            <section className="mt-10 print:mt-6" aria-labelledby="past-meetings">
+              <h2 id="past-meetings" className="text-lg font-semibold">
+                Past meetings <span className="font-normal text-muted">({finished.length})</span>
+              </h2>
+              <p className="mt-1 text-sm text-muted print:hidden">Marked Met or No-show. Tap again to undo.</p>
+              <ol className="mt-3 space-y-3">{finished.map(row)}</ol>
+            </section>
+          )}
+        </>
       )}
     </div>
   );
