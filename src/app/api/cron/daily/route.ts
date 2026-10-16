@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
@@ -22,10 +24,22 @@ export const maxDuration = 300;
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return NextResponse.json({ error: "CRON_SECRET is not set" }, { status: 503 });
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+  // Compared in constant time, so response timing can't reveal the secret bit by bit.
+  const given = Buffer.from(request.headers.get("authorization") ?? "");
+  const expected = Buffer.from(`Bearer ${secret}`);
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // Sentry expects a check-in every day and alerts if the job fails or never runs.
+  return Sentry.withMonitor("daily-job", runDailyJob, {
+    schedule: { type: "crontab", value: "0 15 * * *" },
+    timezone: "UTC",
+    checkinMargin: 60,
+    maxRuntime: 10,
+  });
+}
 
+async function runDailyJob() {
   const admin = createAdminClient();
   const started = Date.now();
 
@@ -41,6 +55,9 @@ export async function GET(request: NextRequest) {
   const { data: emailsPurged, error: adminPurgeError } = await admin.rpc("purge_admin_records");
   if (adminPurgeError) console.error("purge_admin_records failed", adminPurgeError);
   const retention = await runRetention(admin);
+  // Invitation send records (for the hourly limit) after a day.
+  const { error: sendsPurgeError } = await admin.rpc("purge_invitation_sends");
+  if (sendsPurgeError && !isSchemaError(sendsPurgeError)) console.error("purge_invitation_sends failed", sendsPurgeError);
 
   // Events starting tomorrow in their own time zone (look a day either side, then check).
   const shift = (days: number) => new Date(started + days * 86_400_000).toISOString().slice(0, 10);

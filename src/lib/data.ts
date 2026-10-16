@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { isSchemaError } from "@/lib/schema-check";
+import { SITE_URL } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 
 export type Organization = {
@@ -50,8 +51,13 @@ export async function getEventAccess(eventId: string): Promise<EventAccess> {
   return { isHost: host.data === true, canManage: manage.data === true };
 }
 
-/** This site's own address, e.g. https://fieldcommand-xi.vercel.app */
+/**
+ * This site's own address, e.g. https://fieldcommandevents.com. On the live site
+ * it's fixed, so a forged Host header can never point an emailed private link at
+ * another site; previews and local runs use the address they were opened at.
+ */
 export async function getOrigin() {
+  if (process.env.VERCEL_ENV === "production") return SITE_URL;
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");

@@ -1501,6 +1501,10 @@ begin
   assert r.email = 'mailme@example.com' and r.role = 'section_lead' and r.inviter_name = 'Hana Host', 'the email gets the invitation details';
   assert r.expires_at > now() + interval '29 days', 'resending an expired invitation gives it another 30 days';
 end $$;
+-- (Sending again within 5 minutes is refused: tested at the end. Clear it for the next check.)
+reset role;
+update public.invitations set sent_at = null where email = 'mailme@example.com';
+set role authenticated;
 -- A Volunteer Lead can send Section Lead invitations, not co-host ones.
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
 do $$ begin
@@ -4248,5 +4252,82 @@ begin
           now() + interval '5 days', now() + interval '5 days 3 hours', '1 Oak St');
 end $$;
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
+
+-- Penetration test hardening (20261129000000_security_hardening.sql) ---------
+-- An invitation can't be re-sent within 5 minutes, and one organization can't
+-- send more than 40 invitation emails an hour (even by cancelling and re-inviting).
+reset role;
+insert into public.invitations (event_id, email, role, invited_by)
+values ('10000000-0000-0000-0000-00000000000a', 'flood@example.com', 'volunteer_director', '00000000-0000-0000-0000-000000000001');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  perform public.prepare_invitation_email((select id from public.invitations where email = 'flood@example.com'));
+  begin
+    perform public.prepare_invitation_email((select id from public.invitations where email = 'flood@example.com'));
+  exception when raise_exception then ok := true;
+  end;
+  assert ok, 'the same invitation can''t be re-sent within 5 minutes';
+end $$;
+reset role;
+update public.invitations set sent_at = null where email = 'flood@example.com';
+insert into public.invitation_sends (organization_id)
+select e.organization_id from public.events e, generate_series(1, 40) where e.id = '10000000-0000-0000-0000-00000000000a';
+set role authenticated;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.prepare_invitation_email((select id from public.invitations where email = 'flood@example.com'));
+  exception when raise_exception then ok := true;
+  end;
+  assert ok, 'an organization can''t send more than 40 invitation emails an hour';
+end $$;
+-- Nobody can read the send records directly.
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform 1 from public.invitation_sends;
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'invitation send records are private';
+end $$;
+reset role;
+delete from public.invitation_sends;
+delete from public.invitations where email = 'flood@example.com';
+
+-- Visitors who aren't signed in have no write permission on any table.
+set role anon;
+do $$
+declare
+  t text;
+  ok boolean;
+begin
+  foreach t in array array['volunteers', 'parent_registrations', 'conference_bookings', 'events', 'organizations',
+                           'organization_members', 'profiles', 'bands', 'invitations'] loop
+    ok := false;
+    begin
+      execute format('delete from public.%I', t);
+    exception when insufficient_privilege then ok := true;
+    end;
+    assert ok, format('anon can''t delete from %s', t);
+  end loop;
+  ok := false;
+  begin
+    insert into public.volunteers (event_id, full_name, email) values (gen_random_uuid(), 'X', 'x@example.com');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'anon can''t add volunteers directly';
+end $$;
+reset role;
+do $$ begin
+  assert not exists (
+    select 1 from information_schema.role_table_grants
+     where grantee = 'anon' and table_schema = 'public' and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
+  ), 'anon holds no write permission on any table';
+end $$;
 
 \echo 'All database security tests passed.'

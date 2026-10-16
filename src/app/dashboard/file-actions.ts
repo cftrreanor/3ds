@@ -85,7 +85,9 @@ export async function saveFile(
   if (!(await isHost(eventId))) return { error: "You don't have permission to do that." };
   if (uploaded) {
     const ok = uploadSchema.safeParse({ fileName: uploaded.fileName, contentType: uploaded.contentType, size: uploaded.size });
-    if (!ok.success || !uploaded.path.startsWith(`${eventId}/`)) return { error: "Something went wrong with the upload. Please try again." };
+    // Exactly the shape prepareUpload made: this event's folder, a random id, a cleaned name.
+    const ourPath = new RegExp(`^${eventId}/[0-9a-f-]{36}-[\\w.-]{1,80}$`).test(uploaded.path);
+    if (!ok.success || !ourPath) return { error: "Something went wrong with the upload. Please try again." };
   }
 
   const supabase = await createClient();
