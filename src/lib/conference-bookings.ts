@@ -115,6 +115,8 @@ export function bookingEmail(
   teacher: Teacher,
   link: string,
   to: BookingParent,
+  /** The teacher canceled it (not the family). */
+  byTeacher = false,
 ) {
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
   const place = meetingPlace(b, event, s, teacher);
@@ -126,9 +128,11 @@ export function bookingEmail(
     return {
       subject: `Canceled: your conference with ${teacher.name}`,
       ...emailLayout({
-        heading: "Your conference was canceled",
+        heading: byTeacher ? `${teacher.name} canceled your conference` : "Your conference was canceled",
         paragraphs: [
-          `Hi ${first}, the conference for ${b.child_name} with ${teacher.name} (${when}) is canceled, and your booking details (your child's name, your contact details, and your note) have been deleted.`,
+          byTeacher
+            ? `Hi ${first}, ${teacher.name} had to cancel the conference for ${b.child_name} (${when}). Your booking details (your child's name, your contact details, and your note) have been deleted. You're welcome to book another open time.`
+            : `Hi ${first}, the conference for ${b.child_name} with ${teacher.name} (${when}) is canceled, and your booking details (your child's name, your contact details, and your note) have been deleted.`,
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
         button: { label: "Book another time", url: link },

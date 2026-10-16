@@ -4330,4 +4330,87 @@ do $$ begin
   ), 'anon holds no write permission on any table';
 end $$;
 
+-- Conference outcomes (20261130000000_conference_outcomes.sql) --------------
+-- The teacher marks a started meeting Met or No-show; nobody else can.
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000d2', :'org_id', 'Mr. Lee Conferences', 'conf-d2', 'published', 'conference', 'America/Chicago',
+        current_date + 3, current_date + 3,
+        ((current_date + 3) + time '15:00') at time zone 'America/Chicago',
+        ((current_date + 3) + time '16:00') at time zone 'America/Chicago', '1 School Rd');
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room)
+values ('10000000-0000-0000-0000-0000000000d2', 15, 0, '[]', now(), 'in_person', 'Room 9');
+select set_config('test.outcome_token', public.book_conference('10000000-0000-0000-0000-0000000000d2',
+  ((current_date + 3) + time '15:00') at time zone 'America/Chicago', 'Eli Ward', '[{"name": "Sam Ward", "email": "sam@example.com"}]', null, null)::text, false) \g /dev/null
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare
+  bid uuid := (select b.id from public.conference_bookings b where b.event_id = '10000000-0000-0000-0000-0000000000d2');
+  ok boolean := false;
+begin
+  begin
+    perform public.set_conference_outcome(bid, 'met');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a meeting can''t be marked before it starts';
+end $$;
+reset role;
+update public.conference_bookings set starts_at = now() - interval '10 minutes' where access_token = current_setting('test.outcome_token')::uuid;
+set role authenticated;
+do $$
+declare
+  bid uuid := (select b.id from public.conference_bookings b where b.event_id = '10000000-0000-0000-0000-0000000000d2');
+  ok boolean := false;
+begin
+  perform public.set_conference_outcome(bid, 'met');
+  assert (select outcome from public.conference_bookings where conference_bookings.id = bid) = 'met', 'the teacher marks a meeting Met';
+  perform public.set_conference_outcome(bid, 'no_show');
+  assert (select outcome from public.conference_bookings where conference_bookings.id = bid) = 'no_show', 'and changes it to No-show';
+  begin
+    perform public.set_conference_outcome(bid, 'late');
+  exception when sqlstate '22023' then ok := true;
+  end;
+  assert ok, 'only Met or No-show';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.set_conference_outcome((select id from public.conference_bookings limit 1), 'met');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'strangers can''t mark meetings';
+end $$;
+reset role;
+do $$
+declare
+  ok boolean := false;
+  -- The stranger can't see the booking's id, so try it with the real one too.
+  real_id uuid := (select id from public.conference_bookings where access_token = current_setting('test.outcome_token')::uuid);
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}', true);
+  begin
+    perform public.set_conference_outcome(real_id, 'met');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'strangers can''t mark a meeting even with its id';
+end $$;
+reset role;
+do $$ begin
+  assert (select outcome from public.conference_bookings where access_token = current_setting('test.outcome_token')::uuid) = 'no_show',
+         'the stranger changed nothing';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  perform public.set_conference_outcome((select id from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d2'), null);
+  assert (select outcome is null and outcome_at is null from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d2'),
+         'tapping again undoes it';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d2';
+
 \echo 'All database security tests passed.'

@@ -544,12 +544,26 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                     (event.status === "published" ? "Families book from your public page link." : "Ready to publish.")}
                 </p>
               </div>
-              <Link
-                href={`/dashboard/events/${eventId}/conferences`}
-                className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-              >
-                {notReady(conference, event.venue_address) ? "Set up conferences" : "Manage conferences"}
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                {conference?.times_saved_at && (event.status === "published" || conferenceBooked > 0) && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/conferences/meetings`}
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                  >
+                    See your meetings
+                  </Link>
+                )}
+                <Link
+                  href={`/dashboard/events/${eventId}/conferences`}
+                  className={
+                    conference?.times_saved_at && (event.status === "published" || conferenceBooked > 0)
+                      ? "inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-medium hover:border-brand"
+                      : "inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                  }
+                >
+                  {notReady(conference, event.venue_address) ? "Set up conferences" : "Manage conferences"}
+                </Link>
+              </div>
             </div>
           </Card>
         </section>

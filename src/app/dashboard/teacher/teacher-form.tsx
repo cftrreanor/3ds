@@ -3,6 +3,7 @@
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Select } from "@/components/ui";
+import { ACCOUNT_RECORDS_NOTE } from "@/lib/records";
 import { US_TIMEZONES } from "@/lib/time";
 import { createTeacherAccount } from "./actions";
 
@@ -25,6 +26,7 @@ export function TeacherForm({ name }: { name: string }) {
           ))}
         </Select>
       </Field>
+      <p className="text-sm text-muted">{ACCOUNT_RECORDS_NOTE}</p>
       <SubmitButton pendingText="Setting up…">Start my conferences</SubmitButton>
     </ActionForm>
   );
