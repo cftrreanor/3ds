@@ -48,7 +48,16 @@ export function ChangeBookingForm({
           </Field>
         )}
       </div>
-      <SubmitButton disabled={!changed}>Save the change</SubmitButton>
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton disabled={!changed} aria-describedby={changed ? undefined : "change-hint"}>
+          Save the change
+        </SubmitButton>
+        {!changed && (
+          <p id="change-hint" className="text-sm text-muted">
+            {askMode ? "Pick a new time or a different way to meet first." : "Pick a new time first."}
+          </p>
+        )}
+      </div>
     </ActionForm>
   );
 }

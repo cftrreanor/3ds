@@ -39,7 +39,7 @@
   --danger-foreground: #ffffff;
   --focus: #0b3558;
   /* Secondary text on deep blue and navy. */
-  --on-dark-mute: #b5c3d1;
+  --on-dark-mute: #c8d4e0;
   /* Header bar: always dark, so the white logo reads in light and dark mode. */
   --header: #0b3558;
   --header-foreground: #ffffff;
