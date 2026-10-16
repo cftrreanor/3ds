@@ -136,7 +136,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261125000000_conference_booking_privacy.sql` | Conference bookings are seen only by the teacher (the people on their own account), not the event's team, so the privacy promise to families holds | ✅ run |
 | `20261126000000_conference_demo.sql` | Demo mode for parent-teacher conferences: “Demo this event” fills about two of every three meeting times with sample families (never emailed), and Remove demo people takes them back off | ✅ run |
 | `20261127000000_teacher_accounts.sql` | Free teacher accounts: a teacher signs up on their own (no invitation) and can host parent-teacher conferences only. Adds the account kind and school to each account | ✅ run |
-| `20261128000000_teacher_admin.sql` | Admin tools for free teacher accounts: a "Teacher (free)" pipeline stage (every teacher sign-up gets a card, including ones already signed up), Upgrade to full account, and Suspend (takes the account's events offline and stops it publishing) | ⬜ not run yet |
+| `20261128000000_teacher_admin.sql` | Admin tools for free teacher accounts: a "Teacher (free)" pipeline stage (every teacher sign-up gets a card, including ones already signed up), Upgrade to full account, and Suspend (takes the account's events offline and stops it publishing) | ✅ run |
 
 ## Pilot requests
 
