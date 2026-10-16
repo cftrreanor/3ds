@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CardCarousel } from "@/components/card-carousel";
+import { FaqList } from "@/components/faq-list";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
@@ -11,45 +13,84 @@ import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
 
-// The page follows docs/brand-voice.md ("Homepage structure"): it routes
-// people to the page for what they're organizing, and those pages sell.
+// Copy follows docs/brand-voice.md. Each event card links to its own page,
+// and those pages carry the How it works steps.
 
 const TAGLINE = "Every detail organized. Every organizer supported.";
 const CONTACT = `mailto:${brand.supportEmail}`;
 
-/** "What are you organizing?": one card per task, each linking to its pages. */
-const router: { title: string; body: string; links: { label: string; href: string }[] }[] = [
+// The kinds of event (src/lib/event-types.ts), as the page's main pitch.
+const kinds = [
   {
-    title: "Contests and festivals",
-    body: "Schedules, rooms, check-in, and buses in one place",
-    links: [
-      { label: "Band contests", href: audiences.bands.path },
-      { label: "Choir and group festivals", href: audiences.groups.path },
+    icon: CONFERENCES_PAGE.icon,
+    title: "Parent-teacher conferences",
+    href: CONFERENCES_PAGE.path,
+    examples: "Fall and spring conferences, in person or on video",
+    points: [
+      "Families book their own meeting time from one link",
+      "Calendar invites, a reminder the day before, and easy changes",
+      "Only the teacher sees children's names",
     ],
   },
   {
-    title: "School events",
-    body: "Theater, UIL academics, fairs, and more",
-    links: [
-      { label: "Theater, UIL, and group events", href: audiences.groups.path },
-      { label: "School fairs and fundraisers", href: audiences.fairs.path },
-      { label: "School volunteers", href: audiences.volunteers.path },
+    icon: "🎺",
+    title: "Band contests",
+    href: audiences.bands.path,
+    examples: "Marching invitationals, jazz festivals, and solo & ensemble",
+    points: [
+      "Band registration with saved details, and easy one-tap registration for returning bands and directors",
+      "Performance schedule, finals, and a live order for directors and spectators",
+      "Keep track of bands throughout the event with personalized check-in stages",
     ],
   },
   {
-    title: "Classroom sign-ups",
-    body: "Parties, conferences, and visits, ready in minutes",
-    links: [
-      { label: "Parent-teacher conferences", href: CONFERENCES_PAGE.path },
-      { label: "Class parties and campus visits", href: audiences.parents.path },
+    icon: "👥",
+    title: "Group events",
+    href: audiences.groups.path,
+    examples: "Choir and orchestra festivals, theater, UIL academics, and speech & debate",
+    points: [
+      "Groups register, then move through your rooms on a schedule built for you",
+      "Arrived and Done taps keep every room on time",
+      "Directors and families can follow each room live on their phones",
     ],
   },
   {
-    title: "For administrators",
-    body: "Reliable events with less strain on your staff",
-    links: [{ label: "Talk with us", href: CONTACT }],
+    icon: "🎪",
+    title: "School fairs & fundraisers",
+    href: audiences.fairs.path,
+    examples: "Fall festivals, carnivals, and PTO fundraisers",
+    points: [
+      "Booths and community partners organized by zone",
+      "Quick partner check-in on the day",
+      "A public “What's at the event” page that thanks your partners",
+    ],
+  },
+  {
+    icon: "🙋",
+    title: "Volunteer events",
+    href: audiences.volunteers.path,
+    examples: "Concessions, field day, book fairs, and school parking",
+    points: [
+      "Build stations and schedules with ease",
+      "Volunteers sign up and get email confirmations, calendar invites, and day-before reminders, with no hassle and no ads",
+      "Check in volunteers on any device, no extra app required",
+    ],
+  },
+  {
+    icon: "🏫",
+    title: "School visitor events",
+    href: audiences.parents.path,
+    examples: "Family lunches, class parties, open houses, performances, and award days",
+    points: [
+      "Parents register ahead with each child, teacher, and grade",
+      "Reminders to bring a photo ID, and a calendar invite",
+      "Easy parent and visitor check-in at the event door",
+    ],
   },
 ];
+
+// Each event-type card in the sideways row: most of a phone screen, about a third of a wide one.
+const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%] lg:w-[31%]";
 
 const different = [
   { title: "Organized", body: "everything for your event on one page" },
@@ -77,6 +118,63 @@ const support = [
   {
     title: "Real people when you need them",
     body: "Email us and a person on our team writes back. No bots.",
+  },
+];
+
+// The principles behind every event's data (the database enforces each one).
+const privacy = [
+  {
+    title: "Only what the event needs",
+    body: "We ask for the least information that gets the job done: headcounts instead of student names, first name and last initial for under-18 helpers, and no accounts for families or spectators.",
+  },
+  {
+    title: "Only who needs it",
+    body: "Organizers, leads, and volunteers each see what their role requires. Contact details unlock for leads on event day, and children's names stay with your event team.",
+  },
+  {
+    title: "Gone when it's over",
+    body: "Volunteers' details are deleted 10 days after the event, and children's details from school visits after 30 days.",
+  },
+  {
+    title: "No ads, no spam",
+    body: `Emails go out only for your event, and there are no ads anywhere in ${brand.name}.`,
+  },
+];
+
+// Plain answers to what organizers ask (and search for); also given to search
+// engines and AI assistants as an FAQ (see jsonLd below).
+const faqs = [
+  {
+    q: "Can I use this instead of an online form for parent check-in?",
+    a: "Yes. For a school visitor event, parents register ahead with each child's name, teacher, and grade, and they get a reminder to bring a photo ID. Your front office checks every adult in at the door on any phone. Only your event team sees children's details, and they're deleted 30 days after the event.",
+  },
+  {
+    q: "How do band and choir directors register for our contest or festival?",
+    a: "Share one registration link. Directors register their band or group once, and returning directors reuse their saved details. They see their performance time or room schedule as soon as you publish it.",
+  },
+  {
+    q: "How do volunteers sign up and get checked in?",
+    a: "Share a link or QR code. Volunteers pick a shift on their phone without making an account, and they get a confirmation and a calendar invite. They're checked in at the desk with one tap, and walk-ups can fill open spots on the day.",
+  },
+  {
+    q: "Can it run a school fair or PTO fundraiser?",
+    a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer stations with Station Coordinators, and share a public page of everything at the event that thanks your partners.",
+  },
+  {
+    q: "Do volunteers, parents, or visiting directors have to pay or download an app?",
+    a: `No app, and no platform fee. Only the school or organization running the event pays to use ${brand.name}. Everyone they invite (volunteers, parents and families, and visiting band and choir directors) uses ${brand.name} at no charge, right in their phone's web browser. Any registration fee or ticket price the event itself charges is set by the organizer and is separate from ${brand.name}.`,
+  },
+  {
+    q: "How is student and family information handled?",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events are deleted 30 days after the event, and volunteers' details 10 days after. Section Leads see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event.",
+  },
+  {
+    q: "Who is it for?",
+    a: "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, teachers, school front offices, and administrators: anyone running a school event with volunteers, registrations, or check-in.",
+  },
+  {
+    q: "What does it cost?",
+    a: "Your pilot is free, with dates we set together. After that, organizing events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a platform fee for volunteers, families, or visiting groups. Any registration or ticket fees are your event's own.",
   },
 ];
 
@@ -149,6 +247,10 @@ const jsonLd = {
           "Free for organizers during the pilot, then a paid plan for organizers. No platform fee for volunteers, families, or visiting groups.",
       },
     },
+    {
+      "@type": "FAQPage",
+      mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
   ],
 };
 
@@ -173,7 +275,10 @@ export default async function Home() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <HeaderBar maxWidth="max-w-6xl">
         <JumpLink href="#organizing" className={`hidden sm:block ${headerLinkClass}`}>
-          What are you organizing?
+          Events
+        </JumpLink>
+        <JumpLink href="#faq" className={`hidden md:block ${headerLinkClass}`}>
+          FAQ
         </JumpLink>
         <JumpLink href="#pilot" className={`hidden sm:block ${headerLinkClass}`}>
           Pilot details
@@ -195,10 +300,8 @@ export default async function Home() {
         {/* 1. Hero */}
         <section className={`hero-sky text-white ${banners.length ? "mt-4" : ""}`}>
           <div className="mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24">
-            <h1 className="max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">{TAGLINE}</h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
-              Contests, school events, and simple sign-ups, with real people behind every one
-            </p>
+            <h1 className="max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">School events without the clipboards</h1>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">Contests, school events, and easy sign-ups</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
                 {CTA}
@@ -207,28 +310,38 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* 2. Router: the homepage routes, the specialized pages sell */}
+        {/* 2. One card per kind of event, each linking to its own page */}
         <section id="organizing" tabIndex={-1} className="scroll-mt-20 border-b border-border bg-surface outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className={sectionTitle}>What are you organizing?</h2>
-            <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {router.map((r) => (
-                <li key={r.title} className="flex flex-col rounded-lg border border-border bg-background p-6">
-                  <h3 className="text-lg font-semibold">{r.title}</h3>
-                  <p className="mt-1 leading-7 text-muted">{r.body}</p>
-                  <ul className="mt-auto space-y-1 pt-5">
-                    {r.links.map((l) => (
-                      <li key={l.label}>
-                        <a href={l.href} className="inline-flex min-h-11 items-center font-medium text-brand underline">
-                          {l.label}
-                          <span aria-hidden>&nbsp;→</span>
-                        </a>
+            <p className="mt-3 max-w-2xl leading-7 text-muted">
+              Choose your kind of event, and {brand.name} gives you the tools it needs.
+            </p>
+            <CardCarousel label="Kinds of school event" itemName="event types">
+              {kinds.map((k) => (
+                <li key={k.title} className={`${carouselCard} flex flex-col rounded-lg border border-border bg-background p-6 sm:p-8`}>
+                  <span aria-hidden className="text-3xl">
+                    {k.icon}
+                  </span>
+                  <h3 className="mt-3 text-lg font-semibold">{k.title}</h3>
+                  <p className="mt-1 text-sm text-muted">{k.examples}</p>
+                  <ul className="mt-4 space-y-2 leading-7">
+                    {k.points.map((point) => (
+                      <li key={point} className="flex gap-2">
+                        <span aria-hidden className="text-success">
+                          ✓
+                        </span>
+                        <span>{point}</span>
                       </li>
                     ))}
                   </ul>
+                  <Link href={k.href} className="mt-auto pt-6 font-medium text-brand underline">
+                    More about {k.title.toLowerCase()}
+                    <span aria-hidden> →</span>
+                  </Link>
                 </li>
               ))}
-            </ul>
+            </CardCarousel>
           </div>
         </section>
 
@@ -295,6 +408,27 @@ export default async function Home() {
                 {brand.supportEmail}
               </a>
             </p>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
+          <div className="rounded-lg bg-brand p-8 text-brand-foreground sm:p-12">
+            <h2 className={sectionTitle}>Privacy by default</h2>
+            <dl className="mt-6 grid max-w-5xl gap-6 leading-7 sm:grid-cols-2">
+              {privacy.map((p) => (
+                <div key={p.title}>
+                  <dt className="font-semibold">{p.title}</dt>
+                  <dd className="mt-1 opacity-90">{p.body}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        <section id="faq" className="scroll-mt-20 border-t border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 className={sectionTitle}>Questions schools ask</h2>
+            <FaqList faqs={faqs} />
           </div>
         </section>
 
