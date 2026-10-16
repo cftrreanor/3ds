@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { startTransition, useMemo, useOptimistic, useState } from "react";
 import { toast } from "@/components/toaster";
 import { Input } from "@/components/ui";
@@ -52,7 +53,18 @@ const STATUS: Record<"now" | "next" | "past", string> = {
 };
 
 /** The teacher's meetings in time order, like the parent check-in list: a count, a search box, one card per family. */
-export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booked: number; total: number }) {
+export function MeetingList({
+  rows,
+  booked,
+  total,
+  summaryHref,
+}: {
+  rows: MeetingRow[];
+  booked: number;
+  total: number;
+  /** The one-page summary to print or save as a PDF. */
+  summaryHref: string;
+}) {
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Taps show at once, like parent check-in; the page catches up when the save lands.
@@ -247,8 +259,11 @@ export function MeetingList({ rows, booked, total }: { rows: MeetingRow[]; booke
               Copy all parent emails
             </button>
           )}
+          <Link href={summaryHref} className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
+            Print summary
+          </Link>
           <button type="button" className="min-h-11 font-medium text-brand hover:underline" onClick={() => window.print()}>
-            Print
+            Print full list
           </button>
         </div>
         <p className="mt-1 text-xs text-muted print:hidden">{RECORDS_NOTE}</p>

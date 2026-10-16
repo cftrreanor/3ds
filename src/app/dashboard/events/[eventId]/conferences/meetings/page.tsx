@@ -141,7 +141,12 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
               </Link>
             </p>
           )}
-          <MeetingList rows={rows} booked={bookings.length} total={starts.length} />
+          <MeetingList
+            rows={rows}
+            booked={bookings.length}
+            total={starts.length}
+            summaryHref={`/dashboard/events/${eventId}/conferences/meetings/summary`}
+          />
         </div>
       )}
 
