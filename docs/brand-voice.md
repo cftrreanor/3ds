@@ -34,6 +34,7 @@ Use these rules for all website and in-app copy.
 - **Administrators page:** "facilitator" when naming the role
 - **Everywhere else:** "organizer" when naming the role
 - **Body copy:** "you" preferred over either word when speaking to the reader
+- **In-app role names:** "Host", "Co-host", and "Account Host" stay as the names of the account permission levels inside the app. Use "organizer" on the website and when describing the person in general copy.
 
 ## Audiences
 
