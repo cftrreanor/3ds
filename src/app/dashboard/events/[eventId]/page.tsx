@@ -42,6 +42,8 @@ import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { SetupGuide } from "@/components/setup-guide";
+import { DayRail } from "@/components/event-day-nav";
+import { loadDayActions } from "@/lib/event-day-actions";
 import { SavedBy } from "@/components/saved-by";
 import { brand } from "@/lib/brand";
 import { loadSetupFacts } from "@/lib/setup-facts";
@@ -297,6 +299,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? ((await supabase.from("conference_bookings").select("id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
     : 0;
 
+  // On the day itself, the day's jobs take the checklist's place beside the page.
+  const dayActions = await loadDayActions(eventId);
   // Hosts: the setup checklist and what publishing will do (the same facts every event page's strip uses).
   const setup: SetupFacts | null = access.isHost ? await loadSetupFacts(eventId) : null;
   const checklist = setup ? setupChecklist(setup) : null;
@@ -764,9 +768,17 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const emergency = announcements.some((a) => a.priority === "emergency");
 
   return (
-    <div className={checklist ? "pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8 lg:pb-0" : undefined}>
+    <div
+      className={
+        dayActions
+          ? "lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8"
+          : checklist
+            ? "pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8 lg:pb-0"
+            : undefined
+      }
+    >
       {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
-      {checklist && <SetupGuide checklist={checklist} />}
+      {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">
         <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
           ← All events

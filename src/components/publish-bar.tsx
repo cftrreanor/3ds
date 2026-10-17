@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
  */
 export function PublishBar({ children }: { children: ReactNode }) {
   return (
-    <div className="sticky bottom-0 z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg">
+    <div className="sticky bottom-[var(--day-bar,0px)] z-10 order-last -mx-4 space-y-2 border-t-2 border-brand bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.12)] sm:order-first sm:top-0 sm:bottom-auto sm:mx-0 sm:mb-3 sm:rounded-lg sm:border-2 sm:px-5 sm:shadow-lg">
       {children}
     </div>
   );
