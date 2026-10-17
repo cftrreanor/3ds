@@ -1,4 +1,5 @@
 import "server-only";
+import { PILOT_END } from "@/lib/pilot";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { missing } from "@/lib/schema-check";
@@ -31,12 +32,12 @@ export type PlanStatus = (typeof PLANS)[number]["value"];
 export const planLabel = (status: string) => PLANS.find((p) => p.value === status)?.label ?? status;
 export const isFreePlan = (status: string) => PLANS.some((p) => p.value === status && p.free);
 
-/** Default last day for a new pilot: the end of the 2026–27 school year. */
-export const DEFAULT_PILOT_END = "2027-06-30";
+/** Default last day for a new pilot: the day the pilot ends (src/lib/pilot.ts). */
+export const DEFAULT_PILOT_END = PILOT_END;
 
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 864e5);
 
-/** Where a pilot or trial stands: "Free through Jun 30, 2027", "Ends in 12 days", "Ended Jun 30, 2027". */
+/** Where a pilot or trial stands: "Free through Jan 1, 2027", "Ends in 12 days", "Ended Jan 1, 2027". */
 export function freeStatus(org: { subscription_status: string; free_until: string | null; default_timezone: string }) {
   if (!isFreePlan(org.subscription_status) || !org.free_until) return null;
   const today = utcToZonedDate(new Date().toISOString(), org.default_timezone);
@@ -69,7 +70,7 @@ export const ADMIN_LOG_COLUMNS =
 const planWithEnd = (p?: { status: string; free_until: string | null }) =>
   p ? `${planLabel(p.status)}${p.free_until ? ` through ${formatDate(p.free_until, { weekday: undefined })}` : ""}` : "?";
 
-/** "Pilot (free) through Jun 30, 2027 → Paid" */
+/** "Pilot (free) through Jan 1, 2027 → Paid" */
 export function describeAdminLog(r: AdminLogRow) {
   if (r.action === "plan_changed") return `Plan: ${planWithEnd(r.details.from)} → ${planWithEnd(r.details.to)}`;
   if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host`;

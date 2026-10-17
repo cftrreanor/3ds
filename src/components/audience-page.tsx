@@ -10,6 +10,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { AUDIENCES, CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
+import { PILOT_END_LABEL } from "@/lib/pilot";
 
 const CTA = "Join the pilot";
 
@@ -185,8 +186,8 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
             <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium">Limited spots</p>
             <h2 className="mt-4 text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">{CTA}</h2>
             <p className="mt-3 leading-7 text-muted">
-              Your pilot is free, and we set its dates together. Volunteers, families, and visiting groups never pay a
-              platform fee.{" "}
+              Your pilot is free, and the pilot ends {PILOT_END_LABEL}. Volunteers, families, and visiting groups
+              never pay a platform fee.{" "}
               <Link href="/#pilot" className="text-brand underline">
                 See the pilot details
               </Link>
@@ -201,7 +202,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
         <section className="bg-teal-deep text-white">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
             <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Every detail organized. Every organizer supported.</h2>
-            <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free during your pilot. Spots are limited.</p>
+            <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free until {PILOT_END_LABEL}. Spots are limited.</p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <JumpLink href="#join" className="inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
                 {CTA}
