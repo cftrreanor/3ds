@@ -68,7 +68,7 @@ export default async function AnnouncementsPage({ params }: PageProps<"/dashboar
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Broadcast Messages</h1>
         <p className="mt-1 text-muted">
           Post a quick message, like a band switch or a delay, and it shows at the top of the pages of the people it&apos;s for, as soon as
-          their page updates. Each person sees it for at least a minute, then it fades away.
+          their page updates. Each person sees it for at least a minute, then it fades away. Emergencies are also emailed.
           {!access.isHost && " Volunteer Leads can post to volunteers and the event team."}
         </p>
       </div>
