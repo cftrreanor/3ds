@@ -10,11 +10,8 @@ export async function BoothsCard({ eventId, isDay }: { eventId: string; isDay: b
   const arrived = partners.filter((b) => b.arrived_at).length;
   const zones = new Set(booths.map((b) => b.zone).filter(Boolean)).size;
   return (
-    <section className="mt-10" aria-labelledby="booths-heading">
-      <h2 id="booths-heading" className="text-xl font-semibold">
-        Booths &amp; Partners
-      </h2>
-      <Card className={`mt-4 ${isDay ? "border-brand" : ""}`}>
+    // The heading comes from the event page's section around it.
+    <Card className={isDay ? "border-brand" : ""}>
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
           <p className="text-sm leading-6">
             {booths.length === 0 ? (
@@ -36,12 +33,11 @@ export async function BoothsCard({ eventId, isDay }: { eventId: string; isDay: b
           </p>
           <Link
             href={`/dashboard/events/${eventId}/booths`}
-            className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+            className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
           >
             {isDay ? "Partner check-in" : booths.length ? "Manage booths" : "Add booths"}
           </Link>
         </div>
-      </Card>
-    </section>
+    </Card>
   );
 }
