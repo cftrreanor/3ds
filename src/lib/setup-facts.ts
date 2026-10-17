@@ -24,7 +24,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const type = event.event_type as string;
   const count = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
   const head = { count: "exact" as const, head: true };
-  const [stations, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference] = await Promise.all([
+  const [stations, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots] = await Promise.all([
     count(supabase.from("stations").select("id", head).eq("event_id", eventId)),
     count(supabase.from("stations").select("id", head).eq("event_id", eventId).not("checkpoint_kind", "is", null)),
     count(supabase.from("shifts").select("id", head).eq("event_id", eventId)),
@@ -43,6 +43,12 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
           .maybeSingle()
           .then(({ data }) => (data ?? null) as ConferenceSettings | null)
       : null,
+    hasRooms(type) ? count(supabase.from("rooms").select("id", head).eq("event_id", eventId)) : 0,
+    hasRooms(type)
+      ? count(supabase.from("room_slots").select("band_id", head).eq("event_id", eventId))
+      : type === "band_contest"
+        ? count(supabase.from("performance_slots").select("band_id", head).eq("event_id", eventId))
+        : 0,
   ]);
   return {
     eventId,
@@ -51,7 +57,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     stations,
     shifts,
     checkInStops,
-    team: staff + invites + cohosts,
+    team: staff + cohosts,
+    invitesPending: invites,
     files,
     volunteerSignupOpen: event.volunteer_signup_open,
     bandRegistrationOpen: Boolean(event.band_registration_open),
@@ -61,6 +68,9 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     finalistsRevealed: Boolean(event.finalists_revealed),
     directorInfo: Boolean(event.director_info?.trim()),
     pathRooms,
+    rooms,
+    scheduleSlots,
+    conferenceTimesSaved: Boolean(conference?.times_saved_at),
     booths,
     parentRegistrationOpen: event.parent_registration_open,
     parentClosesAt: Boolean(event.parent_registration_closes_at),

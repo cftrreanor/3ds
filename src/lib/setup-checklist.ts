@@ -14,6 +14,8 @@ export type SetupStep = {
   done: boolean;
   /** Recommended before publishing (otherwise optional). */
   required: boolean;
+  /** Started but not finished (something's saved): how far along, and what's there so far. */
+  partial?: { fraction: number; note: string };
 };
 
 export type SetupFacts = {
@@ -24,7 +26,10 @@ export type SetupFacts = {
   shifts: number;
   /** Stations marked as check-in stops (band contests). */
   checkInStops: number;
+  /** People who've joined the event's team (co-hosts and leads). */
   team: number;
+  /** Team invitations sent but not accepted yet. */
+  invitesPending: number;
   files: number;
   volunteerSignupOpen: boolean;
   bandRegistrationOpen: boolean;
@@ -35,6 +40,12 @@ export type SetupFacts = {
   finalistsRevealed: boolean;
   directorInfo: boolean;
   pathRooms: number;
+  /** Group events: every room, on the path or not. */
+  rooms: number;
+  /** Performance (or room) times built, published or not. */
+  scheduleSlots: number;
+  /** Conferences: meeting times saved (the place may still be missing). */
+  conferenceTimesSaved?: boolean;
   booths: number;
   parentRegistrationOpen: boolean;
   parentClosesAt: boolean;
@@ -43,6 +54,7 @@ export type SetupFacts = {
 };
 
 export type SetupChecklist = {
+  eventId: string;
   before: SetupStep[];
   publish: SetupStep;
   after: SetupStep[];
@@ -52,6 +64,10 @@ export type SetupChecklist = {
   total: number;
   /** The one step to do next (none when everything's done). */
   next: SetupStep | null;
+  /** A step that's started but not finished: where to pick up after stepping away. */
+  inProgress: SetupStep | null;
+  /** One segment per counted step, for the progress line. */
+  segments: { id: string; state: "done" | "partial" | "todo"; fraction: number }[];
   /**
    * What the progress line counts: before publishing, only what's needed to
    * publish; once live, the steps that come after. Optional steps never count.
@@ -89,6 +105,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       href: `${base}/rooms#rooms-heading`,
       done: f.pathRooms > 0,
       required: true,
+      partial: f.rooms > 0 ? { fraction: 0.5, note: `${f.rooms} room${f.rooms === 1 ? "" : "s"}, path not set yet` } : undefined,
     });
   }
   if (f.eventType === "band_contest") {
@@ -129,6 +146,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       href: `${base}/conferences`,
       done: !f.conferenceMissing,
       required: true,
+      partial: f.conferenceTimesSaved && f.conferenceMissing ? { fraction: 0.5, note: "Meeting times saved" } : undefined,
     });
   }
   if (hasParents(f.eventType)) {
@@ -151,6 +169,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         href: `${base}/volunteering`,
         done: hasShifts,
         required: volunteerEvent,
+        partial: f.stations > 0 ? { fraction: 0.5, note: `${f.stations} station${f.stations === 1 ? "" : "s"}, no shifts yet` } : undefined,
       },
       {
         id: "team",
@@ -159,6 +178,10 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         href: `${base}/team`,
         done: f.team > 0,
         required: false,
+        partial:
+          f.invitesPending > 0
+            ? { fraction: 0.5, note: `${f.invitesPending} invitation${f.invitesPending === 1 ? "" : "s"} waiting to be accepted` }
+            : undefined,
       },
       {
         id: "files",
@@ -208,6 +231,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/schedule`,
         done: f.scheduleShared,
         required: false,
+        partial: f.scheduleSlots > 0 ? { fraction: 0.75, note: "Built, not published yet" } : undefined,
       },
     );
   }
@@ -223,12 +247,23 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   }
 
   before.sort((a, b) => BEFORE_ORDER.indexOf(a.id) - BEFORE_ORDER.indexOf(b.id));
+  // Only open steps can be part-way; a finished one just shows done.
+  for (const st of [...before, ...after]) if (st.done) delete st.partial;
   const all = [...before, publish, ...after];
   const remaining = before.filter((s) => s.required && !s.done);
   const needed = [...before.filter((s) => s.required), publish];
   const afterDone = after.filter((s) => s.done).length;
   const next = !f.published ? (remaining[0] ?? publish) : (after.find((s) => !s.done) ?? null);
+  const counted = f.published ? after : needed;
+  const inProgress = (f.published ? after : [...before, ...after]).find((s) => !s.done && s.partial) ?? null;
   return {
+    eventId: f.eventId,
+    inProgress,
+    segments: counted.map((s) => ({
+      id: s.id,
+      state: s.done ? "done" : s.partial ? "partial" : "todo",
+      fraction: s.done ? 1 : (s.partial?.fraction ?? 0),
+    })),
     before,
     publish,
     after,

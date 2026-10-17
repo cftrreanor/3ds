@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { currentChecklist } from "@/app/dashboard/events/[eventId]/setup-actions";
 import type { SetupChecklist, SetupStep } from "@/lib/setup-checklist";
 
@@ -13,7 +13,8 @@ import type { SetupChecklist, SetupStep } from "@/lib/setup-checklist";
  */
 export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
   const drawer = useRef<HTMLDialogElement>(null);
-  const { progress, next, complete } = checklist;
+  const { progress, complete } = checklist;
+  const { justDone, celebrate } = useJustDone(checklist, true);
 
   return (
     <>
@@ -28,11 +29,11 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
                 <span className="mt-1 block text-xs font-normal text-muted">Show the checklist</span>
               </summary>
               <div className="mt-3">
-                <Steps checklist={checklist} />
+                <Steps checklist={checklist} justDone={justDone} />
               </div>
             </details>
           ) : (
-            <Steps checklist={checklist} />
+            <Steps checklist={checklist} justDone={justDone} />
           )}
         </div>
       </aside>
@@ -40,16 +41,16 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
       {/* Phone and tablet: a light bar along the bottom with the next step; it opens the drawer. */}
       {!complete && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur lg:hidden print:hidden">
-          <ProgressLine progress={progress} />
+          <Segments segments={checklist.segments} className="px-4 pt-2.5" />
           <button
             type="button"
             onClick={() => drawer.current?.showModal()}
             aria-haspopup="dialog"
             className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-left"
           >
-            <span className="min-w-0">
+            <span className="min-w-0" aria-live="polite">
               <span className="block text-xs text-muted">Setup checklist · {progress.label}</span>
-              <span className="block truncate text-sm font-semibold">{next ? `Next: ${next.label}` : "See the checklist"}</span>
+              <span className="block truncate text-sm font-semibold">{headline(checklist, celebrate)}</span>
             </span>
             <span aria-hidden className="text-lg text-brand">
               ›
@@ -57,9 +58,65 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
           </button>
         </div>
       )}
-      <ChecklistDrawer drawer={drawer} checklist={checklist} />
+      <ChecklistDrawer drawer={drawer} checklist={checklist} justDone={justDone} />
     </>
   );
+}
+
+/** The bar's main line: a step just finished, a step part-way, or the next one. */
+function headline(c: SetupChecklist, celebrate: SetupStep | null) {
+  if (celebrate) return celebrate.id === "publish" ? "✓ Published · Your event is live" : `✓ Done: ${celebrate.label}`;
+  if (c.inProgress) return `In progress: ${c.inProgress.label}`;
+  return c.next ? `Next: ${c.next.label}` : "See the checklist";
+}
+
+/**
+ * Steps finished since this browser last looked (remembered per event), so
+ * each one gets its small moment once: when it's done here, or when the host
+ * comes back later. The first visit only remembers; nothing plays.
+ */
+function useJustDone(checklist: SetupChecklist, enabled: boolean) {
+  const [justDone, setJustDone] = useState<Set<string>>(() => new Set());
+  const [celebrate, setCelebrate] = useState<SetupStep | null>(null);
+  const steps = [...checklist.before, checklist.publish, ...checklist.after];
+  const doneIds = steps
+    .filter((st) => st.done)
+    .map((st) => st.id)
+    .join(",");
+  const stepsRef = useRef(steps);
+  useEffect(() => {
+    stepsRef.current = steps;
+  });
+
+  useEffect(() => {
+    if (!enabled) return;
+    const key = `fc-setup-done:${checklist.eventId}`;
+    const now = doneIds ? doneIds.split(",") : [];
+    let seen: string[] | null = null;
+    try {
+      const raw = localStorage.getItem(key);
+      seen = raw ? (JSON.parse(raw) as string[]) : null;
+      localStorage.setItem(key, JSON.stringify(now));
+    } catch {
+      return; // No storage (private window): no moments, nothing else changes.
+    }
+    const fresh = seen ? now.filter((id) => !seen.includes(id)) : [];
+    if (!fresh.length) return;
+    const frame = requestAnimationFrame(() => {
+      setJustDone((prev) => new Set([...prev, ...fresh]));
+      setCelebrate(stepsRef.current.find((st) => st.id === fresh[fresh.length - 1]) ?? null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [enabled, checklist.eventId, doneIds]);
+
+  // The bar says so for a few seconds, then goes back to what's next.
+  useEffect(() => {
+    if (!celebrate) return;
+    const t = setTimeout(() => setCelebrate(null), 4500);
+    return () => clearTimeout(t);
+  }, [celebrate]);
+
+  return { justDone, celebrate };
 }
 
 /** Pages where the host is running the day, not setting up: no setup bar there. */
@@ -72,8 +129,13 @@ const DAY_SCREENS = ["/contest-day", "/event-day", "/volunteers", "/conferences/
  */
 export function SetupStrip({ eventId, initial }: { eventId: string; initial: SetupChecklist }) {
   const pathname = usePathname();
-  const drawer = useRef<HTMLDialogElement>(null);
   const [checklist, setChecklist] = useState(initial);
+  // Saving on this page refreshes the layout: take the new checklist straight away.
+  const [seenInitial, setSeenInitial] = useState(initial);
+  if (initial !== seenInitial) {
+    setSeenInitial(initial);
+    setChecklist(initial);
+  }
   const base = `/dashboard/events/${eventId}`;
   const hidden = pathname === base || DAY_SCREENS.some((p) => pathname.startsWith(`${base}${p}`));
 
@@ -90,21 +152,44 @@ export function SetupStrip({ eventId, initial }: { eventId: string; initial: Set
   }, [eventId, pathname, hidden]);
 
   if (hidden || checklist.complete) return null;
-  const { next, progress } = checklist;
+  return <StripBar checklist={checklist} pathname={pathname} />;
+}
+
+function StripBar({ checklist, pathname }: { checklist: SetupChecklist; pathname: string }) {
+  const drawer = useRef<HTMLDialogElement>(null);
+  const { justDone, celebrate } = useJustDone(checklist, true);
+  const { progress, inProgress } = checklist;
+  // Part-way through something? That's where to pick up; otherwise, what's next.
+  const next = inProgress ?? checklist.next;
   const here = next && next.href.split(/[?#]/)[0] === pathname;
   return (
     <>
       <div className="mb-5 overflow-hidden rounded-lg border border-border bg-surface text-sm print:hidden">
         <div className="flex items-center gap-3 px-3 py-2 sm:px-4">
-          <p className="min-w-0 flex-1 leading-6">
+          <p className="min-w-0 flex-1 leading-6" aria-live="polite">
             <span className="font-semibold">Setup</span> <span className="text-muted">· {progress.label}</span>
-            {next && (
+            {celebrate && (
+              <span className="block truncate font-medium text-success sm:ml-1 sm:inline">
+                <span className="hidden text-muted sm:inline">· </span>
+                {celebrate.id === "publish" ? "✓ Published · Your event is live" : `✓ Done: ${celebrate.label}`}
+              </span>
+            )}
+            {!celebrate && next && (
               <span className="block truncate sm:ml-1 sm:inline">
                 <span className="hidden text-muted sm:inline">· </span>
                 {here ? (
                   <span>
-                    <span className="text-muted">You&apos;re on the next step:</span> <span className="font-medium">{next.label}</span>
+                    <span className="text-muted">{inProgress ? "You're picking up:" : "You're on the next step:"}</span>{" "}
+                    <span className="font-medium">{next.label}</span>
                   </span>
+                ) : inProgress ? (
+                  <>
+                    <span className="text-muted">In progress:</span> <span className="font-medium">{inProgress.label}</span>
+                    {inProgress.partial && <span className="text-muted"> ({inProgress.partial.note})</span>}{" "}
+                    <Link href={inProgress.href} className="font-semibold text-brand underline-offset-4 hover:underline">
+                      Continue →
+                    </Link>
+                  </>
                 ) : (
                   <>
                     <span className="text-muted">Next:</span>{" "}
@@ -125,18 +210,25 @@ export function SetupStrip({ eventId, initial }: { eventId: string; initial: Set
             Checklist <span aria-hidden>&nbsp;›</span>
           </button>
         </div>
-        <ProgressLine progress={progress} />
+        <Segments segments={checklist.segments} className="px-3 pb-2.5 sm:px-4" />
       </div>
-      <ChecklistDrawer drawer={drawer} checklist={checklist} everywhere />
+      <ChecklistDrawer drawer={drawer} checklist={checklist} justDone={justDone} everywhere />
     </>
   );
 }
 
-function ProgressLine({ progress }: { progress: SetupChecklist["progress"] }) {
-  const pct = Math.round((progress.done / progress.of) * 100);
+/** One segment per step that counts: green when done, part-filled blue when started, gray when not. */
+function Segments({ segments, className = "" }: { segments: SetupChecklist["segments"]; className?: string }) {
   return (
-    <div className="h-1 bg-border" aria-hidden>
-      <div className="h-full bg-success" style={{ width: `${pct}%` }} />
+    <div className={`flex gap-1 ${className}`} aria-hidden>
+      {segments.map((sg) => (
+        <span key={sg.id} className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
+          <span
+            className={`block h-full rounded-full transition-[width] duration-700 ease-out ${sg.state === "done" ? "bg-success" : "bg-brand"}`}
+            style={{ width: `${Math.round(sg.fraction * 100)}%` }}
+          />
+        </span>
+      ))}
     </div>
   );
 }
@@ -145,10 +237,12 @@ function ProgressLine({ progress }: { progress: SetupChecklist["progress"] }) {
 function ChecklistDrawer({
   drawer,
   checklist,
+  justDone,
   everywhere = false,
 }: {
   drawer: RefObject<HTMLDialogElement | null>;
   checklist: SetupChecklist;
+  justDone: Set<string>;
   /** Opened from the strip, so on computers too. */
   everywhere?: boolean;
 }) {
@@ -168,57 +262,57 @@ function ChecklistDrawer({
             Close
           </button>
         </div>
-        <Steps checklist={checklist} onNavigate={() => drawer.current?.close()} />
+        <Steps checklist={checklist} justDone={justDone} onNavigate={() => drawer.current?.close()} />
       </div>
     </dialog>
   );
 }
 
-function Steps({ checklist, onNavigate }: { checklist: SetupChecklist; onNavigate?: () => void }) {
-  const { progress, next } = checklist;
+function Steps({ checklist, justDone, onNavigate }: { checklist: SetupChecklist; justDone: Set<string>; onNavigate?: () => void }) {
+  const { progress } = checklist;
+  // The bars point to a step that's part-way first, so "Next" sits on the same one here.
+  const props = { next: checklist.inProgress ?? checklist.next, justDone, onNavigate };
   return (
     <div>
       <h2 className="text-lg font-semibold">Setup checklist</h2>
       <p className="mt-1 text-sm text-muted">{progress.label}</p>
-      <div className="mt-3 overflow-hidden rounded-full">
-        <ProgressLine progress={progress} />
-      </div>
+      <Segments segments={checklist.segments} className="mt-3" />
 
-      <Group title="Before you publish" steps={checklist.before} next={next} onNavigate={onNavigate} />
+      <Group title="Before you publish" steps={checklist.before} {...props} />
       {/* Publishing is the step between the two lists, not a list of its own. */}
       <ol className="mt-4 border-y border-border py-2">
-        <Step step={checklist.publish} next={next} onNavigate={onNavigate} />
+        <Step step={checklist.publish} {...props} />
       </ol>
-      {checklist.after.length > 0 && <Group title="After you publish" steps={checklist.after} next={next} onNavigate={onNavigate} />}
+      {checklist.after.length > 0 && <Group title="After you publish" steps={checklist.after} {...props} />}
     </div>
   );
 }
 
-/** Open steps first; finished ones fold into one line you can open. */
-function Group({ title, steps, next, onNavigate }: { title: string; steps: SetupStep[]; next: SetupStep | null; onNavigate?: () => void }) {
-  const open = steps.filter((s) => !s.done);
-  const done = steps.filter((s) => s.done);
+type StepProps = { next: SetupStep | null; justDone: Set<string>; onNavigate?: () => void };
+
+/** Open steps first (and any just finished, so its moment is seen); the rest fold into one line you can open. */
+function Group({ title, steps, ...props }: { title: string; steps: SetupStep[] } & StepProps) {
+  const open = steps.filter((st) => !st.done || props.justDone.has(st.id));
+  const done = steps.filter((st) => st.done && !props.justDone.has(st.id));
   return (
     <div className="mt-5">
       <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">{title}</h3>
       {open.length > 0 && (
         <ol className="mt-2 space-y-1">
-          {open.map((s) => (
-            <Step key={s.id} step={s} next={next} onNavigate={onNavigate} />
+          {open.map((st) => (
+            <Step key={st.id} step={st} {...props} />
           ))}
         </ol>
       )}
       {done.length > 0 && (
         <details className="mt-1">
           <summary className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-brand-soft">
-            <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground">
-              ✓
-            </span>
+            <StatusRing step={{ done: true }} />
             {done.length} done · <span className="font-medium text-brand">Show</span>
           </summary>
           <ol className="mt-1 space-y-1">
-            {done.map((s) => (
-              <Step key={s.id} step={s} next={next} onNavigate={onNavigate} />
+            {done.map((st) => (
+              <Step key={st.id} step={st} {...props} />
             ))}
           </ol>
         </details>
@@ -227,39 +321,90 @@ function Group({ title, steps, next, onNavigate }: { title: string; steps: Setup
   );
 }
 
-function Step({ step: s, next, onNavigate }: { step: SetupStep; next: SetupStep | null; onNavigate?: () => void }) {
-  const isNext = next?.id === s.id;
+const RING = 2 * Math.PI * 8;
+
+/**
+ * A step's circle: an empty ring to do, a blue ring filled part way when
+ * started, and a green check when done (which sweeps closed and draws in,
+ * once, when the step has just been finished).
+ */
+function StatusRing({ step, justDone = false }: { step: Pick<SetupStep, "done" | "partial">; justDone?: boolean }) {
+  const arc = (color: string, fraction: number, className?: string, style?: CSSProperties) => (
+    <circle
+      className={className}
+      cx="10"
+      cy="10"
+      r="8"
+      fill="none"
+      stroke={color}
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeDasharray={RING}
+      strokeDashoffset={RING * (1 - fraction)}
+      transform="rotate(-90 10 10)"
+      style={style}
+    />
+  );
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden className={`mt-0.5 size-5 shrink-0 overflow-visible ${justDone ? "setup-just-done" : ""}`}>
+      {step.done ? (
+        <>
+          {justDone && arc("var(--success)", 1, "setup-sweep")}
+          <circle className="setup-fill" cx="10" cy="10" r="9" fill="var(--success)" />
+          <path
+            className="setup-check"
+            d="M6.2 10.4l2.6 2.6 5-5.4"
+            fill="none"
+            stroke="var(--success-foreground)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </>
+      ) : (
+        <>
+          {/* Started: a light track so the blue part reads; not started: a firmer gray ring. */}
+          <circle cx="10" cy="10" r="8" fill="none" stroke={step.partial ? "var(--border)" : "var(--field-border)"} strokeWidth="2" />
+          {step.partial && arc("var(--brand)", step.partial.fraction)}
+        </>
+      )}
+    </svg>
+  );
+}
+
+function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & StepProps) {
+  const isNext = next?.id === st.id;
   return (
     <li>
       <Link
-        href={s.href}
+        href={st.href}
         onClick={onNavigate}
         aria-current={isNext ? "step" : undefined}
         className={`flex min-h-11 items-start gap-3 rounded-md px-2 py-2 ${isNext ? "bg-brand-soft ring-1 ring-brand/30" : "hover:bg-brand-soft"}`}
       >
         {/* Status only: the whole row is a link to where the step is done. */}
-        <span
-          aria-hidden
-          className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-            s.done ? "bg-success text-success-foreground" : "ring-2 ring-field-border"
-          }`}
-        >
-          {s.done ? "✓" : ""}
-        </span>
+        <StatusRing step={st} justDone={justDone.has(st.id)} />
         <span className="min-w-0 flex-1">
-          <span className={`block text-sm font-medium ${s.done ? "text-muted" : ""}`}>
-            {s.label}
-            <span className="sr-only">{s.done ? " (done)" : " (to do)"}</span>
+          <span className={`block text-sm font-medium ${st.done ? "text-muted" : ""}`}>
+            {st.label}
+            <span className="sr-only">{st.done ? " (done)" : st.partial ? " (in progress)" : " (to do)"}</span>
             {isNext && <span className="ml-2 rounded-full bg-brand px-2 py-0.5 align-middle text-[11px] font-semibold text-brand-foreground">Next</span>}
-            {!s.required && !s.done && (
+            {!st.required && !st.done && (
               <span className="ml-2 rounded-full bg-background px-2 py-0.5 align-middle text-[11px] font-semibold text-muted ring-1 ring-border">
                 Optional
               </span>
             )}
           </span>
-          {!s.done && <span className="mt-0.5 block text-xs leading-5 text-muted">{s.hint}</span>}
+          {!st.done &&
+            (st.partial ? (
+              <span className="mt-0.5 block text-xs leading-5">
+                <span className="font-semibold text-brand">In progress</span> <span className="text-muted">· {st.partial.note}</span>
+              </span>
+            ) : (
+              <span className="mt-0.5 block text-xs leading-5 text-muted">{st.hint}</span>
+            ))}
         </span>
-        {!s.done && (
+        {!st.done && (
           <span aria-hidden className="mt-0.5 shrink-0 text-brand">
             →
           </span>
