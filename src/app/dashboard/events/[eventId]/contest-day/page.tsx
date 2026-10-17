@@ -695,6 +695,27 @@ function Overview({
         <AttentionList status={status} eventId={eventId} />
       </Card>
 
+      {/* Running late is when this is needed, so it sits with the on-track status. */}
+      {isHost && remaining.length > 0 && (
+        <Card className="p-4">
+          <details>
+            <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Moves the warm-up and performance times of the band you pick and everyone after them, plus the breaks in
+              between. Bands before them stay as they are.
+            </p>
+            <div className="mt-3">
+              <PushBackForm
+                action={pushScheduleBack.bind(null, eventId)}
+                bands={remaining}
+                hasFinals={hasFinals}
+                published={published}
+              />
+            </div>
+          </details>
+        </Card>
+      )}
+
       <section aria-labelledby="board-heading">
         <h2 id="board-heading" className="sr-only">
           Every band
@@ -707,7 +728,7 @@ function Overview({
                   href={`/dashboard/events/${eventId}/contest-day?${new URLSearchParams({ station: "overview", ...(c.id === "all" ? {} : { filter: c.id }) })}`}
                   scroll={false}
                   aria-current={filter === c.id ? "page" : undefined}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm ${
+                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm ${
                     filter === c.id ? "border-brand bg-brand text-brand-foreground" : "border-border bg-surface text-foreground hover:bg-background"
                   }`}
                 >
@@ -776,25 +797,6 @@ function Overview({
         </details>
       </section>
 
-      {isHost && remaining.length > 0 && (
-        <Card className="p-4">
-          <details>
-            <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Moves the warm-up and performance times of the band you pick and everyone after them, plus the breaks in
-              between. Bands before them stay as they are.
-            </p>
-            <div className="mt-3">
-              <PushBackForm
-                action={pushScheduleBack.bind(null, eventId)}
-                bands={remaining}
-                hasFinals={hasFinals}
-                published={published}
-              />
-            </div>
-          </details>
-        </Card>
-      )}
     </div>
   );
 }

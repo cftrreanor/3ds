@@ -124,7 +124,7 @@ export function AttentionList({
   const shown = limit ? rows.slice(0, limit) : rows;
   return (
     <div>
-      <h3 className="text-sm font-semibold">Needs attention</h3>
+      <h2 className="text-sm font-semibold">Needs attention</h2>
       <ul className="mt-1 divide-y divide-border">
         {shown.map(({ band, check }) => (
           <li key={`${band.id}-${check.station.id}`}>

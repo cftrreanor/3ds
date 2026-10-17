@@ -59,7 +59,7 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
                 <>
                   <p className="mt-3 leading-7 text-muted">
                     {invite.blocked === "closed"
-                      ? `${groupWords(invite.event.event_type).One} registration for this event is closed, so this link no longer signs you in. Please contact the host if you need to make a change.`
+                      ? `${groupWords(invite.event.event_type).One} registration for this event is closed, so this link no longer signs you in. Please contact the organizer if you need to make a change.`
                       : `For your security, this email's sign-in button works once, within ${EMAIL_LINK_DAYS} days${invite.blocked === "used" ? ", and it's been used" : ", and it has expired"}. Sign in with ${invite.email} to continue: your details are still saved.`}
                   </p>
                   <Link

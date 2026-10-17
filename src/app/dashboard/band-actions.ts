@@ -345,6 +345,7 @@ type EmailEvent = {
   venue_address: string;
   ready_minutes_before: number;
   finals_ready_minutes_before: number;
+  finals_published: boolean;
 };
 type EmailSlot = {
   label: string;
@@ -355,12 +356,14 @@ type EmailSlot = {
   bands: { band_name: string; school_name: string; contact_email: string; head_director_email: string } | null;
 };
 
-const EMAIL_EVENT_COLUMNS = "name, slug, timezone, venue_name, venue_address, ready_minutes_before, finals_ready_minutes_before";
+const EMAIL_EVENT_COLUMNS = "name, slug, timezone, venue_name, venue_address, ready_minutes_before, finals_ready_minutes_before, finals_published";
 const EMAIL_BAND_COLUMNS = "bands(band_name, school_name, contact_email, head_director_email)";
 
 /** Email each band's director their times. Runs after the response is sent. */
 function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round: "order" | "finals", kind: "posted" | "changed" = "posted") {
   const readyMin = round === "finals" ? event.finals_ready_minutes_before : event.ready_minutes_before;
+  // Name the round once there are finals, so a finalist can tell the two sets of times apart.
+  const roundWord = round === "finals" ? "finals " : event.finals_published ? "preliminary " : "";
   after(async () => {
     const tz = event.timezone;
     const at = (iso: string | null) =>
@@ -371,19 +374,19 @@ function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round
       const { html, text } = emailLayout({
         heading:
           kind === "changed"
-            ? `Updated ${round === "finals" ? "finals " : ""}times for ${s.bands.band_name}`
+            ? `Updated ${roundWord}times for ${s.bands.band_name}`
             : round === "finals"
-              ? `You're in the finals at ${event.name}!`
-              : `Your performance time at ${event.name}`,
+              ? `You're in the finals at ${event.name}`
+              : `Your ${roundWord || "performance "}time at ${event.name}`,
         paragraphs: [
           kind === "changed"
-            ? `The host updated the ${round === "finals" ? "finals " : ""}schedule for ${event.name}. Here are your current times; please use these from now on.`
+            ? `The organizer updated the ${roundWord}schedule for ${event.name}. Here are your current ${roundWord}times; please use these from now on.`
             : round === "finals"
               ? `Congratulations. ${s.bands.band_name} is performing in finals. Here are your finals times.`
               : `The performance order for ${event.name} is posted. Here are the times for ${s.bands.band_name}.`,
         ],
         rows: [
-          { title: round === "finals" ? "Finals order" : "Performance order", detail: s.label },
+          { title: round === "finals" ? "Finals order" : event.finals_published ? "Preliminary order" : "Performance order", detail: s.label },
           {
             title: "Warm-up",
             detail: [at(s.warm_up_at), warmEnd ? `until ${formatTime(warmEnd, tz)} (${s.warm_up_minutes} min)` : null, s.warm_up_location]
@@ -401,10 +404,10 @@ function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round
       });
       const subject =
         kind === "changed"
-          ? `Time change: ${s.bands.band_name} at ${event.name}`
+          ? `${round === "finals" ? "Finals time" : event.finals_published ? "Preliminary time" : "Time"} change: ${s.bands.band_name} at ${event.name}`
           : round === "finals"
             ? `Finals time: ${s.bands.band_name} at ${event.name}`
-            : `Performance time: ${s.bands.band_name} at ${event.name}`;
+            : `${event.finals_published ? "Preliminary" : "Performance"} time: ${s.bands.band_name} at ${event.name}`;
       for (const to of new Set([s.bands.head_director_email, s.bands.contact_email])) {
         await sendEmail({ to, subject, html, text });
         await pause();

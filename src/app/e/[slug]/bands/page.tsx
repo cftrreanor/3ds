@@ -10,7 +10,7 @@ import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateRange } from "@/lib/time";
+import { formatDate, formatDateRange, formatTimeRange } from "@/lib/time";
 import { RegisterForm, type PreviousBand } from "./register-form";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -39,7 +39,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, starts_on, ends_on, venue_name, venue_address, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
+    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -143,7 +143,11 @@ export default async function BandRegistrationPage({ params }: Params) {
       <header className="mt-6">
         <p className="text-sm font-medium text-muted">{w.One} registration</p>
         <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
-        <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
+        <p className="mt-2 text-muted">
+          {event.starts_on === event.ends_on && event.window_start && event.window_end
+            ? `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`
+            : formatDateRange(event.starts_on, event.ends_on)}
+        </p>
         <p className="mt-1 text-muted">{[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}</p>
       </header>
 
@@ -184,7 +188,7 @@ export default async function BandRegistrationPage({ params }: Params) {
             </p>
             <p className="mt-1 text-sm text-muted">
               {event.status === "published"
-                ? "Please contact the host if you need to make a change."
+                ? "Please contact the organizer if you need to make a change."
                 : `Publish the event and open ${w.one} registration to accept registrations.`}
             </p>
           </Card>
