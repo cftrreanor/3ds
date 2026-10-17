@@ -636,14 +636,17 @@ export function ActionButton({
 }: {
   action: Action;
   children: React.ReactNode;
-  /** "go" (green) and "stop" (red outline) for switching something on or off. */
-  variant?: "primary" | "secondary" | "go" | "stop";
+  /** "go" (green) and "stop" (red outline) for switching something on or off; "quiet-stop" is red text. */
+  variant?: "primary" | "secondary" | "go" | "stop" | "quiet-stop";
   confirmMessage?: string;
   pendingText?: string;
 }) {
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="space-y-2" resetOnSuccess={false}>
-      <SubmitButton variant={variant === "stop" ? "danger" : variant} pendingText={pendingText}>
+      <SubmitButton
+        variant={variant === "stop" ? "danger" : variant === "quiet-stop" ? "quiet-danger" : variant}
+        pendingText={pendingText}
+      >
         {children}
       </SubmitButton>
     </ActionForm>
