@@ -59,6 +59,8 @@ Last updated October 2026.
 - Homepage and a page for each kind of event, each with "How it works" screenshots
 - Parent-teacher conferences page with "Free for teachers"
 - A page for principals and district administrators, with its card on the homepage
+- A Student data privacy page for districts, and a district packet with draft Texas agreement exhibits
+  (docs/DATA-PRIVACY.md)
 - Copy follows the brand voice (docs/brand-voice.md)
 
 ## Next
@@ -68,8 +70,8 @@ Last updated October 2026.
 ## Before the pilot ends
 - **Stripe** subscription checkout and invoices for purchase orders (set up the business entity
   and bank account first)
-- A ready answer for district **data privacy agreements** (for example, the Texas Student
-  Privacy Alliance template)
+- **Data privacy agreements:** attorney review of docs/DATA-PRIVACY.md (district packet and draft
+  Texas agreement exhibits), then close its "Before signing" list
 - Optional: **PostHog** product analytics; Sentry's source maps for readable alerts
 
 ## Later
