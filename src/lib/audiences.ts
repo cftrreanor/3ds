@@ -589,6 +589,9 @@ export const audiences = {
 
 /** In the order of the home page's event-type cards. */
 /** Parent-teacher conferences have their own page (free for teachers, so no pilot form). */
+/** For principals and district staff (not an event type, so it has its own page). */
+export const ADMINISTRATORS_PAGE = { path: "/school-administrators", name: "For administrators", icon: "🏛️" } as const;
+
 export const CONFERENCES_PAGE = { path: "/parent-teacher-conferences", name: "Parent-teacher conferences", icon: "🍎" } as const;
 
 export const AUDIENCES: Audience[] = [audiences.bands, audiences.groups, audiences.fairs, audiences.volunteers, audiences.parents];

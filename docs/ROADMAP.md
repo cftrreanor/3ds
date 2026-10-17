@@ -56,13 +56,13 @@ Last updated October 2026.
 **Website**
 - Homepage and a page for each kind of event, each with "How it works" screenshots
 - Parent-teacher conferences page with "Free for teachers"
+- A page for principals and district administrators, with its card on the homepage
 - Copy follows the brand voice (docs/brand-voice.md)
 
 ## Next
 1. **Privacy policy and terms of service pages**, once the attorney's review is done; swap the
    attorney's wording into the school-records reminders (src/lib/records.ts)
-2. **Administrators page**, then bring back the homepage's "For administrators" card
-3. **Pages that update on their own** (schedules, check-in) without reloading
+2. **Pages that update on their own** (schedules, check-in) without reloading
 
 ## Before the pilot ends
 - **Stripe** subscription checkout and invoices for purchase orders (set up the business entity
