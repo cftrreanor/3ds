@@ -431,15 +431,8 @@ export function StationRow({
             </Button>
           )}
           <Button type="button" variant="ghost" className="min-h-10 px-2 text-sm" onClick={() => toggle("rename")} aria-expanded={open === "rename"}>
-            Rename
+            Rename or delete
           </Button>
-          <DeleteButton
-            action={remove}
-            label={`Delete station ${name}`}
-            text="Delete Station"
-            destructive
-            confirmMessage={`Delete “${name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
-          />
         </div>
       </div>
       {open === "leads" && (
@@ -466,18 +459,30 @@ export function StationRow({
           </div>
         </ActionForm>
       )}
+      {/* Delete lives in here, out of the way, instead of a red button on every row. */}
       {open === "rename" && (
-        <ActionForm action={rename} className="mt-3 flex flex-col gap-2 rounded-lg border border-border bg-background p-3 sm:flex-row sm:items-end" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
-          <Field label="Station name" className="flex-1">
-            <Input name="name" required maxLength={80} defaultValue={name} />
-          </Field>
-          <div className="flex gap-2">
-            <SubmitButton pendingText="Saving…">Save</SubmitButton>
-            <Button type="button" variant="ghost" onClick={() => setOpen(null)}>
-              Cancel
-            </Button>
+        <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
+          <ActionForm action={rename} className="flex flex-col gap-2 sm:flex-row sm:items-end" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
+            <Field label="Station name" className="flex-1">
+              <Input name="name" required maxLength={80} defaultValue={name} />
+            </Field>
+            <div className="flex gap-2">
+              <SubmitButton pendingText="Saving…">Save</SubmitButton>
+              <Button type="button" variant="ghost" onClick={() => setOpen(null)}>
+                Cancel
+              </Button>
+            </div>
+          </ActionForm>
+          <div className="border-t border-border pt-3">
+            <DeleteButton
+              action={remove}
+              label={`Delete station ${name}`}
+              text="Delete station"
+              destructive
+              confirmMessage={`Delete “${name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
+            />
           </div>
-        </ActionForm>
+        </div>
       )}
     </li>
   );
@@ -489,6 +494,7 @@ export function DeleteButton({
   confirmMessage,
   text = "Delete",
   destructive = false,
+  quiet = false,
 }: {
   action: Action;
   label: string;
@@ -496,14 +502,16 @@ export function DeleteButton({
   text?: string;
   /** A full-size red outlined button, for deleting something big (a whole station). */
   destructive?: boolean;
+  /** Red text, no outline: a delete that shouldn't compete with the page's main actions. */
+  quiet?: boolean;
 }) {
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="contents">
       <SubmitButton
-        variant={destructive ? "danger" : "ghost"}
-        pendingText={destructive ? "Deleting…" : "Working…"}
-        className={destructive ? "text-sm" : "min-h-9 px-2 text-xs"}
-        aria-label={destructive ? undefined : label}
+        variant={quiet ? "quiet-danger" : destructive ? "danger" : "ghost"}
+        pendingText={destructive || quiet ? "Deleting…" : "Working…"}
+        className={destructive || quiet ? "text-sm" : "px-2 text-xs"}
+        aria-label={destructive || quiet ? undefined : label}
       >
         {text}
       </SubmitButton>

@@ -111,8 +111,8 @@ export function StationPanel({
           <DeleteButton
             action={deleteStation.bind(null, eventId, station.id)}
             label={`Delete station ${station.name}`}
-            text="Delete Station"
-            destructive
+            text="Delete station"
+            quiet
             confirmMessage={`Delete “${station.name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
           />
         )}
@@ -183,7 +183,7 @@ export function StationPanel({
               </div>
               {canManage && (
                 <details className="mt-1">
-                  <summary className="cursor-pointer text-xs font-medium text-muted hover:text-foreground">
+                  <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
                     Edit shift
                   </summary>
                   <div className="mt-3 pb-1">
@@ -230,17 +230,12 @@ export function StationPanel({
                     <li key={v.assignment_id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{v.volunteer_name}</p>
-                        <p className="truncate text-sm text-muted">
-                          {shift ? formatTimeRange(shift.starts_at, shift.ends_at, tz) : ""}
-                          {v.phone && (
-                            <>
-                              {" · "}
-                              <a href={`tel:${v.phone}`} className="font-medium text-brand hover:underline">
-                                {formatPhone(v.phone)}
-                              </a>
-                            </>
-                          )}
-                        </p>
+                        {shift && <p className="truncate text-sm text-muted">{formatTimeRange(shift.starts_at, shift.ends_at, tz)}</p>}
+                        {v.phone && (
+                          <a href={`tel:${v.phone}`} className="text-sm font-medium text-brand hover:underline">
+                            {formatPhone(v.phone)}
+                          </a>
+                        )}
                       </div>
                       <span className="shrink-0 text-sm">
                         {v.checked_in_at ? "✓ Arrived" : <span className="text-muted">Not yet</span>}

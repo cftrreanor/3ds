@@ -128,7 +128,7 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
             <StatusLine summary={summary} groups={groups} rooms={rooms} time={time} />
           </Card>
 
-          <nav aria-label="Rooms" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <nav aria-label="Rooms" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <ul className="flex min-w-max gap-1 border-b border-border">
               <li>
                 <Link href={base} scroll={false} aria-current={!room ? "page" : undefined} className={tabClass(!room)}>

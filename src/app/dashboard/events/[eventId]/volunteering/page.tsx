@@ -215,7 +215,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               role="img"
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <a href={qrPng} download={`${event.slug}-volunteer-qr.png`} className="text-xs font-medium text-brand underline-offset-4 hover:underline">
+            <a href={qrPng} download={`${event.slug}-volunteer-qr.png`} className="inline-flex min-h-11 items-center text-xs font-medium text-brand underline-offset-4 hover:underline">
               Download QR code
             </a>
           </div>

@@ -61,6 +61,10 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
   const multiDay = event.starts_on !== event.ends_on;
   const now = new Date();
   const eventDay = eventPhase(event, now) === "day";
+  // Check-in and walk-ups from the day before (setup, a practice run) through the event, not weeks ahead.
+  const today = utcToZonedDate(now.toISOString(), event.timezone);
+  const dayBefore = new Date(Date.parse(`${event.starts_on}T00:00:00Z`) - 864e5).toISOString().slice(0, 10);
+  const open = today >= dayBefore && today <= event.ends_on;
   const rows = (rowData ?? []) as unknown as Row[];
   const shifts = (shiftData ?? []) as ShiftRow[];
 
@@ -118,6 +122,8 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
       <Desk
         stations={stations}
         eventDay={eventDay}
+        open={open}
+        opensOn={formatDate(dayBefore)}
         toggle={setCheckedIn.bind(null, eventId)}
         addWalkUp={addWalkUp.bind(null, eventId)}
         release={releaseSpot.bind(null, eventId)}
