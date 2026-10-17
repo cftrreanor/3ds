@@ -19,9 +19,15 @@ export type DoorParent = {
 /** The door: find a family, look at each adult's photo ID, check each one in as they arrive. */
 export function Door({
   parents,
+  open,
+  opensOn,
   toggle,
 }: {
   parents: DoorParent[];
+  /** Check-in is on (the day before through the event). Otherwise the list is read-only. */
+  open: boolean;
+  /** When the check-in buttons turn on, for the note shown before then. */
+  opensOn: string;
   toggle: (id: string, adult: number, checkedIn: boolean) => Promise<ActionState>;
 }) {
   const [query, setQuery] = useState("");
@@ -90,6 +96,9 @@ export function Door({
         )}
       </div>
 
+      {!open && optimistic.length > 0 && (
+        <p className="mt-4 rounded-md border border-border bg-surface px-3 py-2 text-sm">Check-in buttons turn on {opensOn}, so no one gets checked in early.</p>
+      )}
       {optimistic.length === 0 ? (
         <p className="mt-6 text-muted">No one has registered yet.</p>
       ) : shown.length === 0 ? (
@@ -109,40 +118,43 @@ export function Door({
                     </li>
                   ))}
                 </ul>
-                {p.phone && (
-                  <a href={`tel:${p.phone}`} className="text-sm font-medium text-brand hover:underline">
-                    {p.phoneDisplay}
-                  </a>
-                )}
               </div>
               <ul className="mt-2 divide-y divide-border border-t border-border">
                 {p.adults.map((a) => (
                   <li key={a.index} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                    <p className="min-w-0 font-semibold">
-                      {a.name}
-                      {a.index === 0 && p.adults.length > 1 && <span className="ml-2 text-xs font-normal text-muted">registered</span>}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => onToggle(p, a)}
-                      aria-pressed={a.checkedIn}
-                      aria-label={a.checkedIn ? `${a.name} is checked in. Tap to undo.` : `ID checked: check in ${a.name}`}
-                      className={`flex min-h-12 min-w-36 shrink-0 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
-                        a.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:opacity-90"
-                      }`}
-                    >
-                      {a.checkedIn ? (
-                        <>
-                          <span>✓ Checked in</span>
-                          <span className="text-[11px] font-normal text-muted">tap to undo</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Check in</span>
-                          <span className="text-[11px] font-normal opacity-80">photo ID checked</span>
-                        </>
+                    <div className="min-w-0">
+                      <p className="font-semibold">{a.name}</p>
+                      {a.index === 0 && p.phone && (
+                        <a href={`tel:${p.phone}`} aria-label={`Call ${a.name}, ${p.phoneDisplay}`} className="inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">
+                          {p.phoneDisplay}
+                        </a>
                       )}
-                    </button>
+                    </div>
+                    {!open ? (
+                      a.checkedIn && <span className="shrink-0 text-sm font-semibold text-success">✓ Checked in</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onToggle(p, a)}
+                        aria-pressed={a.checkedIn}
+                        aria-label={a.checkedIn ? `${a.name} is checked in. Tap to undo.` : `ID checked: check in ${a.name}`}
+                        className={`flex min-h-12 min-w-36 shrink-0 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
+                          a.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:opacity-90"
+                        }`}
+                      >
+                        {a.checkedIn ? (
+                          <>
+                            <span>✓ Checked in</span>
+                            <span className="text-[11px] font-normal text-muted">tap to undo</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Check in</span>
+                            <span className="text-[11px] font-normal opacity-80">photo ID checked</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

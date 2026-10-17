@@ -66,6 +66,8 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
   const today = utcToZonedDate(new Date().toISOString(), event.timezone);
   const over = today > event.ends_on;
   const isEventDay = today >= event.starts_on && !over;
+  // Check-in buttons from the day before (a practice run) through the event, not weeks ahead.
+  const checkInOpen = today >= addDays(event.starts_on, -1) && !over;
   const link = `${await getOrigin()}/e/${event.slug}/parents`;
   const closed = parentRegistrationClosed(event);
   const closesAt = event.parent_registration_closes_at;
@@ -76,23 +78,8 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       ])
     : ["", ""];
 
-  return (
-    <div>
-      <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
-        ← Back to {event.name}
-      </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
-        {access.isHost ? "Parent Registration" : "Parent check-in"}
-      </h1>
-      {isEventDay && <AutoRefresh seconds={10} status className="mt-1" />}
-      {access.isHost && (
-        <p className="mt-2 text-sm text-muted">
-          {parents.length} {parents.length === 1 ? "family" : "families"} registered · Registration {closed ? "closed" : "open"}
-        </p>
-      )}
-
-      {access.isHost && (
-        <div className="mt-6 flex flex-col gap-3">
+  const setupSteps = access.isHost ? (
+        <div className="flex flex-col gap-3">
           <SetupStep
             id="registration-settings"
             title="1. Registration settings"
@@ -229,7 +216,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
                   role="img"
                   dangerouslySetInnerHTML={{ __html: qrSvg }}
                 />
-                <a href={qrPng} download={`${event.slug}-parent-registration-qr.png`} className="text-xs font-medium text-brand underline-offset-4 hover:underline">
+                <a href={qrPng} download={`${event.slug}-parent-registration-qr.png`} className="inline-flex min-h-11 items-center text-xs font-medium text-brand underline-offset-4 hover:underline">
                   Download QR code
                 </a>
               </div>
@@ -256,9 +243,26 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
             </SetupStep>
           )}
         </div>
+  ) : null;
+
+  return (
+    <div>
+      <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
+        ← Back to {event.name}
+      </Link>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
+        {access.isHost ? "Parent Registration" : "Parent check-in"}
+      </h1>
+      {isEventDay && <AutoRefresh seconds={10} status className="mt-1" />}
+      {access.isHost && (
+        <p className="mt-2 text-sm text-muted">
+          {parents.length} {parents.length === 1 ? "family" : "families"} registered · Registration {closed ? "closed" : "open"}
+        </p>
       )}
 
-      <section id="door-check-in" className={`scroll-mt-6 ${access.isHost ? "mt-10" : ""}`} aria-label="Door check-in">
+      {!isEventDay && setupSteps && <div className="mt-6">{setupSteps}</div>}
+
+      <section id="door-check-in" className={`scroll-mt-6 ${access.isHost ? (isEventDay ? "mt-6" : "mt-10") : ""}`} aria-label="Door check-in">
         {access.isHost && (
           <>
             <h2 className="text-xl font-semibold">Door check-in</h2>
@@ -268,16 +272,21 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
             </p>
           </>
         )}
-        <p className="mt-6 mb-4 leading-7 text-muted">
-          Find the family, check each adult&apos;s <strong className="text-foreground">government-issued photo ID</strong>{" "}
-          matches their name, then tap <strong className="text-foreground">Check in</strong> beside that person. Adults in a
-          family can arrive at different times.{" "}
-          {event.parent_walk_ins_allowed
-            ? "Walk-ins are allowed at this event: anyone who isn't on the list goes through the school's usual visitor process with their photo ID."
-            : "Anyone who isn't on the list goes through the school's usual visitor process."}
+        <p className="mt-4 mb-4 leading-7 text-muted">
+          Check each adult&apos;s <strong className="text-foreground">photo ID</strong> matches their name, then tap{" "}
+          <strong className="text-foreground">Check in</strong>.{" "}
+          {event.parent_walk_ins_allowed ? "Not on the list? Walk-ins are allowed: send them through the school's visitor process." : "Not on the list? Send them through the school's visitor process."}
         </p>
-        <Door parents={parents} toggle={setParentCheckedIn.bind(null, eventId)} />
+        <Door parents={parents} open={checkInOpen} opensOn={formatDate(addDays(event.starts_on, -1))} toggle={setParentCheckedIn.bind(null, eventId)} />
       </section>
+
+      {/* On the day the door comes first; the setup steps fold away below it. */}
+      {isEventDay && setupSteps && (
+        <details className="mt-10 rounded-lg border border-border px-4 py-1">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Registration settings</summary>
+          <div className="pb-3 pt-2">{setupSteps}</div>
+        </details>
+      )}
     </div>
   );
 }

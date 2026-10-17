@@ -5,9 +5,11 @@ import { HeaderBar } from "@/components/logo";
 import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
 import { GRADES } from "@/lib/grades";
-import { adultNames, ID_REMINDER, parentRegistrationClosed, type Child } from "@/lib/parents";
 import { createAdminClient } from "@/lib/supabase/server";
+import { googleCalendarUrl } from "@/lib/ics";
+import { adultNames, ID_REMINDER, parentLink, parentRegistrationClosed, toIcsEvent, type Child } from "@/lib/parents";
 import { formatDateRange, formatTimeRange } from "@/lib/time";
+import { getOrigin } from "@/lib/data";
 import { cancelParents, updateParents } from "../../actions";
 import { ParentsForm } from "../../parents-form";
 
@@ -21,7 +23,7 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
   const { data: reg } = valid
     ? await admin
         .from("parent_registrations")
-        .select("event_id, parent_name, email, phone, children, other_adults, checked_in_at")
+        .select("id, event_id, parent_name, email, phone, children, other_adults, checked_in_at, calendar_sequence")
         .eq("access_token", token)
         .maybeSingle()
     : { data: null };
@@ -33,6 +35,13 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
         .maybeSingle()
     : { data: null };
   const children = (reg?.children ?? []) as Child[];
+  const calendar =
+    reg && event
+      ? googleCalendarUrl(
+          toIcsEvent({ ...reg, children, other_adults: adultNames(reg.other_adults) }, event, parentLink(await getOrigin(), slug, token)),
+        )
+      : null;
+  const linkClass = "inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline";
 
   return (
     <>
@@ -86,14 +95,27 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
                 ))}
               </ul>
               {reg.checked_in_at && <p className="mt-3 text-sm font-medium text-success">✓ Checked in</p>}
+              {calendar && !reg.checked_in_at && (
+                <p className="mt-3 flex flex-wrap items-center gap-x-4 text-sm">
+                  <span className="text-muted">Add to calendar:</span>
+                  <a href={calendar} target="_blank" rel="noreferrer" className={linkClass}>
+                    Google
+                  </a>
+                  <a href={`/e/${slug}/parents/r/${token}/calendar`} className={linkClass}>
+                    Apple / Outlook
+                  </a>
+                </p>
+              )}
             </Card>
 
             <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">🪪 {ID_REMINDER}</p>
 
             <Card>
               {event && !parentRegistrationClosed(event) ? (
-                <details>
-                  <summary className="cursor-pointer font-semibold">Change my registration</summary>
+                <details className="group">
+                  <summary className="flex min-h-11 cursor-pointer items-center justify-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover group-open:bg-transparent group-open:justify-start group-open:px-0 group-open:text-lg group-open:text-foreground">
+                    Change my registration
+                  </summary>
                   <div className="mt-4">
                     <ParentsForm
                       action={updateParents.bind(null, token)}
@@ -116,9 +138,9 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
                 <ActionForm
                   action={cancelParents.bind(null, token)}
                   confirmMessage="Cancel this registration?"
-                  className="mt-4"
+                  className="mt-3 text-center"
                 >
-                  <SubmitButton variant="danger" className="w-full" pendingText="Canceling…">
+                  <SubmitButton variant="quiet-danger" pendingText="Canceling…">
                     Cancel my registration
                   </SubmitButton>
                 </ActionForm>
