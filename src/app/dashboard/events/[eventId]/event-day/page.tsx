@@ -130,7 +130,7 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
 
           {/* Running late is when this is needed, so it sits right under the summary. */}
           {access.isHost && pushGroups.length > 0 && (
-            <Card className="mt-3 p-4">
+            <Card id="push-back" className="mt-3 scroll-mt-6 p-4">
               <details open={summary.behind.length > 0 || summary.late.length > 0}>
                 <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
                 <p className="mt-2 text-sm leading-6 text-muted">

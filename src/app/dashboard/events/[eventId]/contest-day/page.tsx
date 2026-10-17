@@ -697,7 +697,7 @@ function Overview({
 
       {/* Running late is when this is needed, so it sits with the on-track status. */}
       {isHost && remaining.length > 0 && (
-        <Card className="p-4">
+        <Card id="push-back" className="scroll-mt-6 p-4">
           <details>
             <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
             <p className="mt-2 text-sm leading-6 text-muted">

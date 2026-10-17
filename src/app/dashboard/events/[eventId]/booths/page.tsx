@@ -171,7 +171,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
       {!isDay && setupSteps}
 
       {partners.length > 0 && (
-        <Card className={isDay ? "border-brand" : ""}>
+        <Card id="check-in" className={`scroll-mt-6 ${isDay ? "border-brand" : ""}`}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-xl font-semibold">{isDay ? "Partner check-in" : "Partners"}</h2>
             <p className="text-lg font-semibold tabular-nums">
