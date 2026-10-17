@@ -30,7 +30,7 @@ export async function FairBooths({ slug }: { slug: string }) {
             <a
               key={zone || "more"}
               href={`#zone-${i}`}
-              className="inline-flex min-h-9 items-center rounded-full border border-border bg-surface px-3 text-sm font-medium hover:border-brand hover:text-brand"
+              className="inline-flex min-h-11 items-center rounded-full border border-border bg-surface px-3 text-sm font-medium hover:border-brand hover:text-brand"
             >
               <span aria-hidden className="mr-1.5">
                 {zoneIcon(zone)}

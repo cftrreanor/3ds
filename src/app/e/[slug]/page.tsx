@@ -10,7 +10,7 @@ import { getUser } from "@/lib/auth";
 import { registrationIsOpen } from "@/lib/bands";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
+import { formatDate, formatDateRange, formatTime, formatTimeRange, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { readPass } from "@/lib/volunteer-pass";
 import { groupWords, hasBands, hasBooths, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
 import { RoomSchedule, type ScheduleRoom, type ScheduleSlot } from "@/components/room-schedule";
@@ -53,7 +53,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at, parent_registration_open, parent_registration_closes_at, parent_walk_ins_allowed")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at, parent_registration_open, parent_registration_closes_at, parent_walk_ins_allowed")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -141,14 +141,16 @@ export default async function EventPublicPage({ params }: Params) {
   const bandsHere = hasBands(event.event_type);
   const words = groupWords(event.event_type);
   const bandsOpen = hasEnsembles(event.event_type) && registrationIsOpen(event);
+  const tz = event.timezone;
+  const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
+  // On fair day, volunteers who show up are added at the desk, not online.
+  const fairDay = hasBooths(event.event_type) && isEventDay;
   // A volunteer event's page is mostly about signing up.
-  const signUp = !bandsHere && event.volunteer_signup_open && !isVolunteer;
+  const signUp = !bandsHere && event.volunteer_signup_open && !isVolunteer && !fairDay;
   const parentsClosed = hasParents(event.event_type) ? parentRegistrationClosed(event) : "draft";
   const parentsOpen = hasParents(event.event_type) && !parentsClosed;
   // Registration has closed, but parents who didn't register can still come with an ID.
   const parentWalkIns = (parentsClosed === "closed" || parentsClosed === "deadline") && event.parent_walk_ins_allowed;
-  const tz = event.timezone;
-  const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
   const { current, next, live } = liveNowAndNext([...schedule, ...finals]);
   const multiDay = event.starts_on !== event.ends_on;
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
@@ -172,7 +174,11 @@ export default async function EventPublicPage({ params }: Params) {
 
       <header className="mt-6">
         <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
-        <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
+        <p className="mt-2 text-muted">
+          {event.starts_on === event.ends_on && event.window_start && event.window_end
+            ? `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, tz)}`
+            : formatDateRange(event.starts_on, event.ends_on)}
+        </p>
         {isEventDay && <AutoRefresh status className="mt-1" />}
         {event.venue_address && (
           <p className="mt-1 text-muted">
@@ -186,6 +192,16 @@ export default async function EventPublicPage({ params }: Params) {
       </header>
 
       <EventBannerSlot eventId={event.id} audience="public" tz={tz} className="mt-6" />
+
+      {/* A fair's attraction list is long: point volunteers to the sign-up first. */}
+      {hasBooths(event.event_type) && signUp && event.status === "published" && (
+        <p className="mt-6 rounded-lg border border-brand bg-brand-soft px-4 py-3 text-sm">
+          <span className="font-semibold">Volunteers needed</span> ·{" "}
+          <Link href={`/e/${slug}/volunteer`} className="font-semibold text-brand underline">
+            Sign up for a shift
+          </Link>
+        </p>
+      )}
 
       {hasBooths(event.event_type) && event.status === "published" && <FairBooths slug={slug} />}
 
@@ -226,7 +242,7 @@ export default async function EventPublicPage({ params }: Params) {
               <Card className="h-full transition hover:border-brand">
                 <p className="font-semibold">Your volunteer shifts</p>
                 <p className="mt-1 text-sm text-muted">
-                  {event.volunteer_signup_open ? "See your shifts, or sign up for more." : "See your shifts and who to report to."}
+                  {event.volunteer_signup_open && !fairDay ? "See your shifts, or sign up for more." : "See your shifts and who to report to."}
                 </p>
               </Card>
             </Link>

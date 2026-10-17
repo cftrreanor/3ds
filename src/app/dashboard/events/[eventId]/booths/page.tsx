@@ -10,7 +10,7 @@ import { FAIR_ZONES, hasBooths } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatTime } from "@/lib/time";
+import { formatTime, utcToZonedDate } from "@/lib/time";
 import { ActionButton, DeleteButton } from "../forms";
 import { addZone, checkInBooth, deleteBooth, deleteZone, renameZone, saveBooth } from "./actions";
 import { ArrivedButton } from "./arrived-button";
@@ -47,6 +47,10 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
   const booths = (data ?? []) as Booth[];
   const canManage = access.canManage;
   const isDay = eventPhase(event, new Date()) === "day";
+  // Arrived buttons from the day before (setup) through the fair, not weeks ahead.
+  const today = utcToZonedDate(new Date().toISOString(), event.timezone);
+  const dayBefore = new Date(Date.parse(`${event.starts_on}T00:00:00Z`) - 864e5).toISOString().slice(0, 10);
+  const checkInOpen = today >= dayBefore && today <= event.ends_on;
   const partners = booths.filter((b) => b.host_name);
   const arrived = partners.filter((b) => b.arrived_at).length;
   // The fair's zones (step 1), in the order they were made, plus any a booth or
@@ -66,21 +70,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
   const unzoned = booths.filter((b) => !b.zone);
   const groups = [...new Set(booths.map((b) => b.zone ?? ""))].map((zone) => ({ zone, booths: booths.filter((b) => (b.zone ?? "") === zone) }));
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
-          ← Back to {event.name}
-        </Link>
-        <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Booths &amp; Partners</h1>
-        <p className="mt-1 text-muted">
-          Everything at the event, by zone: games, activities, vendors, and showcases, and who runs each one.
-          {event.status === "published" ? " Listed ones show on the public page." : " Listed ones show on the public page once the event is published."}
-        </p>
-        {isDay && <AutoRefresh seconds={10} status className="mt-1" />}
-      </div>
-
-      {canManage && (
+  const setupSteps = canManage ? (
         <div className="flex flex-col gap-3">
           <SetupStep
             id="zones"
@@ -159,7 +149,24 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
             </div>
           </SetupStep>
         </div>
-      )}
+  ) : null;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
+          ← Back to {event.name}
+        </Link>
+        <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Booths &amp; Partners</h1>
+        <p className="mt-1 text-muted">
+          Everything at the event, by zone: games, activities, vendors, and showcases, and who runs each one.
+          {event.status === "published" ? " Listed ones show on the public page." : " Listed ones show on the public page once the event is published."}
+        </p>
+        {isDay && <AutoRefresh seconds={10} status className="mt-1" />}
+      </div>
+
+      {/* On fair day check-in comes first; setup folds away under one link. */}
+      {!isDay && setupSteps}
 
       {partners.length > 0 && (
         <Card className={isDay ? "border-brand" : ""}>
@@ -184,6 +191,13 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
             </p>
           )}
         </Card>
+      )}
+
+      {isDay && setupSteps && (
+        <details className="rounded-lg border border-border px-4 py-1">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">Edit booths and zones</summary>
+          <div className="pb-3 pt-2">{setupSteps}</div>
+        </details>
       )}
 
       {!canManage && booths.length === 0 && <p className="text-muted">No booths added yet.</p>}
@@ -224,27 +238,31 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {b.host_name && (
+                      {b.host_name && checkInOpen && (
                         <ArrivedButton
                           arrived={Boolean(b.arrived_at)}
                           time={b.arrived_at ? formatTime(b.arrived_at, event.timezone) : null}
                           toggle={checkInBooth.bind(null, eventId, b.id)}
                         />
                       )}
-                      {canManage && (
-                        <DeleteButton
-                          action={deleteBooth.bind(null, eventId, b.id)}
-                          label={`Delete ${b.title}`}
-                          confirmMessage={`Delete “${b.title}”${b.host_name ? ` (${b.host_name})` : ""}?`}
-                        />
-                      )}
                     </div>
                   </div>
                   {canManage && (
-                    <details className="mt-3 rounded-lg border border-border px-4 py-3">
-                      <summary className="cursor-pointer text-sm font-medium">Edit</summary>
-                      <div className="mt-4">
+                    <details className="mt-1">
+                      <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
+                        Edit
+                      </summary>
+                      <div className="mt-2 space-y-4 rounded-lg border border-border px-4 py-4">
                         <BoothForm action={saveBooth.bind(null, eventId, b.id)} initial={b} zones={zones} submitLabel="Save" />
+                        <div className="border-t border-border pt-4">
+                          <DeleteButton
+                            action={deleteBooth.bind(null, eventId, b.id)}
+                            label={`Delete ${b.title}`}
+                            text="Delete booth"
+                            destructive
+                            confirmMessage={`Delete “${b.title}”${b.host_name ? ` (${b.host_name})` : ""}?`}
+                          />
+                        </div>
                       </div>
                     </details>
                   )}

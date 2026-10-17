@@ -6,7 +6,8 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 import { signUpVolunteer } from "./actions";
-import { sortStations } from "@/lib/contest-day";
+import { eventPhase, sortStations } from "@/lib/contest-day";
+import { hasBooths, leadWords } from "@/lib/event-types";
 import { SignupForm, type PublicStation } from "./signup-form";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -15,7 +16,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, volunteer_signup_open, public_notes")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, volunteer_signup_open, public_notes")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -65,7 +66,9 @@ export default async function VolunteerSignupPage({ params }: Params) {
     }))
     .filter((st) => st.shifts.length > 0);
 
-  const isOpen = event.status === "published" && event.volunteer_signup_open;
+  // On fair day, volunteers who show up are added at the volunteer desk instead.
+  const fairDay = hasBooths(event.event_type) && eventPhase(event, new Date()) === "day";
+  const isOpen = event.status === "published" && event.volunteer_signup_open && !fairDay;
   const mapUrl = `https://www.google.com/maps/search/?${new URLSearchParams({
     api: "1",
     query: event.venue_address,
@@ -94,11 +97,17 @@ export default async function VolunteerSignupPage({ params }: Params) {
       {!isOpen && (
         <Card className="mt-8 bg-brand-soft">
           <p className="font-medium">
-            {event.status === "published" ? "Volunteer signup is closed." : "Preview: this page isn't public yet."}
+            {fairDay
+              ? "Online sign-up is closed on fair day."
+              : event.status === "published"
+                ? "Volunteer signup is closed."
+                : "Preview: this page isn't public yet."}
           </p>
           <p className="mt-1 text-sm text-muted">
-            {event.status === "published"
-              ? "Please contact the event organizers if you'd like to help."
+            {fairDay
+              ? "Want to help today? Find the volunteer desk at the fair, and they'll add you to a shift."
+              : event.status === "published"
+                ? "Please contact the event organizers if you'd like to help."
               : "Only your team can see it. Publish the event and open volunteer signup to start taking signups."}
           </p>
         </Card>
@@ -110,7 +119,12 @@ export default async function VolunteerSignupPage({ params }: Params) {
             <p className="text-muted">No shifts are available right now.</p>
           </Card>
         ) : (
-          <SignupForm action={signUpVolunteer.bind(null, event.id)} stations={publicStations} disabled={!isOpen} />
+          <SignupForm
+            action={signUpVolunteer.bind(null, event.id)}
+            stations={publicStations}
+            disabled={!isOpen}
+            lead={hasBooths(event.event_type) ? leadWords(event.event_type).one : "section lead"}
+          />
         )}
       </div>
 
