@@ -30,10 +30,13 @@ export function SignupForm({
   action,
   stations,
   disabled,
+  lead = "section lead",
 }: {
   action: (prev: SignupState, formData: FormData) => Promise<SignupState>;
   stations: PublicStation[];
   disabled?: boolean;
+  /** Who sees volunteers' phone numbers on the day: "section lead", or "Station Coordinator" at a fair. */
+  lead?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const pathname = usePathname();
@@ -279,8 +282,8 @@ export function SignupForm({
             label={minor ? "Parent or guardian's cell phone" : "Cell phone"}
             hint={
               companions.length
-                ? `This is the number for everyone in your group${anyMinor ? " (as the guardian's number for anyone under 18)" : ""}. Only their section lead sees it, and only on event day.`
-                : "Only your section lead sees this, and only on event day."
+                ? `This is the number for everyone in your group${anyMinor ? " (as the guardian's number for anyone under 18)" : ""}. Only their ${lead} sees it, and only on event day.`
+                : `Only your ${lead} sees this, and only on event day.`
             }
           >
             <Input name="phone" type="tel" inputMode="tel" autoComplete="tel" required defaultValue={state.values?.phone} />

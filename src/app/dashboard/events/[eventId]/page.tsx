@@ -604,46 +604,28 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {myStations.length > 0 && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/contest-day`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                  >
-                    My stations
-                  </Link>
-                )}
-                {parentsHere && !doorLocked && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/parents#door-check-in`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                  >
-                    Parent door check-in
-                  </Link>
-                )}
-                {hasBooths(event.event_type) && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/booths`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                  >
-                    Partner check-in
-                  </Link>
-                )}
-                {access.canManage && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/announcements`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                  >
-                    Broadcast Message
-                  </Link>
-                )}
-                {access.canManage && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/volunteers`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                  >
-                    Volunteer Check-in
-                  </Link>
-                )}
+                {/* One main button (the check-in most used), the rest outlined. */}
+                {[
+                  access.canManage && { href: `/dashboard/events/${eventId}/volunteers`, label: "Volunteer Check-in" },
+                  myStations.length > 0 && { href: `/dashboard/events/${eventId}/contest-day`, label: "My stations" },
+                  parentsHere && !doorLocked && { href: `/dashboard/events/${eventId}/parents#door-check-in`, label: "Parent door check-in" },
+                  hasBooths(event.event_type) && { href: `/dashboard/events/${eventId}/booths`, label: "Partner check-in" },
+                  access.canManage && { href: `/dashboard/events/${eventId}/announcements`, label: "Broadcast Message" },
+                ]
+                  .filter((l): l is { href: string; label: string } => Boolean(l))
+                  .map((l, i) => (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      className={
+                        i === 0
+                          ? "inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+                          : "inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold hover:border-brand"
+                      }
+                    >
+                      {l.label}
+                    </Link>
+                  ))}
               </div>
             </div>
           </Card>
@@ -965,7 +947,10 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
                 <Badge tone={l.on ? "success" : "neutral"}>{l.on ? l.onText : l.offText}</Badge>
                 <span>{l.label}</span>
                 {l.note && <span className="text-muted">· {l.note}</span>}
-                <Link href={`/dashboard/events/${facts.eventId}/${l.href}`} className="font-medium text-brand underline-offset-4 hover:underline">
+                <Link
+                  href={`/dashboard/events/${facts.eventId}/${l.href}`}
+                  className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline"
+                >
                   {l.on ? "Manage" : l.offText === "Closed" ? "Open it" : "Publish it"}
                 </Link>
               </li>
@@ -1040,10 +1025,14 @@ function TeamStats({
     <div className="space-y-4 border-t border-border pt-4">
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {counts.map((c) => (
-          <Link key={c.label} href={href(c.tab)} className="rounded-lg bg-background px-3 py-2 hover:ring-1 hover:ring-border">
+          <div key={c.label} className="relative rounded-lg bg-background px-3 py-2 hover:ring-1 hover:ring-border">
             <dt className="text-xs text-muted">{c.label}</dt>
-            <dd className="text-xl font-semibold tabular-nums">{c.value}</dd>
-          </Link>
+            <dd className="text-xl font-semibold tabular-nums">
+              {c.value}
+              {/* The whole tile opens that part of the Team page. */}
+              <Link href={href(c.tab)} className="absolute inset-0 rounded-lg" aria-label={`${c.label}: ${c.value}`} />
+            </dd>
+          </div>
         ))}
       </dl>
       <div>
@@ -1236,7 +1225,7 @@ function VolunteerStats({
           </p>
           <p className="text-sm tabular-nums text-muted">{pct}%</p>
         </div>
-        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-background" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-background" role="progressbar" aria-label="Volunteer spots filled" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
           <div className={`h-full rounded-full ${pct >= 100 ? "bg-success" : "bg-brand"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
         </div>
       </div>

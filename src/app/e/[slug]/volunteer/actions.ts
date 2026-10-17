@@ -3,7 +3,9 @@
 import { z } from "zod";
 import type { ActionState } from "@/lib/action-state";
 import { BOT_CHECK_FAILED, passesBotCheck } from "@/lib/bot-check";
+import { eventPhase } from "@/lib/contest-day";
 import { getOrigin } from "@/lib/data";
+import { hasBooths } from "@/lib/event-types";
 import { googleCalendarUrl } from "@/lib/ics";
 import { normalizePhone } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -79,6 +81,12 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED, values };
 
   const admin = createAdminClient();
+
+  // Fairs close online sign-up on the day itself: helpers who show up go to the volunteer desk.
+  const { data: ev } = await admin.from("events").select("event_type, timezone, starts_on, ends_on").eq("id", eventId).maybeSingle();
+  if (ev && hasBooths(ev.event_type) && eventPhase(ev, new Date()) === "day") {
+    return { error: "Online sign-up is closed on fair day. Find the volunteer desk at the fair to help today.", values };
+  }
 
   // Shifts this email already had: the confirmation screen must not hand this
   // browser control over signups someone else may have made.
