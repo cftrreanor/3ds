@@ -298,14 +298,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         />
       )}
 
-      {!org && mayHost && (
-        <p className="text-sm text-muted">
-          Hosting your own event?{" "}
-          <Link href="/dashboard/setup" className="font-medium text-brand underline-offset-4 hover:underline">
-            Set up your organization
-          </Link>
-        </p>
-      )}
+      {!org && <HostYourOwn invited={mayHost} />}
     </div>
   );
 }
@@ -569,6 +562,38 @@ function HelpingCard({ row: r, showType }: { row: StaffEvent & { events: EventSu
     >
       {isToday(r.events) && <p className="text-sm font-semibold text-brand">Happening today</p>}
     </EventCard>
+  );
+}
+
+/** For directors and team members who don't host yet: a way to start (or ask to). */
+function HostYourOwn({ invited }: { invited: boolean }) {
+  const button = "inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover";
+  return (
+    <section aria-labelledby="host-your-own" className="rounded-lg border border-brand/25 bg-brand-soft p-5 sm:p-6">
+      <h2 id="host-your-own" className="text-lg font-semibold">
+        <span aria-hidden="true">🏟️</span> Host your own event
+      </h2>
+      <p className="mt-1 leading-7 text-muted">
+        Set up and run your contest, festival, or school event in one place.
+        {!invited && " Organizer accounts are by invitation while we're in the pilot."}
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+        {invited ? (
+          <Link href="/dashboard/setup" className={button}>
+            Set up your organization
+          </Link>
+        ) : (
+          <>
+            <Link href="/#join" className={button}>
+              Join the pilot
+            </Link>
+            <Link href="/dashboard/teacher" className="text-sm font-semibold text-brand underline underline-offset-4">
+              Teacher? Parent-teacher conferences are free
+            </Link>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
