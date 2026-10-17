@@ -56,7 +56,7 @@ const privacy = [
 const faqs = [
   {
     q: "Is it really free for teachers?",
-    a: "Yes. A teacher account is free and runs parent-teacher conferences, one published at a time. You sign in with your email, and there's no credit card.",
+    a: "Yes. A teacher account is free and runs parent-teacher conferences, one published at a time while we're in the pilot. You sign in with your email, and there's no credit card.",
   },
   {
     q: "Can families meet on video?",
@@ -154,7 +154,7 @@ export default function ConferencesPage() {
           <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
             <h2 className="text-2xl font-semibold">What&apos;s free</h2>
             <p className="mt-3 leading-7 text-muted">
-              A free teacher account runs parent-teacher conferences, one published at a time. Planning a band contest,
+              A free teacher account runs parent-teacher conferences, one published at a time while we&apos;re in the pilot. Planning a band contest,
               school fair, volunteer event, or family visitor day?{" "}
               <Link href="/#join" className="font-medium text-brand underline">
                 Join the pilot

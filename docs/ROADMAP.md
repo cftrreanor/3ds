@@ -75,6 +75,10 @@ Last updated October 2026.
 - Optional: **PostHog** product analytics; Sentry's source maps for readable alerts
 
 ## Later
+- **Teacher free and Teacher paid accounts.** Free: one published conference at a time (today's
+  pilot rule). Paid: more than one at a time, priced for a single teacher. Needs Stripe (above), a
+  "Teacher paid" plan the database rule checks instead of "one per account", and the event page's
+  "one at a time" note changed to offer the upgrade instead of "write to us"
 - Emergency alerts by text message (needs carrier registration with the business's tax ID, people's
   consent at sign-up, and about $2 to $12 a month plus about 1¢ a text)
 - Band entry-fee payments (Stripe Connect)
@@ -90,6 +94,9 @@ Last updated October 2026.
 - **"Host" stays** the in-app name for the account permission level; the website says "organizer".
 - **Conference summaries are print or save-as-PDF**, never emailed with children's names, so the
   30-day deletion promise holds for what's in the app.
+- **One published conference at a time during the pilot** (Oct 2026), for every account. The app
+  says so before Publish, names the conference that's already up, and offers "write to us" for
+  more. Upgrading isn't offered yet: the Teacher free / Teacher paid split above comes first.
 - **Kept as is after the security review:** sign-in links that work on any device; "already
   registered" messages on public forms; no per-person limit on the address search (a $5 Google
   budget alert is the safety net).

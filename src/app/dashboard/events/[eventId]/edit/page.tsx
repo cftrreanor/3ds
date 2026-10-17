@@ -22,7 +22,7 @@ const TYPE_SUMMARY = {
   group_event: "Groups (choirs, orchestras, teams, and more) register and move through your rooms on a schedule worked out for them, alongside your volunteers.",
   volunteer: "Volunteers, shifts, check-in, and your team only. No band registration or performance schedule.",
   school_visit: "Parents register their children ahead and are checked in at the door with a photo ID, alongside your volunteers. Children's details are seen only by your team and permanently deleted 30 days after the event.",
-  conference: "Families book a meeting time with you, in person or on video. Free: you can have one published conference at a time.",
+  conference: "Families book a meeting time with you, in person or on video. Free for teachers, with one published conference at a time during the pilot.",
 };
 
 // What switching to each kind adds or removes.

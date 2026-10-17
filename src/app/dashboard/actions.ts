@@ -274,6 +274,13 @@ export async function setEventPublished(eventId: string, publish: boolean): Prom
           `Publishing needs an active ${brand.name} plan for your organization. During the pilot, ask us to activate it.`,
       };
     }
+    // Another conference went live in the meantime (the event page usually says so before the click).
+    const other = error.message.match(/already have a published conference: (.+)\. Unpublish/)?.[1];
+    if (other) {
+      return {
+        error: `While we're in the pilot, a free teacher account can have one published conference at a time, and ${other} is published now. Unpublish it first, or write to us at ${brand.supportEmail} if you need more than one at a time.`,
+      };
+    }
     return { error: friendlyDbError(error) };
   }
   if (!data?.length) return { error: "Only the event's host can publish it." };
