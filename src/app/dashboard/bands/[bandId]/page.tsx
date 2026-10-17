@@ -91,7 +91,6 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       url: `${origin}/dashboard/bands/${bandId}`,
     });
   const hasContact = contact && (contact.name || contact.has_phone || contact.email);
-  const infoOpen = cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
   const contestDay =
     !group && eventPhase(event, new Date()) === "day" && event.performance_order_published && slot && day && (progress ?? []).length > 0;
   // Group events on the day: arrive, then each room, at a glance.
@@ -103,6 +102,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           (iso) => formatTime(iso, event.timezone),
         )
       : null;
+  // On the day itself the day card comes first, so the info starts folded.
+  const infoOpen = !contestDay && !groupDay && cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
   const people = `${band.student_count} ${group ? "participants" : "students"} · ${band.chaperone_count} chaperones`;
 
   return (
@@ -141,20 +142,20 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         {(hasContact || event.director_info) && (
           <CollapsibleInfo initialOpen={infoOpen} label={group ? "Event info" : "Contest info"}>
             {hasContact && (
-              <p className="mt-2 flex flex-wrap gap-x-3 text-muted">
-                <span>{contact.name || "Host contact"}</span>
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-muted">
+                <span className="mr-1">{contact.name || "Organizer"}</span>
                 {contact.email && (
-                  <a href={`mailto:${contact.email}`} className={linkClass}>
+                  <a href={`mailto:${contact.email}`} className="inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold text-brand hover:border-brand">
                     Email
                   </a>
                 )}
                 {/* No digits on screen; the number only unlocks the day before and on contest day. */}
                 {phone && (
                   <>
-                    <a href={`tel:${phone}`} className={linkClass}>
+                    <a href={`tel:${phone}`} className="inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold text-brand hover:border-brand">
                       Call
                     </a>
-                    <a href={`sms:${phone}`} className={linkClass}>
+                    <a href={`sms:${phone}`} className="inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold text-brand hover:border-brand">
                       Text
                     </a>
                   </>
@@ -196,7 +197,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             <div className="mt-3">
               <DayStatusBanner status={groupDay} phone={phone} doneText="You've finished every room. Thank you." />
             </div>
-            <p className="mt-3 text-xs text-muted">Updates as the host&apos;s team checks you in. Your times are below.</p>
+            <p className="mt-3 text-xs text-muted">Updates as the organizer&apos;s team checks you in. Your times are below.</p>
           </Card>
         </>
       )}
@@ -204,7 +205,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       {files.length > 0 && (
         <Card className="mt-6">
           <h2 className="font-semibold">Maps &amp; documents</h2>
-          <p className="mt-1 text-sm text-muted">From the host.</p>
+          <p className="mt-1 text-sm text-muted">From the organizer.</p>
           <FileLinks files={files} className="mt-3" />
         </Card>
       )}
@@ -411,12 +412,12 @@ function TimesCard({
         ))}
       </ol>
       {calendar && (
-        <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <p className="mt-4 flex flex-wrap items-center gap-x-4 text-sm">
           <span className="text-muted">Add to calendar:</span>
-          <a href={googleCalendarUrl(calendar)} target="_blank" rel="noreferrer" className={linkClass}>
+          <a href={googleCalendarUrl(calendar)} target="_blank" rel="noreferrer" className={`inline-flex min-h-11 items-center ${linkClass}`}>
             Google
           </a>
-          <a href={icsUrl} className={linkClass}>
+          <a href={icsUrl} className={`inline-flex min-h-11 items-center ${linkClass}`}>
             Apple / Outlook
           </a>
         </p>

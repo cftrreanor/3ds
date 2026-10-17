@@ -52,7 +52,7 @@ export function RegisterForm({
       {source && (
         <p className="text-sm text-muted">
           {source.prefilled
-            ? `The host filled in ${source.band_name}'s details. Check each answer, fill in anything missing, then register.`
+            ? `The organizer filled in ${source.band_name}'s details. Check each answer, fill in anything missing, then register.`
             : `Editing ${source.band_name}'s saved details. Changes apply to this event only.`}
         </p>
       )}
@@ -139,7 +139,7 @@ function SavedBand({
     <Card className={editing ? "border-brand" : undefined}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-lg font-semibold">{b.band_name}</h3>
-        <p className="text-sm text-muted">{b.prefilled ? "Filled in by the host" : `Saved from ${b.from}`}</p>
+        <p className="text-sm text-muted">{b.prefilled ? "Filled in by the organizer" : `Saved from ${b.from}`}</p>
       </div>
       <p className="text-muted">{b.school_name}</p>
       <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
@@ -157,7 +157,10 @@ function SavedBand({
           ))}
         </ul>
       )}
-      <div className="mt-4 flex flex-wrap items-start gap-2">
+      {!b.prefilled && problems.length === 0 && (
+        <p className="mt-4 text-sm text-muted">Check the headcounts and vehicles first: they&apos;re from {b.from}.</p>
+      )}
+      <div className="mt-3 flex flex-wrap items-start gap-2">
         {!b.prefilled && problems.length === 0 && (
           <ActionForm action={register}>
             <SubmitButton pendingText="Registering…">Register {b.band_name}</SubmitButton>

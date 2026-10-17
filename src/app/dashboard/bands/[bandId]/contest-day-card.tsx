@@ -39,7 +39,7 @@ export function ContestDayCard({
     <Card className="mt-6 border-brand">
       <h2 className="font-semibold">Contest day{round === "finals" ? " · 🏆 Finals" : ""}</h2>
       {band.scratched_at ? (
-        <p className="mt-2 text-sm">Your band is marked as withdrawn. If that&apos;s not right, contact the host.</p>
+        <p className="mt-2 text-sm">Your band is marked as withdrawn. If that&apos;s not right, contact the organizer.</p>
       ) : (
         <>
           <div className="mt-3">
@@ -77,7 +77,7 @@ export function ContestDayCard({
               </li>
             ))}
           </ol>
-          <p className="mt-3 text-xs text-muted">Updates as the host&apos;s team checks you in.</p>
+          <p className="mt-3 text-xs text-muted">Updates as the organizer&apos;s team checks you in.</p>
         </>
       )}
     </Card>

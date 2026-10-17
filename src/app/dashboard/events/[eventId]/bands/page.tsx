@@ -104,8 +104,9 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   const toInvite = directors.some((d) => !d.registered && !d.invited);
   // Registration counts as dealt with once it's open, or it closed after directors registered.
   const registrationDone = regOpen || pastDeadline || bands.length > 0;
-  // Open the first step that still needs doing; the rest stay folded.
-  const openStep = !settingsDone ? 1 : !registrationDone ? 2 : regOpen && toInvite ? 3 : 0;
+  // Open the first step that still needs doing; the rest stay folded. Inviting is
+  // optional, so it stays folded once directors are registering on their own.
+  const openStep = !settingsDone ? 1 : !registrationDone ? 2 : regOpen && toInvite && bands.length === 0 ? 3 : 0;
   const registrationStatus = regOpen ? (
     <StepStatus done doneLabel="Open" />
   ) : (
