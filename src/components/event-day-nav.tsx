@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { DayAction, DayActions, DayIcon } from "@/lib/event-day-actions";
 
@@ -12,12 +12,15 @@ import type { DayAction, DayActions, DayIcon } from "@/lib/event-day-actions";
  * along the bottom of every page of the event.
  */
 const pathOf = (href: string) => href.split("#")[0];
-const onPath = (href: string, pathname: string) => pathname === pathOf(href) || pathname.startsWith(`${pathOf(href)}/`);
+const routeOf = (href: string) => pathOf(href).split("?")[0];
+const onPath = (href: string, pathname: string) => pathname === routeOf(href) || pathname.startsWith(`${routeOf(href)}/`);
 
 /** The job whose page this is (the first, when two jobs share a page). */
 function useHere(day: DayActions) {
   const pathname = usePathname();
-  const here = day.actions.find((a) => onPath(a.href, pathname))?.id;
+  const search = useSearchParams().toString();
+  // A station's own button when its tab is open; otherwise the first job on this page.
+  const here = (day.actions.find((a) => pathOf(a.href) === `${pathname}${search ? `?${search}` : ""}`) ?? day.actions.find((a) => onPath(a.href, pathname)))?.id;
   return { pathname, isHere: (a: DayAction) => a.id === here };
 }
 
