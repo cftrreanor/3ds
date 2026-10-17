@@ -11,11 +11,41 @@ import type { DayAction, DayActions, DayIcon } from "@/lib/event-day-actions";
  * on its other pages, a row of buttons at the top; and on a phone, a tab bar
  * along the bottom of every page of the event.
  */
-const isHere = (href: string, pathname: string) => pathname === href || pathname.startsWith(`${href}/`);
+const pathOf = (href: string) => href.split("#")[0];
+const onPath = (href: string, pathname: string) => pathname === pathOf(href) || pathname.startsWith(`${pathOf(href)}/`);
+
+/** The job whose page this is (the first, when two jobs share a page). */
+function useHere(day: DayActions) {
+  const pathname = usePathname();
+  const here = day.actions.find((a) => onPath(a.href, pathname))?.id;
+  return { pathname, isHere: (a: DayAction) => a.id === here };
+}
+
+/**
+ * After following a job's link, bring its part of the page into view and
+ * open it if it's folded away (like "Push the schedule back"). The page may
+ * still be loading, so keep looking for a moment.
+ */
+function openTarget(href: string) {
+  const id = href.split("#")[1];
+  if (!id) return;
+  let tries = 0;
+  const look = () => {
+    const el = document.getElementById(id);
+    if (!el) {
+      if (tries++ < 40) setTimeout(look, 100);
+      return;
+    }
+    const details = el instanceof HTMLDetailsElement ? el : el.querySelector("details");
+    if (details) details.open = true;
+    el.scrollIntoView({ block: "start" });
+  };
+  look();
+}
 
 /** Computer, event page: the day's jobs, big, beside the page. */
 export function DayRail({ day }: { day: DayActions }) {
-  const pathname = usePathname();
+  const { isHere } = useHere(day);
   return (
     <aside aria-label={day.title} className="hidden lg:block">
       <div className="sticky top-6 rounded-lg border-2 border-brand bg-surface p-4 shadow-card">
@@ -24,7 +54,7 @@ export function DayRail({ day }: { day: DayActions }) {
         <ul className="mt-3 space-y-2">
           {day.actions.map((a) => (
             <li key={a.id}>
-              <ActionTile action={a} here={isHere(a.href, pathname)} />
+              <ActionTile action={a} here={isHere(a)} />
             </li>
           ))}
         </ul>
@@ -37,7 +67,10 @@ function ActionTile({ action: a, here, onNavigate }: { action: DayAction; here: 
   return (
     <Link
       href={a.href}
-      onClick={onNavigate}
+      onClick={() => {
+        onNavigate?.();
+        openTarget(a.href);
+      }}
       aria-current={here ? "page" : undefined}
       className={`flex min-h-14 items-start gap-3 rounded-md border px-3 py-2.5 hover:border-brand ${
         here ? "border-brand bg-brand-soft" : "border-border bg-surface"
@@ -58,7 +91,7 @@ function ActionTile({ action: a, here, onNavigate }: { action: DayAction; here: 
  * bottom of a phone.
  */
 export function DayBar({ day }: { day: DayActions }) {
-  const pathname = usePathname();
+  const { pathname, isHere } = useHere(day);
   const more = useRef<HTMLDialogElement>(null);
   const home = `/dashboard/events/${day.eventId}`;
   const onHome = pathname === home;
@@ -83,11 +116,12 @@ export function DayBar({ day }: { day: DayActions }) {
               <span className="text-brand">Today</span> · {day.title}
             </span>
             {day.actions.map((a) => {
-              const here = isHere(a.href, pathname);
+              const here = isHere(a);
               return (
                 <Link
                   key={a.id}
                   href={a.href}
+                  onClick={() => openTarget(a.href)}
                   aria-current={here ? "page" : undefined}
                   className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm font-semibold hover:border-brand ${
                     here ? "border-brand bg-brand-soft" : "border-border"
@@ -112,18 +146,19 @@ export function DayBar({ day }: { day: DayActions }) {
       >
         <ul className="mx-auto flex max-w-xl">
           {tabs.map((a) => {
-            const here = isHere(a.href, pathname);
+            const here = isHere(a);
             return (
               <li key={a.id} className="flex-1">
                 <Link
                   href={a.href}
+                  onClick={() => openTarget(a.href)}
                   aria-current={here ? "page" : undefined}
-                  className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-xs font-semibold ${here ? "text-brand" : "text-foreground"}`}
+                  className={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-[11px] leading-tight font-semibold ${here ? "text-brand" : "text-foreground"}`}
                 >
                   <span className={`flex h-7 w-12 items-center justify-center rounded-full ${here ? "bg-brand-soft" : ""}`}>
                     <Icon name={a.icon} className="size-5" />
                   </span>
-                  <span className="max-w-full truncate">{a.short}</span>
+                  <span className="line-clamp-2 max-w-full text-center">{a.short}</span>
                 </Link>
               </li>
             );
@@ -164,7 +199,7 @@ export function DayBar({ day }: { day: DayActions }) {
           <ul className="mt-3 space-y-2">
             {day.actions.map((a) => (
               <li key={a.id}>
-                <ActionTile action={a} here={isHere(a.href, pathname)} onNavigate={() => more.current?.close()} />
+                <ActionTile action={a} here={isHere(a)} onNavigate={() => more.current?.close()} />
               </li>
             ))}
             <li>

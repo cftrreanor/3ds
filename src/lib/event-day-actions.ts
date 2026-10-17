@@ -32,12 +32,17 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
 
   const type = event.event_type as string;
   const userId = (await getUser())?.id;
-  const [access, { data: onTeam }, parents, { count: myStations }] = await Promise.all([
+  const scheduleTable = hasBands(type) ? "performance_slots" : hasRooms(type) ? "room_slots" : null;
+  const [access, { data: onTeam }, parents, { count: myStations }, { count: scheduled }] = await Promise.all([
     getEventAccess(eventId),
     supabase.rpc("is_event_staff", { ev: eventId }),
     hasParents(type) ? supabase.rpc("can_check_in_parents", { ev: eventId }) : Promise.resolve({ data: false }),
     userId
       ? supabase.from("station_leads").select("station_id", { count: "exact", head: true }).eq("event_id", eventId).eq("user_id", userId)
+      : Promise.resolve({ count: 0 }),
+    // A schedule to push back (or look up) only once one is built.
+    scheduleTable
+      ? supabase.from(scheduleTable).select("band_id", { count: "exact", head: true }).eq("event_id", eventId)
       : Promise.resolve({ count: 0 }),
   ]);
   if (!onTeam && !access.canManage) return null;
@@ -46,29 +51,41 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
   const a: DayAction[] = [];
   const lead = (myStations ?? 0) > 0 && !access.canManage;
 
+  // Each button names the job, and lands on the part of the page where it's done.
+  const job = (id: string, icon: DayIcon, label: string, short: string, hint: string, path: string) =>
+    a.push({ id, icon, label, short, hint, href: `${base}${path}` });
+
   if (hasConferences(type)) {
-    if (access.isHost) a.push({ id: "meetings", label: "Today's meetings", short: "Meetings", hint: "Who's next, and mark each meeting", href: `${base}/conferences/meetings`, icon: "meetings" });
+    if (access.isHost) job("meetings", "meetings", "Run today's meetings", "Run meetings", "Who's next, and mark each one met or a no-show", "/conferences/meetings");
   } else if (hasBands(type)) {
-    if (access.canManage) a.push({ id: "board", label: "Contest day", short: "Contest day", hint: "Is every band on track", href: `${base}/contest-day`, icon: "board" });
-    else if (lead) a.push({ id: "board", label: "My stations", short: "My stations", hint: "Bands and volunteers at your stations", href: `${base}/contest-day`, icon: "station" });
+    if (access.canManage) job("board", "board", "Check on every band", "Check on bands", "Who's late, and who's next on the field", "/contest-day");
+    else if (lead) job("board", "station", "Check bands in at my stations", "Check bands in", "Tap each band in as it reaches your station", "/contest-day");
   } else if (hasRooms(type)) {
-    a.push({ id: "groups", label: "Check groups in", short: "Groups", hint: "Arrived, then done in each room", href: `${base}/event-day`, icon: "groups" });
+    job("groups", "groups", "Check groups in", "Check groups in", "Tap Arrived, then Done in each room", "/event-day");
   } else if (hasParents(type) && parents.data) {
-    a.push({ id: "parents", label: "Check in parents", short: "Parents", hint: "At the door, with a photo ID", href: `${base}/parents`, icon: "parents" });
+    job("parents", "parents", "Check in parents", "Check in parents", "At the door, after checking a photo ID", "/parents#door-check-in");
   } else if (hasBooths(type)) {
-    a.push({ id: "booths", label: "Booth arrivals", short: "Booths", hint: "Mark each booth as it arrives", href: `${base}/booths`, icon: "booths" });
+    job("booths", "booths", "Check in booths and partners", "Check in booths", "Tap Arrived as each one sets up", "/booths#check-in");
   }
   if (!hasConferences(type)) {
     if (access.canManage) {
-      a.push({ id: "volunteers", label: "Check in volunteers", short: "Volunteers", hint: "Each station's shifts, walk-ups, and no-shows", href: `${base}/volunteers`, icon: "checkin" });
+      job("volunteers", "checkin", "Check in volunteers", "Check in volunteers", "Shifts by station, walk-ups, and no-shows", "/volunteers");
     } else if (lead && !hasBands(type)) {
-      a.push({ id: "station", label: "My stations", short: "My stations", hint: "Your stations and their volunteers", href: `${base}/contest-day`, icon: "station" });
+      job("station", "station", "Check in my volunteers", "Check in my volunteers", "The volunteers at your stations", "/contest-day");
     }
   }
-  if (hasBands(type)) a.push({ id: "schedule", label: "Band schedule", short: "Schedule", hint: "Who performs when", href: `${base}/schedule`, icon: "schedule" });
-  if (hasRooms(type)) a.push({ id: "schedule", label: "Room schedule", short: "Schedule", hint: "Who's in each room when", href: `${base}/rooms`, icon: "schedule" });
+  // Running late: hosts move every later time; the rest of the team looks times up.
+  const hasSchedule = (scheduled ?? 0) > 0;
+  if (hasBands(type) && hasSchedule) {
+    if (access.isHost) job("push", "schedule", "Push the schedule back", "Push schedule back", "Running behind? Move every later time", "/contest-day#push-back");
+    else job("schedule", "schedule", "Look up a band's time", "Look up times", "Warm-up and performance times", "/schedule");
+  }
+  if (hasRooms(type) && hasSchedule) {
+    if (access.isHost) job("push", "schedule", "Push the schedule back", "Push schedule back", "Running behind? Move every later time", "/event-day#push-back");
+    else job("schedule", "schedule", "Look up a group's room and time", "Look up times", "Every room's schedule", "/rooms#board-heading");
+  }
   if (access.canManage && !hasConferences(type)) {
-    a.push({ id: "message", label: "Send a message", short: "Message", hint: "A delay, a change, or an emergency", href: `${base}/announcements`, icon: "message" });
+    job("message", "message", "Send a message", "Send a message", "A delay, a change, or an emergency", "/announcements#post");
   }
   if (a.length === 0) return null;
   return { eventId, title: dayLabel(type), actions: a };
