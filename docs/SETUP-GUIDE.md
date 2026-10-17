@@ -138,7 +138,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261127000000_teacher_accounts.sql` | Free teacher accounts: a teacher signs up on their own (no invitation) and can host parent-teacher conferences only. Adds the account kind and school to each account | ✅ run |
 | `20261128000000_teacher_admin.sql` | Admin tools for free teacher accounts: a "Teacher (free)" pipeline stage (every teacher sign-up gets a card, including ones already signed up), Upgrade to full account, and Suspend (takes the account's events offline and stops it publishing) | ✅ run |
 | `20261129000000_security_hardening.sql` | Security fixes from the penetration test: the same team invitation can be re-sent at most once every 5 minutes, and one account at most 40 invitation emails an hour, so invitations can't be used to flood someone's inbox; visitors who aren't signed in have no permission to change anything in the database directly | ✅ run |
-| `20261130000000_conference_outcomes.sql` | Parent-teacher conferences: once a meeting has started, the teacher marks it **Met** or **No-show** on Your meetings (only the teacher sees it, and it's deleted with the booking 30 days after the conference) | |
+| `20261130000000_conference_outcomes.sql` | Parent-teacher conferences: once a meeting has started, the teacher marks it **Met** or **No-show** on Your meetings (only the teacher sees it, and it's deleted with the booking 30 days after the conference) | ✅ run |
 
 ## Pilot requests
 
