@@ -88,7 +88,11 @@ export function EventForm({
         )}
         <Field
           label="Event time zone"
-          hint="Where the event happens. Every time on volunteer pages, emails, and calendar invites uses this zone, whatever someone's phone is set to."
+          hint={
+            conference
+              ? "Where you'll meet. Every time families see, in emails, and in calendar invites uses this zone, whatever someone's phone is set to."
+              : "Where the event happens. Every time on volunteer pages, emails, and calendar invites uses this zone, whatever someone's phone is set to."
+          }
           className="sm:col-span-2"
         >
           <Select name="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>

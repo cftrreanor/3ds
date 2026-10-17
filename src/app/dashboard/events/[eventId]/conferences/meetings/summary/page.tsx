@@ -71,7 +71,7 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
 
       <h1 className="mt-6 text-2xl font-semibold print:mt-0">Meeting summary</h1>
       <p className="mt-1 text-sm text-muted">
-        {event.name} · {formatDate(event.starts_on)} · All times {zoneName(tz)}
+        {event.name} · {formatDate(event.starts_on)} · All times are {zoneName(tz)}
       </p>
       <p className="mt-2 text-sm">
         <span className="font-semibold">{bookings.length}</span> {bookings.length === 1 ? "meeting" : "meetings"}

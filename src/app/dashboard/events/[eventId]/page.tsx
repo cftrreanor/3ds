@@ -379,6 +379,58 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
       <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
 
+      {/* For a conference, its meetings are what the teacher comes here for. */}
+      {conferenceHere && access.isHost && (
+        <section className="mt-8" aria-labelledby="conference-heading">
+          <h2 id="conference-heading" className="text-xl font-semibold">
+            Conference Setup
+          </h2>
+          <Card className="mt-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
+              <div className="space-y-1 text-sm leading-6">
+                {conference?.times_saved_at ? (
+                  <p className="font-medium">
+                    {event.status === "published"
+                      ? `${conferenceBooked} of ${meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference).length} times booked`
+                      : meetingSummary(
+                          meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference),
+                          conference.meeting_minutes,
+                        )}
+                    {conference.meeting_mode && ` · ${modeLabel(conference.meeting_mode)}`}
+                  </p>
+                ) : (
+                  <p className="font-medium">Set your meeting length, breaks, and your room or video link.</p>
+                )}
+                <p className="text-muted">
+                  {notReady(conference, event.venue_address) ??
+                    (event.status === "published" ? "Families book from your public page link." : "Ready to publish.")}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {conference?.times_saved_at && (event.status === "published" || conferenceBooked > 0) && (
+                  <Link
+                    href={`/dashboard/events/${eventId}/conferences/meetings`}
+                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                  >
+                    See your meetings
+                  </Link>
+                )}
+                <Link
+                  href={`/dashboard/events/${eventId}/conferences`}
+                  className={
+                    conference?.times_saved_at && (event.status === "published" || conferenceBooked > 0)
+                      ? "inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-medium hover:border-brand"
+                      : "inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                  }
+                >
+                  {notReady(conference, event.venue_address) ? "Set up conferences" : "Manage conferences"}
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </section>
+      )}
+
       {setup && checklist && <PublishPanel facts={setup} remaining={checklist.remaining} />}
 
       <PublicPageCard url={publicUrl} published={event.status === "published"} slug={event.slug} qr={publicQr} />
@@ -518,57 +570,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
-      {conferenceHere && access.isHost && (
-        <section className="mt-10" aria-labelledby="conference-heading">
-          <h2 id="conference-heading" className="text-xl font-semibold">
-            Conference Setup
-          </h2>
-          <Card className="mt-4">
-            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
-              <div className="space-y-1 text-sm leading-6">
-                {conference?.times_saved_at ? (
-                  <p className="font-medium">
-                    {event.status === "published"
-                      ? `${conferenceBooked} of ${meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference).length} times booked`
-                      : meetingSummary(
-                          meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference),
-                          conference.meeting_minutes,
-                        )}
-                    {conference.meeting_mode && ` · ${modeLabel(conference.meeting_mode)}`}
-                  </p>
-                ) : (
-                  <p className="font-medium">Set your meeting length, breaks, and your room or video link.</p>
-                )}
-                <p className="text-muted">
-                  {notReady(conference, event.venue_address) ??
-                    (event.status === "published" ? "Families book from your public page link." : "Ready to publish.")}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {conference?.times_saved_at && (event.status === "published" || conferenceBooked > 0) && (
-                  <Link
-                    href={`/dashboard/events/${eventId}/conferences/meetings`}
-                    className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-                  >
-                    See your meetings
-                  </Link>
-                )}
-                <Link
-                  href={`/dashboard/events/${eventId}/conferences`}
-                  className={
-                    conference?.times_saved_at && (event.status === "published" || conferenceBooked > 0)
-                      ? "inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-medium hover:border-brand"
-                      : "inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-                  }
-                >
-                  {notReady(conference, event.venue_address) ? "Set up conferences" : "Manage conferences"}
-                </Link>
-              </div>
-            </div>
-          </Card>
-        </section>
-      )}
-
       {!bandsHere && !conferenceHere && (access.canManage || myStations.length > 0) && (
         <section className={roomsHere && groupStatus ? "mt-4" : "mt-10"} aria-labelledby={roomsHere && groupStatus ? "group-day-heading" : "day-heading"}>
           {!(roomsHere && groupStatus) && (
@@ -648,7 +649,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           </Card>
         </section>
       )}
-
 
       {!conferenceHere && (files.length > 0 || access.isHost) && (
         <section className="mt-10" aria-labelledby="files-heading">
@@ -751,7 +751,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           </Card>
         </section>
       )}
-
 
       {groupsHere && (
       <section className="mt-10" aria-labelledby="bands-heading">

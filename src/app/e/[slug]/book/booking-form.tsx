@@ -22,11 +22,14 @@ export function BookingForm({
   action,
   times,
   askMode,
+  zone,
 }: {
   action: (prev: BookingState, formData: FormData) => Promise<BookingState>;
   times: OpenTime[];
   /** Parent's choice: ask in person or video. */
   askMode: boolean;
+  /** The conference's time zone by name, e.g. "Central Time". */
+  zone: string;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, {});
@@ -84,7 +87,7 @@ export function BookingForm({
 
       <fieldset>
         <legend className="text-lg font-semibold">Pick a time</legend>
-        <p className="text-sm text-muted">Only open times are shown.</p>
+        <p className="text-sm text-muted">Only open times are shown. All times are {zone}.</p>
         <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
           {times.map((t) => (
             <label
