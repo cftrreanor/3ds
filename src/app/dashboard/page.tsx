@@ -147,6 +147,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     );
   }
 
+  const teacher = org?.account_kind === "teacher";
   return (
     <div className="space-y-14">
       <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Your events</h1>
@@ -162,18 +163,23 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       )}
       {org && (
         <Section
-          icon="🏟️"
-          title="Hosting"
-          description={`Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`}
-          action={<NewEventButton teacherOnly={org.account_kind === "teacher"} />}
+          icon={teacher ? "🍎" : "🏟️"}
+          title={teacher ? "Your conferences" : "Hosting"}
+          description={
+            teacher
+              ? "Parent-teacher conferences you're running. Free for teachers."
+              : `Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`
+          }
+          action={<NewEventButton teacherOnly={teacher} />}
           notice={org && <PlanNotice org={org} />}
           items={hosted.map((e) => ({ key: e.id, past: isPast(e), node: <HostedCard event={e} /> }))}
           empty={
             <Card className="text-center">
-              <h3 className="font-semibold">No events yet</h3>
+              <h3 className="font-semibold">{teacher ? "No conferences yet" : "No events yet"}</h3>
               <p className="mx-auto mt-2 max-w-md leading-7 text-muted">
-                Create your first event. It stays a private draft until you publish it, so you can set everything
-                up at your own pace.
+                {teacher
+                  ? "Set up your first conference. Families can book once you publish it."
+                  : "Create your first event. It stays a private draft until you publish it, so you can set everything up at your own pace."}
               </p>
             </Card>
           }
