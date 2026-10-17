@@ -18,6 +18,7 @@ import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/even
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
+import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Volunteer Setup" };
 
@@ -159,6 +160,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer Setup</h1>
+      <SavedBy eventId={eventId} area="volunteers" className="mt-2" />
       <p className="mt-1 text-sm text-muted">
         🔒 Volunteers&apos; names and contact details (under-18 helpers too) are deleted 10 days after the event. Shift totals stay.
       </p>

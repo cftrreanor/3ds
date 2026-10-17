@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sortStations, whereIs, type BandDay, type Checkpoint, type Round, type Stop, type Tone } from "@/lib/contest-day";
 import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
 import { HostSchedule } from "./host-schedule";
+import { SavedBy } from "@/components/saved-by";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/schedule">): Promise<Metadata> {
   const { eventId } = await params;
@@ -125,6 +126,7 @@ export default async function SchedulePage({ params }: PageProps<"/dashboard/eve
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Band schedule</h1>
+      <SavedBy eventId={eventId} area="schedule" className="mt-2" />
       <p className="mt-1 text-sm text-muted">
         All times are {zoneName(tz)}. Only the host can change bands or the schedule.
       </p>

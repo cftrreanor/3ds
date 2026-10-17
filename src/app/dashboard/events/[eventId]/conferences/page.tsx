@@ -23,6 +23,7 @@ import { setEventPublished } from "../../../actions";
 import { ActionButton } from "../forms";
 import { saveMeetingPlace, saveMeetingTimes } from "./actions";
 import { ConferencePublishBar, ConferenceSetup, MeetingPlaceForm, MeetingTimesForm } from "./conference-forms";
+import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Conference Setup" };
 
@@ -64,6 +65,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Conference Setup</h1>
+      <SavedBy eventId={eventId} area="conference" className="mt-2" />
       <p className="mt-2 text-muted">
         {formatDate(event.starts_on)} · {hours} · All times are {zoneName(tz)}.
       </p>

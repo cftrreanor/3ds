@@ -18,6 +18,7 @@ import { Door, type DoorParent } from "./door";
 import { importParents } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { GRADE_CHOICES, importFields } from "@/lib/imports";
+import { SavedBy } from "@/components/saved-by";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/parents">): Promise<Metadata> {
   const { eventId } = await params;
@@ -253,6 +254,7 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
         {access.isHost ? "Parent Registration" : "Parent check-in"}
       </h1>
+      <SavedBy eventId={eventId} area="parents" className="mt-2" />
       {isEventDay && <AutoRefresh seconds={10} status className="mt-1" />}
       {access.isHost && (
         <p className="mt-2 text-sm text-muted">

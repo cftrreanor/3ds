@@ -16,6 +16,7 @@ import { ActionButton } from "../forms";
 import { saveRooms, saveRoomSchedule, setRoomSchedulePosted } from "./actions";
 import { RoomsEditor } from "./rooms-editor";
 import { ScheduleEditor, type ScheduleGroup } from "./schedule-editor";
+import { SavedBy } from "@/components/saved-by";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/rooms">): Promise<Metadata> {
   const { eventId } = await params;
@@ -90,6 +91,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
         {access.isHost ? "Rooms & Schedule Setup" : "Room schedule"}
       </h1>
+      <SavedBy eventId={eventId} area="schedule" className="mt-2" />
       <p className="mt-2 text-sm text-muted">All times {zoneName(tz)}.</p>
       {isEventDay && event.performance_order_published && <AutoRefresh status className="mt-1" />}
 

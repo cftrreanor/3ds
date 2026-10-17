@@ -14,6 +14,7 @@ import { setEventType, updateEvent } from "../../../actions";
 import { deleteFile, prepareUpload, saveFile } from "../../../file-actions";
 import { FilesManager } from "./files-manager";
 import { EventForm } from "../../_components/event-form";
+import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Edit Event Details" };
 
@@ -83,6 +84,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Edit Event Details</h1>
+      <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
       <div className="mt-6 flex flex-col gap-3">
         <SetupStep
           id="details"
