@@ -189,7 +189,9 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
         </h2>
         {rooms.length === 0 ? (
           <Card className="mt-4">
-            <p className="text-muted">The host hasn&apos;t set up the rooms yet.</p>
+            <p className="text-muted">
+              {access.isHost ? "No rooms yet. Add them in step 1 above." : "The organizer hasn't set up the rooms yet."}
+            </p>
           </Card>
         ) : (
           <div className="mt-4">

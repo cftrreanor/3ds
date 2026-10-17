@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { Badge, Card } from "@/components/ui";
-import { bandCalendarEvent, type BandTimes } from "@/lib/band-calendar";
+import { bandCalendarEvent, groupCalendarEvent, type BandTimes } from "@/lib/band-calendar";
 import { BAND_COLUMNS, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } from "@/lib/bands";
 import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
@@ -95,6 +95,22 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       event: { ...event, ready_minutes_before: round === "finals" ? event.finals_ready_minutes_before : event.ready_minutes_before },
       url: `${origin}/dashboard/bands/${bandId}`,
     });
+  // Festival groups: one calendar entry from the first room to the end of the last.
+  const groupCalendar =
+    group && event.performance_order_published
+      ? groupCalendarEvent({
+          bandId,
+          bandName: band.band_name,
+          stops: (myRooms ?? []).map((s) => ({
+            name: roomById.get(s.room_id)?.name ?? "Room",
+            note: roomById.get(s.room_id)?.note ?? null,
+            starts_at: s.starts_at,
+            ends_at: s.ends_at,
+          })),
+          event,
+          url: `${origin}/dashboard/bands/${bandId}`,
+        })
+      : null;
   const hasContact = contact && (contact.name || contact.has_phone || contact.email);
   const contestDay =
     !group && eventPhase(event, new Date()) === "day" && event.performance_order_published && slot && day && (progress ?? []).length > 0;
@@ -244,12 +260,23 @@ export default async function BandContestPage({ params, searchParams }: PageProp
                 );
               })}
             </ol>
+            {groupCalendar && (
+              <p className="mt-3 flex flex-wrap items-center gap-x-4 text-sm">
+                <span className="text-muted">Add to calendar:</span>
+                <a href={googleCalendarUrl(groupCalendar)} target="_blank" rel="noreferrer" className={`inline-flex min-h-11 items-center ${linkClass}`}>
+                  Google
+                </a>
+                <a href={`/dashboard/bands/${bandId}/calendar?round=rooms`} className={`inline-flex min-h-11 items-center ${linkClass}`}>
+                  Apple / Outlook
+                </a>
+              </p>
+            )}
           </Card>
         ) : (
           <Card className="mt-6">
             <h2 className="font-semibold">Your schedule</h2>
             <p className="mt-2 text-sm text-muted">
-              The host hasn&apos;t posted the schedule yet. We&apos;ll email you your group&apos;s times in each room when it&apos;s ready.
+              The organizer hasn&apos;t posted the schedule yet. We&apos;ll email you your group&apos;s times in each room when it&apos;s ready.
             </p>
           </Card>
         ))}
@@ -277,7 +304,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         <Card className="mt-6">
           <h2 className="font-semibold">Your times</h2>
           <p className="mt-2 text-sm text-muted">
-            The host hasn&apos;t posted the performance order yet. We&apos;ll email you when your times are ready.
+            The organizer hasn&apos;t posted the performance order yet. We&apos;ll email you when your times are ready.
           </p>
         </Card>
       )}
