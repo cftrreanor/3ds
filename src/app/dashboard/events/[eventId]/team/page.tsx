@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/time";
 import { cancelInvitation, inviteMember, reinviteMember, removeCoHost, removeMember, resendInvitation } from "../../../team-actions";
 import { CopyLinkButton, DeleteButton, InviteForm, RemoveButton, SmallActionButton } from "../forms";
 import { leadWords } from "@/lib/event-types";
+import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Team" };
 
@@ -143,6 +144,7 @@ export default async function TeamPage({ params, searchParams }: PageProps<"/das
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Team</h1>
+      <SavedBy eventId={eventId} area="team" className="mt-2" />
       <p className="mt-1 text-muted">Everyone helping you run {event.name}.</p>
 
       <div className="mt-6 flex flex-col gap-3">

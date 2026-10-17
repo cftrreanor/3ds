@@ -42,6 +42,7 @@ import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { SetupGuide } from "@/components/setup-guide";
+import { SavedBy } from "@/components/saved-by";
 import { brand } from "@/lib/brand";
 import { loadSetupFacts } from "@/lib/setup-facts";
 
@@ -505,7 +506,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const conferenceReady = !!conference?.times_saved_at && (published || conferenceBooked > 0);
   const signups = conferenceHere ? (
     access.isHost ? (
-      <PageSection id="signups" title="Conference setup">
+      <PageSection id="signups" title="Conference setup" saved={<SavedBy eventId={eventId} area="conference" />}>
         <Card className={isEventDay ? "border-brand" : ""}>
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <div className="space-y-1 text-sm leading-6">
@@ -544,7 +545,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </PageSection>
     ) : null
   ) : parentsHere ? (
-    <PageSection id="signups" title={access.isHost ? "Parent registration" : "Parent check-in"}>
+    <PageSection id="signups" title={access.isHost ? "Parent registration" : "Parent check-in"} saved={<SavedBy eventId={eventId} area="parents" />}>
       <Card className={isEventDay ? "border-brand" : ""}>
         {isEventDay && <AutoRefresh seconds={30} />}
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
@@ -579,7 +580,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </Card>
     </PageSection>
   ) : groupsHere ? (
-    <PageSection id="signups" title={access.isHost ? `${words.One} registration` : words.Many}>
+    <PageSection id="signups" title={access.isHost ? `${words.One} registration` : words.Many} saved={<SavedBy eventId={eventId} area="bands" />}>
       <Card className="space-y-5">
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
           <p className="text-sm leading-6">
@@ -611,7 +612,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </Card>
     </PageSection>
   ) : hasBooths(event.event_type) ? (
-    <PageSection id="signups" title="Booths & partners">
+    <PageSection id="signups" title="Booths & partners" saved={<SavedBy eventId={eventId} area="booths" />}>
       <BoothsCard eventId={eventId} isDay={isEventDay} />
     </PageSection>
   ) : null;
@@ -619,7 +620,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const schedule =
     groupsHere && access.isHost ? (
-      <PageSection id="schedule" title={roomsHere ? "Rooms and schedule" : "Performance schedule"}>
+      <PageSection id="schedule" title={roomsHere ? "Rooms and schedule" : "Performance schedule"} saved={<SavedBy eventId={eventId} area="schedule" />}>
         <Card className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={event.performance_order_published ? "success" : "neutral"}>
@@ -640,7 +641,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const volunteers =
     access.canManage && !conferenceHere ? (
-      <PageSection id="volunteers" title="Volunteers">
+      <PageSection id="volunteers" title="Volunteers" saved={<SavedBy eventId={eventId} area="volunteers" />}>
         <Card className="space-y-5">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -669,7 +670,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const team =
     access.canManage && !conferenceHere ? (
-      <PageSection id="team" title="Team">
+      <PageSection id="team" title="Team" saved={<SavedBy eventId={eventId} area="team" />}>
         <Card className="space-y-5">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads, and {words2.many}, and their invitations.</p>
@@ -694,7 +695,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const filesBlock =
     !conferenceHere && (files.length > 0 || access.isHost) ? (
-      <PageSection id="files" title="Maps & documents">
+      <PageSection id="files" title="Maps & documents" saved={<SavedBy eventId={eventId} area="files" />}>
         <Card className="space-y-5">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <p className="text-sm leading-6 text-muted">
@@ -783,6 +784,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
             </p>
             <p className="mt-1 text-sm text-muted">All times are {zoneName(tz)}.</p>
+            <SavedBy eventId={eventId} area="details" className="mt-2" />
             {event.venue_address && (
               <p className="mt-1 text-sm text-muted">
                 {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
@@ -914,12 +916,13 @@ const BTN = "inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm 
 const BTN_OUTLINE = "inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand";
 
 /** One section of the event page: a heading anyone can jump to, then its card. */
-function PageSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+function PageSection({ id, title, saved, children }: { id: string; title: string; saved?: ReactNode; children: ReactNode }) {
   return (
     <section id={id} className="mt-10 scroll-mt-6" aria-labelledby={`${id}-heading`}>
       <h2 id={`${id}-heading`} className="text-xl font-semibold">
         {title}
       </h2>
+      {saved && <div className="mt-1">{saved}</div>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -963,6 +966,7 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
     return (
       <Card id="publish" className="mt-8 scroll-mt-6">
         <h2 className="text-lg font-semibold">Your event is live</h2>
+        <SavedBy eventId={facts.eventId} area="publish" className="mt-1" />
         <p className="mt-1 text-sm text-muted">Your public page is online. Here&apos;s what people can use and see right now:</p>
         {live.length > 0 && (
           <ul className="mt-3 space-y-2 text-sm">
@@ -996,6 +1000,7 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
       <h2 className="text-lg font-semibold">{remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      <SavedBy eventId={facts.eventId} area="publish" className="mt-1" />
       {remaining.length ? (
         <div className="mt-3 rounded-md bg-warning-soft p-3 text-sm">
           <p className="font-medium">We recommend finishing {remaining.length === 1 ? "this" : "these"} first:</p>

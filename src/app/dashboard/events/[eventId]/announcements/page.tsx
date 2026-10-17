@@ -11,6 +11,7 @@ import { formatTime, utcToZonedDate } from "@/lib/time";
 import { endAnnouncement, postAnnouncement } from "./actions";
 import { EndButton } from "./end-button";
 import { PostForm } from "./post-form";
+import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Broadcast Messages" };
 
@@ -66,6 +67,7 @@ export default async function AnnouncementsPage({ params }: PageProps<"/dashboar
           ← Back to {event.name}
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Broadcast Messages</h1>
+        <SavedBy eventId={eventId} area="announcements" className="mt-2" />
         <p className="mt-1 text-muted">
           Post a quick message, like {hasBands(event.event_type) ? "a band switch" : "a room change"} or a delay, and it shows at the top of the pages of the people it&apos;s for, as soon as
           their page updates. Each person sees it for at least a minute, then it fades away. Emergencies are also emailed.

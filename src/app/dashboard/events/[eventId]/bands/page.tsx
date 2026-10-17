@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
 import { BandSettingsForm } from "./settings-form";
+import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Registration" };
 
@@ -122,6 +123,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{w.One} Registration</h1>
+      <SavedBy eventId={eventId} area="bands" className="mt-2" />
       <p className="mt-2 text-sm text-muted">
         {bands.length} {bands.length === 1 ? w.one : w.many} registered · Registration {regOpen ? "open" : "closed"}
       </p>

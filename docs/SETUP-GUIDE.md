@@ -141,6 +141,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261130000000_conference_outcomes.sql` | Parent-teacher conferences: once a meeting has started, the teacher marks it **Met** or **No-show** on Your meetings (only the teacher sees it, and it's deleted with the booking 30 days after the conference) | ✅ run |
 | `20261201000000_retention_event_time_zone.sql` | Children's details from visitor days and conferences are deleted 30 days after the event counted in the event's own time zone, not the server's (no longer a few hours early for evening events) | ✅ run |
 | `20261202000000_banner_teacher_filter.sql` | Banners can be aimed at **free teacher accounts** only, or at **everyone except free teacher accounts** | ✅ run |
+| `20261203000000_event_saves.sql` | **"Saved by" lines**: each part of an event page shows which host, co-host, or Volunteer Lead last saved it, and when (only when more than one person runs the event) | ⬜ not run yet |
 
 ## Pilot requests
 

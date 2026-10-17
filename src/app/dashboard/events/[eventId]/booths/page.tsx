@@ -15,6 +15,7 @@ import { ActionButton, DeleteButton } from "../forms";
 import { addZone, checkInBooth, deleteBooth, deleteZone, renameZone, saveBooth } from "./actions";
 import { ArrivedButton } from "./arrived-button";
 import { BoothForm, NewZoneForm, ZoneForm, ZoneRow, type BoothValues } from "./booth-form";
+import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Booths & Partners" };
 
@@ -158,6 +159,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
           ← Back to {event.name}
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Booths &amp; Partners</h1>
+        <SavedBy eventId={eventId} area="booths" className="mt-2" />
         <p className="mt-1 text-muted">
           Everything at the event, by zone: games, activities, vendors, and showcases, and who runs each one.
           {event.status === "published" ? " Listed ones show on the public page." : " Listed ones show on the public page once the event is published."}

@@ -4455,4 +4455,100 @@ reset role;
 delete from public.events where id in ('10000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000e2',
                                        '10000000-0000-0000-0000-0000000000e3', '10000000-0000-0000-0000-0000000000e4');
 
+-- ---------------------------------------------------------------------------
+-- "Saved by" (20261203000000_event_saves.sql): each part of an event keeps its
+-- last save by a host or Volunteer Lead. Saves by anyone else, background jobs
+-- and joining a team don't count. Read only through event_saves(), by the
+-- event's hosts and Volunteer Leads.
+-- ---------------------------------------------------------------------------
+set request.jwt.claims = '';
+insert into public.events (id, organization_id, name, slug, event_type, status, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000005a1', :'org_id', 'Saves Fair', 'saves-fair', 'fair', 'draft',
+        current_date + 40, current_date + 40, now() + interval '40 days', now() + interval '40 days 4 hours', '5 Save Rd');
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-000000000002', 'volunteer_director'),
+  ('10000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-000000000003', 'section_lead');
+insert into public.stations (id, event_id, name, station_type) values
+  ('20000000-0000-0000-0000-0000000005a1', '10000000-0000-0000-0000-0000000005a1', 'Gate', 'passive');
+do $$ begin
+  assert not exists (select 1 from public.event_saves where event_id = '10000000-0000-0000-0000-0000000005a1'),
+         'changes with nobody signed in (background jobs) aren''t saves';
+end $$;
+
+-- Someone who doesn't manage the event (a Section Lead, a band director, a stranger) never shows as a save.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+insert into public.fair_zones (event_id, name) values ('10000000-0000-0000-0000-0000000005a1', 'North');
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+update public.events set venue_name = 'Band field' where id = '10000000-0000-0000-0000-0000000005a1';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+insert into public.announcements (event_id, sender_id, audiences, priority, body)
+values ('10000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-000000000006', '{volunteers}', 'routine', 'Hi');
+-- Joining a team isn't editing it.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000007","email":"newlead@example.com"}';
+insert into public.event_staff (event_id, user_id, role)
+values ('10000000-0000-0000-0000-0000000005a1', '00000000-0000-0000-0000-000000000007', 'volunteer_director');
+do $$ begin
+  assert not exists (select 1 from public.event_saves where event_id = '10000000-0000-0000-0000-0000000005a1'),
+         'saves by people who don''t manage the event, or joining a team, aren''t recorded';
+end $$;
+delete from public.event_staff where event_id = '10000000-0000-0000-0000-0000000005a1'
+   and user_id = '00000000-0000-0000-0000-000000000007';
+
+-- The host edits details and opens volunteer sign-up; the Volunteer Lead adds a shift.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set venue_name = 'Main lot', volunteer_signup_open = true where id = '10000000-0000-0000-0000-0000000005a1';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+insert into public.shifts (station_id, title, starts_at, ends_at, max_capacity)
+values ('20000000-0000-0000-0000-0000000005a1', 'Morning', now() + interval '40 days', now() + interval '40 days 2 hours', 3);
+do $$ begin
+  begin
+    perform public.record_event_save('10000000-0000-0000-0000-0000000005a1', 'details');
+    raise exception 'FAIL: record_event_save can be called directly';
+  exception when insufficient_privilege then null;
+  end;
+  assert (select count(*) from public.event_saves) = 0, 'the saves table isn''t readable directly';
+  assert (select count(*) from public.event_saves('10000000-0000-0000-0000-0000000005a1')) = 2, 'a Volunteer Lead reads the saves';
+  assert (select role = 'Volunteer Lead' and is_you from public.event_saves('10000000-0000-0000-0000-0000000005a1') where area = 'volunteers'),
+         'the shift is saved by the Volunteer Lead (you)';
+  assert (select name = 'Hana Host' and role = 'Host' and not is_you and managers >= 2
+            from public.event_saves('10000000-0000-0000-0000-0000000005a1') where area = 'details'),
+         'details are saved by the Host, by name';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.event_saves('10000000-0000-0000-0000-0000000005a1')) = 0, 'a Section Lead can''t read saves';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.event_saves('10000000-0000-0000-0000-0000000005a1')) = 0, 'a stranger can''t read saves';
+end $$;
+set role anon;
+set request.jwt.claims = '';
+do $$ begin
+  begin
+    perform public.event_saves('10000000-0000-0000-0000-0000000005a1');
+    raise exception 'FAIL: a visitor read saves';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+-- Turning sign-up on again (no change) or a sign-up count changing isn't a new save.
+update public.event_saves set saved_at = now() - interval '1 day' where event_id = '10000000-0000-0000-0000-0000000005a1';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set volunteer_signup_open = true where id = '10000000-0000-0000-0000-0000000005a1';
+reset role;
+update public.shifts set registered_count = registered_count + 1 where station_id = '20000000-0000-0000-0000-0000000005a1';
+do $$ begin
+  assert (select bool_and(saved_at < now() - interval '12 hours') from public.event_saves
+           where event_id = '10000000-0000-0000-0000-0000000005a1'), 'no-change updates aren''t saves';
+end $$;
+delete from public.events where id = '10000000-0000-0000-0000-0000000005a1';
+do $$ begin
+  assert not exists (select 1 from public.event_saves where event_id = '10000000-0000-0000-0000-0000000005a1'),
+         'deleting the event removes its saves';
+end $$;
+set request.jwt.claims = '';
+
 \echo 'All database security tests passed.'
