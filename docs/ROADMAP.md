@@ -35,7 +35,8 @@ Last updated October 2026.
 - Spreadsheet import for bands, volunteers, and parents
 
 **Communication**
-- Event banners for day-of messages (delays, band switches, emergencies)
+- Event banners for day-of messages (delays, band switches, emergencies), each to the groups you
+  choose; emergencies are emailed right away too
 - Company banners from the admin dashboard
 - File sharing (maps, packets) with exactly the people who need them
 
@@ -61,8 +62,7 @@ Last updated October 2026.
 1. **Privacy policy and terms of service pages**, once the attorney's review is done; swap the
    attorney's wording into the school-records reminders (src/lib/records.ts)
 2. **Administrators page**, then bring back the homepage's "For administrators" card
-3. **Event-day messages, upgraded:** choose who gets each announcement; emergency alerts by email too
-4. **Pages that update on their own** (schedules, check-in) without reloading
+3. **Pages that update on their own** (schedules, check-in) without reloading
 
 ## Before the pilot ends
 - **Stripe** subscription checkout and invoices for purchase orders (set up the business entity
@@ -72,7 +72,8 @@ Last updated October 2026.
 - Optional: **PostHog** product analytics; Sentry's source maps for readable alerts
 
 ## Later
-- Text-message alerts (needs A2P 10DLC carrier registration)
+- Emergency alerts by text message (needs carrier registration with the business's tax ID, people's
+  consent at sign-up, and about $2 to $12 a month plus about 1¢ a text)
 - Band entry-fee payments (Stripe Connect)
 - Season dashboards, spreadsheet exports, and waitlists
 - Only if testers ask: a "your conference summary is ready" email with a link (no names in the

@@ -180,6 +180,64 @@ export async function sendEmail({
   }
 }
 
+/**
+ * One message to many people, each getting their own copy (nobody sees the
+ * other addresses). Uses Resend's batch API, 100 emails per request, so a few
+ * hundred go out in seconds: for urgent messages. Returns how many were sent.
+ */
+export async function sendEmailToMany({
+  to,
+  subject,
+  html,
+  text,
+  replyTo,
+}: {
+  to: string[];
+  subject: string;
+  html: string;
+  text: string;
+  replyTo?: string;
+}): Promise<number> {
+  const recipients = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && !isDemoEmail(t));
+  if (recipients.length === 0) return 0;
+  const log = async (emails: string[], status: "sent" | "failed" | "skipped", error?: string) => {
+    const { error: dbError } = await createAdminClient()
+      .from("email_log")
+      .insert(emails.map((e) => ({ to_email: e, subject: subject.slice(0, 300), status, error: error ? error.slice(0, 500) : null })));
+    if (dbError) console.error("email_log insert failed", dbError.message);
+  };
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    console.warn("RESEND_API_KEY not set; skipped email:", subject);
+    await log(recipients, "skipped", "Email isn't set up (RESEND_API_KEY)");
+    return 0;
+  }
+  let sent = 0;
+  for (let i = 0; i < recipients.length; i += 100) {
+    const chunk = recipients.slice(i, i + 100);
+    try {
+      const res = await fetch("https://api.resend.com/emails/batch", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify(chunk.map((e) => ({ from: FROM, to: [e], subject, html, text, ...(replyTo ? { reply_to: replyTo } : {}) }))),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        console.error("Resend batch send failed", res.status, body);
+        await log(chunk, "failed", `${res.status} ${body}`);
+      } else {
+        sent += chunk.length;
+        await log(chunk, "sent");
+      }
+    } catch (err) {
+      console.error("Resend batch send failed", err);
+      await log(chunk, "failed", err instanceof Error ? err.message : String(err));
+    }
+    if (i + 100 < recipients.length) await pause();
+  }
+  return sent;
+}
+
 /** Resend allows about 2 requests per second on the free plan. */
 export const pause = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 

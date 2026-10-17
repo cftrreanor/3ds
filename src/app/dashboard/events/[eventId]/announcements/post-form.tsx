@@ -89,6 +89,17 @@ export function PostForm({
           ))}
         </select>
       </Field>
+      {priority === "emergency" && (
+        <label className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md border border-danger bg-danger/5 px-3 py-2 text-sm">
+          <input type="checkbox" name="email" defaultChecked className="mt-1" />
+          <span>
+            <span className="font-semibold">Email it too</span>
+            <span className="block text-xs text-muted">
+              Sent right away to everyone you picked who has an email address on file. The public sees the banner only.
+            </span>
+          </span>
+        </label>
+      )}
       <SubmitButton variant={priority === "emergency" ? "warn" : "primary"} pendingText="Sending…">
         {priority === "emergency" ? "Broadcast Emergency" : "Broadcast Message"}
       </SubmitButton>
