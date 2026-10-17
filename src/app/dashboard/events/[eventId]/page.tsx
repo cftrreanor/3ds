@@ -431,6 +431,50 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         </section>
       )}
 
+      {/* Parents are the point of a visitor day, so their box comes first. */}
+      {parentsHere && (
+        <section className="mt-8" aria-labelledby="parents-heading">
+          <h2 id="parents-heading" className="text-xl font-semibold">
+            {access.isHost ? "Parent Registration" : "Parent check-in"}
+          </h2>
+          <Card className="mt-4">
+            {isEventDay && <AutoRefresh seconds={30} />}
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
+              <div className="space-y-1 text-sm leading-6">
+                <p className="font-medium">
+                  {doorLocked
+                    ? "Door check-in opens on event day."
+                    : isEventDay
+                      ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
+                      : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
+                </p>
+                <p className="text-muted">
+                  {event.status !== "published"
+                    ? "Parents can register once the event is published."
+                    : !parentRegistrationClosed(event)
+                      ? `Registration is open${event.parent_registration_closes_at ? ` until ${closesAtLabel(event.parent_registration_closes_at, event.timezone)}` : ""}. Parents are reminded to bring a photo ID.`
+                      : "Registration is closed."}
+                </p>
+                <p className="text-muted">
+                  {doorLocked
+                    ? `🔒 Children's details open for Section Leads on event day (${formatDate(event.starts_on, { year: undefined })}), for door check-in.`
+                    : "🔒 Children's details are seen only by your team (Section Leads on event day) and deleted 30 days after the event."}
+                </p>
+              </div>
+              {!doorLocked && (
+                <Link
+                  href={`/dashboard/events/${eventId}/parents`}
+                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+                >
+                  {access.isHost ? "Registration & door check-in" : "Open door check-in"}
+                </Link>
+              )}
+            </div>
+            {!doorLocked && parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
+          </Card>
+        </section>
+      )}
+
       {setup && checklist && <PublishPanel facts={setup} remaining={checklist.remaining} />}
 
       <PublicPageCard url={publicUrl} published={event.status === "published"} slug={event.slug} qr={publicQr} />
@@ -606,9 +650,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               <div className="flex flex-wrap gap-2">
                 {/* One main button (the check-in most used), the rest outlined. */}
                 {[
+                  // Visitor days: the parent door is the main check-in.
+                  parentsHere && !doorLocked && { href: `/dashboard/events/${eventId}/parents#door-check-in`, label: "Parent door check-in" },
                   access.canManage && { href: `/dashboard/events/${eventId}/volunteers`, label: "Volunteer Check-in" },
                   myStations.length > 0 && { href: `/dashboard/events/${eventId}/contest-day`, label: "My stations" },
-                  parentsHere && !doorLocked && { href: `/dashboard/events/${eventId}/parents#door-check-in`, label: "Parent door check-in" },
                   hasBooths(event.event_type) && { href: `/dashboard/events/${eventId}/booths`, label: "Partner check-in" },
                   access.canManage && { href: `/dashboard/events/${eventId}/announcements`, label: "Broadcast Message" },
                 ]
@@ -661,49 +706,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       )}
 
       {hasBooths(event.event_type) && <BoothsCard eventId={eventId} isDay={isEventDay} />}
-
-      {parentsHere && (
-        <section className="mt-10" aria-labelledby="parents-heading">
-          <h2 id="parents-heading" className="text-xl font-semibold">
-            {access.isHost ? "Parent Registration" : "Parent check-in"}
-          </h2>
-          <Card className="mt-4">
-            {isEventDay && <AutoRefresh seconds={30} />}
-            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
-              <div className="space-y-1 text-sm leading-6">
-                <p className="font-medium">
-                  {doorLocked
-                    ? "Door check-in opens on event day."
-                    : isEventDay
-                      ? `${parentNumbers.adultsArrived} of ${parentNumbers.adults} adults checked in.`
-                      : `${parentNumbers.families} ${parentNumbers.families === 1 ? "family" : "families"} registered.`}
-                </p>
-                <p className="text-muted">
-                  {event.status !== "published"
-                    ? "Parents can register once the event is published."
-                    : !parentRegistrationClosed(event)
-                      ? `Registration is open${event.parent_registration_closes_at ? ` until ${closesAtLabel(event.parent_registration_closes_at, event.timezone)}` : ""}. Parents are reminded to bring a photo ID.`
-                      : "Registration is closed."}
-                </p>
-                <p className="text-muted">
-                  {doorLocked
-                    ? `🔒 Children's details open for Section Leads on event day (${formatDate(event.starts_on, { year: undefined })}), for door check-in.`
-                    : "🔒 Children's details are seen only by your team (Section Leads on event day) and deleted 30 days after the event."}
-                </p>
-              </div>
-              {!doorLocked && (
-                <Link
-                  href={`/dashboard/events/${eventId}/parents`}
-                  className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
-                >
-                  {access.isHost ? "Registration & door check-in" : "Open door check-in"}
-                </Link>
-              )}
-            </div>
-            {!doorLocked && parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
-          </Card>
-        </section>
-      )}
 
       {access.canManage && !conferenceHere && (
         <section className="mt-10" aria-labelledby="team-heading">

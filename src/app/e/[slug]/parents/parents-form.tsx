@@ -146,7 +146,7 @@ export function ParentsForm({
             </Field>
             <Field label="Grade">
               <Select value={c.grade} onChange={(e) => set(i, { grade: e.target.value })} required>
-                <option value="">Pick…</option>
+                <option value="">Pick a grade</option>
                 {grades.map((g) => (
                   <option key={g} value={g}>
                     {g}
@@ -157,7 +157,7 @@ export function ParentsForm({
             {children.length > 1 && (
               <button
                 type="button"
-                className="justify-self-start text-sm font-medium text-danger hover:underline sm:col-span-3"
+                className="min-h-11 justify-self-start text-sm font-medium text-danger hover:underline sm:col-span-3"
                 onClick={() => setChildren((list) => list.filter((_, j) => j !== i))}
               >
                 Remove {c.name || "this child"}

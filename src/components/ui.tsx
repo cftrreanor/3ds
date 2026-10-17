@@ -12,7 +12,7 @@ export function Button({
   variant = "primary",
   className,
   ...props
-}: ComponentProps<"button"> & { variant?: "primary" | "secondary" | "accent" | "go" | "danger" | "warn" | "ghost" }) {
+}: ComponentProps<"button"> & { variant?: "primary" | "secondary" | "accent" | "go" | "danger" | "warn" | "ghost" | "quiet-danger" }) {
   return (
     <button
       className={cx(
@@ -24,6 +24,8 @@ export function Button({
         variant === "warn" && "bg-danger font-semibold text-danger-foreground hover:opacity-90",
         variant === "danger" && "border border-danger bg-surface font-semibold text-danger hover:bg-danger/5",
         variant === "ghost" && "text-muted hover:text-foreground",
+        // A destructive action that shouldn't compete with the main one.
+        variant === "quiet-danger" && "text-danger underline-offset-4 hover:underline",
         className,
       )}
       {...props}

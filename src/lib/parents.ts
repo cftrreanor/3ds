@@ -46,7 +46,7 @@ export const parentLink = (origin: string, slug: string, token: string) => `${or
 
 const childLine = (c: Child) => `${c.name} · ${c.grade} · ${c.teacher}`;
 
-type ParentEvent = {
+export type ParentEvent = {
   name: string;
   starts_on: string;
   ends_on: string;
@@ -56,11 +56,11 @@ type ParentEvent = {
   venue_name: string | null;
   venue_address: string;
 };
-type Registration = { id: string; parent_name: string; email: string; children: Child[]; other_adults: string[]; calendar_sequence: number };
+export type Registration = { id: string; parent_name: string; email: string; children: Child[]; other_adults: string[]; calendar_sequence: number };
 
 
 /** The visit as a calendar event, with the photo ID reminder in it. */
-function toIcsEvent(r: Registration, event: ParentEvent, link: string): IcsEvent {
+export function toIcsEvent(r: Registration, event: ParentEvent, link: string): IcsEvent {
   return {
     uid: `parent-${r.id}@fieldcommandevents.com`,
     timezone: event.timezone,

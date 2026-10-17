@@ -222,9 +222,9 @@ export default async function EventPublicPage({ params }: Params) {
               <Card className="h-full border-brand transition hover:bg-brand-soft">
                 <p className="font-semibold text-brand">Parents: register to attend</p>
                 <p className="mt-1 text-sm text-muted">
-                  Register before you come
-                  {event.parent_registration_closes_at ? ` (closes ${closesAtLabel(event.parent_registration_closes_at, event.timezone)})` : ""}, and
-                  bring a government-issued photo ID.
+                  {isEventDay ? "Register now, then bring your photo ID to the door" : "Register before you come"}
+                  {event.parent_registration_closes_at ? ` (closes ${closesAtLabel(event.parent_registration_closes_at, event.timezone)})` : ""}
+                  {isEventDay ? "." : ", and bring a government-issued photo ID."}
                 </p>
               </Card>
             </Link>
