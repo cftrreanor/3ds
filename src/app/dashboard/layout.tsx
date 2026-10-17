@@ -44,8 +44,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
             </Link>
           )}
           <Link href="/dashboard/account" className={headerLinkClass}>
-            <span className="hidden sm:inline">{user.email}</span>
-            <span className="sm:hidden">Account</span>
+            Account
           </Link>
           <form action="/auth/signout" method="post">
             <button className={headerLinkClass}>Sign out</button>

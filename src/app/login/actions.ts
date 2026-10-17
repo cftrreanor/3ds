@@ -51,7 +51,7 @@ export async function signInWithPassword(_prev: LoginState, formData: FormData):
   if (!password) return { error: "Please enter your password.", email: parsed.data };
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email: parsed.data, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email: parsed.data, password });
   if (error) {
     if (error.code === "invalid_credentials" || error.status === 400) {
       return {
@@ -66,6 +66,8 @@ export async function signInWithPassword(_prev: LoginState, formData: FormData):
     console.error("signInWithPassword failed", { status: error.status, code: error.code, message: error.message });
     return { error: "We couldn't sign you in. Please try again.", email: parsed.data };
   }
+  // Passwords set before the Account page tracked it: note it now, so Account shows "You have a password".
+  if (!data.user?.user_metadata?.has_password) await supabase.auth.updateUser({ data: { has_password: true } });
   redirect(safeNext(formData.get("next")) ?? "/dashboard");
 }
 

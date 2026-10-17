@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, FormMessage, Input } from "@/components/ui";
 import { sendLoginLink, signInWithPassword, type LoginState } from "./actions";
@@ -97,9 +98,13 @@ export function LoginForm({
           />
         </Field>
         {mode === "password" && (
-          <Field label="Password">
-            <Input name="password" type="password" autoComplete="current-password" required autoFocus={!!typed} />
-          </Field>
+          // Not <Field>: its <label> would wrap the Show button and add "Show" to the box's name.
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="login-password" className="text-sm font-semibold">
+              Password
+            </label>
+            <PasswordInput id="login-password" name="password" autoComplete="current-password" required autoFocus={!!typed} />
+          </div>
         )}
         <SubmitButton
           ref={submitRef}

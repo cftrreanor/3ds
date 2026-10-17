@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
+import { MIN_PASSWORD, passwordStrength } from "@/lib/password-strength";
 import { normalizePhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,18 +25,26 @@ export async function updateProfile(_prev: ActionState, formData: FormData): Pro
 
 const passwordSchema = z
   .object({
-    password: z.string().min(8, "Use at least 8 characters.").max(72, "That's too long (72 characters max)."),
+    password: z.string().min(MIN_PASSWORD, `Use at least ${MIN_PASSWORD} characters.`).max(72, "That's too long (72 characters max)."),
     confirm: z.string(),
   })
   .refine((v) => v.password === v.confirm, { message: "The two passwords don't match." });
 
 export async function setPassword(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = passwordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+  const strength = passwordStrength(parsed.data.password, { email: user.email, name: profile?.full_name ?? "" });
+  if (strength.blocked) return { error: strength.tip ?? "Please choose a different password." };
+
+  // has_password lets the Account page say whether one is set (Supabase doesn't expose that).
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+    data: { has_password: true, password_set_at: new Date().toISOString() },
+  });
   if (error) {
     if (error.code === "weak_password") return { error: "That password is too easy to guess. Try a longer one." };
     if (error.code === "same_password") return { ok: true, message: "That's already your password." };
@@ -45,5 +54,6 @@ export async function setPassword(_prev: ActionState, formData: FormData): Promi
     console.error("updateUser password failed", { code: error.code, message: error.message });
     return { error: "We couldn't save that password. Please try again." };
   }
+  revalidatePath("/dashboard/account");
   return { ok: true, message: "Password saved. Next time, choose “Sign in with a password instead” on the sign-in page." };
 }
