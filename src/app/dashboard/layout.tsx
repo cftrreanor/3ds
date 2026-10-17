@@ -30,6 +30,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       <div className="contents print:hidden">
         <DemoBar />
         <HeaderBar href="/dashboard">
+          <Link href="/dashboard" className={headerLinkClass}>
+            <span className="hidden sm:inline">My events</span>
+            <span className="sm:hidden">Events</span>
+          </Link>
           {volunteers && (
             <Link href="/my" className={headerLinkClass}>
               My shifts

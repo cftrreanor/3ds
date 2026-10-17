@@ -149,6 +149,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   return (
     <div className="space-y-14">
+      <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Your events</h1>
       {deleted && <SuccessToast message="Event deleted." />}
       {isAdmin && (
         <Link

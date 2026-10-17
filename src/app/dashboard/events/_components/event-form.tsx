@@ -51,7 +51,7 @@ export function EventForm({
       </Field>
 
       <fieldset className="grid gap-4 sm:grid-cols-2">
-        <legend className="mb-3 text-sm font-medium">When</legend>
+        <legend className="mb-3 w-full border-b border-border pt-2 pb-1 font-semibold">When</legend>
         {hasShifts && (
           <p className="rounded-md bg-brand-soft px-3 py-2 text-sm sm:col-span-2">
             Changing the date moves your existing shifts with it. A 7:00 AM shift stays at 7:00 AM on the new day.
@@ -108,7 +108,7 @@ export function EventForm({
       {/* Conferences ask for the school in Conference Setup, with the room, and only for in-person meetings. */}
       {!conference && (
         <fieldset className="grid gap-4">
-          <legend className="mb-3 text-sm font-medium">Where</legend>
+          <legend className="mb-3 w-full border-b border-border pt-2 pb-1 font-semibold">Where</legend>
           <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} />
         </fieldset>
       )}

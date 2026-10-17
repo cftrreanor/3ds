@@ -134,7 +134,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
           <Link href={`/dashboard/events/${eventId}/announcements`} className="font-medium text-brand underline-offset-4 hover:underline">
             Broadcast Message
           </Link>{" "}
-          <span className="text-muted">(a band switch, a delay, an emergency)</span>
+          <span className="text-muted">({bandsHere ? "a band switch" : "a location change"}, a delay, an emergency)</span>
         </p>
       )}
 

@@ -15,7 +15,7 @@ import { deleteFile, prepareUpload, saveFile } from "../../../file-actions";
 import { FilesManager } from "./files-manager";
 import { EventForm } from "../../_components/event-form";
 
-export const metadata: Metadata = { title: "Edit event" };
+export const metadata: Metadata = { title: "Edit Event Details" };
 
 const TYPE_SUMMARY = {
   band_contest: "Bands register, get performance times, and are checked in on contest day, alongside your volunteers.",
@@ -82,7 +82,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Edit event details</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Edit Event Details</h1>
       <div className="mt-6 flex flex-col gap-3">
         <SetupStep
           id="details"
