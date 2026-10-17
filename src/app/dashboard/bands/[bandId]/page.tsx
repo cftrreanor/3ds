@@ -42,7 +42,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase
       .from("events")
       .select(
-        "name, slug, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finalists_revealed, schedule_updated_at",
+        "name, slug, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed, schedule_updated_at",
       )
       .eq("id", band.event_id)
       .single(),
@@ -81,11 +81,16 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     query: event.venue_address,
     ...(event.venue_place_id ? { query_place_id: event.venue_place_id } : {}),
   })}`;
+  // Once the contest has finals, the first round is "Preliminaries" everywhere.
+  const hasFinals = event.finals_published || event.finalists_revealed;
+  // After the band performs in preliminaries, those times fold away.
+  const prelimsDone = ((progress ?? []) as ProgressRow[]).some((r) => r.round === "prelims" && r.performed);
   const calendar = (round: "order" | "finals", times: BandTimes) =>
     bandCalendarEvent({
       bandId,
       bandName: band.band_name,
       round,
+      hasFinals,
       times,
       event: { ...event, ready_minutes_before: round === "finals" ? event.finals_ready_minutes_before : event.ready_minutes_before },
       url: `${origin}/dashboard/bands/${bandId}`,
@@ -261,8 +266,9 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       )}
       {group ? null : event.performance_order_published && slot ? (
         <TimesCard
-          title={`Your times · #${slot.performance_order} in the order`}
+          title={`${hasFinals ? "Preliminaries" : "Your times"} · #${slot.performance_order} in the order`}
           times={slot}
+          done={prelimsDone}
           event={event}
           calendar={calendar("order", slot)}
           icsUrl={`/dashboard/bands/${bandId}/calendar`}
@@ -361,6 +367,7 @@ function TimesCard({
   calendar,
   icsUrl,
   highlight = false,
+  done = false,
 }: {
   title: string;
   times: BandTimes;
@@ -368,6 +375,8 @@ function TimesCard({
   calendar: ReturnType<typeof bandCalendarEvent>;
   icsUrl: string;
   highlight?: boolean;
+  /** Already performed: show the times folded, under a "Performed" note. */
+  done?: boolean;
 }) {
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
@@ -381,9 +390,8 @@ function TimesCard({
     t.perform_at && { label: "Performance", time: at(t.perform_at), note: null },
   ].filter(Boolean) as { label: string; time: string; note: string | null }[];
 
-  return (
-    <Card className={`mt-6 ${highlight ? "border-brand" : ""}`}>
-      <h2 className="font-semibold">{title}</h2>
+  const details = (
+    <>
       {t.perform_at ? (
         <p className="mt-3">
           <span className="block text-sm text-muted">
@@ -421,6 +429,26 @@ function TimesCard({
             Apple / Outlook
           </a>
         </p>
+      )}
+    </>
+  );
+
+  return (
+    <Card className={`mt-6 ${highlight ? "border-brand" : ""}`}>
+      <h2 className="font-semibold">{title}</h2>
+      {done ? (
+        <>
+          <p className="mt-1 text-sm font-medium text-success">✓ Performed</p>
+          <details className="group mt-1">
+            <summary className={`inline-flex min-h-11 cursor-pointer items-center text-sm ${linkClass}`}>
+              <span className="group-open:hidden">Show these times</span>
+              <span className="hidden group-open:inline">Hide these times</span>
+            </summary>
+            {details}
+          </details>
+        </>
+      ) : (
+        details
       )}
     </Card>
   );

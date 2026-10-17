@@ -13,6 +13,8 @@ type CalendarInput = {
   bandId: string;
   bandName: string;
   round: "order" | "finals";
+  /** The contest has finals, so the first round is named "preliminaries". */
+  hasFinals?: boolean;
   times: BandTimes;
   event: { name: string; timezone: string; venue_name: string | null; venue_address: string; ready_minutes_before: number };
   url: string;
@@ -23,20 +25,21 @@ type CalendarInput = {
  * performing) until 15 minutes after the performance. Null until there's a
  * performance time.
  */
-export function bandCalendarEvent({ bandId, bandName, round, times: t, event, url }: CalendarInput): IcsEvent | null {
+export function bandCalendarEvent({ bandId, bandName, round, hasFinals = false, times: t, event, url }: CalendarInput): IcsEvent | null {
   if (!t.perform_at) return null;
   const tz = event.timezone;
   const perform = new Date(t.perform_at);
   const warmEnd = warmUpEndAt(t.warm_up_at, t.warm_up_minutes);
   const ready = readyAt(t.perform_at, event.ready_minutes_before);
   const finals = round === "finals";
+  const roundWord = finals ? " finals" : hasFinals ? " preliminaries" : "";
   return {
     uid: `band-${bandId}-${round}@fieldcommandevents.com`,
     timezone: tz,
     sequence: 0,
     start: t.warm_up_at ? new Date(t.warm_up_at) : new Date(perform.getTime() - 60 * 60_000),
     end: new Date(perform.getTime() + 15 * 60_000),
-    summary: `${bandName}${finals ? " finals" : ""} at ${event.name}`,
+    summary: `${bandName}${roundWord} at ${event.name}`,
     location: [event.venue_name, event.venue_address].filter(Boolean).join(", "),
     description: [
       t.warm_up_at &&
@@ -48,6 +51,6 @@ export function bandCalendarEvent({ bandId, bandName, round, times: t, event, ur
       .filter(Boolean)
       .join("\n"),
     url,
-    alarm: `${bandName}${finals ? " finals" : ""}: warm-up soon`,
+    alarm: `${bandName}${roundWord}: warm-up soon`,
   };
 }
