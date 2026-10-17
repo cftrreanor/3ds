@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ParentState } from "./actions";
@@ -180,6 +181,7 @@ export function ParentsForm({
         </label>
       </Card>
 
+      {!editing && <BotCheck />}
       <FormMessage error={state.error} />
       <SubmitButton pendingText={editing ? "Saving…" : "Registering…"} className="w-full sm:w-auto">
         {editing ? "Save changes" : "Register"}

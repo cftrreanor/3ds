@@ -1,5 +1,6 @@
 "use server";
 
+import { BOT_CHECK_FAILED, passesBotCheck } from "@/lib/bot-check";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
@@ -68,6 +69,7 @@ export async function forgetThisDevice(): Promise<ActionState> {
 export async function emailMyLink(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = z.string().trim().toLowerCase().email().safeParse(formData.get("email"));
   if (!parsed.success) return { error: "Please enter a valid email address." };
+  if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED };
   const generic: ActionState = {
     ok: true,
     message: `If ${parsed.data} has upcoming shifts, we just emailed a link to view them. It can take a minute to arrive.`,

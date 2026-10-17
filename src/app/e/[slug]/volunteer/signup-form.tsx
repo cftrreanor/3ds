@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { startTransition, useActionState, useState } from "react";
 import { ActionPendingContext } from "@/components/action-form";
+import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input } from "@/components/ui";
 import type { Companion, SignupState } from "./actions";
@@ -349,6 +350,7 @@ export function SignupForm({
             </ul>
           </div>
         )}
+        <BotCheck />
         <FormMessage error={state.error} />
         <SubmitButtonWithCount count={chosen.size} people={groupSize} disabled={disabled} />
         <p className="text-center text-xs text-muted">

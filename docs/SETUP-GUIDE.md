@@ -274,6 +274,32 @@ links and volunteer passes is replaced with `[token]`.
 Alert emails go to the address you signed up with. To add someone, use
 **Settings → Members**; to change what emails you get, use **User Settings → Notifications**.
 
+## Bot protection (Cloudflare Turnstile)
+A free "I'm not a robot" check on the public forms: volunteer sign-up, parent
+registration, conference booking, the pilot form, and "Email me my link". Most people
+never see it; Cloudflare only shows a checkbox when something looks off. It stops
+scripts from filling a teacher's conference times with fake bookings or using the
+forms to send emails to people who didn't ask. The code is in place and stays off
+until both keys below are added.
+
+1. Go to **dash.cloudflare.com** and sign up for a free account with the business email.
+   You don't need to move your domain to Cloudflare.
+2. In the left menu, open **Turnstile** → **Add widget**.
+   - **Widget name:** `Field Command Events`
+   - **Hostnames:** add `fieldcommandevents.com`, `www.fieldcommandevents.com`, and
+     `vercel.app` (so the preview sites work too)
+   - **Widget mode:** **Managed**
+   - Leave the rest as is → **Create**.
+3. Cloudflare shows two keys. In **Vercel → Settings → Environment Variables**, add both:
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = the **Site Key** (type **Config**; it's shown to browsers)
+   - `TURNSTILE_SECRET_KEY` = the **Secret Key** (type **Secret**)
+4. **Deployments → ⋯ → Redeploy.**
+5. **Check it:** open a public volunteer sign-up page and sign up as a test. It should go
+   through as usual. In Cloudflare → **Turnstile**, the widget's numbers start counting.
+
+If Cloudflare is ever unreachable, the forms keep working (and Sentry sends an alert), so
+families are never locked out on event day. To turn it off, delete either key and redeploy.
+
 ---
 
 ## Later: set up when we reach that phase

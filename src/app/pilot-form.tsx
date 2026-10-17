@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { ActionForm, useFieldErrors } from "@/components/action-form";
+import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, FieldError, Input, Textarea } from "@/components/ui";
 import { fieldErrorState, type ActionState } from "@/lib/action-state";
@@ -45,6 +46,7 @@ export function PilotForm({
           </label>
         </div>
         <Fields onEmail={setEmail} defaultEventTypes={defaultEventTypes} />
+        <BotCheck />
         <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
           Join the pilot
         </SubmitButton>

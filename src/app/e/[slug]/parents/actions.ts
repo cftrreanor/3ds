@@ -1,5 +1,6 @@
 "use server";
 
+import { BOT_CHECK_FAILED, passesBotCheck } from "@/lib/bot-check";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -76,6 +77,7 @@ export async function registerParents(eventId: string, _prev: ParentState, formD
     return { error: "Something went wrong. Please try again.", values };
   }
   if (!v) return { error: invalid, values };
+  if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED, values };
 
   const admin = createAdminClient();
   const { data: token, error } = await admin.rpc("register_parents", {

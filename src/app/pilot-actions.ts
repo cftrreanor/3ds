@@ -1,5 +1,6 @@
 "use server";
 
+import { BOT_CHECK_FAILED, passesBotCheck } from "@/lib/bot-check";
 import { fieldErrorState, type ActionState } from "@/lib/action-state";
 import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
@@ -27,6 +28,7 @@ export async function requestPilot(_prev: ActionState, formData: FormData): Prom
   // The browser checks these first; this is the backstop. Every problem comes back at once.
   const { request: d, fieldErrors } = checkPilotRequest(formData);
   if (!d) return fieldErrorState(fieldErrors);
+  if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED };
   const { phone, eventTypes } = d;
 
   const admin = createAdminClient();
