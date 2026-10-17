@@ -37,8 +37,8 @@ in a browser.
 
 ## Needs your decision
 
-1. **Bot protection on public forms** (Medium). ✅ **Built (October 2026):** Cloudflare Turnstile is on the five public
-   forms and turns on when its keys are added (docs/SETUP-GUIDE.md, "Bot protection"). Original note: Volunteer sign-up, parent registration,
+1. **Bot protection on public forms** (Medium). ✅ **Done (October 2026):** Cloudflare Turnstile is on the five public
+   forms, with its keys added (docs/SETUP-GUIDE.md, "Bot protection"). Original note: Volunteer sign-up, parent registration,
    conference booking, and the pilot form have simple bot traps that a determined
    script can get past. Someone could fill a teacher's conference times with fake
    bookings, or use the forms to send emails to people who didn't ask. Recommended:
