@@ -25,7 +25,7 @@ function RoleButtons({
   return (
     <>
       <div
-        className={`flex gap-1.5 ${scroll ? "-mx-4 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" : "flex-wrap"}`}
+        className={`flex gap-1.5 ${scroll ? "relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" : "flex-wrap"}`}
         role="group"
         aria-label="View as"
       >

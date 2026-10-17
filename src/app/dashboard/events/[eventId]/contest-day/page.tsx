@@ -139,7 +139,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       )}
 
       {(mine.length + myOther.length > 1 || (bandsHere && access.canManage)) && (
-        <nav aria-label="Stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <nav aria-label="Stations" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <ul className="flex min-w-max gap-1 border-b border-border">
             {bandsHere && access.canManage && (
               <li>
@@ -720,7 +720,7 @@ function Overview({
         <h2 id="board-heading" className="sr-only">
           Every band
         </h2>
-        <nav aria-label="Filter bands" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <nav aria-label="Filter bands" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <ul className="flex min-w-max gap-2">
             {CHIPS.map((c) => (
               <li key={c.id}>

@@ -52,12 +52,18 @@ type AddWalkUp = (shiftId: string, overCapacity: boolean, prev: ActionState, for
 export function Desk({
   stations,
   eventDay,
+  open,
+  opensOn,
   toggle,
   addWalkUp,
   release,
 }: {
   stations: DeskStation[];
   eventDay: boolean;
+  /** Check-in and walk-ups are on (the day before through the event). Otherwise the lists are read-only. */
+  open: boolean;
+  /** When they turn on, for the note shown before then. */
+  opensOn: string;
   toggle: (assignmentId: string, checkedIn: boolean) => Promise<ActionState>;
   addWalkUp: AddWalkUp;
   release: (assignmentId: string) => Promise<ActionState>;
@@ -108,7 +114,7 @@ export function Desk({
   );
 
   const current = optimistic.find((s) => s.id === tab);
-  const rowProps = { onToggle, release, eventDay };
+  const rowProps = { onToggle, release, eventDay, open };
 
   return (
     <div>
@@ -133,6 +139,11 @@ export function Desk({
           </p>
         )}
       </div>
+      {!open && (
+        <p className="mt-4 rounded-md border border-border bg-surface px-3 py-2 text-sm">
+          Check-in and walk-ups turn on {opensOn}, so no one gets checked in early.
+        </p>
+      )}
 
       {q ? (
         <section className="mt-5" aria-label="Search results">
@@ -148,7 +159,7 @@ export function Desk({
         </section>
       ) : (
         <>
-          <div role="tablist" aria-label="Stations" className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div role="tablist" aria-label="Stations" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <div className="flex min-w-max gap-1 border-b border-border">
               <TabButton active={tab === "overview"} onClick={() => setTab("overview")} label="Overview" sub="Who's not here yet?" />
               {optimistic.map((s) => {
@@ -203,6 +214,7 @@ type RowProps = {
   onToggle: (v: DeskVolunteer) => void;
   release: (assignmentId: string) => Promise<ActionState>;
   eventDay: boolean;
+  open: boolean;
 };
 
 function Overview({ stations, openTab, ...rowProps }: { stations: DeskStation[]; openTab: (id: string) => void } & RowProps) {
@@ -329,8 +341,8 @@ function ShiftCard({
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-muted">{full ? "Full" : `${gaps} open ${gaps === 1 ? "spot" : "spots"}`}</span>
-              {!shift.over && (
-                <Button type="button" variant="secondary" className="min-h-9 px-3 text-xs" onClick={() => setAdding(true)}>
+              {!shift.over && rowProps.open && (
+                <Button type="button" variant="secondary" className="px-3 text-xs" onClick={() => setAdding(true)}>
                   + Add walk-up
                 </Button>
               )}
@@ -449,6 +461,7 @@ function VolunteerRow({
   onToggle,
   release,
   eventDay,
+  open,
 }: { v: DeskVolunteer; shift: DeskShift; detail?: string } & RowProps) {
   const [releasing, setReleasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -480,7 +493,7 @@ function VolunteerRow({
           <Button
             type="button"
             variant="ghost"
-            className="min-h-9 px-2 text-xs"
+            className="px-2 text-xs"
             disabled={releasing}
             onClick={() => {
               if (!window.confirm(`Release ${v.name}'s spot? They'll be taken off this shift so someone else can fill it.`)) return;
@@ -495,24 +508,28 @@ function VolunteerRow({
             {releasing ? "Releasing…" : "Release spot"}
           </Button>
         )}
-        <button
-          type="button"
-          onClick={() => onToggle(v)}
-          aria-pressed={v.checkedIn}
-          aria-label={v.checkedIn ? `${v.name} is checked in. Tap to undo.` : `Check in ${v.name}`}
-          className={`flex min-h-12 min-w-28 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
-            v.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:opacity-90"
-          }`}
-        >
-          {v.checkedIn ? (
-            <>
-              <span>✓ Here</span>
-              <span className="text-[11px] font-normal text-muted">tap to undo</span>
-            </>
-          ) : (
-            "Check in"
-          )}
-        </button>
+        {!open ? (
+          v.checkedIn && <span className="text-sm font-semibold text-success">✓ Here</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onToggle(v)}
+            aria-pressed={v.checkedIn}
+            aria-label={v.checkedIn ? `${v.name} is checked in. Tap to undo.` : `Check in ${v.name}`}
+            className={`flex min-h-12 min-w-28 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
+              v.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:opacity-90"
+            }`}
+          >
+            {v.checkedIn ? (
+              <>
+                <span>✓ Here</span>
+                <span className="text-[11px] font-normal text-muted">tap to undo</span>
+              </>
+            ) : (
+              "Check in"
+            )}
+          </button>
+        )}
       </div>
     </li>
   );

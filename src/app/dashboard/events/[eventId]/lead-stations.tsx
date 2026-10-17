@@ -63,7 +63,7 @@ export function LeadStations({
   return (
     <div>
       {stations.length > 1 && (
-        <div role="tablist" aria-label="Your stations" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div role="tablist" aria-label="Your stations" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <div className="flex min-w-max gap-1 border-b border-border">
             {stations.map((s) => {
               const n = s.shifts.reduce((k, sh) => k + sh.volunteers.length, 0);

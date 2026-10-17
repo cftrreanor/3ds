@@ -106,7 +106,7 @@ export type StationTab = {
 export function StationTabs({ tabs }: { tabs: StationTab[] }) {
   const progress = useContext(Progress);
   return (
-    <nav aria-label="Stations" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav aria-label="Stations" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-border">
         {tabs.map((t) => (
           <li key={t.id}>

@@ -150,12 +150,12 @@ export function SignupForm({
           1. Pick your shifts
         </h2>
         <p className="mt-1 text-sm text-muted">
-          {stations.length > 1 ? "Each tab is a station. " : ""}Choose as many shifts as you like, as long as the times
-          don&apos;t overlap.
+          Choose as many shifts as you like, as long as the times don&apos;t overlap.
         </p>
 
         {stations.length > 1 && (
-          <div role="tablist" aria-label="Stations" className="-mx-4 mt-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          // Wider screens: a tab per station. Phones list every station instead, so none hide off the edge.
+          <div role="tablist" aria-label="Stations" className="relative mt-4 hidden overflow-x-auto sm:block">
             <div className="flex min-w-max gap-1 border-b border-border">
               {stations.map((st) => {
                 const active = st.id === activeId;
@@ -188,15 +188,14 @@ export function SignupForm({
           </div>
         )}
 
-        {/* Every station stays in the form (hidden tabs included), so picks on other tabs still submit. */}
+        {/* Every station stays in the form (hidden tabs included), so picks on other tabs still submit. On phones they're all shown. */}
         {stations.map((st) => (
           <Card
             key={st.id}
             id={`panel-${st.id}`}
             role={stations.length > 1 ? "tabpanel" : undefined}
             aria-labelledby={stations.length > 1 ? `tab-${st.id}` : undefined}
-            hidden={st.id !== activeId}
-            className="mt-4 p-4 sm:p-5"
+            className={`mt-4 p-4 sm:p-5 ${st.id !== activeId ? "sm:hidden" : ""}`}
           >
             <h3 className="font-semibold">
               {st.name}
@@ -208,6 +207,14 @@ export function SignupForm({
               <p className="mt-1 text-sm text-danger">Someone in your group is under 18, so these shifts aren&apos;t available.</p>
             )}
             {st.location && <p className="text-sm text-muted">{st.location}</p>}
+            {stations.length > 1 && (
+              <p className="text-sm text-muted sm:hidden">
+                {(() => {
+                  const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0);
+                  return open > 0 ? `${open} open spot${open === 1 ? "" : "s"}` : "Full";
+                })()}
+              </p>
+            )}
             {st.instructions && <p className="mt-2 text-sm leading-6 text-muted">{st.instructions}</p>}
             <ul className="mt-3 space-y-2">
               {st.shifts.map((s) => {

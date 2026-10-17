@@ -1100,7 +1100,7 @@ function PublicPageCard({ url, published, slug, qr }: { url: string; published: 
         />
         <div className="min-w-0 flex-1 space-y-2 text-sm leading-6">
           <p className="text-muted">Share the link or QR code in emails, flyers, and slides.</p>
-          <a href={qr[1]} download={`${slug}-qr.png`} className="inline-block font-medium text-brand underline-offset-4 hover:underline">
+          <a href={qr[1]} download={`${slug}-qr.png`} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline">
             Download QR code
           </a>
         </div>
