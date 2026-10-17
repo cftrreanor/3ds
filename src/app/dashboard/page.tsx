@@ -14,7 +14,8 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { DayStatusPill } from "@/components/day-status";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { bandSteps, dayStatus, groupSteps, type DayStatus, type ProgressRow } from "@/lib/director-day";
-import { eventTypeIcon, eventTypeLabel, hasRooms } from "@/lib/event-types";
+import { eventTypeLabel, groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
+import type { createClient as CreateClient } from "@/lib/supabase/server";
 import { HostingByInvitation } from "@/components/hosting-by-invitation";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
@@ -60,6 +61,57 @@ const EVENT_COLUMNS = "id, name, status, timezone, starts_on, ends_on, venue_nam
 /** Has the event ended, in its own time zone? */
 function isPast(e: { ends_on: string; timezone: string }) {
   return e.ends_on < utcToZonedDate(new Date().toISOString(), e.timezone);
+}
+
+/** Is it on today, in its own time zone? */
+function isToday(e: { starts_on: string; ends_on: string; timezone: string }) {
+  const today = utcToZonedDate(new Date().toISOString(), e.timezone);
+  return e.starts_on <= today && today <= e.ends_on;
+}
+
+/** Where a host goes on the day, by event type. */
+const DAY_SCREEN: Record<string, { path: string; label: string }> = {
+  band_contest: { path: "contest-day", label: "Open contest day" },
+  group_event: { path: "event-day", label: "Open event day" },
+  school_visit: { path: "parents", label: "Open door check-in" },
+  conference: { path: "conferences/meetings", label: "Open your meetings" },
+  fair: { path: "booths", label: "Open booth check-in" },
+  volunteer: { path: "volunteers", label: "Open volunteer check-in" },
+};
+
+/** Who has signed up so far, per event: the one number each kind of event runs on. */
+async function signupCounts(supabase: Awaited<ReturnType<typeof CreateClient>>, events: EventSummary[]) {
+  const ids = (match: (t: string | null) => boolean) => events.filter((e) => match(e.event_type)).map((e) => e.id);
+  const tally = async (table: string, eventIds: string[], onlyActive = false) => {
+    if (!eventIds.length) return [] as { event_id: string }[];
+    let q = supabase.from(table).select("event_id").in("event_id", eventIds);
+    if (onlyActive) q = q.is("scratched_at", null);
+    return ((await q).data ?? []) as { event_id: string }[];
+  };
+  const rows = (
+    await Promise.all([
+      tally("bands", ids(hasEnsembles), true),
+      tally("parent_registrations", ids((t) => t === "school_visit")),
+      tally("conference_bookings", ids((t) => t === "conference")),
+      tally("fair_booths", ids((t) => t === "fair")),
+      tally("volunteers", ids((t) => t === "volunteer")),
+    ])
+  ).flat();
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.event_id, (counts.get(r.event_id) ?? 0) + 1);
+  return counts;
+}
+
+function signupLine(type: string | null, n: number) {
+  const plural = (one: string, many: string) => (n === 1 ? one : many);
+  if (hasEnsembles(type)) {
+    const w = groupWords(type);
+    return n ? `${n} ${plural(w.one, w.many)} registered` : `No ${w.many} registered yet`;
+  }
+  if (type === "school_visit") return n ? `${n} ${plural("family", "families")} registered` : "No families registered yet";
+  if (type === "conference") return n ? `${n} ${plural("meeting", "meetings")} booked` : "No meetings booked yet";
+  if (type === "fair") return n ? `${n} ${plural("booth", "booths")} added` : "No booths added yet";
+  return n ? `${n} ${plural("volunteer", "volunteers")} signed up` : "No volunteers signed up yet";
 }
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
@@ -117,6 +169,19 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       ).data ?? []) as EventSummary[]
     : [];
 
+  // Today's events first, then the rest by date.
+  hosted.sort((a, b) => Number(isToday(b)) - Number(isToday(a)));
+  const counts = await signupCounts(
+    supabase,
+    hosted.filter((e) => e.status === "published" && !isPast(e)),
+  );
+  const mixedHosted = new Set(hosted.map((e) => e.event_type)).size > 1;
+  const mixedHelping = new Set(helping.map((r) => r.events.event_type)).size > 1;
+  // A director's bands at the same contest share one card.
+  const byEvent = new Map<string, DirectorBand[]>();
+  for (const b of myBands) byEvent.set(b.events.id, [...(byEvent.get(b.events.id) ?? []), b]);
+  const bandsByEvent = [...byEvent.values()];
+
   if (!org && helping.length === 0 && myBands.length === 0) {
     // People who only volunteer belong on their shifts page, not host setup.
     const { count } = await supabase.from("volunteers").select("id", { count: "exact", head: true });
@@ -149,18 +214,22 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   const teacher = org?.account_kind === "teacher";
   return (
-    <div className="space-y-14">
-      <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Your events</h1>
-      {deleted && <SuccessToast message="Event deleted." />}
-      {isAdmin && (
-        <Link
-          href="/admin"
-          className="flex items-center justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-card hover:border-brand/40"
-        >
-          <span className="font-semibold">{brand.name} admin</span>
-          <span className="text-sm text-muted">{newRequests ? `${newRequests} new pilot request${newRequests === 1 ? "" : "s"} →` : "Organizations, plans, pilot requests →"}</span>
-        </Link>
-      )}
+    <div className="space-y-10">
+      <div className="space-y-4">
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Your events</h1>
+        {deleted && <SuccessToast message="Event deleted." />}
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-2 text-sm hover:border-brand/40"
+          >
+            <span className="font-semibold">Admin</span>
+            <span className="whitespace-nowrap text-muted">
+              {newRequests ? `${newRequests} new pilot request${newRequests === 1 ? "" : "s"} →` : "Open admin →"}
+            </span>
+          </Link>
+        )}
+      </div>
       {org && (
         <Section
           icon={teacher ? "🍎" : "🏟️"}
@@ -172,7 +241,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           }
           action={<NewEventButton teacherOnly={teacher} />}
           notice={org && <PlanNotice org={org} />}
-          items={hosted.map((e) => ({ key: e.id, past: isPast(e), node: <HostedCard event={e} /> }))}
+          items={hosted.map((e) => ({
+            key: e.id,
+            past: isPast(e),
+            node: <HostedCard event={e} showType={mixedHosted} signups={counts.get(e.id) ?? 0} />,
+          }))}
           empty={
             <Card className="text-center">
               <h3 className="font-semibold">{teacher ? "No conferences yet" : "No events yet"}</h3>
@@ -181,6 +254,18 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                   ? "Set up your first conference. Families can book once you publish it."
                   : "Create your first event. It stays a private draft until you publish it, so you can set everything up at your own pace."}
               </p>
+              <div className="mt-4">
+                <NewEventButton teacherOnly={teacher} />
+              </div>
+            </Card>
+          }
+          nothingUpcoming={
+            <Card className="text-center">
+              <h3 className="font-semibold">{teacher ? "No upcoming conferences" : "No upcoming events"}</h3>
+              <p className="mx-auto mt-2 max-w-md leading-7 text-muted">Your past ones are below.</p>
+              <div className="mt-4">
+                <NewEventButton teacherOnly={teacher} />
+              </div>
             </Card>
           }
         />
@@ -192,7 +277,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           icon="🎺"
           title="Competing"
           description="Your bands' registrations at contests."
-          items={myBands.map((b) => ({ key: b.id, past: isPast(b.events), node: <BandCard band={b} live={live.get(b.id)} /> }))}
+          items={bandsByEvent.map((bands) => ({
+            key: bands[0].events.id,
+            past: isPast(bands[0].events),
+            node: <BandCard bands={bands} live={live} />,
+          }))}
         />
       )}
 
@@ -201,7 +290,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           icon="🙋"
           title="Helping run"
           description="Events where you're on the host's team."
-          items={helping.map((r) => ({ key: `${r.events.id}-${r.role}`, past: isPast(r.events), node: <HelpingCard row={r} /> }))}
+          items={helping.map((r) => ({
+            key: `${r.events.id}-${r.role}`,
+            past: isPast(r.events),
+            node: <HelpingCard row={r} showType={mixedHelping} />,
+          }))}
         />
       )}
 
@@ -226,6 +319,7 @@ function Section({
   notice,
   items,
   empty,
+  nothingUpcoming,
 }: {
   icon: string;
   title: string;
@@ -235,6 +329,8 @@ function Section({
   notice?: ReactNode;
   items: { key: string; past: boolean; node: ReactNode }[];
   empty?: ReactNode;
+  /** Shown when everything is in the past. */
+  nothingUpcoming?: ReactNode;
 }) {
   const upcoming = items.filter((i) => !i.past);
   const past = items.filter((i) => i.past);
@@ -257,70 +353,114 @@ function Section({
         {action}
       </div>
       {notice && <div className="mt-4">{notice}</div>}
-      <div className="mt-6">
-        {upcoming.length > 0 ? grid(upcoming) : items.length === 0 && empty ? empty : (
-          <p className="text-sm text-muted">Nothing coming up.</p>
-        )}
+      <div className="mt-4">
+        {upcoming.length > 0
+          ? grid(upcoming)
+          : items.length === 0 && empty
+            ? empty
+            : (nothingUpcoming ?? <p className="text-sm text-muted">Nothing coming up.</p>)}
       </div>
       {past.length > 0 && (
         <details className="mt-4">
           <summary className="cursor-pointer text-sm font-medium text-muted hover:text-foreground">
             Past ({past.length})
           </summary>
-          <div className="mt-4 opacity-80">{grid(past)}</div>
+          <div className="mt-4">{grid(past)}</div>
         </details>
       )}
     </section>
   );
 }
 
-function CardLink({ href, children }: { href: string; children: ReactNode }) {
+/**
+ * Every dashboard card has the same shape: the name (which opens it) with a
+ * small badge for where things stand or your role, the date and place, then
+ * what's next at the bottom.
+ */
+function EventCard({
+  title,
+  href,
+  badge,
+  event: e,
+  showType,
+  highlight,
+  children,
+}: {
+  title: string;
+  /** The whole card opens this, when set. */
+  href?: string;
+  badge?: ReactNode;
+  event: EventSummary;
+  showType?: boolean;
+  highlight?: boolean;
+  children?: ReactNode;
+}) {
   return (
-    <Link href={href} className="block h-full">
-      <Card className="h-full transition hover:border-brand">{children}</Card>
-    </Link>
+    <Card className={`relative h-full transition ${href ? "hover:border-brand" : ""} ${highlight ? "border-brand ring-1 ring-brand" : ""}`}>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-semibold">
+          {href ? (
+            <Link href={href} className="after:absolute after:inset-0 after:rounded-lg">
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
+        </h3>
+        {badge}
+      </div>
+      {showType && (
+        <p className="mt-2">
+          <Badge tone="info">{eventTypeLabel(e.event_type)}</Badge>
+        </p>
+      )}
+      <p className="mt-2 text-sm text-muted">
+        {formatDateRange(e.starts_on, e.ends_on)} · {where(e)}
+      </p>
+      {children && <div className="mt-3">{children}</div>}
+    </Card>
   );
 }
 
 const where = (e: EventSummary) => e.venue_name ?? e.venue_address;
 
-/** An event card's name, with its type's icon in front. */
-function EventName({ event: e }: { event: EventSummary }) {
+function HostedCard({ event: e, showType, signups }: { event: EventSummary; showType: boolean; signups: number }) {
+  const href = `/dashboard/events/${e.id}`;
+  const today = isToday(e) && e.status === "published";
+  const day = DAY_SCREEN[e.event_type ?? "band_contest"];
+  const past = isPast(e);
   return (
-    <h3 className="flex items-start gap-2 font-semibold">
-      <span aria-hidden="true">{eventTypeIcon(e.event_type)}</span>
-      <span>{e.name}</span>
-    </h3>
-  );
-}
-
-/** The event-type pill, right under an event card's name. */
-function TypePill({ event: e }: { event: EventSummary }) {
-  return (
-    <p className="mt-2">
-      <Badge tone="info">{eventTypeLabel(e.event_type)}</Badge>
-    </p>
-  );
-}
-
-function HostedCard({ event: e }: { event: EventSummary }) {
-  return (
-    <CardLink href={`/dashboard/events/${e.id}`}>
-      <div className="flex items-start justify-between gap-3">
-        <EventName event={e} />
+    <EventCard
+      title={e.name}
+      href={href}
+      event={e}
+      showType={showType}
+      highlight={today}
+      badge={
         <Badge tone={e.status === "published" ? "live" : "neutral"}>
           {e.status === "published" ? "Published" : e.status === "archived" ? "Archived" : "Draft"}
         </Badge>
-      </div>
-      <TypePill event={e} />
-      <p className="mt-2 text-sm text-muted">{formatDateRange(e.starts_on, e.ends_on)}</p>
-      <p className="mt-1 text-sm text-muted">{where(e)}</p>
-    </CardLink>
+      }
+    >
+      {past || e.status === "archived" ? null : today && day ? (
+        // Above the card's own link, so it can be tapped on its own.
+        <Link
+          href={`${href}/${day.path}`}
+          className="relative z-10 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
+        >
+          Today · {day.label} →
+        </Link>
+      ) : e.status === "published" ? (
+        <p className="text-sm font-medium">{signupLine(e.event_type, signups)}</p>
+      ) : (
+        <p className="text-sm font-medium text-warning">Next: finish setup and publish</p>
+      )}
+    </EventCard>
   );
 }
 
 /** Where a band stands at a contest, in one line. */
-function bandStatus(b: MyBand & { events: NonNullable<MyBand["events"]> }): { text: string; tone: "brand" | "accent" | "neutral" } {
+function bandStatus(b: DirectorBand): { text: string; tone: "brand" | "accent" | "neutral" } {
   const e = b.events;
   const at = (iso: string) =>
     `${e.starts_on !== e.ends_on ? `${formatDate(utcToZonedDate(iso, e.timezone), { year: undefined })}, ` : ""}${formatTime(iso, e.timezone)} ${zoneAbbreviation(iso, e.timezone)}`;
@@ -334,7 +474,7 @@ function bandStatus(b: MyBand & { events: NonNullable<MyBand["events"]> }): { te
 }
 
 /** A band's (or group's) steps today, from the host team's taps. Null when there's nothing to track. */
-async function liveStatus(b: MyBand & { events: NonNullable<MyBand["events"]> }, now: Date): Promise<DayStatus | null> {
+async function liveStatus(b: DirectorBand, now: Date): Promise<DayStatus | null> {
   const supabase = await createClient();
   const e = b.events;
   const time = (iso: string) => formatTime(iso, e.timezone);
@@ -372,40 +512,63 @@ async function liveStatus(b: MyBand & { events: NonNullable<MyBand["events"]> },
   return dayStatus(steps, now, time);
 }
 
-function BandCard({ band: b, live }: { band: MyBand & { events: NonNullable<MyBand["events"]> }; live?: DayStatus }) {
-  const status = bandStatus(b);
+type DirectorBand = MyBand & { events: NonNullable<MyBand["events"]> };
+
+/** One contest, with a row per band you brought (each opens that band's page). */
+function BandCard({ bands, live }: { bands: DirectorBand[]; live: Map<string, DayStatus> }) {
+  const e = bands[0].events;
+  const one = bands.length === 1;
   return (
-    <CardLink href={`/dashboard/bands/${b.id}`}>
-      <p className="text-sm font-medium text-muted">{formatDateRange(b.events.starts_on, b.events.ends_on)}</p>
-      <h3 className="mt-1 font-semibold">{b.events.name}</h3>
-      <p className="mt-1 text-sm text-muted">{where(b.events)}</p>
-      <p className="mt-3 text-sm">
-        <span className="font-medium">{b.band_name}</span> <span className="text-muted">· {b.school_name}</span>
-      </p>
-      <div className="mt-3">
-        {live ? (
-          <DayStatusPill status={live} doneText={hasRooms(b.events.event_type) ? "Finished every room 🎉" : "Performed 🎉"} />
-        ) : (
-          <Badge tone={status.tone}>{status.text}</Badge>
-        )}
-      </div>
-    </CardLink>
+    <EventCard title={e.name} href={one ? `/dashboard/bands/${bands[0].id}` : undefined} event={e}>
+      <ul className={one ? "" : "divide-y divide-border rounded-md border border-border"}>
+        {bands.map((b) => {
+          const status = bandStatus(b);
+          const now = live.get(b.id);
+          const row = (
+            <>
+              <span className="block text-sm">
+                <span className="font-medium">{b.band_name}</span> <span className="text-muted">· {b.school_name}</span>
+              </span>
+              <span className="mt-2 block">
+                {now ? (
+                  <DayStatusPill status={now} doneText={hasRooms(e.event_type) ? "Finished every room 🎉" : "Performed 🎉"} />
+                ) : (
+                  <Badge tone={status.tone}>{status.text}</Badge>
+                )}
+              </span>
+            </>
+          );
+          return (
+            <li key={b.id}>
+              {one ? (
+                row
+              ) : (
+                <Link href={`/dashboard/bands/${b.id}`} className="block px-3 py-2.5 hover:bg-background">
+                  {row}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </EventCard>
   );
 }
 
 const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
 
-function HelpingCard({ row: r }: { row: StaffEvent & { events: EventSummary } }) {
+function HelpingCard({ row: r, showType }: { row: StaffEvent & { events: EventSummary }; showType: boolean }) {
   return (
-    <CardLink href={`/dashboard/events/${r.events.id}`}>
-      <div className="flex items-start justify-between gap-3">
-        <EventName event={r.events} />
-        <Badge tone="info">{ROLE_LABEL[r.role]}</Badge>
-      </div>
-      <TypePill event={r.events} />
-      <p className="mt-2 text-sm text-muted">{formatDateRange(r.events.starts_on, r.events.ends_on)}</p>
-      <p className="mt-1 text-sm text-muted">{where(r.events)}</p>
-    </CardLink>
+    <EventCard
+      title={r.events.name}
+      href={`/dashboard/events/${r.events.id}`}
+      event={r.events}
+      showType={showType}
+      highlight={isToday(r.events)}
+      badge={<Badge tone="info">{ROLE_LABEL[r.role]}</Badge>}
+    >
+      {isToday(r.events) && <p className="text-sm font-semibold text-brand">Happening today</p>}
+    </EventCard>
   );
 }
 
