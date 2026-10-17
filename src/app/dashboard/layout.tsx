@@ -27,10 +27,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       ? createAdminClient().rpc("pass_agenda", { p_volunteer_tokens: pass.v, p_assignment_tokens: pass.a })
       : Promise.resolve({ data: [] }),
   ]);
-  const now = Date.now();
-  const volunteers = [...((fromAccount.data ?? []) as { ends_at: string }[]), ...((fromPass.data ?? []) as { ends_at: string }[])].some(
-    (r) => new Date(r.ends_at).getTime() >= now,
-  );
+  const volunteers = anyUpcoming([...((fromAccount.data ?? []) as { ends_at: string }[]), ...((fromPass.data ?? []) as { ends_at: string }[])]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -62,4 +59,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       </main>
     </div>
   );
+}
+
+/** At least one shift that hasn't ended yet. */
+function anyUpcoming(shifts: { ends_at: string }[]) {
+  const now = Date.now();
+  return shifts.some((s) => new Date(s.ends_at).getTime() >= now);
 }
