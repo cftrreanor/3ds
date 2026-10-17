@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE } from "@/lib/audiences";
+import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 
 /** The marketing pages' footer: a link to each kind of event, plus contact. */
@@ -22,9 +22,14 @@ export function SiteFooter() {
           <span>
             © {new Date().getFullYear()} {brand.name} · {brand.city}, {brand.region}
           </span>
-          <a href={`mailto:${brand.supportEmail}`} className="hover:text-foreground">
-            {brand.supportEmail}
-          </a>
+          <span className="flex flex-wrap gap-x-6 gap-y-2">
+            <Link href={STUDENT_PRIVACY_PAGE.path} className="hover:text-foreground">
+              {STUDENT_PRIVACY_PAGE.name}
+            </Link>
+            <a href={`mailto:${brand.supportEmail}`} className="hover:text-foreground">
+              {brand.supportEmail}
+            </a>
+          </span>
         </div>
       </div>
     </footer>

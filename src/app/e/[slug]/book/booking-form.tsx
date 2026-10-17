@@ -183,7 +183,7 @@ export function BookingForm({
         </fieldset>
       )}
 
-      <Field label="Anything you'd like to talk about? (optional)" hint="Only your child's teacher sees this.">
+      <Field label="Anything you'd like to talk about? (optional)" hint="Only your child's teacher sees this. Please leave out health or medical details; share those with the school directly.">
         <Textarea name="note" rows={3} maxLength={500} defaultValue={state.values?.note} />
       </Field>
 

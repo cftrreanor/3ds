@@ -18,6 +18,8 @@ what's still open.
    off a lot of "why are we last?" emails.
 4. **Counts only, never student names.** Collecting student-level data would bring
    in FERPA/COPPA obligations and district data-privacy agreements. Don't add it.
+   (Still true for band contests. Visitor days and conferences later added limited
+   children's details with 30-day deletion; see docs/DATA-PRIVACY.md.)
 5. **Free for everyone except the host.** This removes friction where it matters.
 6. **Atomic capacity locking (§6.3).** It's the right approach, and it's implemented.
 

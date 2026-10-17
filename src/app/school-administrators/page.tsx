@@ -8,7 +8,7 @@ import { HowItWorks, type HowStep } from "@/components/how-it-works";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
-import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE } from "@/lib/audiences";
+import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 
 // For principals and district staff. Brand voice: reassuring and concrete,
@@ -108,7 +108,7 @@ const faqs = [
   },
   {
     q: "Can our technology or legal team review it first?",
-    a: "Yes. Email us, and a person on our team will answer their questions and go through your district's requirements with you.",
+    a: "Yes. Our student data privacy page lists what's collected, who can see it, and when it's deleted. Email us, and a person on our team will send our district packet, answer their questions, and work through your district's data privacy agreement with you.",
   },
   {
     q: "What does it cost?",
@@ -203,6 +203,9 @@ export default function AdministratorsPage() {
                 </li>
               ))}
             </ul>
+            <Link href={STUDENT_PRIVACY_PAGE.path} className="mt-6 inline-block font-semibold underline">
+              How we handle student data
+            </Link>
           </div>
         </section>
 

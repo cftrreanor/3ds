@@ -157,7 +157,7 @@ export function BandForm({
           </Field>
           <Field
             label="Accessibility or staging needs"
-            hint={group ? "Optional. ADA needs, risers, piano, power, anything we should know." : "Optional. ADA needs, pit equipment, power, anything we should know."}
+            hint={group ? "Optional. ADA needs, risers, piano, power, anything we should know. Please don't include students' names or health details." : "Optional. ADA needs, pit equipment, power, anything we should know. Please don't include students' names or health details."}
           >
             <Textarea name="specialNeeds" defaultValue={initial.special_needs ?? ""} />
           </Field>

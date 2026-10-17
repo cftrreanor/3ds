@@ -592,6 +592,9 @@ export const audiences = {
 /** For principals and district staff (not an event type, so it has its own page). */
 export const ADMINISTRATORS_PAGE = { path: "/school-administrators", name: "For administrators", icon: "🏛️" } as const;
 
+/** How student and family data is handled, for district technology and legal teams. */
+export const STUDENT_PRIVACY_PAGE = { path: "/student-data-privacy", name: "Student data privacy", icon: "🔒" } as const;
+
 export const CONFERENCES_PAGE = { path: "/parent-teacher-conferences", name: "Parent-teacher conferences", icon: "🍎" } as const;
 
 export const AUDIENCES: Audience[] = [audiences.bands, audiences.groups, audiences.fairs, audiences.volunteers, audiences.parents];
