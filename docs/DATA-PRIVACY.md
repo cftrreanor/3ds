@@ -208,8 +208,9 @@ information), as described in Part 1.
    - unused invitations;
    - Supabase's sign-in audit log.
 
-   Add retention for each and an admin tool to "delete everything for this district" so
-   Exhibit D can be met in one step.
+   **Owner decision (October 2026): no "delete everything" tool for now.** A district's
+   deletion request is handled by hand with the developer, case by case, until the
+   implications are clear. Decide with the attorney how long Exhibit D should allow for that.
 2. **No self-service account deletion.** Today an administrator closes accounts on request. This
    is acceptable if the agreement allows email requests.
 3. **Free-text fields** (band "accessibility or staging needs" and a parent's note to a
