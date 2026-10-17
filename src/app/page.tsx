@@ -13,6 +13,7 @@ import { ADMINISTRATORS_PAGE, audiences, CONFERENCES_PAGE } from "@/lib/audience
 import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
+import { PILOT_END_LABEL } from "@/lib/pilot";
 
 // Copy follows docs/brand-voice.md. Each event card links to its own page,
 // and those pages carry the How it works steps.
@@ -181,7 +182,7 @@ const faqs = [
   },
   {
     q: "What does it cost?",
-    a: "Your pilot is free, with dates we set together. After that, organizing events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a platform fee for volunteers, families, or visiting groups. Any registration or ticket fees are your event's own.",
+    a: `Your pilot is free, and the pilot ends ${PILOT_END_LABEL}. After that, organizing events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a platform fee for volunteers, families, or visiting groups. Any registration or ticket fees are your event's own.`,
   },
 ];
 
@@ -189,7 +190,7 @@ const pilot = [
   {
     title: "What you get",
     items: [
-      "Every feature, free during your pilot",
+      `Every feature, free until the pilot ends ${PILOT_END_LABEL}`,
       "Unlimited events of every kind, volunteers, and registrations",
       "Help setting up your first event",
       "Direct support from the people building it",
@@ -251,7 +252,7 @@ const jsonLd = {
         price: "0",
         priceCurrency: "USD",
         description:
-          "Free for organizers during the pilot, then a paid plan for organizers. No platform fee for volunteers, families, or visiting groups.",
+          `Free for organizers during the pilot, which ends ${PILOT_END_LABEL}, then a paid plan for organizers. No platform fee for volunteers, families, or visiting groups.`,
       },
     },
     {
@@ -417,8 +418,8 @@ export default async function Home() {
             <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium">Limited spots</p>
             <h2 className={`mt-4 ${sectionTitle}`}>Join the pilot</h2>
             <p className="mt-3 max-w-2xl leading-7 text-muted">
-              We&apos;re working closely with a small group of schools, PTOs, and booster clubs. Your pilot is free, we
-              set its dates together, and we keep the group small so we can support every organizer.
+              We&apos;re working closely with a small group of schools, PTOs, and booster clubs. Your pilot is free until
+              the pilot ends {PILOT_END_LABEL}, and we keep the group small so we can support every organizer.
             </p>
             <div className="mt-10 grid gap-6 md:grid-cols-3">
               {pilot.map((col) => (
@@ -452,7 +453,7 @@ export default async function Home() {
         <section className="bg-teal-deep text-white">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-24">
             <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">{TAGLINE}</h2>
-            <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free during your pilot. Spots are limited.</p>
+            <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free until {PILOT_END_LABEL}. Spots are limited.</p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <JumpLink href={JOIN} className="inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
                 {CTA}

@@ -14,7 +14,7 @@ export const SAMPLE_VARS: MergeVars = {
   name: "Jordan Lee",
   organization: "Lakeside HS Band Boosters",
   plan: "Pilot (free)",
-  free_until: "Jun 30, 2027",
+  free_until: "Jan 1, 2027",
   next_event: "Lakeside Marching Classic (Oct 24, 2026)",
 };
 

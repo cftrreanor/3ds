@@ -1,6 +1,10 @@
 import { EVENT_TYPES } from "@/lib/event-types";
 import { normalizePhone } from "@/lib/phone";
 
+/** The pilot ends January 1, 2027 for everyone: the last free day of a pilot account. */
+export const PILOT_END = "2027-01-01";
+export const PILOT_END_LABEL = "January 1, 2027";
+
 // The order of the event-type cards on the home page, so the form matches them.
 const HOME_ORDER = ["band_contest", "group_event", "fair", "volunteer", "school_visit"];
 

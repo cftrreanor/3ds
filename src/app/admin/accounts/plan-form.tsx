@@ -43,7 +43,7 @@ export function PlanForm({
         )}
       </div>
       <Field label="Note (optional)" hint="Why it changed, for the admin activity log.">
-        <Input name="note" maxLength={500} placeholder="e.g. Accepted into the 2026–27 pilot" />
+        <Input name="note" maxLength={500} placeholder="e.g. Accepted into the pilot" />
       </Field>
       <SubmitButton>Save plan</SubmitButton>
     </ActionForm>

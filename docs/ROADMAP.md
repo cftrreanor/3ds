@@ -94,6 +94,8 @@ Last updated October 2026.
 - **"Host" stays** the in-app name for the account permission level; the website says "organizer".
 - **Conference summaries are print or save-as-PDF**, never emailed with children's names, so the
   30-day deletion promise holds for what's in the app.
+- **The pilot ends January 1, 2027** (Oct 2026), for every pilot account: the site says so, and a
+  new pilot's free period ends that day by default (`PILOT_END` in src/lib/pilot.ts).
 - **One published conference at a time during the pilot** (Oct 2026), for every account. The app
   says so before Publish, names the conference that's already up, and offers "write to us" for
   more. Upgrading isn't offered yet: the Teacher free / Teacher paid split above comes first.
