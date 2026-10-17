@@ -42,6 +42,7 @@ import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { SetupGuide } from "@/components/setup-guide";
+import { brand } from "@/lib/brand";
 import { loadSetupFacts } from "@/lib/setup-facts";
 
 export const metadata: Metadata = { title: "Event setup" };
@@ -1022,11 +1023,36 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
           </li>
         ))}
       </ul>
-      <div className="mt-5">
-        <ActionButton action={setEventPublished.bind(null, facts.eventId, true)} variant="go" pendingText="Publishing…">
-          Publish event
-        </ActionButton>
-      </div>
+      {facts.otherConference ? (
+        // Say why before they try, and what they can do: not an error after the click.
+        <div className="mt-5 rounded-md border border-brand/25 bg-brand-soft p-4 text-sm leading-6">
+          <p className="font-semibold">One published conference at a time during the pilot</p>
+          <p className="mt-1">
+            {facts.teacherAccount ? "While we're in the pilot, a free teacher account can have one published conference at a time." : "While we're in the pilot, each account can have one published conference at a time."}{" "}
+            <strong>{facts.otherConference.name}</strong> is published now. To publish this one, unpublish{" "}
+            {facts.otherConference.name} first.
+          </p>
+          <p className="mt-1 text-muted">
+            Need more than one at a time? Write to us at{" "}
+            <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline underline-offset-4">
+              {brand.supportEmail}
+            </a>{" "}
+            and we&apos;ll work it out with you.
+          </p>
+          <Link
+            href={`/dashboard/events/${facts.otherConference.id}#publish`}
+            className="mt-3 inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
+          >
+            Open {facts.otherConference.name}
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-5">
+          <ActionButton action={setEventPublished.bind(null, facts.eventId, true)} variant="go" pendingText="Publishing…">
+            Publish event
+          </ActionButton>
+        </div>
+      )}
     </Card>
   );
 }

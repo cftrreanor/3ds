@@ -51,6 +51,10 @@ export type SetupFacts = {
   parentClosesAt: boolean;
   /** Conferences: what's still needed before publishing (null when ready). */
   conferenceMissing?: string | null;
+  /** A free teacher account (the conference limit is worded for teachers). */
+  teacherAccount?: boolean;
+  /** Conferences: the account's other published conference, which has to come down first during the pilot. */
+  otherConference?: { id: string; name: string } | null;
 };
 
 export type SetupChecklist = {
@@ -292,7 +296,14 @@ export function publishEffects(f: SetupFacts): string[] {
   if (hasConferences(f.eventType)) {
     return [
       ...lines,
-      "Free: you can have one published conference at a time. To publish another, unpublish this one first.",
+      // When another conference is already up, the note under this list says it (and what to do) instead.
+      ...(f.otherConference
+        ? []
+        : [
+            f.teacherAccount
+              ? "During the pilot, a free teacher account can have one published conference at a time."
+              : "During the pilot, each account can have one published conference at a time.",
+          ]),
       "Nobody is emailed or notified. Families only find out when you share your link.",
       "You can keep editing everything, and unpublish at any time.",
     ];

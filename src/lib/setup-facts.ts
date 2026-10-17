@@ -24,6 +24,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const type = event.event_type as string;
   const count = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
   const head = { count: "exact" as const, head: true };
+  const conferenceHere = hasConferences(type);
   const [stations, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots] = await Promise.all([
     count(supabase.from("stations").select("id", head).eq("event_id", eventId)),
     count(supabase.from("stations").select("id", head).eq("event_id", eventId).not("checkpoint_kind", "is", null)),
@@ -50,6 +51,21 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
         ? count(supabase.from("performance_slots").select("band_id", head).eq("event_id", eventId))
         : 0,
   ]);
+  // Conferences: whether it's a free teacher account, and any other conference already published (one at a time in the pilot).
+  const [org, other] = conferenceHere
+    ? await Promise.all([
+        supabase.from("organizations").select("account_kind").eq("id", event.organization_id).maybeSingle(),
+        supabase
+          .from("events")
+          .select("id, name")
+          .eq("organization_id", event.organization_id)
+          .eq("event_type", "conference")
+          .eq("status", "published")
+          .neq("id", eventId)
+          .limit(1)
+          .maybeSingle(),
+      ])
+    : [null, null];
   return {
     eventId,
     eventType: type,
@@ -74,6 +90,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     booths,
     parentRegistrationOpen: event.parent_registration_open,
     parentClosesAt: Boolean(event.parent_registration_closes_at),
-    conferenceMissing: hasConferences(type) ? notReady(conference, event.venue_address) : null,
+    conferenceMissing: conferenceHere ? notReady(conference, event.venue_address) : null,
+    teacherAccount: org?.data?.account_kind === "teacher",
+    otherConference: other?.data ? { id: other.data.id, name: other.data.name } : null,
   };
 }
