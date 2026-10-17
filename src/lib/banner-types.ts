@@ -23,6 +23,8 @@ export const HOST_FILTERS = [
   { value: "trial", label: "On a trial" },
   { value: "paid", label: "Paid" },
   { value: "free_ending", label: "Free period ending (30 days) or ended" },
+  { value: "teacher", label: "Free teacher accounts" },
+  { value: "schools", label: "Schools and organizations" },
 ] as const;
 export type HostFilter = (typeof HOST_FILTERS)[number]["value"];
 

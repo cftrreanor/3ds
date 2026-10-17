@@ -4,7 +4,7 @@ import { BANNER_COLUMNS, type BannerAudience, type HostFilter, type SiteBanner }
 import { isSchemaError } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
-type HostOrg = { subscription_status: string; free_until: string | null; default_timezone: string };
+type HostOrg = { subscription_status: string; free_until: string | null; default_timezone: string; account_kind?: string };
 
 /** Does a host's organization match a banner's host filter? */
 export function hostMatches(filter: HostFilter, org: HostOrg) {
@@ -21,6 +21,10 @@ export function hostMatches(filter: HostFilter, org: HostOrg) {
       const f = freeStatus(org);
       return Boolean(f && (f.ended || f.soon));
     }
+    case "teacher":
+      return org.account_kind === "teacher";
+    case "schools":
+      return org.account_kind !== "teacher";
   }
 }
 
@@ -28,7 +32,7 @@ export function hostMatches(filter: HostFilter, org: HostOrg) {
 async function rolesOf(userId: string) {
   const admin = createAdminClient();
   const [{ data: orgs }, { count: bands }, { count: staff }] = await Promise.all([
-    admin.from("organization_members").select("organizations(subscription_status, free_until, default_timezone)").eq("user_id", userId),
+    admin.from("organization_members").select("organizations(subscription_status, free_until, default_timezone, account_kind)").eq("user_id", userId),
     admin.from("bands").select("id", { count: "exact", head: true }).eq("director_user_id", userId),
     admin.from("event_staff").select("user_id", { count: "exact", head: true }).eq("user_id", userId),
   ]);

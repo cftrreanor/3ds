@@ -2903,6 +2903,14 @@ do $$ begin
   insert into public.site_banners (title, audience) values ('Pilot spots filling up', 'public');
   insert into public.site_banners (title, audience, tone) values ('Outage tonight', 'hosts', 'urgent');
   insert into public.site_banners (title, audience, starts_at) values ('Next month', 'hosts', now() + interval '30 days');
+  -- Aimed at free teacher accounts, or at everyone but them.
+  insert into public.site_banners (title, audience, host_filter, starts_at) values ('Teachers only', 'hosts', 'teacher', now() + interval '30 days');
+  insert into public.site_banners (title, audience, host_filter, starts_at) values ('Schools only', 'hosts', 'schools', now() + interval '30 days');
+  begin
+    insert into public.site_banners (title, audience, host_filter) values ('Bad filter', 'hosts', 'everyone');
+    raise exception 'FAIL: a banner with an unknown host filter';
+  exception when check_violation then null;
+  end;
   assert (select created_by from public.site_banners where title = 'Outage tonight') = auth.uid(), 'banners are signed by their admin';
   begin
     insert into public.site_banners (title, audience, created_by) values ('Fake', 'public', '00000000-0000-0000-0000-000000000001');
@@ -2955,7 +2963,7 @@ do $$ begin
 end $$;
 reset role;
 do $$ begin
-  assert (select count(*) from public.site_banners where title = 'hacked') = 0 and (select count(*) from public.site_banners) = 4,
+  assert (select count(*) from public.site_banners where title = 'hacked') = 0 and (select count(*) from public.site_banners) = 6,
          'a host can''t change or delete banners';
 end $$;
 delete from public.site_banners;
