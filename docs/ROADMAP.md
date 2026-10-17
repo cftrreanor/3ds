@@ -49,7 +49,7 @@ Last updated October 2026.
   after, and more)
 - Penetration test and fixes (October 2026, docs/SECURITY-REVIEW-2026-10.md)
 - Error alerts (Sentry), with no personal details sent
-- Bot protection on public forms (Cloudflare Turnstile), on once its keys are added
+- Bot protection on public forms (Cloudflare Turnstile)
 - Reminders that printed and copied information is the school's or organization's record
 
 **Website**
@@ -60,10 +60,9 @@ Last updated October 2026.
 ## Next
 1. **Privacy policy and terms of service pages**, once the attorney's review is done; swap the
    attorney's wording into the school-records reminders (src/lib/records.ts)
-2. **Turn on bot protection:** add the Cloudflare keys (docs/SETUP-GUIDE.md)
-3. **Administrators page**, then bring back the homepage's "For administrators" card
-4. **Event-day messages, upgraded:** choose who gets each announcement; emergency alerts by email too
-5. **Pages that update on their own** (schedules, check-in) without reloading
+2. **Administrators page**, then bring back the homepage's "For administrators" card
+3. **Event-day messages, upgraded:** choose who gets each announcement; emergency alerts by email too
+4. **Pages that update on their own** (schedules, check-in) without reloading
 
 ## Before the pilot ends
 - **Stripe** subscription checkout and invoices for purchase orders (set up the business entity

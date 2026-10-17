@@ -274,13 +274,14 @@ links and volunteer passes is replaced with `[token]`.
 Alert emails go to the address you signed up with. To add someone, use
 **Settings → Members**; to change what emails you get, use **User Settings → Notifications**.
 
-## Bot protection (Cloudflare Turnstile)
+## Bot protection (Cloudflare Turnstile) ✅
+Set up: Cloudflare Turnstile widget with both keys in Vercel (October 2026).
+
 A free "I'm not a robot" check on the public forms: volunteer sign-up, parent
 registration, conference booking, the pilot form, and "Email me my link". Most people
 never see it; Cloudflare only shows a checkbox when something looks off. It stops
 scripts from filling a teacher's conference times with fake bookings or using the
-forms to send emails to people who didn't ask. The code is in place and stays off
-until both keys below are added.
+forms to send emails to people who didn't ask. It's on whenever both keys below are in Vercel.
 
 1. Go to **dash.cloudflare.com** and sign up for a free account with the business email.
    You don't need to move your domain to Cloudflare.
