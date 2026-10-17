@@ -54,3 +54,42 @@ export function bandCalendarEvent({ bandId, bandName, round, hasFinals = false, 
     alarm: `${bandName}${roundWord}: warm-up soon`,
   };
 }
+
+type RoomStop = { name: string; note: string | null; starts_at: string; ends_at: string };
+
+/**
+ * A group's festival day for a calendar: from its first room to the end of its
+ * last, with each room's time in the notes. Null until the schedule has times.
+ */
+export function groupCalendarEvent({
+  bandId,
+  bandName,
+  stops,
+  event,
+  url,
+}: {
+  bandId: string;
+  bandName: string;
+  stops: RoomStop[];
+  event: { name: string; timezone: string; venue_name: string | null; venue_address: string };
+  url: string;
+}): IcsEvent | null {
+  if (stops.length === 0) return null;
+  const sorted = [...stops].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  const tz = event.timezone;
+  return {
+    uid: `group-${bandId}-rooms@fieldcommandevents.com`,
+    timezone: tz,
+    sequence: 0,
+    start: new Date(sorted[0].starts_at),
+    end: new Date(sorted.reduce((end, s) => (s.ends_at > end ? s.ends_at : end), sorted[0].ends_at)),
+    summary: `${bandName} at ${event.name}`,
+    location: [event.venue_name, event.venue_address].filter(Boolean).join(", "),
+    description: [
+      ...sorted.map((s) => `${formatTime(s.starts_at, tz)}–${formatTime(s.ends_at, tz)}: ${s.name}${s.note ? ` (${s.note})` : ""}`),
+      url,
+    ].join("\n"),
+    url,
+    alarm: `${bandName}: first room soon`,
+  };
+}

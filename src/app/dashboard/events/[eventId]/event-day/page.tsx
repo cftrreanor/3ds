@@ -128,6 +128,31 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
             <StatusLine summary={summary} groups={groups} rooms={rooms} time={time} />
           </Card>
 
+          {/* Running late is when this is needed, so it sits right under the summary. */}
+          {access.isHost && pushGroups.length > 0 && (
+            <Card className="mt-3 p-4">
+              <details open={summary.behind.length > 0 || summary.late.length > 0}>
+                <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  Moves every room time for the group you pick and every group after them. Groups before them stay as they
+                  are. The minutes are added to that group&apos;s break on{" "}
+                  <Link href={`/dashboard/events/${eventId}/rooms`} className="font-medium text-brand underline-offset-4 hover:underline">
+                    Rooms &amp; schedule
+                  </Link>
+                  , so you can undo it there.
+                </p>
+                <div className="mt-3">
+                  <RoomPushBackForm
+                    action={pushRoomScheduleBack.bind(null, eventId)}
+                    groups={pushGroups.map(({ id, label }) => ({ id, label }))}
+                    defaultGroup={pushDefault}
+                    posted={event.performance_order_published}
+                  />
+                </div>
+              </details>
+            </Card>
+          )}
+
           <nav aria-label="Rooms" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <ul className="flex min-w-max gap-1 border-b border-border">
               <li>
@@ -192,29 +217,6 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
             </ol>
           )}
 
-          {access.isHost && pushGroups.length > 0 && (
-            <Card className="mt-8 p-4">
-              <details open={summary.behind.length > 0 || summary.late.length > 0}>
-                <summary className="cursor-pointer font-semibold">Running behind? Push the schedule back</summary>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Moves every room time for the group you pick and every group after them. Groups before them stay as they
-                  are. The minutes are added to that group&apos;s break on{" "}
-                  <Link href={`/dashboard/events/${eventId}/rooms`} className="font-medium text-brand underline-offset-4 hover:underline">
-                    Rooms &amp; schedule
-                  </Link>
-                  , so you can undo it there.
-                </p>
-                <div className="mt-3">
-                  <RoomPushBackForm
-                    action={pushRoomScheduleBack.bind(null, eventId)}
-                    groups={pushGroups.map(({ id, label }) => ({ id, label }))}
-                    defaultGroup={pushDefault}
-                    posted={event.performance_order_published}
-                  />
-                </div>
-              </details>
-            </Card>
-          )}
         </>
       )}
     </div>
@@ -278,7 +280,7 @@ function ArrivedButton({ day, eventId, time }: { day: GroupDay; eventId: string;
     );
   }
   return (
-    <TapButton action={tapGroup.bind(null, eventId, day.bandId, null, true)} variant={day.arrival === "late" ? "warn" : "go"} className="w-44">
+    <TapButton action={tapGroup.bind(null, eventId, day.bandId, null, true)} className="w-44">
       Arrived
     </TapButton>
   );
@@ -306,7 +308,11 @@ function RoomDoneButton({
   return (
     <TapButton
       action={tapGroup.bind(null, eventId, bandId, room.slot.room_id, true)}
-      variant={room.state === "behind" ? "warn" : "secondary"}
+      // Red stays on the status label and outline; the button is the usual main one.
+      variant={room.state === "behind" || room.state === "now" ? "primary" : "secondary"}
+      confirmMessage={
+        room.state === "upcoming" ? `This group isn't due here until ${time(room.slot.starts_at)}. Mark it done anyway?` : undefined
+      }
       className="[&_button]:min-h-10"
     >
       Done

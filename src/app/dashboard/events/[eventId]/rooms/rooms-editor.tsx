@@ -73,7 +73,7 @@ export function RoomsEditor({ rooms, save }: { rooms: Room[]; save: (rooms: Room
               )}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-11 text-sm">
-              <label className="flex min-h-9 items-center gap-2">
+              <label className="flex min-h-11 items-center gap-2">
                 <input
                   type="checkbox"
                   checked={r.onPath}
@@ -82,18 +82,18 @@ export function RoomsEditor({ rooms, save }: { rooms: Room[]; save: (rooms: Room
                 />
                 Every group visits this room
               </label>
-              <button type="button" className="min-h-9 text-muted hover:text-foreground disabled:opacity-40" disabled={i === 0} onClick={() => move(i, -1)}>
+              <button type="button" className="min-h-11 text-muted hover:text-foreground disabled:opacity-40" disabled={i === 0} onClick={() => move(i, -1)}>
                 ↑ Earlier
               </button>
               <button
                 type="button"
-                className="min-h-9 text-muted hover:text-foreground disabled:opacity-40"
+                className="min-h-11 text-muted hover:text-foreground disabled:opacity-40"
                 disabled={i === rows.length - 1}
                 onClick={() => move(i, 1)}
               >
                 ↓ Later
               </button>
-              <button type="button" className="min-h-9 font-medium text-danger hover:underline" onClick={() => setRows((list) => list.filter((_, j) => j !== i))}>
+              <button type="button" className="min-h-11 font-medium text-danger hover:underline" onClick={() => setRows((list) => list.filter((_, j) => j !== i))}>
                 Remove
               </button>
             </div>

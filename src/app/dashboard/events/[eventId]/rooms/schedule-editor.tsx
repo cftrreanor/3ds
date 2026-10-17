@@ -126,6 +126,7 @@ export function ScheduleEditor({
         )}
       </Card>
 
+      <p className="text-sm text-muted">Tap a room to skip it for that group (for example, a group that isn&apos;t sight-reading).</p>
       <ol className="space-y-3">
         {order.map((o, i) => {
           const c = byId.get(o.bandId);
@@ -146,13 +147,13 @@ export function ScheduleEditor({
                     {c.conflicts && <p className="mt-1 text-sm">⚠️ {c.conflicts}</p>}
                   </div>
                   <div className="flex gap-1">
-                    <Button type="button" variant="ghost" className="min-h-9 px-2" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${c.name} earlier`}>
+                    <Button type="button" variant="ghost" className="px-3" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${c.name} earlier`}>
                       ↑
                     </Button>
                     <Button
                       type="button"
                       variant="ghost"
-                      className="min-h-9 px-2"
+                      className="px-3"
                       disabled={i === order.length - 1}
                       onClick={() => move(i, 1)}
                       aria-label={`Move ${c.name} later`}
@@ -201,7 +202,6 @@ export function ScheduleEditor({
           );
         })}
       </ol>
-      <p className="text-sm text-muted">Tap a room to skip it for that group (for example, a group that isn&apos;t sight-reading).</p>
 
       <div className="space-y-2 border-t border-border pt-3">
         <FormMessage error={state.error} success={state.ok ? state.message : null} />
