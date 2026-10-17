@@ -134,10 +134,8 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
               <SortTh label="Account" name="name" {...th} />
               <SortTh label="Health" name="health" {...th} />
               <SortTh label="Plan" name="plan" {...th} />
-              <SortTh label="Events" name="events" {...th} />
               <SortTh label="Next event" name="next" {...th} />
               <SortTh label="Last host sign-in" name="signin" {...th} />
-              <SortTh label="Joined" name="joined" {...th} />
             </tr>
           </thead>
           <tbody>
@@ -153,19 +151,18 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
                       {a.organization_members.length > 1 ? ` +${a.organization_members.length - 1}` : ""}
                     </p>
                   </Td>
-                  <Td>
+                  {/* "New" (joined in the last two weeks) explains itself; other reasons say why it needs a look. */}
+                  <Td className="min-w-40">
                     <HealthPill level={a.health.level} />
-                    <p className="max-w-48 text-xs text-muted">{a.health.reasons[0]}</p>
+                    {a.health.level !== "new" && <p className="max-w-48 text-xs text-muted">{a.health.reasons[0]}</p>}
                   </Td>
                   <Td>
                     <Tag tone={a.subscription_status === "active" ? "success" : isFreePlan(a.subscription_status) ? "brand" : a.subscription_status === "past_due" ? "danger" : "neutral"}>
                       {planLabel(a.subscription_status)}
                     </Tag>
-                    {free && <p className={`text-xs ${free.ended || free.soon ? "text-warning" : "text-muted"}`}>{free.text}</p>}
-                  </Td>
-                  <Td className="whitespace-nowrap">
-                    {a.published} published
-                    <span className="text-muted"> / {a.events.length}</span>
+                    {free && free.text !== a.health.reasons[0] && (
+                      <p className={`text-xs ${free.ended || free.soon ? "text-warning" : "text-muted"}`}>{free.text}</p>
+                    )}
                   </Td>
                   <Td>
                     {a.next ? (
@@ -181,11 +178,10 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
                     )}
                   </Td>
                   <Td className="whitespace-nowrap">{ago(a.lastHostSignIn)}</Td>
-                  <Td className="whitespace-nowrap text-muted">{formatDate(utcToZonedDate(a.created_at, ADMIN_TZ), { weekday: undefined })}</Td>
                 </Tr>
               );
             })}
-            {sorted.length === 0 && <EmptyRow cols={7}>No accounts match.</EmptyRow>}
+            {sorted.length === 0 && <EmptyRow cols={5}>No accounts match.</EmptyRow>}
           </tbody>
         </Table>
       )}
