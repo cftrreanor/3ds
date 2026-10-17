@@ -50,7 +50,19 @@ export type SetupChecklist = {
   remaining: SetupStep[];
   doneCount: number;
   total: number;
+  /** The one step to do next (none when everything's done). */
+  next: SetupStep | null;
+  /**
+   * What the progress line counts: before publishing, only what's needed to
+   * publish; once live, the steps that come after. Optional steps never count.
+   */
+  progress: { label: string; done: number; of: number };
+  /** Live, and every after-publish step done: the checklist can step aside. */
+  complete: boolean;
 };
+
+// Same order as the sections on the event page: what people sign up for, the schedule, volunteers, the day, team, maps.
+const BEFORE_ORDER = ["details", "director-info", "booths", "conference", "parents-close", "rooms", "shifts", "check-in", "team", "files"];
 
 export function setupChecklist(f: SetupFacts): SetupChecklist {
   const base = `/dashboard/events/${f.eventId}`;
@@ -210,14 +222,31 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     });
   }
 
+  before.sort((a, b) => BEFORE_ORDER.indexOf(a.id) - BEFORE_ORDER.indexOf(b.id));
   const all = [...before, publish, ...after];
+  const remaining = before.filter((s) => s.required && !s.done);
+  const needed = [...before.filter((s) => s.required), publish];
+  const afterDone = after.filter((s) => s.done).length;
+  const next = !f.published ? (remaining[0] ?? publish) : (after.find((s) => !s.done) ?? null);
   return {
     before,
     publish,
     after,
-    remaining: before.filter((s) => s.required && !s.done),
+    remaining,
     doneCount: all.filter((s) => s.done).length,
     total: all.length,
+    next,
+    progress: f.published
+      ? { label: after.length ? `Live · ${afterDone} of ${after.length} done` : "Live", done: afterDone, of: after.length || 1 }
+      : remaining.length
+        ? {
+            label: `${needed.filter((s) => s.done).length} of ${needed.length} needed to publish`,
+            done: needed.filter((s) => s.done).length,
+            of: needed.length,
+          }
+        : // Everything needed is in place: a full line, with Publish as the next step.
+          { label: "Ready to publish", done: 1, of: 1 },
+    complete: f.published && afterDone === after.length,
   };
 }
 
