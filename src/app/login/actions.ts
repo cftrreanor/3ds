@@ -56,7 +56,7 @@ export async function signInWithPassword(_prev: LoginState, formData: FormData):
     if (error.code === "invalid_credentials" || error.status === 400) {
       return {
         error:
-          "That email and password don't match. If you haven't set a password yet, use “Email me a link” instead, then set one under Account.",
+          "That email and password don't match. If you haven't set a password yet, choose “Sign in with an email link instead”, then set one under Account.",
         email: parsed.data,
       };
     }
@@ -79,7 +79,7 @@ function loginError(error: { status?: number; code?: string; message: string }):
     case "over_email_send_rate_limit":
       return {
         error:
-          "We've hit the limit on sign-in emails for now (our test email service only sends a few per hour). If you've set a password, use “Use my password” instead.",
+          "We've hit the limit on sign-in emails for now (our test email service only sends a few per hour). If you've set a password, choose “Sign in with a password instead”.",
       };
     case "email_address_not_authorized":
       return {

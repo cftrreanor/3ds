@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { Field, FormMessage, Input } from "@/components/ui";
+import { Button, Field, FormMessage, Input } from "@/components/ui";
 import { sendLoginLink, signInWithPassword, type LoginState } from "./actions";
 
 /** Counts down from `seconds` (restarting whenever `key` changes). */
@@ -42,7 +42,9 @@ export function LoginForm({
   const [pwState, pwAction] = useActionState<LoginState, FormData>(signInWithPassword, {});
   const state = mode === "link" ? linkState : pwState;
   const wait = useCountdown(state.sentTo ? RESEND_AFTER : state.retryAfter, state);
-  const typedEmail = state.email ?? linkState.sentTo ?? email;
+  // Kept in state so it carries over when switching between link and password.
+  const [typed, setTyped] = useState(email ?? "");
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   if (mode === "link" && linkState.sentTo) {
     return (
@@ -63,24 +65,16 @@ export function LoginForm({
     );
   }
 
+  /** Back to the email link, with the address kept and the send button ready to tap. */
+  const backToLink = () => {
+    setMode("link");
+    requestAnimationFrame(() => submitRef.current?.focus());
+  };
+
   return (
     <div className="space-y-5">
-      <div role="tablist" aria-label="How to sign in" className="grid grid-cols-2 gap-1 rounded-lg bg-background p-1">
-        {(["link", "password"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            role="tab"
-            aria-selected={mode === m}
-            onClick={() => setMode(m)}
-            className={`min-h-10 rounded-md text-sm font-medium ${mode === m ? "bg-surface shadow-sm" : "text-muted hover:text-foreground"}`}
-          >
-            {m === "link" ? "Email me a link" : "Use my password"}
-          </button>
-        ))}
-      </div>
-
-      <form action={mode === "link" ? linkAction : pwAction} className="space-y-4" key={mode}>
+      {/* One main path (email link); a password is the secondary choice, not an equal tab. */}
+      <form action={mode === "link" ? linkAction : pwAction} className="space-y-4">
         {next && <input type="hidden" name="next" value={next} />}
         <FormMessage
           error={
@@ -96,17 +90,19 @@ export function LoginForm({
             type="email"
             autoComplete="email"
             inputMode="email"
-            defaultValue={typedEmail}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
             required
             autoFocus
           />
         </Field>
         {mode === "password" && (
           <Field label="Password">
-            <Input name="password" type="password" autoComplete="current-password" required />
+            <Input name="password" type="password" autoComplete="current-password" required autoFocus={!!typed} />
           </Field>
         )}
         <SubmitButton
+          ref={submitRef}
           className="w-full"
           disabled={wait > 0}
           pendingText={mode === "link" ? "Sending…" : "Signing in…"}
@@ -117,12 +113,30 @@ export function LoginForm({
               ? "Email me a sign-in link"
               : "Sign in"}
         </SubmitButton>
-        <p className="text-sm text-muted">
-          {mode === "link"
-            ? "No password needed. First time here? We'll set up your account automatically."
-            : "Set a password anytime under Account after signing in with an email link."}
-        </p>
+        {mode === "link" && (
+          <p className="text-sm text-muted">No password needed. First time here? We&apos;ll set up your account automatically.</p>
+        )}
       </form>
+
+      {mode === "link" ? (
+        <>
+          <div className="flex items-center gap-3 text-sm text-muted" aria-hidden>
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button type="button" variant="secondary" className="w-full" onClick={() => setMode("password")}>
+            Sign in with a password instead
+          </Button>
+        </>
+      ) : (
+        <p className="text-sm text-muted">
+          Forgot your password, or never set one?{" "}
+          <button type="button" onClick={backToLink} className="font-semibold text-brand underline underline-offset-4">
+            Sign in with an email link instead
+          </button>
+        </p>
+      )}
     </div>
   );
 }
