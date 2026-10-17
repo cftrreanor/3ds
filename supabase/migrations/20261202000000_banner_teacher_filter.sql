@@ -1,6 +1,6 @@
 -- =============================================================================
--- Company banners can be aimed at free teacher accounts only, or at school
--- and organization accounts only (everyone except free teacher accounts).
+-- Company banners can be aimed at free teacher accounts only, or at every
+-- host except free teacher accounts.
 --
 --   host_filter (hosts only)  all | pilot | trial | paid | free_ending
 --                             | teacher | schools
