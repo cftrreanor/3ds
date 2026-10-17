@@ -10,7 +10,7 @@ import { freeStatus } from "@/lib/admin";
 import { brand } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { DayStatusPill } from "@/components/day-status";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { bandSteps, dayStatus, groupSteps, type DayStatus, type ProgressRow } from "@/lib/director-day";

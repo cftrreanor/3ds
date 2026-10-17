@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { RoomSchedule, type ScheduleSlot } from "@/components/room-schedule";
 import { PublishBar, PublishLine } from "@/components/publish-bar";
 import { SetupStep, StepStatus } from "@/components/setup-step";
@@ -84,7 +84,6 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
 
   return (
     <div>
-      {isEventDay && event.performance_order_published && <AutoRefresh seconds={30} />}
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
@@ -92,6 +91,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
         {access.isHost ? "Rooms & Schedule Setup" : "Room schedule"}
       </h1>
       <p className="mt-2 text-sm text-muted">All times {zoneName(tz)}.</p>
+      {isEventDay && event.performance_order_published && <AutoRefresh status className="mt-1" />}
 
       {slots.length > 0 && (
         <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 p-4">

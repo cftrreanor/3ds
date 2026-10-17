@@ -3,6 +3,7 @@ import { hasBands } from "@/lib/event-types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Fragment } from "react";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { Badge, Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
@@ -113,6 +114,8 @@ export default async function SchedulePage({ params }: PageProps<"/dashboard/eve
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
+  const today = utcToZonedDate(new Date().toISOString(), tz);
+  const isEventDay = today >= event.starts_on && today <= event.ends_on;
   const at = (iso: string) =>
     `${multiDay ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ` : ""}${formatTime(iso, tz)}`;
 
@@ -125,6 +128,7 @@ export default async function SchedulePage({ params }: PageProps<"/dashboard/eve
       <p className="mt-1 text-sm text-muted">
         All times are {zoneName(tz)}. Only the host can change bands or the schedule.
       </p>
+      {isEventDay && <AutoRefresh status className="mt-1" />}
 
       {bands.length > 0 && (
         <p className="mt-4 text-sm">

@@ -17,7 +17,7 @@ import { RoomSchedule, type ScheduleRoom, type ScheduleSlot } from "@/components
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { EventBannerSlot } from "@/components/event-banner-slot";
-import { AutoRefresh } from "./auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { FairBooths } from "./fair-booths";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -164,7 +164,6 @@ export default async function EventPublicPage({ params }: Params) {
     <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
     {(bandsHere || roomsHere) && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      {isEventDay && <AutoRefresh seconds={30} />}
       {event.status !== "published" && (
         <Card className="mt-6 bg-brand-soft">
           <p className="text-sm">Preview: this page isn&apos;t public yet. Only your team can see it.</p>
@@ -174,6 +173,7 @@ export default async function EventPublicPage({ params }: Params) {
       <header className="mt-6">
         <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
         <p className="mt-2 text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
+        {isEventDay && <AutoRefresh status className="mt-1" />}
         {event.venue_address && (
           <p className="mt-1 text-muted">
             {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}

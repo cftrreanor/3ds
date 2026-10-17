@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { hasRooms } from "@/lib/event-types";
@@ -88,14 +88,14 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
 
   return (
     <div>
-      <AutoRefresh seconds={20} />
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event day</h1>
       <p className="mt-1 text-sm text-muted">
-        Updates every 20 seconds. Tap a button once; it saves right away. All times {zoneName(tz)}.
+        Tap a button once; it saves right away. All times {zoneName(tz)}.
       </p>
+      <AutoRefresh seconds={10} status className="mt-1" />
       <EventBannerSlot eventId={eventId} audience="section_leads" tz={event.timezone} className="mt-4" />
       {access.canManage && (
         <p className="mt-2 text-sm">
