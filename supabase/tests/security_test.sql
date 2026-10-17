@@ -2404,7 +2404,7 @@ end $$;
 reset role;
 
 -- 30 days after the event: hidden, then erased.
-update public.events set starts_on = current_date - 31, ends_on = current_date - 31,
+update public.events set starts_on = (now() at time zone timezone)::date - 31, ends_on = (now() at time zone timezone)::date - 31,
        window_start = now() - interval '31 days', window_end = now() - interval '31 days' + interval '3 hours'
  where id = '10000000-0000-0000-0000-0000000000c1';
 set role authenticated;
@@ -4412,5 +4412,39 @@ do $$ begin
 end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d2';
+
+-- ---------------------------------------------------------------------------
+-- Children's details: the 30 days are counted in the event's own time zone.
+-- Kiritimati (UTC+14) and Pago Pago (UTC-11) are always 1 or 2 calendar days
+-- apart, so with the same end date one is past 30 days and the other isn't.
+-- ---------------------------------------------------------------------------
+insert into public.events (id, organization_id, name, slug, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address)
+select x.id, :'org_id', x.name, x.slug, x.kind::public.event_type, x.tz,
+       (now() at time zone 'Pacific/Kiritimati')::date - 31, (now() at time zone 'Pacific/Kiritimati')::date - 31,
+       now() - interval '32 days', now() - interval '32 days' + interval '3 hours', '1 School Rd'
+  from (values
+    ('10000000-0000-0000-0000-0000000000e1'::uuid, 'East visit', 'tz-east-visit', 'school_visit', 'Pacific/Kiritimati'),
+    ('10000000-0000-0000-0000-0000000000e2'::uuid, 'West visit', 'tz-west-visit', 'school_visit', 'Pacific/Pago_Pago'),
+    ('10000000-0000-0000-0000-0000000000e3'::uuid, 'East conference', 'tz-east-conf', 'conference', 'Pacific/Kiritimati'),
+    ('10000000-0000-0000-0000-0000000000e4'::uuid, 'West conference', 'tz-west-conf', 'conference', 'Pacific/Pago_Pago')
+  ) as x(id, name, slug, kind, tz);
+insert into public.parent_registrations (event_id, parent_name, email, phone, children)
+select id, 'Pat Lee', 'pat@example.com', '+15125550100', '[{"name": "Sam Lee", "teacher": "Ms. Ray", "grade": "2"}]'
+  from public.events where id in ('10000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000e2');
+insert into public.conference_bookings (event_id, starts_at, child_name, parents, meeting_mode)
+select id, window_start, 'Sam Lee', '[{"name": "Pat Lee", "email": "pat@example.com"}]', 'in_person'
+  from public.events where id in ('10000000-0000-0000-0000-0000000000e3', '10000000-0000-0000-0000-0000000000e4');
+set role service_role;
+do $$ begin
+  assert not public.parent_data_kept('10000000-0000-0000-0000-0000000000e1'), 'past 30 days in the event''s time zone: hidden';
+  assert public.parent_data_kept('10000000-0000-0000-0000-0000000000e2'), 'not yet 30 days in the event''s time zone: still shown';
+  assert public.purge_parent_registrations() = 1, 'only the visit past 30 days, local time, is erased';
+  assert exists (select 1 from public.parent_registrations where event_id = '10000000-0000-0000-0000-0000000000e2'), 'the other is kept';
+  assert public.purge_conference_bookings() = 1, 'only the conference past 30 days, local time, is erased';
+  assert exists (select 1 from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000e4'), 'the other is kept';
+end $$;
+reset role;
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000e2',
+                                       '10000000-0000-0000-0000-0000000000e3', '10000000-0000-0000-0000-0000000000e4');
 
 \echo 'All database security tests passed.'

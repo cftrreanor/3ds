@@ -224,5 +224,5 @@ information), as described in Part 1.
    deleted data can remain in backups.
 7. **Insurance.** Many districts ask for cyber liability insurance. **[confirm]** with the
    attorney or an insurance agent.
-8. **Small fix:** visitor-day and conference deletion counts days by the server's date rather
-   than the event's time zone, which can shift deletion by a few hours.
+8. ✅ **Fixed:** visitor-day and conference deletion now counts days in the event's own time
+   zone, like volunteers' (database update `20261201000000_retention_event_time_zone.sql`).
