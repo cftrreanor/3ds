@@ -42,6 +42,7 @@ import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { SetupGuide } from "@/components/setup-guide";
+import { loadSetupFacts } from "@/lib/setup-facts";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -294,38 +295,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? ((await supabase.from("conference_bookings").select("id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
     : 0;
 
-  // Hosts: the setup checklist and what publishing will do.
-  const setup: SetupFacts | null = access.isHost
-    ? {
-        eventId,
-        eventType: event.event_type,
-        published: event.status === "published",
-        stations: stations.length,
-        shifts: (shifts ?? []).length,
-        checkInStops: path.length,
-        team: staffRows.length + openInvites.length + hosts.filter((h) => h.role === "admin").length,
-        files: files.length,
-        volunteerSignupOpen: event.volunteer_signup_open,
-        bandRegistrationOpen: Boolean(event.band_registration_open),
-        scheduleShared: Boolean(event.performance_order_published),
-        finalsSlots:
-          event.event_type === "band_contest"
-            ? ((await supabase.from("finals_slots").select("event_id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
-            : 0,
-        finalsPublished: Boolean(event.finals_published),
-        finalistsRevealed: Boolean(event.finalists_revealed),
-        directorInfo: Boolean(event.director_info?.trim()),
-        pathRooms: roomsHere
-          ? ((await supabase.from("rooms").select("id", { count: "exact", head: true }).eq("event_id", eventId).not("path_order", "is", null)).count ?? 0)
-          : 0,
-        booths: hasBooths(event.event_type)
-          ? ((await supabase.from("fair_booths").select("id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
-          : 0,
-        parentRegistrationOpen: event.parent_registration_open,
-        parentClosesAt: Boolean(event.parent_registration_closes_at),
-        conferenceMissing: conferenceHere ? notReady(conference, event.venue_address) : null,
-      }
-    : null;
+  // Hosts: the setup checklist and what publishing will do (the same facts every event page's strip uses).
+  const setup: SetupFacts | null = access.isHost ? await loadSetupFacts(eventId) : null;
   const checklist = setup ? setupChecklist(setup) : null;
 
   const past = today > event.ends_on;
