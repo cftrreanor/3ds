@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import type { ActionState } from "@/lib/action-state";
+import { BOT_CHECK_FAILED, passesBotCheck } from "@/lib/bot-check";
 import { getOrigin } from "@/lib/data";
 import { googleCalendarUrl } from "@/lib/ics";
 import { normalizePhone } from "@/lib/phone";
@@ -75,6 +76,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   if (!phone) return { error: "Please enter a 10-digit mobile phone number.", values };
   if (shiftIds.length === 0) return { error: "Pick at least one shift above.", values };
   if (shiftIds.length > 12) return { error: "Please pick 12 shifts or fewer.", values };
+  if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED, values };
 
   const admin = createAdminClient();
 

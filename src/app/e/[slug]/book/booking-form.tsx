@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
+import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input, Textarea } from "@/components/ui";
 import type { BookingState } from "./actions";
@@ -186,6 +187,7 @@ export function BookingForm({
         <Textarea name="note" rows={3} maxLength={500} defaultValue={state.values?.note} />
       </Field>
 
+      <BotCheck />
       <FormMessage error={state.error} />
       <div className="flex flex-wrap items-center gap-3">
         <SubmitButton pendingText="Booking…" disabled={!picked} aria-describedby={picked ? undefined : "book-hint"}>

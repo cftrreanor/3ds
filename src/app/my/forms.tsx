@@ -1,6 +1,7 @@
 "use client";
 
 import { ActionForm } from "@/components/action-form";
+import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
@@ -22,6 +23,7 @@ export function EmailMyLinkForm({ email }: { email?: string }) {
       <Field label="The email you signed up with">
         <Input name="email" type="email" inputMode="email" autoComplete="email" required defaultValue={email} />
       </Field>
+      <BotCheck />
       <SubmitButton pendingText="Sending…">Email me my link</SubmitButton>
     </ActionForm>
   );
