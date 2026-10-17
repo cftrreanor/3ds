@@ -16,7 +16,7 @@ import { CONTEST_INFO_COOKIE } from "@/lib/preferences";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { hasRooms } from "@/lib/event-types";
 import { CollapsibleInfo } from "./collapsible-info";
@@ -174,7 +174,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
 
       {contestDay && (
         <>
-          <AutoRefresh seconds={30} />
+          <AutoRefresh status className="mt-6" />
           <ContestDayCard
             band={day as BandDay & { band_name: string }}
             rows={(progress ?? []) as ProgressRow[]}
@@ -190,7 +190,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
 
       {groupDay && (
         <>
-          <AutoRefresh seconds={30} />
+          <AutoRefresh status className="mt-6" />
           <Card className="mt-6 border-brand">
             <h2 className="font-semibold">Event day</h2>
             <div className="mt-3">

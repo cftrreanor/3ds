@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { BOOKING_COLUMNS, type Booking } from "@/lib/conference-bookings";
 import { DEFAULT_SETTINGS, meetingStarts, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
 import { getEventAccess } from "@/lib/data";
@@ -115,7 +115,6 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
 
   return (
     <div className="mx-auto max-w-3xl">
-      {isToday && <AutoRefresh seconds={30} />}
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground print:hidden">
         ← Back to {event.name}
       </Link>
@@ -123,6 +122,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
       <p className="mt-2 text-muted">
         {event.name} · {formatDate(event.starts_on)} · All times {zoneName(tz)}.
       </p>
+      {isToday && <AutoRefresh status className="mt-1" />}
 
       {!saved?.times_saved_at ? (
         <p className="mt-6">

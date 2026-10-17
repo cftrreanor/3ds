@@ -35,6 +35,8 @@ Last updated October 2026.
 - Spreadsheet import for bands, volunteers, and parents
 
 **Communication**
+- Event-day pages that update on their own: every 10 seconds on check-in screens, right away when a
+  phone wakes up, with "Updated just now" and a clear note when there's no connection
 - Event banners for day-of messages (delays, band switches, emergencies), each to the groups you
   choose; emergencies are emailed right away too
 - Company banners from the admin dashboard
@@ -62,7 +64,6 @@ Last updated October 2026.
 ## Next
 1. **Privacy policy and terms of service pages**, once the attorney's review is done; swap the
    attorney's wording into the school-records reminders (src/lib/records.ts)
-2. **Pages that update on their own** (schedules, check-in) without reloading
 
 ## Before the pilot ends
 - **Stripe** subscription checkout and invoices for purchase orders (set up the business entity
@@ -76,6 +77,8 @@ Last updated October 2026.
   consent at sign-up, and about $2 to $12 a month plus about 1¢ a text)
 - Band entry-fee payments (Stripe Connect)
 - Season dashboards, spreadsheet exports, and waitlists
+- Instant (within a second) updates for event-team screens with Supabase live updates, if the
+  10-second refresh isn't fast enough
 - Only if testers ask: a "your conference summary is ready" email with a link (no names in the
   email); "Connect Zoom" / Google Meet so each family gets its own meeting link
 

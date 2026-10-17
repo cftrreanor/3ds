@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { hasParents } from "@/lib/event-types";
@@ -78,13 +78,13 @@ export default async function ParentsDoorPage({ params }: PageProps<"/dashboard/
 
   return (
     <div>
-      {isEventDay && <AutoRefresh seconds={30} />}
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
         {access.isHost ? "Parent Registration" : "Parent check-in"}
       </h1>
+      {isEventDay && <AutoRefresh seconds={10} status className="mt-1" />}
       {access.isHost && (
         <p className="mt-2 text-sm text-muted">
           {parents.length} {parents.length === 1 ? "family" : "families"} registered · Registration {closed ? "closed" : "open"}

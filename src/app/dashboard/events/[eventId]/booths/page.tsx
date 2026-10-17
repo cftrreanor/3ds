@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import { Badge, Card } from "@/components/ui";
 import { eventPhase } from "@/lib/contest-day";
@@ -68,7 +68,6 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
 
   return (
     <div className="space-y-6">
-      {isDay && <AutoRefresh seconds={30} />}
       <div>
         <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
           ← Back to {event.name}
@@ -78,6 +77,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
           Everything at the event, by zone: games, activities, vendors, and showcases, and who runs each one.
           {event.status === "published" ? " Listed ones show on the public page." : " Listed ones show on the public page once the event is published."}
         </p>
+        {isDay && <AutoRefresh seconds={10} status className="mt-1" />}
       </div>
 
       {canManage && (
@@ -171,7 +171,7 @@ export default async function BoothsPage({ params }: PageProps<"/dashboard/event
           </div>
           <p className="mt-1 text-sm text-muted">
             {isDay
-              ? "Tap Arrived as each partner or vendor checks in. Updates every 30 seconds for everyone on the team."
+              ? "Tap Arrived as each partner or vendor checks in. Everyone on the team sees it within seconds."
               : "On fair day, anyone on your team can tap partners in here as they arrive."}
           </p>
           {isDay && arrived < partners.length && (

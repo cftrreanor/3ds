@@ -20,7 +20,7 @@ import {
   utcToZonedTime,
   zoneName,
 } from "@/lib/time";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { deleteEvent, setEventPublished } from "../../actions";

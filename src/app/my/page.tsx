@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { EventBanners } from "@/components/event-banners";
 import { FileLinks } from "@/components/file-links";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { liveVolunteerBanners } from "@/lib/event-banners";
 import { filesFor } from "@/lib/event-files";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
@@ -126,7 +126,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My shifts</h1>
         {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
-        {shiftToday && <AutoRefresh seconds={30} />}
+        {shiftToday && <AutoRefresh status className="mt-1" />}
         {banners.length > 0 && (
           <div className="mt-6">
             <EventBanners banners={banners} />

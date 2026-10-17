@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AutoRefresh } from "@/app/e/[slug]/auto-refresh";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, kindLabel, sortStations, type CheckpointKind } from "@/lib/contest-day";
 import { getEventAccess } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
@@ -106,7 +106,6 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
 
   return (
     <div>
-      <AutoRefresh seconds={30} />
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
@@ -115,6 +114,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
         Tap <strong className="text-foreground">Check in</strong> as people arrive at the volunteer desk. Someone new
         wants to help? Add them as a walk-up on a shift with open spots.
       </p>
+      <AutoRefresh seconds={10} status className="-mt-4 mb-6" />
       <Desk
         stations={stations}
         eventDay={eventDay}
