@@ -6,11 +6,15 @@ import { SubmitButton } from "@/components/submit-button";
 import { Field, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 
-const TYPES = [
-  { value: "routine", label: "Announcement", hint: "General news" },
-  { value: "schedule", label: "Schedule change", hint: "A band switch, a delay" },
-  { value: "emergency", label: "Emergency", hint: "Weather, safety; stays up until you end it" },
-] as const;
+/** The example message and what a "schedule change" means, in each kind of event's own words. */
+const EXAMPLES: Record<string, { placeholder: string; schedule: string }> = {
+  band_contest: { placeholder: "e.g. Band switch: Lakeview now performs at 2:15, Cedar Ridge at 2:30.", schedule: "A band switch, a delay" },
+  group_event: { placeholder: "e.g. Main Stage is running 10 minutes behind.", schedule: "A room running behind, a room change" },
+  fair: { placeholder: "e.g. The bake sale moved to the cafeteria.", schedule: "A booth moving, a delay" },
+  school_visit: { placeholder: "e.g. Lunch is moving to the gym because of rain.", schedule: "A room change, a delay" },
+  conference: { placeholder: "e.g. Conferences start 15 minutes late today.", schedule: "A delay, a room change" },
+};
+const DEFAULT_EXAMPLE = { placeholder: "e.g. Check-in has moved to the front office.", schedule: "A delay, a location change" };
 
 const DURATIONS = [
   { value: "1", label: "1 minute" },
@@ -28,16 +32,24 @@ const DURATIONS = [
 export function PostForm({
   action,
   audiences,
+  eventType,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   audiences: { value: string; label: string; where: string }[];
+  eventType: string | null;
 }) {
+  const example = EXAMPLES[eventType ?? "band_contest"] ?? DEFAULT_EXAMPLE;
+  const TYPES = [
+    { value: "routine", label: "Announcement", hint: "General news" },
+    { value: "schedule", label: "Schedule change", hint: example.schedule },
+    { value: "emergency", label: "Emergency", hint: "Weather, safety; stays up until you end it" },
+  ] as const;
   const [priority, setPriority] = useState("routine");
   const [duration, setDuration] = useState("120");
   return (
     <ActionForm action={action} className="space-y-4">
       <Field label="Announcement">
-        <Textarea name="body" required maxLength={1000} rows={3} placeholder="e.g. Band switch: Lakeview now performs at 2:15, Cedar Ridge at 2:30." />
+        <Textarea name="body" required maxLength={1000} rows={3} placeholder={example.placeholder} />
       </Field>
       <fieldset>
         <legend className="text-sm font-semibold">Type</legend>

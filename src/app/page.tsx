@@ -46,7 +46,7 @@ const kinds = [
   },
   {
     icon: "👥",
-    title: "Group events",
+    title: "Choir & group festivals",
     href: audiences.groups.path,
     examples: "Choir and orchestra festivals, theater, UIL academics, and speech & debate",
     points: [
@@ -79,7 +79,7 @@ const kinds = [
   },
   {
     icon: "🏫",
-    title: "School visitor events",
+    title: "Family visitor days",
     href: audiences.parents.path,
     examples: "Family lunches, class parties, open houses, performances, and award days",
     points: [

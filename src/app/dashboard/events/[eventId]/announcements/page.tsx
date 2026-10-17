@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import { Badge, Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
-import { groupWords, hasEnsembles } from "@/lib/event-types";
+import { groupWords, hasBands, hasEnsembles } from "@/lib/event-types";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatTime, utcToZonedDate } from "@/lib/time";
@@ -67,7 +67,7 @@ export default async function AnnouncementsPage({ params }: PageProps<"/dashboar
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Broadcast Messages</h1>
         <p className="mt-1 text-muted">
-          Post a quick message, like a band switch or a delay, and it shows at the top of the pages of the people it&apos;s for, as soon as
+          Post a quick message, like {hasBands(event.event_type) ? "a band switch" : "a room change"} or a delay, and it shows at the top of the pages of the people it&apos;s for, as soon as
           their page updates. Each person sees it for at least a minute, then it fades away. Emergencies are also emailed.
           {!access.isHost && " Volunteer Leads can post to volunteers and the event team."}
         </p>
@@ -87,7 +87,7 @@ export default async function AnnouncementsPage({ params }: PageProps<"/dashboar
             )
           }
         >
-          <PostForm action={postAnnouncement.bind(null, eventId)} audiences={audiences} />
+          <PostForm action={postAnnouncement.bind(null, eventId)} audiences={audiences} eventType={event.event_type} />
         </SetupStep>
 
         <SetupStep

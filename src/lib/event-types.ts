@@ -1,4 +1,5 @@
-// What kind of event. Stored as events.event_type.
+// What kind of event. Stored as events.event_type. Labels match the website's
+// names for each kind (src/lib/audiences.ts), so schools recognize them.
 
 export const EVENT_TYPES = [
   {
@@ -9,19 +10,19 @@ export const EVENT_TYPES = [
   },
   {
     value: "group_event",
-    label: "Group event",
+    label: "Choir, orchestra, or group festival",
     icon: "👥",
     blurb: "Choirs, orchestras, theater, speech and debate teams, and other groups register, then move through your rooms on a schedule built for you. Families follow each room live.",
   },
   {
     value: "volunteer",
-    label: "Volunteer event",
+    label: "School volunteer event",
     icon: "🙋",
     blurb: "Shifts, sign-ups, a check-in desk, and your team. Run everything else your own way.",
   },
   {
     value: "school_visit",
-    label: "School visitor event",
+    label: "Family visitor day",
     icon: "🏫",
     blurb: "Parents register ahead (child, teacher, and grade), are reminded to bring a photo ID, and are checked in at the door. Student details are deleted 30 days after.",
   },
