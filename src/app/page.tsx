@@ -9,7 +9,7 @@ import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
-import { audiences, CONFERENCES_PAGE } from "@/lib/audiences";
+import { ADMINISTRATORS_PAGE, audiences, CONFERENCES_PAGE } from "@/lib/audiences";
 import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
@@ -87,6 +87,18 @@ const kinds = [
       "Reminders to bring a photo ID, and a calendar invite",
       "Easy parent and visitor check-in at the event door",
     ],
+  },
+  {
+    icon: ADMINISTRATORS_PAGE.icon,
+    title: "For administrators",
+    href: ADMINISTRATORS_PAGE.path,
+    examples: "Reliable events with less strain on your staff",
+    points: [
+      "Every kind of school event in one place, all year",
+      "Confirmations and reminders sent for you, and check-in on any phone",
+      "Families' details deleted on a set schedule",
+    ],
+    link: "More for administrators",
   },
 ];
 
@@ -333,7 +345,7 @@ export default async function Home() {
                     ))}
                   </ul>
                   <Link href={k.href} className="mt-auto pt-6 font-medium text-brand underline">
-                    More about {k.title.toLowerCase()}
+                    {"link" in k ? k.link : `More about ${k.title.toLowerCase()}`}
                     <span aria-hidden> →</span>
                   </Link>
                 </li>
