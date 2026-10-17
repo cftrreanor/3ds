@@ -125,9 +125,10 @@ const eventSchema = z
     endTime: time,
     timezone,
     eventType: z.string().optional(),
-    venueName: optionalText(120),
-    // Conferences ask for the school later, in Conference Setup (step 2).
-    venueAddress: optionalText(300),
+    // Conferences ask for the school later, in Conference Setup (step 2), so
+    // their form sends no venue fields at all.
+    venueName: optionalText(120).optional(),
+    venueAddress: optionalText(300).optional(),
     venuePlaceId: optionalText(300).optional(),
     venueLat: coordinate(90),
     venueLng: coordinate(180),
@@ -159,7 +160,7 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
       ends_on: v.endsOn,
       window_start: zonedToUtc(v.startsOn, v.startTime, v.timezone).toISOString(),
       window_end: zonedToUtc(v.endsOn, v.endTime, v.timezone).toISOString(),
-      venue_name: v.venueName,
+      venue_name: v.venueName ?? null,
       venue_address: v.venueAddress ?? "",
       venue_place_id: v.venuePlaceId ?? null,
       venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
@@ -196,7 +197,7 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
       ...(conference
         ? {}
         : {
-            venue_name: v.venueName,
+            venue_name: v.venueName ?? null,
             venue_address: v.venueAddress,
             venue_place_id: v.venuePlaceId ?? null,
             venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
@@ -226,7 +227,7 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
     (before.starts_on !== v.startsOn ||
       before.timezone !== v.timezone ||
       (!conference && before.venue_address !== v.venueAddress) ||
-      (!conference && (before.venue_name ?? null) !== v.venueName) ||
+      (!conference && (before.venue_name ?? null) !== (v.venueName ?? null)) ||
       before.name !== v.name);
   if (changed) {
     const { data: shiftRows } = await supabase.from("shifts").select("id").eq("event_id", eventId);
