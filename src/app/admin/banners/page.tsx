@@ -60,7 +60,7 @@ export default async function BannersPage({ searchParams }: PageProps<"/admin/ba
     <div className="space-y-6">
       <PageHeader
         title="Banners"
-        sub="Short notices at the top of the site for one group at a time: hosts (by plan), directors, event teams, or visitors. Banners only; nothing is emailed."
+        sub="Short notices at the top of the site for one group at a time: hosts (by plan, or free teacher accounts), directors, event teams, or visitors. Banners only; nothing is emailed."
         actions={
           editing && (
             <Link href="/admin/banners#builder" className={secondarySmall}>

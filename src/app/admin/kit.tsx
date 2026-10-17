@@ -65,7 +65,8 @@ export function Th({ children, className }: { children?: ReactNode; className?: 
         className,
       )}
     >
-      {children}
+      {/* A column of buttons still needs a name for screen readers. */}
+      {children ?? <span className="sr-only">Actions</span>}
     </th>
   );
 }

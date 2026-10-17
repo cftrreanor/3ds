@@ -101,6 +101,44 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
   ];
   items.sort(byNewest);
 
+  const suspendBody = (
+    <>
+      <p className="mb-3 text-sm text-muted">
+        {suspendedAt
+          ? `Suspended ${formatDate(utcToZonedDate(suspendedAt, ADMIN_TZ), { weekday: undefined })}. Its events are offline and it can't publish. Lifting the suspension lets the host publish again; nothing republishes on its own.`
+          : `Takes ${published ? `its ${published} published event${published === 1 ? "" : "s"}` : "any published events"} offline and stops it publishing until you lift the suspension. Nothing is deleted.`}
+      </p>
+      <NoteActionForm
+        action={(suspendedAt ? unsuspendAccount : suspendAccount).bind(null, account.id)}
+        label={suspendedAt ? "Lift suspension" : "Suspend account"}
+        pendingText={suspendedAt ? "Lifting…" : "Suspending…"}
+        danger={!suspendedAt}
+        placeholder={suspendedAt ? "e.g. Sorted out with the school" : "e.g. Spam sign-up"}
+        confirmMessage={
+          suspendedAt
+            ? undefined
+            : `Suspend ${account.name}? ${published ? `Its ${published} published event${published === 1 ? " goes" : "s go"} offline right away` : "It"} and it can't publish until you lift the suspension.`
+        }
+      />
+    </>
+  );
+  const closeBody = (
+    <>
+      {!closable ? (
+        <p className="text-sm text-muted">Run the data retention database update (20261117000000_data_retention.sql) to close accounts.</p>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-muted">
+            {closedAt
+              ? `Closed ${formatDate(utcToZonedDate(closedAt, ADMIN_TZ), { weekday: undefined })}. On ${deleteOn} the organization, its events, and everyone's details in them are deleted, with the sign-in accounts of hosts and team members who have no other role. Reopen it to keep everything.`
+              : `Closing starts the privacy policy's 90-day countdown: on ${deleteOn} the organization, its events, and everyone's details in them are deleted for good. You can reopen it any time before then.`}
+          </p>
+          <ClosureForm action={(closedAt ? reopenAccount : closeAccount).bind(null, account.id)} closed={Boolean(closedAt)} deleteOn={deleteOn} />
+        </>
+      )}
+    </>
+  );
+
   return (
     <div>
       <p className="mb-2 text-sm">
@@ -243,42 +281,33 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
             </Panel>
           )}
 
-          {suspendable && (
-            <Panel title={suspendedAt ? "Account suspended" : "Suspend account"}>
-              <p className="mb-3 text-sm text-muted">
-                {suspendedAt
-                  ? `Suspended ${formatDate(utcToZonedDate(suspendedAt, ADMIN_TZ), { weekday: undefined })}. Its events are offline and it can't publish. Lifting the suspension lets the host publish again; nothing republishes on its own.`
-                  : `Takes ${published ? `its ${published} published event${published === 1 ? "" : "s"}` : "any published events"} offline and stops it publishing until you lift the suspension. Nothing is deleted.`}
-              </p>
-              <NoteActionForm
-                action={(suspendedAt ? unsuspendAccount : suspendAccount).bind(null, account.id)}
-                label={suspendedAt ? "Lift suspension" : "Suspend account"}
-                pendingText={suspendedAt ? "Lifting…" : "Suspending…"}
-                danger={!suspendedAt}
-                placeholder={suspendedAt ? "e.g. Sorted out with the school" : "e.g. Spam sign-up"}
-                confirmMessage={
-                  suspendedAt
-                    ? undefined
-                    : `Suspend ${account.name}? ${published ? `Its ${published} published event${published === 1 ? " goes" : "s go"} offline right away` : "It"} and it can't publish until you lift the suspension.`
-                }
-              />
+          {/* Suspending or closing is rare and serious: tucked away until needed, but shown open once it's done. */}
+          {suspendedAt || closedAt ? (
+            <>
+              {suspendable && <Panel title={suspendedAt ? "Account suspended" : "Suspend account"}>{suspendBody}</Panel>}
+              <Panel title={closedAt ? "Account closed" : "Close account"}>{closeBody}</Panel>
+            </>
+          ) : (
+            <Panel>
+              <details>
+                <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold text-danger">
+                  Suspend or close this account
+                </summary>
+                <div className="space-y-5 border-t border-border p-3">
+                  {suspendable && (
+                    <section>
+                      <h3 className="mb-1 text-sm font-semibold">Suspend account</h3>
+                      {suspendBody}
+                    </section>
+                  )}
+                  <section>
+                    <h3 className="mb-1 text-sm font-semibold">Close account</h3>
+                    {closeBody}
+                  </section>
+                </div>
+              </details>
             </Panel>
           )}
-
-          <Panel title={closedAt ? "Account closed" : "Close account"}>
-            {!closable ? (
-              <p className="text-sm text-muted">Run the data retention database update (20261117000000_data_retention.sql) to close accounts.</p>
-            ) : (
-              <>
-                <p className="mb-3 text-sm text-muted">
-                  {closedAt
-                    ? `Closed ${formatDate(utcToZonedDate(closedAt, ADMIN_TZ), { weekday: undefined })}. On ${deleteOn} the organization, its events, and everyone's details in them are deleted, with the sign-in accounts of hosts and team members who have no other role. Reopen it to keep everything.`
-                    : `Closing starts the privacy policy's 90-day countdown: on ${deleteOn} the organization, its events, and everyone's details in them are deleted for good. You can reopen it any time before then.`}
-                </p>
-                <ClosureForm action={(closedAt ? reopenAccount : closeAccount).bind(null, account.id)} closed={Boolean(closedAt)} deleteOn={deleteOn} />
-              </>
-            )}
-          </Panel>
         </div>
       </div>
     </div>

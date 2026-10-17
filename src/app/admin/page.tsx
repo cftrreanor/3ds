@@ -62,20 +62,24 @@ export default async function AdminHomePage() {
         sub={new Date(now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: ADMIN_TZ })}
       />
       <dl className="mb-5 grid grid-cols-2 divide-border overflow-hidden rounded-md border border-border bg-surface sm:grid-cols-3 lg:grid-cols-6 lg:divide-x">
+        {/* Each number is a label/value pair; the ones that open a list say so with "→" and the whole tile is the link. */}
         {kpis.map((k) => {
-          const body = (
-            <>
-              <dt className="text-xs text-muted">{k.label}</dt>
-              <dd className={`mt-0.5 text-2xl font-semibold tabular-nums ${k.alert && k.value > 0 ? "text-danger" : ""}`}>{k.value}</dd>
-            </>
-          );
-          return k.href ? (
-            <Link key={k.label} href={k.href} className="block px-3 py-2.5 hover:bg-background">
-              {body}
-            </Link>
-          ) : (
-            <div key={k.label} className="px-3 py-2.5">
-              {body}
+          const value = <span className={`text-2xl font-semibold tabular-nums ${k.alert && k.value > 0 ? "text-danger" : ""}`}>{k.value}</span>;
+          return (
+            <div key={k.label} className={`relative px-3 py-2.5 ${k.href ? "hover:bg-background" : ""}`}>
+              <dt className="text-xs text-muted">
+                {k.label}
+                {k.href && <span aria-hidden> →</span>}
+              </dt>
+              <dd className="mt-0.5">
+                {k.href ? (
+                  <Link href={k.href} className="after:absolute after:inset-0" aria-label={`${k.label}: ${k.value}`}>
+                    {value}
+                  </Link>
+                ) : (
+                  value
+                )}
+              </dd>
             </div>
           );
         })}
@@ -118,31 +122,48 @@ export default async function AdminHomePage() {
           </Panel>
 
           <Panel title={`Needs attention (${attention.length})`} actions={<Link href="/admin/accounts?sort=health" className="text-brand hover:underline">All accounts</Link>} flush>
-            <Table className="rounded-none border-0">
-              <thead>
-                <tr>
-                  <Th>Account</Th>
-                  <Th>Health</Th>
-                  <Th>Why</Th>
-                  <Th>Last host sign-in</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {attention.slice(0, 10).map((a) => (
-                  <Tr key={a.id}>
-                    <Td>
-                      <RecordLink href={`/admin/accounts/${a.id}`}>{a.name}</RecordLink>
-                    </Td>
-                    <Td>
-                      <HealthPill level={a.health.level} />
-                    </Td>
-                    <Td className="text-muted">{a.health.reasons.join(" · ")}</Td>
-                    <Td className="whitespace-nowrap">{ago(a.lastHostSignIn)}</Td>
-                  </Tr>
-                ))}
-                {attention.length === 0 && <EmptyRow cols={4}>Every account looks healthy.</EmptyRow>}
-              </tbody>
-            </Table>
+            {/* Phones: one short row per account instead of a squeezed table. */}
+            <ul className="divide-y divide-border sm:hidden">
+              {attention.slice(0, 10).map((a) => (
+                <li key={a.id} className="px-3 py-2.5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <RecordLink href={`/admin/accounts/${a.id}`}>{a.name}</RecordLink>
+                    <HealthPill level={a.health.level} />
+                  </div>
+                  <p className="text-muted">
+                    {a.health.reasons.join(" · ")} · {a.lastHostSignIn ? `signed in ${ago(a.lastHostSignIn)}` : "never signed in"}
+                  </p>
+                </li>
+              ))}
+              {attention.length === 0 && <li className="px-3 py-4 text-center text-sm text-muted">Every account looks healthy.</li>}
+            </ul>
+            <div className="hidden sm:block">
+              <Table className="rounded-none border-0">
+                <thead>
+                  <tr>
+                    <Th>Account</Th>
+                    <Th>Health</Th>
+                    <Th>Why</Th>
+                    <Th>Last host sign-in</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attention.slice(0, 10).map((a) => (
+                    <Tr key={a.id}>
+                      <Td>
+                        <RecordLink href={`/admin/accounts/${a.id}`}>{a.name}</RecordLink>
+                      </Td>
+                      <Td>
+                        <HealthPill level={a.health.level} />
+                      </Td>
+                      <Td className="text-muted">{a.health.reasons.join(" · ")}</Td>
+                      <Td className="whitespace-nowrap">{ago(a.lastHostSignIn)}</Td>
+                    </Tr>
+                  ))}
+                  {attention.length === 0 && <EmptyRow cols={4}>Every account looks healthy.</EmptyRow>}
+                </tbody>
+              </Table>
+            </div>
           </Panel>
         </div>
 
