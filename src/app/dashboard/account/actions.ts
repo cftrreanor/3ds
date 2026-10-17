@@ -45,5 +45,5 @@ export async function setPassword(_prev: ActionState, formData: FormData): Promi
     console.error("updateUser password failed", { code: error.code, message: error.message });
     return { error: "We couldn't save that password. Please try again." };
   }
-  return { ok: true, message: "Password saved. Next time, choose “Use my password” on the sign-in page." };
+  return { ok: true, message: "Password saved. Next time, choose “Sign in with a password instead” on the sign-in page." };
 }
