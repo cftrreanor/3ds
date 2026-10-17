@@ -5,7 +5,7 @@ import { PrintRecordNote } from "@/components/print-record-note";
 import { UserBanners } from "@/components/user-banners";
 import { requireUser } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
@@ -17,13 +17,20 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
     );
   }
   const user = await requireUser();
-  // "My shifts" only for people who volunteer: with this account's email, or
-  // from this device (e.g. signed up with another email).
-  const [{ count }, pass] = await Promise.all([
-    (await createClient()).from("volunteers").select("id", { count: "exact", head: true }).eq("email", user.email ?? ""),
-    readPass(),
+  // "My shifts" only for people with a shift still coming up: with this
+  // account's email, or booked from this device (e.g. with another email).
+  // The same two lookups as the My shifts page; past shifts don't count.
+  const pass = await readPass();
+  const [fromAccount, fromPass] = await Promise.all([
+    (await createClient()).rpc("my_agenda"),
+    hasPass(pass)
+      ? createAdminClient().rpc("pass_agenda", { p_volunteer_tokens: pass.v, p_assignment_tokens: pass.a })
+      : Promise.resolve({ data: [] }),
   ]);
-  const volunteers = Boolean(count) || hasPass(pass);
+  const now = Date.now();
+  const volunteers = [...((fromAccount.data ?? []) as { ends_at: string }[]), ...((fromPass.data ?? []) as { ends_at: string }[])].some(
+    (r) => new Date(r.ends_at).getTime() >= now,
+  );
 
   return (
     <div className="flex flex-1 flex-col">
