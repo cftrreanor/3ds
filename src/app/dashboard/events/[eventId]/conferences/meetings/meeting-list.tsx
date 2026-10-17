@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { startTransition, useMemo, useOptimistic, useState } from "react";
+import { ActionForm } from "@/components/action-form";
+import { SubmitButton } from "@/components/submit-button";
 import { toast } from "@/components/toaster";
 import { Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { RECORDS_NOTE } from "@/lib/records";
-import { ActionButton } from "../../forms";
 
 export type Outcome = "met" | "no_show" | null;
 
@@ -146,15 +147,15 @@ export function MeetingList({
               )}
             </p>
             <p className="text-lg font-semibold">{r.booking.child}</p>
-            <ul className="space-y-0.5 text-sm">
+            <ul className="text-sm">
               {r.booking.parents.map((p) => (
-                <li key={p.email} className="flex flex-wrap gap-x-3">
+                <li key={p.email} className="flex flex-wrap items-center gap-x-4">
                   <span className="font-medium">{p.name}</span>
-                  <a href={`mailto:${p.email}`} className="text-brand hover:underline">
+                  <a href={`mailto:${p.email}`} className="inline-flex min-h-11 items-center text-brand hover:underline print:min-h-0">
                     {p.email}
                   </a>
                   {p.phone && (
-                    <a href={`tel:${p.phone}`} className="text-brand hover:underline">
+                    <a href={`tel:${p.phone}`} className="inline-flex min-h-11 items-center text-brand hover:underline print:min-h-0">
                       {p.phoneDisplay}
                     </a>
                   )}
@@ -195,16 +196,16 @@ export function MeetingList({
             </div>
           ) : (
             !r.booking.started && (
-              <div className="shrink-0 print:hidden">
-                <ActionButton
-                  action={r.booking.cancel}
-                  variant="secondary"
-                  pendingText="Canceling…"
-                  confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
-                >
+              <ActionForm
+                action={r.booking.cancel}
+                resetOnSuccess={false}
+                confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
+                className="shrink-0 print:hidden"
+              >
+                <SubmitButton variant="ghost" pendingText="Canceling…" className="-ml-4 font-medium underline hover:text-danger">
                   Cancel meeting
-                </ActionButton>
-              </div>
+                </SubmitButton>
+              </ActionForm>
             )
           )}
         </div>
@@ -237,36 +238,58 @@ export function MeetingList({
             aria-label="Find a family"
           />
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm print:hidden">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-5 text-sm print:hidden">
           <label className="inline-flex min-h-11 items-center gap-2">
             <input type="checkbox" checked={openTimes} onChange={(e) => setOpenTimes(e.target.checked)} className="h-4 w-4" />
             Show open times and breaks
           </label>
-          {emails.length > 0 && (
-            <button
-              type="button"
-              className="min-h-11 font-medium text-brand hover:underline"
-              onClick={async () => {
-                const list = emails.join(", ");
-                try {
-                  await navigator.clipboard.writeText(list);
-                  toast(`Copied ${emails.length} parent ${emails.length === 1 ? "email" : "emails"}`);
-                } catch {
-                  window.prompt("Copy these emails:", list);
-                }
-              }}
-            >
-              Copy all parent emails
-            </button>
-          )}
-          <Link href={summaryHref} className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
-            Print summary
-          </Link>
-          <button type="button" className="min-h-11 font-medium text-brand hover:underline" onClick={() => window.print()}>
-            Print full list
-          </button>
+          <details className="group relative">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 font-medium text-brand hover:underline">
+              Print or copy
+              <span aria-hidden className="text-xs transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-2 shadow-lg">
+              <ul>
+                <li>
+                  <Link href={summaryHref} className="flex min-h-11 items-center rounded-md px-3 font-medium hover:bg-background">
+                    Print summary
+                  </Link>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center rounded-md px-3 text-left font-medium hover:bg-background"
+                    onClick={() => window.print()}
+                  >
+                    Print full list
+                  </button>
+                </li>
+                {emails.length > 0 && (
+                  <li>
+                    <button
+                      type="button"
+                      className="flex min-h-11 w-full items-center rounded-md px-3 text-left font-medium hover:bg-background"
+                      onClick={async () => {
+                        const list = emails.join(", ");
+                        try {
+                          await navigator.clipboard.writeText(list);
+                          toast(`Copied ${emails.length} parent ${emails.length === 1 ? "email" : "emails"}`);
+                        } catch {
+                          window.prompt("Copy these emails:", list);
+                        }
+                      }}
+                    >
+                      Copy all parent emails
+                    </button>
+                  </li>
+                )}
+              </ul>
+              <p className="mt-1 border-t border-border px-3 pt-2 text-xs text-muted">{RECORDS_NOTE}</p>
+            </div>
+          </details>
         </div>
-        <p className="mt-1 text-xs text-muted print:hidden">{RECORDS_NOTE}</p>
         {error && (
           <p className="mt-2 text-sm text-danger" role="alert">
             {error}

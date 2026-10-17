@@ -65,7 +65,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Conference Setup</h1>
       <p className="mt-2 text-muted">
-        {formatDate(event.starts_on)} · {hours} · All times {zoneName(tz)}.
+        {formatDate(event.starts_on)} · {hours} · All times are {zoneName(tz)}.
       </p>
 
       <ConferenceSetup>

@@ -3,7 +3,7 @@ import { HeaderBar } from "@/components/logo";
 import { Card } from "@/components/ui";
 import { meetingPlace, meetingWhen } from "@/lib/conference-bookings";
 import { createClient } from "@/lib/supabase/server";
-import { formatTime } from "@/lib/time";
+import { formatTime, zoneName } from "@/lib/time";
 import { cancelBooking, changeBooking } from "../../actions";
 import { loadBooking, loadConference } from "../../data";
 import { PrivacyNote } from "../../privacy-note";
@@ -92,7 +92,9 @@ export default async function ManageBookingPage({ params }: Params) {
               <h2 id="change-heading" className="text-xl font-semibold">
                 Change your time
               </h2>
-              <p className="mt-1 text-sm text-muted">Only open times are listed. Everyone on this booking gets an updated invite.</p>
+              <p className="mt-1 text-sm text-muted">
+                Only open times are listed. All times are {zoneName(tz)}. Everyone on this booking gets an updated invite.
+              </p>
               <div className="mt-4">
                 <ChangeBookingForm
                   action={changeBooking.bind(null, token)}

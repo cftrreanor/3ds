@@ -120,7 +120,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Your meetings</h1>
       <p className="mt-2 text-muted">
-        {event.name} · {formatDate(event.starts_on)} · All times {zoneName(tz)}.
+        {event.name} · {formatDate(event.starts_on)} · All times are {zoneName(tz)}.
       </p>
       {isToday && <AutoRefresh status className="mt-1" />}
 

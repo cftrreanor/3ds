@@ -37,12 +37,12 @@ export default async function BookConferencePage({ params, searchParams }: Param
   const { data: open } = published ? await supabase.rpc("conference_open_times", { p_slug: slug }) : { data: [] };
   const times = ((open ?? []) as { starts_at: string }[]).map((t) => ({ value: t.starts_at, label: formatTime(t.starts_at, event.timezone) }));
   const school = [event.venue_name, event.venue_address].filter(Boolean).join(", ");
-  const how =
-    settings.meeting_mode === "in_person"
-      ? `In person${settings.room ? `: ${settings.room}` : ""}${school ? `, ${school}` : ""}.`
-      : settings.meeting_mode === "video"
-        ? "On video. You'll get the details when you book."
-        : `In person${settings.room ? ` (${settings.room}${school ? `, ${school}` : ""})` : ""} or on video: you choose when you book.`;
+  // Where to meet, one line each: the room and school, and the video option.
+  const place = [settings.room, school].filter(Boolean).join(", ");
+  const where =
+    settings.meeting_mode === "video"
+      ? ["On video. You'll get the details when you book."]
+      : [place ? `In person: ${place}` : "In person", ...(settings.meeting_mode === "either" ? ["Or on video. You choose when you book."] : [])];
 
   return (
     <>
@@ -54,9 +54,12 @@ export default async function BookConferencePage({ params, searchParams }: Param
           <p className="mt-2 text-muted">
             {formatDate(event.starts_on)} · {formatTimeRange(event.window_start, event.window_end, event.timezone)}
           </p>
-          <p className="mt-1 text-muted">
-            {formatDuration(settings.meeting_minutes)} meetings · {how}
-          </p>
+          <p className="mt-1 text-muted">{formatDuration(settings.meeting_minutes)} meetings</p>
+          {where.map((line) => (
+            <p key={line} className="mt-1 text-muted">
+              {line}
+            </p>
+          ))}
           {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
         </header>
 
@@ -69,8 +72,12 @@ export default async function BookConferencePage({ params, searchParams }: Param
         <div className="mt-8">
           {published ? (
             <>
-              <BookingForm action={bookConference.bind(null, event.id)} times={times} askMode={settings.meeting_mode === "either"} />
-              <p className="mt-4 text-sm text-muted">All times are {zoneName(event.timezone)}.</p>
+              <BookingForm
+                action={bookConference.bind(null, event.id)}
+                times={times}
+                askMode={settings.meeting_mode === "either"}
+                zone={zoneName(event.timezone)}
+              />
               <div className="mt-6">
                 <PrivacyNote teacher={teacher.name} />
               </div>
