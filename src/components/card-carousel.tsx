@@ -13,6 +13,7 @@ export function CardCarousel({
   label,
   itemName,
   ordered = false,
+  grid = false,
   children,
 }: {
   label: string;
@@ -20,6 +21,8 @@ export function CardCarousel({
   itemName: string;
   /** A numbered list (steps) instead of a plain one. */
   ordered?: boolean;
+  /** On wide screens, show every card in a grid instead of a row (cards add `lg:w-auto`). */
+  grid?: boolean;
   children: ReactNode;
 }) {
   const track = useRef<HTMLUListElement & HTMLOListElement>(null);
@@ -61,7 +64,9 @@ export function CardCarousel({
         onScroll={update}
         tabIndex={0}
         aria-label={label}
-        className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-5 sm:-mx-6 sm:scroll-px-6 sm:gap-6 sm:px-6"
+        className={`no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-4 px-4 pb-5 sm:-mx-6 sm:scroll-px-6 sm:gap-6 sm:px-6 ${
+          grid ? "lg:mx-0 lg:grid lg:snap-none lg:grid-cols-3 lg:overflow-visible lg:px-0" : ""
+        }`}
       >
         {children}
       </List>

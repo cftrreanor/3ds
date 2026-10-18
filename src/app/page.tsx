@@ -4,13 +4,14 @@ import { infoBox } from "@/components/audience-page";
 import { CardCarousel } from "@/components/card-carousel";
 import { FaqList } from "@/components/faq-list";
 import { JumpLink } from "@/components/jump-link";
+import { PhoneFrame } from "@/components/phone-frame";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
 import { SUPPORT_POINTS as support } from "@/lib/support";
 import { SITE_URL } from "@/lib/site-url";
-import { ADMINISTRATORS_PAGE, audiences, CONFERENCES_PAGE } from "@/lib/audiences";
+import { ADMINISTRATORS_PAGE, audiences, CONFERENCES_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
 import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
@@ -31,7 +32,7 @@ const kinds = [
     examples: "Fall and spring conferences, in person or on video",
     points: [
       "Families book their own meeting time from one link",
-      "Calendar invites, a reminder the day before, and easy changes",
+      "Calendar invites for families and the teacher, a reminder the day before, and easy changes",
       "Only the teacher sees children's names",
     ],
   },
@@ -41,9 +42,9 @@ const kinds = [
     href: audiences.bands.path,
     examples: "Marching invitationals, jazz festivals, and solo & ensemble",
     points: [
-      "Band registration with saved details, and easy one-tap registration for returning bands and directors",
+      "Directors fill in the form and confirm with an emailed code, and returning directors register in one tap",
       "Performance schedule, finals, and a live order for directors and spectators",
-      "Keep track of bands throughout the event with personalized check-in stages",
+      "Check every band through parking, check-in, and the gate on any phone",
     ],
   },
   {
@@ -64,7 +65,7 @@ const kinds = [
     examples: "Fall festivals, carnivals, and PTO fundraisers",
     points: [
       "Booths and community partners organized by zone",
-      "Quick partner check-in on the day",
+      "Partner check-in on the day, with who's still on the way",
       "A public “What's at the event” page that thanks your partners",
     ],
   },
@@ -74,9 +75,9 @@ const kinds = [
     href: audiences.volunteers.path,
     examples: "Concessions, field day, book fairs, and school parking",
     points: [
-      "Build stations and schedules with ease",
-      "Volunteers sign up and get email confirmations, calendar invites, and day-before reminders, with no hassle and no ads",
-      "Check in volunteers on any device, no extra app required",
+      "Stations and shifts that fill evenly, with spots left shown",
+      "Confirmations, calendar invites, and day-before reminders, with no account and no ads",
+      "Check-in on any device, with walk-ups and printable badges",
     ],
   },
   {
@@ -87,7 +88,7 @@ const kinds = [
     points: [
       "Parents register ahead with each child, teacher, and grade",
       "Reminders to bring a photo ID, and a calendar invite",
-      "Easy parent and visitor check-in at the event door",
+      "See how many families are coming, then check each adult in at the door",
     ],
   },
   {
@@ -104,8 +105,15 @@ const kinds = [
   },
 ];
 
+// Beside the headline: the product as spectators, volunteers, and the front office see it.
+const heroScreens = [
+  { src: "/screens/band-live-order.webp", alt: "A band contest's public page on a phone, with the live performance order." },
+  { src: "/screens/volunteer-shift-picker.webp", alt: "Volunteer sign-up on a phone: stations, shifts, and how many spots are left." },
+  { src: "/screens/parent-door-search.webp", alt: "Door check-in on a phone for a family visitor day: a search, the family's children, and a Check in button for each adult." },
+];
+
 // Each event-type card in the sideways row: most of a phone screen, about a third of a wide one.
-const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%] lg:w-[31%]";
+const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%] lg:w-auto";
 
 const different = [
   { title: "Organized", body: "Everything for your event is on one page." },
@@ -129,7 +137,7 @@ const privacy = [
   },
   {
     title: "Gone when it's over",
-    body: "Volunteers' details are deleted 10 days after the event, and children's details from school visits after 30 days.",
+    body: "Volunteers' details are deleted 10 days after the event, and children's details from school visits and conferences after 30 days.",
   },
   {
     title: "No ads, no spam",
@@ -146,7 +154,7 @@ const faqs = [
   },
   {
     q: "How do band and choir directors register for our contest or festival?",
-    a: "Share one registration link. Directors register their band or group once, and returning directors reuse their saved details. They see their performance time or room schedule as soon as you publish it.",
+    a: "Share one registration link. Directors fill in the form, with no account to set up first, and confirm with a code we email them. Returning directors reuse their saved details. They see their performance time or room schedule as soon as you publish it, and can withdraw from their own page if plans change.",
   },
   {
     q: "How do volunteers sign up and get checked in?",
@@ -162,15 +170,11 @@ const faqs = [
   },
   {
     q: "How is student and family information handled?",
-    a: "Band contests collect headcounts, not student names. Children's names at school visitor events are deleted 30 days after the event, and volunteers' details 10 days after. Section Leads see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event.",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events and conferences are deleted 30 days after the event, and volunteers' details 10 days after. Conference bookings are seen only by the teacher, and Section Leads see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event. Our Student data privacy page has the full details.",
   },
   {
     q: "Who is it for?",
     a: "PTO and PTA leaders, band and choir booster clubs, fine arts directors, band and choir directors, teachers, school front offices, and administrators: anyone running a school event with volunteers, registrations, or check-in.",
-  },
-  {
-    q: "What does it cost?",
-    a: `Your pilot is free, and the pilot ends ${PILOT_END_LABEL}. After that, organizing events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. There's never a platform fee for volunteers, families, or visiting groups. Any registration or ticket fees are your event's own.`,
   },
 ];
 
@@ -197,7 +201,6 @@ const pilot = [
     items: [
       "Nothing renews or charges automatically",
       "We'll talk with you about what comes next before your pilot ends",
-      "Organizing events is a paid plan after your pilot, and we'll go over it with you first",
       "No platform fee for anyone you invite: volunteers, families, and visiting groups use it free",
     ],
   },
@@ -240,7 +243,7 @@ const jsonLd = {
         price: "0",
         priceCurrency: "USD",
         description:
-          `Free for organizers during the pilot, which ends ${PILOT_END_LABEL}, then a paid plan for organizers. No platform fee for volunteers, families, or visiting groups.`,
+          `Free for organizers during the pilot, which ends ${PILOT_END_LABEL}. No platform fee for volunteers, families, or visiting groups.`,
       },
     },
     {
@@ -295,15 +298,32 @@ export default async function Home() {
 
         {/* 1. Hero */}
         <section className={`hero-sky text-white ${banners.length ? "mt-4" : ""}`}>
-          <div className="mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24">
-            <h1 className="max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">School events without the clipboards</h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
-              Contests, school events, and easy <span className="whitespace-nowrap">sign-ups</span>
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
-                {CTA}
-              </JumpLink>
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-20 lg:grid-cols-[1fr_auto]">
+            <div>
+              <h1 className="max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">School events without the clipboards</h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
+                Contests, school events, and easy <span className="whitespace-nowrap">sign-ups</span>
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
+                  {CTA}
+                </JumpLink>
+              </div>
+            </div>
+            {/* The product, on the phones people use it on: spectators, volunteers, and the front door. */}
+            <div className="flex items-start justify-center">
+              {heroScreens.map((p, i) => (
+                <PhoneFrame
+                  key={p.src}
+                  src={p.src}
+                  alt={p.alt}
+                  className={
+                    i === 1
+                      ? "relative z-10 -mx-3 w-[38%] max-w-[200px] sm:w-44 lg:w-48"
+                      : "mt-8 w-[33%] max-w-[170px] opacity-95 sm:w-36 lg:w-40"
+                  }
+                />
+              ))}
             </div>
           </div>
         </section>
@@ -315,7 +335,7 @@ export default async function Home() {
             <p className="mt-3 max-w-2xl leading-7 text-muted">
               Choose your kind of event, and {brand.name} gives you the tools it needs.
             </p>
-            <CardCarousel label="Kinds of school event" itemName="event types">
+            <CardCarousel label="Kinds of school event" itemName="event types" grid>
               {kinds.map((k) => (
                 <li key={k.title} className={`${carouselCard} flex flex-col rounded-lg border border-border bg-background p-6 sm:p-8`}>
                   <span aria-hidden className="text-3xl">
@@ -390,6 +410,9 @@ export default async function Home() {
                 </div>
               ))}
             </dl>
+            <Link href={STUDENT_PRIVACY_PAGE.path} className="mt-6 inline-block font-semibold underline">
+              How we handle student data
+            </Link>
           </div>
         </section>
 
