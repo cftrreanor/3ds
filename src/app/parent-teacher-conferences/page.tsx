@@ -71,6 +71,7 @@ const sections: Audience["sections"] = [
       "Search for any family, and print a one-page summary or the full list",
       "Mark each meeting Met or No-show once it starts, and undo it if you need to",
       "Cancel a meeting, and the family is emailed",
+      "Each booking lands on your own calendar too, and moves or comes off it when a family changes or cancels",
     ],
     screen: {
       src: "/screens/conference-meetings-day.webp",
@@ -116,8 +117,8 @@ const faqs = [
     a: "Mark the meeting No-show on your Meetings page once it starts. If they arrive late, undo it.",
   },
   {
-    q: "Do I get an email for each booking?",
-    a: "No. Every booking shows up on your Meetings page, so your inbox stays quiet. Families get the emails: a confirmation, a calendar invite, and a reminder the day before.",
+    q: "Will bookings show up on my calendar?",
+    a: "Yes. When a family books, changes their time, or cancels, you get an email with a calendar invite, so each meeting is added, moved, or removed on your own calendar. Every booking is also on your Meetings page.",
   },
 ];
 

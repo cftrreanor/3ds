@@ -20,8 +20,8 @@ export type IcsEvent = {
   description?: string;
   url?: string;
   attendee?: { name: string; email: string };
-  /** Reminder text shown an hour before. */
-  alarm?: string;
+  /** Reminder text shown an hour before. False for no reminder. */
+  alarm?: string | false;
 };
 
 export type IcsMethod = "REQUEST" | "CANCEL" | "PUBLISH";
@@ -151,7 +151,7 @@ export function buildIcs(method: IcsMethod, event: IcsEvent, organizerName = bra
               ]
             : []),
         ]),
-    ...(method === "CANCEL"
+    ...(method === "CANCEL" || event.alarm === false
       ? []
       : ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${escapeText(event.alarm ?? "Volunteer shift")}`, "TRIGGER:-PT1H", "END:VALARM"]),
     "END:VEVENT",
