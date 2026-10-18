@@ -1,6 +1,6 @@
 import "server-only";
 import { brand } from "@/lib/brand";
-import { emailLayout, type CalendarInvite } from "@/lib/email";
+import { emailLayout, sendEmail, type CalendarInvite } from "@/lib/email";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
 import type { ConferenceSettings } from "@/lib/conferences";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
@@ -174,4 +174,125 @@ export function bookingEmail(
     }),
     ...(kind !== "reminder" ? { invite: invite("REQUEST", b, event, s, teacher, link, to) } : {}),
   };
+}
+
+/** This meeting on the teacher's Meetings page (meeting-list.tsx gives each one this id). */
+export const meetingAnchor = (meetings: string, bookingId: string) => `${meetings}#meeting-${bookingId}`;
+
+/** "Liam Patel" → "Liam P.": enough for the teacher's calendar, which others may be able to see. */
+export const shortName = (child: string) => {
+  const [first, ...rest] = child.trim().split(/\s+/);
+  const last = rest.at(-1);
+  return last ? `${first} ${last[0].toUpperCase()}.` : first;
+};
+
+/** The meeting on the teacher's own calendar. Its own UID, so it never collides with a parent's copy. */
+function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teacher: Teacher, meetings: string): IcsEvent {
+  const place = meetingPlace(b, event, s, teacher);
+  const who = `${shortName(b.child_name)}'s family`;
+  const mark = meetingAnchor(meetings, b.id);
+  return {
+    uid: `conference-${b.id}-teacher@fieldcommandevents.com`,
+    timezone: event.timezone,
+    sequence: b.calendar_sequence,
+    start: new Date(b.starts_at),
+    end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
+    summary: `Conference: ${who}`,
+    location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : "Video"),
+    description: [
+      `${who} · ${place.title}`,
+      `Mark Met or No-show after the meeting: ${mark}`,
+    ].join("\n"),
+    url: mark,
+    attendee: teacher.email ? { name: teacher.name, email: teacher.email } : undefined,
+    // Meetings run back to back: an alarm before each one would be noise.
+    alarm: false,
+  };
+}
+
+/**
+ * The teacher's email when a family books, changes or cancels: with a
+ * calendar invite that adds, moves or removes the meeting on their calendar.
+ */
+export function teacherBookingEmail(
+  kind: "booked" | "changed" | "canceled",
+  b: Booking,
+  event: BookingEvent,
+  s: ConferenceSettings,
+  teacher: Teacher,
+  /** Their Meetings page. */
+  meetings: string,
+  /** The teacher canceled it themselves. */
+  byTeacher = false,
+) {
+  const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
+  const place = meetingPlace(b, event, s, teacher);
+  const family = `${b.child_name}'s family`;
+  const footer = `Sent by ${brand.name}. Every booking is also on your Meetings page.`;
+  // Subjects never name the child (see bookingEmail).
+  const subject =
+    kind === "booked"
+      ? `New conference booked: ${when}`
+      : kind === "changed"
+        ? `Conference changed: ${when}`
+        : byTeacher
+          ? `You canceled a conference: ${when}`
+          : `Canceled conference: ${when}`;
+  const ics = (method: "REQUEST" | "CANCEL", seq: number): CalendarInvite => ({
+    method,
+    content: buildIcs(method, teacherIcsEvent({ ...b, calendar_sequence: seq }, event, s, teacher, meetings), brand.name),
+  });
+
+  if (kind === "canceled") {
+    return {
+      subject,
+      ...emailLayout({
+        heading: byTeacher ? "You canceled a conference" : "A family canceled their conference",
+        paragraphs: [
+          byTeacher
+            ? `You canceled the conference with ${family} (${when}). We emailed the family, and the time is open again.`
+            : `${family} canceled their conference (${when}). The time is open again.`,
+          "This email takes it off your calendar (in Gmail, you may need to open it first).",
+        ],
+        button: { label: "Open your Meetings page", url: meetings },
+        footer,
+      }),
+      invite: ics("CANCEL", b.calendar_sequence + 1),
+    };
+  }
+
+  return {
+    subject,
+    ...emailLayout({
+      heading: kind === "booked" ? "A family booked a conference" : "A family changed their conference",
+      paragraphs: [
+        kind === "booked"
+          ? `${family} booked a conference with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
+          : `${family} changed their conference. The details below are current, and your calendar invite is updated.`,
+        "After the meeting, use the button below to mark it Met or No-show, so your records are complete.",
+      ],
+      rows: [
+        { title: "When", detail: when },
+        { title: place.title, detail: b.meeting_mode === "in_person" ? place.lines[0] || "Your room" : "On video" },
+        { title: "Coming", detail: b.parents.map((p) => p.name).join(", ") },
+        ...(b.note ? [{ title: "Their note", detail: "They left you a note. It's on your Meetings page." }] : []),
+      ],
+      button: { label: "Mark Met or No-show", url: meetingAnchor(meetings, b.id) },
+      footer,
+    }),
+    invite: ics("REQUEST", b.calendar_sequence),
+  };
+}
+
+/** Emails the teacher (the conference's creator), if they have an email. True if it went. */
+export async function emailTeacher(
+  kind: Parameters<typeof teacherBookingEmail>[0],
+  b: Booking,
+  conf: { event: BookingEvent & { id: string }; settings: ConferenceSettings; teacher: Teacher },
+  origin: string,
+  byTeacher = false,
+) {
+  if (!conf.teacher.email) return false;
+  const meetings = `${origin}/dashboard/events/${conf.event.id}/conferences/meetings`;
+  return sendEmail({ to: conf.teacher.email, ...teacherBookingEmail(kind, b, conf.event, conf.settings, conf.teacher, meetings, byTeacher) });
 }

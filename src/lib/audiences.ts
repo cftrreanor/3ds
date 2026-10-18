@@ -30,9 +30,6 @@ export type Audience = {
   faqs: { q: string; a: string }[];
 };
 
-const VOLUNTEERS_TOO =
-  "Volunteers sign up for shifts on their phone without making an account. They get a confirmation, a calendar invite, and a reminder the day before, and they're checked in at the desk with one tap.";
-
 export const audiences = {
   bands: {
     path: "/band-contests",

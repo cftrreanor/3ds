@@ -4,7 +4,7 @@ import { BOT_CHECK_FAILED, passesBotCheck } from "@/lib/bot-check";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ActionState } from "@/lib/action-state";
-import { bookingEmail, bookingLink, meetingWhen, type Booking } from "@/lib/conference-bookings";
+import { bookingEmail, bookingLink, emailTeacher, meetingWhen, type Booking } from "@/lib/conference-bookings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { normalizePhone } from "@/lib/phone";
@@ -104,8 +104,10 @@ export async function bookConference(eventId: string, _prev: BookingState, formD
   const booking = await loadBooking(token as string);
   const conf = await loadConference({ id: eventId });
   if (!booking || !conf) return { error: "Something went wrong. Please try again.", values };
-  const link = bookingLink(await getOrigin(), conf.event.slug, token as string);
+  const origin = await getOrigin();
+  const link = bookingLink(origin, conf.event.slug, token as string);
   const emailSent = await emailParents("confirmation", booking, eventId, link);
+  await emailTeacher("booked", booking, conf, origin);
   revalidatePath(`/e/${conf.event.slug}/book`);
   return {
     ok: true,
@@ -134,7 +136,9 @@ export async function changeBooking(token: string, _prev: ActionState, formData:
   const booking = await loadBooking(token);
   const conf = await loadConference({ id: eventId as string });
   if (booking && conf) {
-    await emailParents("changed", booking, conf.event.id, bookingLink(await getOrigin(), conf.event.slug, token));
+    const origin = await getOrigin();
+    await emailParents("changed", booking, conf.event.id, bookingLink(origin, conf.event.slug, token));
+    await emailTeacher("changed", booking, conf, origin);
     revalidatePath(`/e/${conf.event.slug}/book`, "layout");
   }
   return { ok: true, message: "Saved. We emailed everyone an updated calendar invite." };
@@ -151,7 +155,9 @@ export async function cancelBooking(token: string): Promise<ActionState> {
     return { error: "Something went wrong. Please try again." };
   }
   if (conf) {
-    await emailParents("canceled", booking, conf.event.id, `${await getOrigin()}/e/${conf.event.slug}/book`);
+    const origin = await getOrigin();
+    await emailParents("canceled", booking, conf.event.id, `${origin}/e/${conf.event.slug}/book`);
+    await emailTeacher("canceled", booking, conf, origin);
     revalidatePath(`/e/${conf.event.slug}/book`);
   }
   redirect(conf ? `/e/${conf.event.slug}/book?canceled=1` : "/");

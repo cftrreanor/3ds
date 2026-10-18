@@ -5,7 +5,7 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { GAP_LENGTHS, MEETING_LENGTHS, type ConferenceBreak, type MeetingMode } from "@/lib/conferences";
 import { loadConference } from "@/app/e/[slug]/book/data";
-import { BOOKING_COLUMNS, bookingEmail, type Booking } from "@/lib/conference-bookings";
+import { BOOKING_COLUMNS, bookingEmail, emailTeacher, type Booking } from "@/lib/conference-bookings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -171,13 +171,16 @@ export async function cancelMeeting(eventId: string, bookingId: string): Promise
   const conf = await loadConference({ id: eventId });
   if (booking && conf) {
     const b = booking as Booking;
-    const link = `${await getOrigin()}/e/${conf.event.slug}/book`;
+    const origin = await getOrigin();
+    const link = `${origin}/e/${conf.event.slug}/book`;
     emailed = true;
     for (const [i, p] of b.parents.entries()) {
       if (i) await pause();
       const message = bookingEmail("canceled", b, conf.event, conf.settings, conf.teacher, link, p, true);
       emailed = (await sendEmail({ to: p.email, ...message, replyTo: conf.teacher.email ?? undefined })) && emailed;
     }
+    // Takes it off the teacher's own calendar too.
+    await emailTeacher("canceled", b, conf, origin, true);
     revalidatePath(`/e/${conf.event.slug}/book`);
   }
   refresh(eventId);
