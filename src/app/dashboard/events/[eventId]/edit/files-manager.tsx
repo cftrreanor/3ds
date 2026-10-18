@@ -183,6 +183,9 @@ function FileForm({
       uploaded = { path: ticket.path, fileName: upload.name, contentType: upload.type, size: upload.size };
     }
     setStep("Saving…");
+    // The file itself already went straight to storage: send only its details
+    // (a big PDF here would go over the server's 1 MB limit for a save).
+    data.delete("file");
     if (!hide) data.set("visibleFrom", "");
     const result = await saveFile(file?.id ?? null, uploaded, {}, data);
     setStep(null);
@@ -198,7 +201,7 @@ function FileForm({
         void submit(e.currentTarget).catch((err) => {
           console.error("File upload failed", err);
           setStep(null);
-          setError("Something went wrong. Please try again.");
+          setError("Something went wrong. Please reload the page and try again.");
         });
       }}
     >
