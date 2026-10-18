@@ -10,6 +10,7 @@ import QRCode from "qrcode";
 import { CopyLink } from "@/components/copy-link";
 import { RememberedPanel } from "@/components/remembered-panel";
 import { missing } from "@/lib/schema-check";
+import { conferenceBookedCount } from "@/lib/conference-access";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import {
   eachDate,
@@ -295,9 +296,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? (((await supabase.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", eventId).maybeSingle()).data ??
         null) as ConferenceSettings | null)
     : null;
-  const conferenceBooked = conferenceHere
-    ? ((await supabase.from("conference_bookings").select("id", { count: "exact", head: true }).eq("event_id", eventId)).count ?? 0)
-    : 0;
+  // A count only: the bookings themselves are the teacher's alone.
+  const conferenceBooked = conferenceHere ? await conferenceBookedCount(supabase, eventId) : 0;
 
   // On the day itself, the day's jobs take the checklist's place beside the page.
   const dayActions = await loadDayActions(eventId);

@@ -10,6 +10,8 @@ import { formatPhone } from "@/lib/phone";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 import { isSchemaError, missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
+import { conferenceBookedCount, isConferenceTeacher } from "@/lib/conference-access";
+import { NotTheTeacher } from "./not-teacher";
 import { formatDate, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { cancelMeeting, setMeetingOutcome } from "../actions";
 import { MeetingList, type MeetingRow, type Outcome } from "./meeting-list";
@@ -34,6 +36,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
     .maybeSingle();
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
+  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} />;
 
   const columns = BOOKING_COLUMNS.replace(", calendar_sequence", "");
   const loadBookings = (extra: string) =>

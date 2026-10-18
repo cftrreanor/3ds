@@ -8,6 +8,7 @@ import { registrationIsOpen } from "@/lib/bands";
 import { getMyOrganization, type Organization } from "@/lib/data";
 import { freeStatus } from "@/lib/admin";
 import { brand } from "@/lib/brand";
+import { conferenceBookedCount } from "@/lib/conference-access";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -92,7 +93,10 @@ async function signupCounts(supabase: Awaited<ReturnType<typeof CreateClient>>, 
     await Promise.all([
       tally("bands", ids(hasEnsembles), true),
       tally("parent_registrations", ids((t) => t === "school_visit")),
-      tally("conference_bookings", ids((t) => t === "conference")),
+      // Bookings are the teacher's alone; other hosts on the account get the count.
+      Promise.all(
+        ids((t) => t === "conference").map(async (id) => Array.from({ length: await conferenceBookedCount(supabase, id) }, () => ({ event_id: id }))),
+      ).then((r) => r.flat()),
       tally("fair_booths", ids((t) => t === "fair")),
       tally("volunteers", ids((t) => t === "volunteer")),
     ])

@@ -4421,6 +4421,67 @@ end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d2';
 
+-- Conference bookings, teacher only (20261209000000_conference_teacher_only.sql)
+-- On a shared account, only the teacher who set up the conference sees its
+-- bookings; another host on the account sees how many are booked, not who.
+insert into public.organization_members (organization_id, user_id, role)
+values (:'org_id', '00000000-0000-0000-0000-000000000009', 'admin');
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address, created_by)
+values ('10000000-0000-0000-0000-0000000000d3', :'org_id', 'Ms. Park Conferences', 'conf-d3', 'published', 'conference', 'America/Chicago',
+        current_date + 3, current_date + 3,
+        ((current_date + 3) + time '15:00') at time zone 'America/Chicago',
+        ((current_date + 3) + time '16:00') at time zone 'America/Chicago', '1 School Rd', '00000000-0000-0000-0000-000000000001');
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room)
+values ('10000000-0000-0000-0000-0000000000d3', 15, 0, '[]', now(), 'in_person', 'Room 3');
+select set_config('test.park_token', public.book_conference('10000000-0000-0000-0000-0000000000d3',
+  ((current_date + 3) + time '15:00') at time zone 'America/Chicago', 'Ivy Chen', '[{"name": "Lin Chen", "email": "lin@example.com"}]', null, 'Math')::text, false) \g /dev/null
+update public.conference_bookings set starts_at = now() - interval '10 minutes' where access_token = current_setting('test.park_token')::uuid;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000009","email":"cohost@example.com"}';
+do $$
+declare
+  ok boolean := false;
+  real_id uuid;
+begin
+  assert public.is_event_admin('10000000-0000-0000-0000-0000000000d3'), 'the other host runs the account''s events';
+  assert not public.is_conference_teacher('10000000-0000-0000-0000-0000000000d3'), 'but isn''t this conference''s teacher';
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3') = 0,
+         'another host on the account can''t read the teacher''s bookings';
+  assert public.conference_booked_count('10000000-0000-0000-0000-0000000000d3') = 1, 'but sees how many times are booked';
+  delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3';
+  reset role;
+  real_id := (select id from public.conference_bookings where access_token = current_setting('test.park_token')::uuid);
+  set local role authenticated;
+  begin
+    perform public.set_conference_outcome(real_id, 'met');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'another host can''t mark the teacher''s meetings';
+end $$;
+reset role;
+do $$ begin
+  assert exists (select 1 from public.conference_bookings where access_token = current_setting('test.park_token')::uuid and outcome is null),
+         'another host can''t cancel or mark the teacher''s bookings';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert public.conference_booked_count('10000000-0000-0000-0000-0000000000d3') is null, 'strangers get no count';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert public.is_conference_teacher('10000000-0000-0000-0000-0000000000d3'), 'the teacher who set it up is its teacher';
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3') = 1,
+         'the teacher reads their bookings';
+  perform public.set_conference_outcome((select id from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3'), 'met');
+  delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3';
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3') = 0,
+         'and can cancel them';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d3';
+delete from public.organization_members where user_id = '00000000-0000-0000-0000-000000000009';
+
 -- ---------------------------------------------------------------------------
 -- Children's details: the 30 days are counted in the event's own time zone.
 -- Kiritimati (UTC+14) and Pago Pago (UTC-11) are always 1 or 2 calendar days
