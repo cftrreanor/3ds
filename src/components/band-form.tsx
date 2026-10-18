@@ -36,6 +36,7 @@ export function BandForm({
   submitLabel,
   disabled = false,
   kind = "band",
+  emailHint,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   classifications: string[];
@@ -44,6 +45,8 @@ export function BandForm({
   submitLabel: string;
   disabled?: boolean;
   kind?: "band" | "group";
+  /** Under the head director's email, e.g. that the confirmation code goes there. */
+  emailHint?: string;
 }) {
   const group = kind === "group";
   const num = (v: number | undefined) => (v === undefined ? "" : String(v));
@@ -97,7 +100,7 @@ export function BandForm({
             <Field label="Head director's mobile">
               <Input name="headDirectorPhone" type="tel" inputMode="tel" required defaultValue={initial.head_director_phone} />
             </Field>
-            <Field label="Head director's email" className="sm:col-span-2">
+            <Field label="Head director's email" hint={emailHint} className="sm:col-span-2">
               <Input name="headDirectorEmail" type="email" required defaultValue={initial.head_director_email} />
             </Field>
             <Field label="Assistant directors (optional)" hint="One per line." className="sm:col-span-2">

@@ -12,6 +12,7 @@ import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTimeRange } from "@/lib/time";
+import { GuestRegister } from "./guest-register";
 import { RegisterForm, type PreviousBand } from "./register-form";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -230,30 +231,18 @@ export default async function BandRegistrationPage({ params }: Params) {
             )}
           </Card>
         ) : !user ? (
-          <Card>
-            <h2 className="font-semibold">Directors: sign in to register</h2>
-            <p className="mt-2 leading-7 text-muted">
-              We&apos;ll email you a sign-in link, no password needed. Your registration is saved to your account so
-              you can update it and see your {kind === "group" ? "schedule" : "performance time"} when it&apos;s posted.
+          <>
+            <p className="mb-2 text-sm text-muted">
+              {promise} After you submit, we&apos;ll email the head director a code to confirm, with no password needed.
             </p>
-            <h3 className="mt-5 text-sm font-semibold">What you&apos;ll need</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6">
-              <li>School and {w.one} name, and your classification</li>
-              <li>Head director&apos;s name, mobile, and email</li>
-              <li>
-                Number of {kind === "group" ? "participants" : "student performers"} and chaperones (up to {event.chaperone_limit})
-              </li>
-              <li>{kind === "group" ? "Number of buses" : "Number of buses, box trucks, trucks with trailers, and semis"}</li>
-              <li>Any scheduling conflicts or accessibility needs</li>
-            </ul>
-            <p className="mt-3 text-sm text-muted">{promise}</p>
-            <Link
-              href={`/login?next=${encodeURIComponent(here)}`}
-              className="mt-4 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-            >
-              Sign in to register
-            </Link>
-          </Card>
+            <p className="mb-6 text-sm">
+              Registered with us before?{" "}
+              <Link href={`/login?next=${encodeURIComponent(here)}`} className="font-medium text-brand underline-offset-4 hover:underline">
+                Sign in to use your saved details
+              </Link>
+            </p>
+            <GuestRegister eventId={event.id} classifications={event.classifications} chaperoneLimit={event.chaperone_limit} kind={kind} />
+          </>
         ) : mine.length > 0 ? (
           <details className="group">
             <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background group-open:mb-6">

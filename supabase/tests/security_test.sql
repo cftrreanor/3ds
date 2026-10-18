@@ -4718,4 +4718,50 @@ do $$ begin
          'the director withdrew their band, and only the organizer can undo it';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Pending band registrations (20261208000000_pending_band_registrations.sql):
+-- only our server touches them. Visitors and signed-in people can't read,
+-- add, or change one.
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.pending_band_registrations (event_id, email, details)
+values ('10000000-0000-0000-0000-00000000000a', 'someone@example.com', '{"band_name":"Waiting Winds"}');
+set role anon;
+set request.jwt.claims = '';
+do $$ begin
+  begin
+    perform 1 from public.pending_band_registrations;
+    raise exception 'FAIL: a visitor read pending registrations';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.pending_band_registrations (event_id, email, details)
+    values ('10000000-0000-0000-0000-00000000000a', 'x@example.com', '{}');
+    raise exception 'FAIL: a visitor added a pending registration';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform 1 from public.pending_band_registrations;
+    raise exception 'FAIL: a host read pending registrations';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"someone@example.com"}';
+do $$ begin
+  begin
+    delete from public.pending_band_registrations;
+    raise exception 'FAIL: a signed-in person deleted pending registrations';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.pending_band_registrations where email = 'someone@example.com') = 1,
+         'pending registrations are untouched by browsers';
+end $$;
+
 \echo 'All database security tests passed.'
