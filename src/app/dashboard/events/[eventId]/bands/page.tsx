@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
-import { Card } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import { requireUser } from "@/lib/auth";
 import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
@@ -20,6 +20,7 @@ import { formatDate, utcToZonedDate } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
 import { BandSettingsForm } from "./settings-form";
 import { SavedBy } from "@/components/saved-by";
+import { OpenStepLink, RegisteredBands } from "./registered-bands";
 
 export const metadata: Metadata = { title: "Registration" };
 
@@ -117,6 +118,20 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
     />
   );
 
+  // Directors who were emailed an invitation and haven't registered yet.
+  const invitedWaiting = directors.filter((d) => d.invited && !d.registered).length;
+  const registered = (
+    <div className="mt-8">
+      <RegisteredBands
+        bands={bands}
+        classifications={event.classifications}
+        words={w}
+        groups={roomsHere}
+        fileName={`${event.name.replace(/[^\w -]+/g, "").trim() || "registrations"} ${w.many}.csv`}
+      />
+    </div>
+  );
+
   return (
     <div>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
@@ -124,11 +139,58 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{w.One} Registration</h1>
       <SavedBy eventId={eventId} area="bands" className="mt-2" />
-      <p className="mt-2 text-sm text-muted">
-        {bands.length} {bands.length === 1 ? w.one : w.many} registered · Registration {regOpen ? "open" : "closed"}
-      </p>
+      {/* Once registration is set up: its state and the switch, always in view. */}
+      {registrationDone && (
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-border bg-surface px-4 py-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="flex flex-wrap items-center gap-2 text-sm">
+              <Badge tone={regOpen ? "live" : "off"}>Registration {regOpen ? "open" : "closed"}</Badge>
+              <span className="text-muted">
+                {regOpen && event.band_registration_deadline
+                  ? `Closes at the end of ${formatDate(event.band_registration_deadline)}`
+                  : pastDeadline
+                    ? (
+                        <>
+                          The deadline ({formatDate(event.band_registration_deadline!)}) has passed. To reopen, change it in{" "}
+                          <OpenStepLink step="registration-settings">Registration settings</OpenStepLink>.
+                        </>
+                      )
+                    : regOpen
+                      ? "No deadline set"
+                      : null}
+              </span>
+            </p>
+            {invitedWaiting > 0 && (
+              <p className="text-sm">
+                <OpenStepLink step="invite-directors">
+                  {invitedWaiting} invited {invitedWaiting === 1 ? "director hasn't" : "directors haven't"} registered yet
+                </OpenStepLink>
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <CopyLinkButton url={registrationUrl} label="Copy registration link" />
+            {published && !pastDeadline && (
+              <ActionButton
+                action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
+                variant={event.band_registration_open ? "stop" : "go"}
+                confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
+              >
+                {event.band_registration_open ? "Close registration" : "Open registration"}
+              </ActionButton>
+            )}
+          </div>
+        </div>
+      )}
 
-      <div className="mt-6 flex flex-col gap-3">
+      {registrationDone && registered}
+
+      {registrationDone && (
+        <h2 className="mt-12 text-xl font-semibold" id="setup-heading">
+          Registration setup
+        </h2>
+      )}
+      <div className={`${registrationDone ? "mt-4" : "mt-6"} flex flex-col gap-3`}>
         <SetupStep
           id="registration-settings"
           title="1. Registration settings"
@@ -148,6 +210,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               email: contact?.email || user.email || "",
             }}
             contactSaved={Boolean(contact)}
+            one={w.one}
           />
         </SetupStep>
 
@@ -183,7 +246,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                 <CopyLinkButton url={registrationUrl} label="Copy link" />
               </div>
             </div>
-            {published && (
+            {published && !pastDeadline && (
               <ActionButton
                 action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
                 variant={event.band_registration_open ? "stop" : "go"}
@@ -240,66 +303,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
         </SetupStep>
       </div>
 
-      <section className="mt-10" aria-labelledby="registered-heading">
-        <h2 id="registered-heading" className="text-xl font-semibold">
-          Registered {w.many} ({bands.length})
-        </h2>
-        {bands.length === 0 ? (
-          <Card className="mt-4">
-            <p className="text-sm text-muted">No {w.many} have registered yet. They show up here as directors sign up.</p>
-          </Card>
-        ) : (
-          <ul className="mt-4 space-y-3">
-            {bands.map((b) => (
-              <li key={b.id}>
-                <details className="rounded-xl border border-border bg-surface px-4 py-3">
-                  <summary className="cursor-pointer">
-                    <span className="font-semibold">{b.band_name}</span>
-                    <span className="text-muted">
-                      {" "}
-                      · {b.school_name} · {b.classification} · {b.student_count} {roomsHere ? "participants" : "students"}
-                    </span>
-                  </summary>
-                  <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                    <Detail label="Head director">
-                      {b.head_director_name} ·{" "}
-                      <a className="text-brand hover:underline" href={`tel:${b.head_director_phone}`}>
-                        {formatPhone(b.head_director_phone)}
-                      </a>{" "}
-                      ·{" "}
-                      <a className="text-brand hover:underline" href={`mailto:${b.head_director_email}`}>
-                        {b.head_director_email}
-                      </a>
-                    </Detail>
-                    <Detail label="Assistant directors">{b.assistant_directors.join(", ") || "None listed"}</Detail>
-                    <Detail label={`${w.One} contact`}>{b.contact_email}</Detail>
-                    <Detail label="School address">{b.school_address || "Not given"}</Detail>
-                    <Detail label="People">
-                      {b.student_count} {roomsHere ? "participants" : "students"} · {b.chaperone_count} chaperones
-                    </Detail>
-                    <Detail label="Vehicles">
-                      {roomsHere
-                        ? `${b.bus_count} ${b.bus_count === 1 ? "bus" : "buses"}`
-                        : `${b.bus_count} buses · ${b.box_truck_count} box trucks · ${b.truck_trailer_count} truck/trailers · ${b.semi_truck_count} semis`}
-                    </Detail>
-                    <Detail label="Conflicts">{b.contest_day_conflicts ?? "None"}</Detail>
-                    <Detail label="Accessibility / staging">{b.special_needs ?? "None"}</Detail>
-                  </dl>
-                </details>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function Detail({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-muted">{label}</dt>
-      <dd>{children}</dd>
+      {!registrationDone && <div className="mt-10">{registered}</div>}
     </div>
   );
 }
