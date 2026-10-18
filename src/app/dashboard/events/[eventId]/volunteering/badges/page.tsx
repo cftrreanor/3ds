@@ -11,7 +11,7 @@ import { RECORDS_NOTE } from "@/lib/records";
 import { missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { eachDate, formatDate, formatDateRange } from "@/lib/time";
-import { PrintBadgesButton } from "./badge-controls";
+import { BadgeColorScope, PrintBadgesButton } from "./badge-controls";
 import { MapBack } from "./map-back";
 
 export const metadata: Metadata = { title: "Volunteer badges" };
@@ -191,7 +191,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
 
       {/* The sheets: a preview on screen, the printout on paper. Fronts and backs alternate for double-sided printing. */}
       {cards.length > 0 && (
-        <div className="badge-preview mt-6 -mx-4 overflow-x-auto bg-border/40 px-4 py-6 sm:mx-0 sm:rounded-lg">
+        <BadgeColorScope logo={logo} className="badge-preview mt-6 -mx-4 overflow-x-auto bg-border/40 px-4 py-6 sm:mx-0 sm:rounded-lg">
           {sheets.map((sheet, i) => (
             <div key={i}>
               <Sheet paper={paper}>
@@ -211,7 +211,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
               )}
             </div>
           ))}
-        </div>
+        </BadgeColorScope>
       )}
     </div>
   );
@@ -259,11 +259,12 @@ function BadgeFront({
       </div>
 
       {/* Name. */}
-      <div className="mt-[0.15in] flex h-[1.05in] flex-col items-center justify-center text-center">
+      <div className="mt-[0.12in] flex h-[1.2in] flex-col items-center justify-center text-center">
         {badge ? (
           <>
-            <p className="max-w-full truncate text-[36pt] leading-none font-bold">{badge.first}</p>
-            {badge.last && <p className="mt-[0.06in] max-w-full truncate text-[16pt] leading-tight">{badge.last}</p>}
+            {/* Line heights leave room for the tails of g, j, p, q, and y. */}
+            <p className="max-w-full truncate pb-[0.04in] text-[36pt] leading-[1.15] font-bold">{badge.first}</p>
+            {badge.last && <p className="mt-[0.02in] max-w-full truncate pb-[0.02in] text-[16pt] leading-[1.3]">{badge.last}</p>}
           </>
         ) : (
           <div className="w-full border-b-2 border-[#1a1a1a] pt-[0.6in]" aria-label="Write a name here" />
@@ -272,8 +273,8 @@ function BadgeFront({
 
       {/* The role. */}
       <p
-        className="-mx-[0.3in] mt-[0.12in] bg-brand py-[0.07in] text-center text-[20pt] font-bold tracking-[0.18em] text-white"
-        style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
+        className="-mx-[0.3in] mt-[0.12in] py-[0.07in] text-center text-[20pt] font-bold tracking-[0.18em] text-white"
+        style={{ backgroundColor: "var(--badge-band, #0b3558)", printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
       >
         VOLUNTEER
       </p>
