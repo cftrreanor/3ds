@@ -4878,4 +4878,149 @@ do $$ begin
          'pending registrations are untouched by browsers';
 end $$;
 
+
+-- ---------------------------------------------------------------------------
+-- Conference weekly hours and phone calls (20261211000000_conference_weekly_hours.sql)
+-- ---------------------------------------------------------------------------
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address, created_by)
+values ('10000000-0000-0000-0000-0000000000e1', :'org_id', 'Ms. Park Call Hours', 'calls-e1', 'draft', 'conference', 'America/Chicago',
+        (now() at time zone 'America/Chicago')::date, (now() at time zone 'America/Chicago')::date,
+        now(), now() + interval '1 hour', '', '00000000-0000-0000-0000-000000000001');
+-- Every day 3 to 4, 15-minute calls, a day off, 24 hours' notice, two weeks ahead.
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, schedule,
+                                        weekly_hours, closed_dates, min_notice_hours, max_days_ahead)
+values ('10000000-0000-0000-0000-0000000000e1', 15, 0, '[]', now(), 'phone', 'weekly',
+        (select jsonb_agg(jsonb_build_object('day', d, 'start', '15:00', 'end', '16:00')) from generate_series(0, 6) d),
+        jsonb_build_array(((now() at time zone 'America/Chicago')::date + 3)::text), 24, 14);
+do $$
+declare
+  ok boolean := false;
+  today date := (now() at time zone 'America/Chicago')::date;
+begin
+  -- Weekly hours run between the first and last day.
+  update public.events set ends_on = today + 60 where id = '10000000-0000-0000-0000-0000000000e1';
+  begin
+    update public.conference_settings set schedule = 'one_day' where event_id = '10000000-0000-0000-0000-0000000000e1';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a conference day has to be one day';
+  ok := false;
+  begin
+    update public.conference_settings set weekly_hours = '[{"day": 2, "start": "16:30", "end": "15:30"}]'
+     where event_id = '10000000-0000-0000-0000-0000000000e1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'weekly hours have to end after they start';
+  ok := false;
+  begin
+    update public.conference_settings set closed_dates = '["next tuesday"]' where event_id = '10000000-0000-0000-0000-0000000000e1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'days off are dates';
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000e1';
+end $$;
+
+set role anon;
+do $$
+declare
+  today date := (now() at time zone 'America/Chicago')::date;
+  times timestamptz[];
+begin
+  select array_agg(starts_at) into times from public.conference_open_times('calls-e1');
+  assert (select min(t) from unnest(times) t) > now() + interval '24 hours', 'families book at least 24 hours ahead';
+  assert (select max((t at time zone 'America/Chicago')::date) from unnest(times) t) <= today + 14, 'and up to two weeks ahead';
+  assert not exists (select 1 from unnest(times) t where (t at time zone 'America/Chicago')::date = today + 3), 'not on a day off';
+  assert (select count(*) from unnest(times) t where (t at time zone 'America/Chicago')::date = today + 5) = 4,
+         'four 15-minute calls each day from 3 to 4';
+end $$;
+reset role;
+
+set role service_role;
+do $$
+declare
+  day5 timestamptz := (((now() at time zone 'America/Chicago')::date + 5) + time '15:00') at time zone 'America/Chicago';
+  ok boolean := false;
+  tok uuid;
+begin
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000e1', day5, 'Ivy Chen',
+      '[{"name": "Lin Chen", "email": "lin@example.com"}]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'phone calls need a number to call';
+  tok := public.book_conference('10000000-0000-0000-0000-0000000000e1', day5, 'Ivy Chen',
+    '[{"name": "Lin Chen", "email": "lin@example.com"}]', null, null, '(512) 555-0101');
+  assert (select meeting_mode = 'phone' and call_phone = '5125550101' from public.conference_bookings where access_token = tok),
+         'the family''s number is saved for the teacher to call';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000e1', day5 + interval '15 minutes', 'ivy chen',
+      '[{"name": "Lin Chen", "email": "lin@example.com"}]', null, null, '5125550101');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'one upcoming meeting per child';
+  -- Once it's past, the family can book again.
+  update public.conference_bookings set starts_at = now() - interval '2 days' where access_token = tok;
+  perform public.book_conference('10000000-0000-0000-0000-0000000000e1', day5 + interval '15 minutes', 'Ivy Chen',
+    '[{"name": "Lin Chen", "email": "lin@example.com"}]', null, null, '5125550101');
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000e1') = 2,
+         'with weekly hours, a family books again after their meeting';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000e1', now() + interval '2 hours', 'Max Ruiz',
+      '[{"name": "Ana Ruiz", "email": "ana@example.com"}]', null, null, '5125550102');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'not inside the notice';
+
+  -- Children's details go 30 days after each meeting, not after the last day.
+  update public.conference_bookings set starts_at = now() - interval '32 days' where access_token = tok;
+  assert public.purge_conference_bookings() = 1, 'a weekly meeting is deleted 30 days after it';
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000e1') = 1,
+         'and the upcoming one is kept';
+end $$;
+reset role;
+do $$
+declare before timestamptz;
+begin
+  before := (select starts_at from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000e1');
+  update public.events set starts_on = starts_on + 1 where id = '10000000-0000-0000-0000-0000000000e1';
+  assert (select starts_at from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000e1') = before,
+         'weekly meetings stay put when the first day changes';
+end $$;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000e1';
+
+-- Weekly hours are premium: a free teacher account can't publish them until it has a plan.
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000a-0000-0000-0000-000000000001","email":"teacher@example.com"}';
+do $$
+declare
+  org uuid := (select organization_id from public.organization_members where user_id = auth.uid());
+  today date := (now() at time zone 'America/Chicago')::date;
+  ok boolean := false;
+begin
+  insert into public.events (id, organization_id, name, slug, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address, created_by)
+  values ('10000000-0000-0000-0000-0000000000e2', org, 'Tia Call Hours', 'tia-calls', 'conference', 'America/Chicago',
+          today, today, now(), now() + interval '1 hour', '', auth.uid());
+  insert into public.conference_settings (event_id, meeting_minutes, times_saved_at, meeting_mode, schedule, weekly_hours)
+  values ('10000000-0000-0000-0000-0000000000e2', 15, now(), 'phone', 'weekly', '[{"day": 2, "start": "15:00", "end": "16:00"}]');
+  update public.events set ends_on = today + 30 where id = '10000000-0000-0000-0000-0000000000e2';
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000e2';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'weekly hours need a plan';
+end $$;
+reset role;
+update public.organizations set subscription_status = 'comped', free_until = null
+ where id = (select organization_id from public.events where id = '10000000-0000-0000-0000-0000000000e2');
+set role authenticated;
+do $$ begin
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000e2';
+  assert (select status = 'published' from public.events where id = '10000000-0000-0000-0000-0000000000e2'),
+         'with a plan, weekly hours publish';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000e2';
+
 \echo 'All database security tests passed.'
