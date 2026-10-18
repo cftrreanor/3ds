@@ -144,7 +144,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261203000000_event_saves.sql` | **"Saved by" lines**: each part of an event page shows which host, co-host, or Volunteer Lead last saved it, and when (only when more than one person runs the event) | ✅ run |
 | `20261204000000_pilot_end.sql` | **The pilot ends January 1, 2027**: pilot accounts still on the old end date (June 30, 2027) move to January 1, 2027. Dates you set by hand for one account stay as they are | ✅ run |
 | `20261205000000_org_logo.sql` | **Volunteer badges**: a logo for your account (uploaded in Maps & documents) printed on every event's volunteer badges | ✅ run |
-| `20261206000000_org_brand_color.sql` | **Your color**: your account's color (taken from your logo, or picked by you) for the band behind the event name on public event pages, buttons, links, and badges | ⬜ not run yet |
+| `20261206000000_org_brand_color.sql` | **Your color**: your account's color (taken from your logo, or picked by you) for the band behind the event name on public event pages, buttons, links, and badges | ✅ run |
 
 ## Pilot requests
 
