@@ -597,6 +597,19 @@ export const audiences = {
         },
       },
       {
+        title: "Know who's coming",
+        body: "Your event page shows how many families have registered, how many adults are coming, how many children, and how many families registered this week.",
+        points: [
+          "Children counted by grade and by teacher, for planning seating, food, and class coverage",
+          "On the day, see how many adults have checked in, how many are still to arrive, and how many families are here, updated on its own",
+          "Only counts appear there: children's names stay on the door list",
+        ],
+        screen: {
+          src: "/screens/parent-registration-numbers.webp",
+          alt: "The Parent registration card on a phone: 46 families, 70 adults coming, 63 children, 9 new this week, and children by grade and by teacher.",
+        },
+      },
+      {
         title: "Check-in at the door",
         body: "Your team checks off each adult at the door with one tap, on any phone, tablet, or laptop. On the day, a Check in parents button takes them straight to the list.",
         points: [
