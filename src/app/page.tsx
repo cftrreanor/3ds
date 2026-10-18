@@ -28,7 +28,7 @@ const kinds = [
   {
     icon: CONFERENCES_PAGE.icon,
     title: "Parent-teacher conferences",
-    summary: "Families book their own meeting time",
+    summary: "Fall and spring conferences, in person or on video",
     href: CONFERENCES_PAGE.path,
     examples: "Fall and spring conferences, in person or on video",
     points: [
@@ -40,7 +40,7 @@ const kinds = [
   {
     icon: "🎺",
     title: "Band contests",
-    summary: "From registration to the last band through the gate",
+    summary: "Marching invitationals, jazz festivals, and solo & ensemble",
     href: audiences.bands.path,
     examples: "Marching invitationals, jazz festivals, and solo & ensemble",
     points: [
@@ -52,7 +52,7 @@ const kinds = [
   {
     icon: "👥",
     title: "Choir & group festivals",
-    summary: "Groups move through your rooms on time",
+    summary: "Choir and orchestra festivals, theater, and UIL academics",
     href: audiences.groups.path,
     examples: "Choir and orchestra festivals, theater, UIL academics, and speech & debate",
     points: [
@@ -64,7 +64,7 @@ const kinds = [
   {
     icon: "🎪",
     title: "School fairs & fundraisers",
-    summary: "Booths, partners, and a page of what's there",
+    summary: "Fall festivals, carnivals, and fundraisers",
     href: audiences.fairs.path,
     examples: "Fall festivals, carnivals, and PTO fundraisers",
     points: [
@@ -76,7 +76,7 @@ const kinds = [
   {
     icon: "🙋",
     title: "Volunteer events",
-    summary: "Sign-ups, reminders, and check-in",
+    summary: "Concessions, field day, book fairs, and school parking",
     href: audiences.volunteers.path,
     examples: "Concessions, field day, book fairs, and school parking",
     points: [
@@ -88,7 +88,7 @@ const kinds = [
   {
     icon: "🏫",
     title: "Family visitor days",
-    summary: "Parents register ahead and check in at the door",
+    summary: "Family lunches, class parties, open houses, and award days",
     href: audiences.parents.path,
     examples: "Family lunches, class parties, open houses, performances, and award days",
     points: [
@@ -100,7 +100,7 @@ const kinds = [
   {
     icon: ADMINISTRATORS_PAGE.icon,
     title: "For administrators",
-    summary: "Every school event in one place",
+    summary: "Contests, fairs, conferences, and visits across your campus",
     href: ADMINISTRATORS_PAGE.path,
     examples: "Reliable events with less strain on your staff",
     points: [
