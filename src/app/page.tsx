@@ -28,6 +28,7 @@ const kinds = [
   {
     icon: CONFERENCES_PAGE.icon,
     title: "Parent-teacher conferences",
+    summary: "Families book their own meeting time",
     href: CONFERENCES_PAGE.path,
     examples: "Fall and spring conferences, in person or on video",
     points: [
@@ -39,6 +40,7 @@ const kinds = [
   {
     icon: "🎺",
     title: "Band contests",
+    summary: "From registration to the last band through the gate",
     href: audiences.bands.path,
     examples: "Marching invitationals, jazz festivals, and solo & ensemble",
     points: [
@@ -50,6 +52,7 @@ const kinds = [
   {
     icon: "👥",
     title: "Choir & group festivals",
+    summary: "Groups move through your rooms on time",
     href: audiences.groups.path,
     examples: "Choir and orchestra festivals, theater, UIL academics, and speech & debate",
     points: [
@@ -61,6 +64,7 @@ const kinds = [
   {
     icon: "🎪",
     title: "School fairs & fundraisers",
+    summary: "Booths, partners, and a page of what's there",
     href: audiences.fairs.path,
     examples: "Fall festivals, carnivals, and PTO fundraisers",
     points: [
@@ -72,6 +76,7 @@ const kinds = [
   {
     icon: "🙋",
     title: "Volunteer events",
+    summary: "Sign-ups, reminders, and check-in",
     href: audiences.volunteers.path,
     examples: "Concessions, field day, book fairs, and school parking",
     points: [
@@ -83,6 +88,7 @@ const kinds = [
   {
     icon: "🏫",
     title: "Family visitor days",
+    summary: "Parents register ahead and check in at the door",
     href: audiences.parents.path,
     examples: "Family lunches, class parties, open houses, performances, and award days",
     points: [
@@ -94,6 +100,7 @@ const kinds = [
   {
     icon: ADMINISTRATORS_PAGE.icon,
     title: "For administrators",
+    summary: "Every school event in one place",
     href: ADMINISTRATORS_PAGE.path,
     examples: "Reliable events with less strain on your staff",
     points: [
@@ -112,8 +119,8 @@ const heroScreens = [
   { src: "/screens/parent-door-search.webp", alt: "Door check-in on a phone for a family visitor day: a search, the family's children, and a Check in button for each adult." },
 ];
 
-// Each event-type card in the sideways row: most of a phone screen, about a third of a wide one.
-const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%] lg:w-auto";
+// Each event-type card in the sideways row (phones and tablets): most of a phone screen.
+const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%]";
 
 const different = [
   { title: "Organized", body: "Everything for your event is on one page." },
@@ -335,7 +342,29 @@ export default async function Home() {
             <p className="mt-3 max-w-2xl leading-7 text-muted">
               Choose your kind of event, and {brand.name} gives you the tools it needs.
             </p>
-            <CardCarousel label="Kinds of school event" itemName="event types" grid>
+            {/* Wide screens: compact tiles, all at once. The details are on each event's own page. */}
+            <ul className="mt-8 hidden gap-4 lg:grid lg:grid-cols-4">
+              {kinds.map((k) => (
+                <li key={k.title}>
+                  <Link
+                    href={k.href}
+                    className="group flex h-full flex-col rounded-lg border border-border bg-background p-5 transition hover:border-brand"
+                  >
+                    <span aria-hidden className="text-2xl">
+                      {k.icon}
+                    </span>
+                    <span className="mt-2 font-semibold">{k.title}</span>
+                    <span className="mt-1 text-sm leading-6 text-muted">{k.summary}</span>
+                    <span className="mt-auto pt-3 text-sm font-medium text-brand group-hover:underline">
+                      More<span aria-hidden> →</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {/* Phones and tablets: the swipeable row with each event's highlights. */}
+            <div className="lg:hidden">
+            <CardCarousel label="Kinds of school event" itemName="event types">
               {kinds.map((k) => (
                 <li key={k.title} className={`${carouselCard} flex flex-col rounded-lg border border-border bg-background p-6 sm:p-8`}>
                   <span aria-hidden className="text-3xl">
@@ -360,6 +389,7 @@ export default async function Home() {
                 </li>
               ))}
             </CardCarousel>
+            </div>
           </div>
         </section>
 
