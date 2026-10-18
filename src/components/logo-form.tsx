@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { prepareLogoUpload, saveLogo } from "@/app/dashboard/logo-actions";
 import { Button } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
+import { uploadToSignedUrl } from "@/lib/signed-upload";
 
 const TYPES = ["image/png", "image/jpeg"];
 const MAX = 2 * 1024 * 1024;
@@ -22,14 +22,11 @@ export function LogoForm({ eventId, logo }: { eventId: string; logo: string | nu
     if (file.size > MAX) return setError("That image is over 2 MB. Try a smaller one.");
     setBusy("Uploading…");
     const ticket = await prepareLogoUpload(eventId, { contentType: file.type, size: file.size });
-    if (ticket.error || !ticket.path || !ticket.token) {
+    if (ticket.error || !ticket.path || !ticket.url) {
       setBusy(null);
       return setError(ticket.error ?? "We couldn't start the upload. Please try again.");
     }
-    const { error: upErr } = await createClient()
-      .storage.from("org-logos")
-      .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type });
-    if (upErr) {
+    if (!(await uploadToSignedUrl(ticket.url, file))) {
       setBusy(null);
       return setError("The upload didn't go through. Check your connection and try again.");
     }

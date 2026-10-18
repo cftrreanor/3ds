@@ -22,7 +22,7 @@ async function hostAccount(eventId: string) {
 export async function prepareLogoUpload(
   eventId: string,
   file: { contentType: string; size: number },
-): Promise<{ error?: string; path?: string; token?: string }> {
+): Promise<{ error?: string; path?: string; url?: string }> {
   await requireUser();
   if (!(LOGO_TYPES as readonly string[]).includes(file.contentType)) return { error: "Please choose a PNG or JPG image." };
   if (file.size < 1 || file.size > MAX_LOGO_BYTES) return { error: "That image is over 2 MB. Try a smaller one." };
@@ -34,7 +34,7 @@ export async function prepareLogoUpload(
     console.error("createSignedUploadUrl failed", error);
     return { error: "We couldn't start the upload. Please try again." };
   }
-  return { path, token: data.token };
+  return { path, url: data.signedUrl };
 }
 
 /** Step 2: use the uploaded image (or, with null, remove the logo). The old image is deleted. */
