@@ -85,6 +85,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
       status: b ? status : null,
       booking: b
         ? {
+            id: b.id,
             child: b.child_name,
             parents: b.parents.map((p) => ({
               name: p.name,

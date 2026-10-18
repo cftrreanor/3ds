@@ -28,6 +28,7 @@ export type MeetingRow =
       /** On the day: this meeting is happening now, is up next, or is over. */
       status: "now" | "next" | "past" | null;
       booking: {
+        id: string;
         child: string;
         parents: MeetingParent[];
         mode: string | null;
@@ -124,7 +125,9 @@ export function MeetingList({
     ) : r.booking ? (
       <li
         key={r.key}
-        className={`break-inside-avoid rounded-xl border shadow-card print:shadow-none ${
+        // The teacher's emails and calendar invite link straight here ("Mark Met or No-show").
+        id={`meeting-${r.booking.id}`}
+        className={`scroll-mt-52 break-inside-avoid rounded-xl border shadow-card target:ring-2 target:ring-brand print:shadow-none ${
           r.status === "now" ? "border-brand ring-2 ring-brand" : "border-border"
         } ${r.status === "past" ? "bg-background shadow-none" : "bg-surface"}`}
       >

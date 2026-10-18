@@ -176,6 +176,9 @@ export function bookingEmail(
   };
 }
 
+/** This meeting on the teacher's Meetings page (meeting-list.tsx gives each one this id). */
+export const meetingAnchor = (meetings: string, bookingId: string) => `${meetings}#meeting-${bookingId}`;
+
 /** "Liam Patel" → "Liam P.": enough for the teacher's calendar, which others may be able to see. */
 export const shortName = (child: string) => {
   const [first, ...rest] = child.trim().split(/\s+/);
@@ -187,6 +190,7 @@ export const shortName = (child: string) => {
 function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teacher: Teacher, meetings: string): IcsEvent {
   const place = meetingPlace(b, event, s, teacher);
   const who = `${shortName(b.child_name)}'s family`;
+  const mark = meetingAnchor(meetings, b.id);
   return {
     uid: `conference-${b.id}-teacher@fieldcommandevents.com`,
     timezone: event.timezone,
@@ -197,10 +201,9 @@ function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings,
     location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : "Video"),
     description: [
       `${who} · ${place.title}`,
-      `After the meeting, mark it Met or No-show on your Meetings page: ${meetings}`,
-      "Notes and details are there too.",
+      `Mark Met or No-show after the meeting: ${mark}`,
     ].join("\n"),
-    url: meetings,
+    url: mark,
     attendee: teacher.email ? { name: teacher.name, email: teacher.email } : undefined,
     // Meetings run back to back: an alarm before each one would be noise.
     alarm: false,
@@ -266,7 +269,7 @@ export function teacherBookingEmail(
         kind === "booked"
           ? `${family} booked a conference with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
           : `${family} changed their conference. The details below are current, and your calendar invite is updated.`,
-        "After the meeting, mark it Met or No-show on your Meetings page so your records are complete.",
+        "After the meeting, use the button below to mark it Met or No-show, so your records are complete.",
       ],
       rows: [
         { title: "When", detail: when },
@@ -274,7 +277,7 @@ export function teacherBookingEmail(
         { title: "Coming", detail: b.parents.map((p) => p.name).join(", ") },
         ...(b.note ? [{ title: "Their note", detail: "They left you a note. It's on your Meetings page." }] : []),
       ],
-      button: { label: "Open your Meetings page", url: meetings },
+      button: { label: "Mark Met or No-show", url: meetingAnchor(meetings, b.id) },
       footer,
     }),
     invite: ics("REQUEST", b.calendar_sequence),
