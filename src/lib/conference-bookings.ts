@@ -195,7 +195,11 @@ function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings,
     end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
     summary: `Conference: ${who}`,
     location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : "Video"),
-    description: [`${who} · ${place.title}`, `Details and notes: ${meetings}`].join("\n"),
+    description: [
+      `${who} · ${place.title}`,
+      `After the meeting, mark it Met or No-show on your Meetings page: ${meetings}`,
+      "Notes and details are there too.",
+    ].join("\n"),
     url: meetings,
     attendee: teacher.email ? { name: teacher.name, email: teacher.email } : undefined,
     // Meetings run back to back: an alarm before each one would be noise.
@@ -262,6 +266,7 @@ export function teacherBookingEmail(
         kind === "booked"
           ? `${family} booked a conference with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
           : `${family} changed their conference. The details below are current, and your calendar invite is updated.`,
+        "After the meeting, mark it Met or No-show on your Meetings page so your records are complete.",
       ],
       rows: [
         { title: "When", detail: when },
