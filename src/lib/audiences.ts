@@ -571,30 +571,53 @@ export const audiences = {
     sections: [
       {
         title: "Parents register ahead",
-        body: "Share one link or QR code. Parents enter their name and email, an optional mobile number, any other adults coming with them, and each child's name, teacher, and grade.",
+        body: "Share one link or QR code. Parents enter their name and email, an optional mobile number, any other adults coming with them, and each child's name, teacher, and grade. There's no account to create and nothing to download.",
         points: [
-          "Register up to eight children in one go",
-          "Each adult is checked in separately at the door",
-          "No account for parents to create, and nothing to download",
+          "Register up to eight children and five other adults in one go, and each adult is checked in separately at the door",
+          "Already have a list of families? Import it from a spreadsheet, and email each family their confirmation if you like",
+          "Download a QR code for flyers, newsletters, and slides",
+          "Close registration by hand, or set a date and time for it to close on its own",
         ],
+        screen: {
+          src: "/screens/parent-register-page.webp",
+          alt: "The parent registration page on a phone with the school's logo: the event, its time and place, and the start of the form.",
+        },
       },
       {
-        title: "A reminder to bring photo ID",
+        title: "Families stay in the loop",
         body: "Parents get a confirmation email with a calendar invite that reminds them to bring a government-issued photo ID, and another reminder the day before.",
-        points: ["A private link lets parents see or cancel their registration"],
+        points: [
+          "A private link lets parents change or cancel their registration, and their calendar invite updates to match",
+          "If a parent registers again with the same email, we email them their link instead of making a second registration",
+          "Your logo and colors are on the pages parents see",
+        ],
+        screen: {
+          src: "/screens/parent-manage-registration.webp",
+          alt: "A parent's own registration page on a phone: the lunch, who's coming, each child, calendar links, and a photo ID reminder.",
+        },
       },
       {
         title: "Check-in at the door",
-        body: "Your team checks off each adult at the door with one tap, on any phone, tablet, or laptop, and sees how many have registered and arrived.",
+        body: "Your team checks off each adult at the door with one tap, on any phone, tablet, or laptop. On the day, a Check in parents button takes them straight to the list.",
         points: [
+          "Search by any adult's or child's name, a teacher, an email, or a phone number",
+          "See how many adults have checked in out of how many registered, updated on its own, for planning seating or food",
+          "Undo a wrong tap, with a confirmation first",
           "Your staff still checks each photo ID in person",
-          "Registered and arrived numbers at a glance, for planning seating or food",
         ],
+        screen: {
+          src: "/screens/parent-door-search.webp",
+          alt: "Door check-in on a phone: a search for a child's name, how many adults are checked in, and a Check in button for each adult.",
+        },
       },
       {
-        title: "Registration on your schedule",
-        body: "Close registration by hand, or set a date and time for it to close on its own.",
-        points: ["Optionally tell families that walk-ins are welcome"],
+        title: "The rest of the day",
+        body: "The same event can take volunteer sign-ups for lunch helpers, greeters, or setup, and share news with families on its public page.",
+        points: [
+          "Volunteers sign up for shifts without making an account, and get a reminder the day before",
+          "Post a banner for a late start or a room change",
+          "Share a campus map or parking notes with everyone",
+        ],
       },
     ],
     steps: [
@@ -630,7 +653,7 @@ export const audiences = {
       },
       {
         q: "Do parents need an account or an app?",
-        a: "No. Parents register from a link or QR code in their phone's web browser, and get a private link to see or cancel their registration.",
+        a: "No. Parents register from a link or QR code in their phone's web browser, and get a private link to see, change, or cancel their registration.",
       },
       {
         q: "Does it check photo IDs?",
@@ -642,7 +665,15 @@ export const audiences = {
       },
       {
         q: "Can walk-ins still come?",
-        a: "That's up to you. You can show a “walk-ins welcome” notice on the registration page, and close registration by hand or at a set date and time.",
+        a: "That's up to you. You can show a “walk-ins welcome” notice on the registration page once registration closes. Walk-ins aren't added to the door list: your staff signs them in through your school's usual visitor process.",
+      },
+      {
+        q: "Can we bring in a list of families we already have?",
+        a: "Yes. Import a spreadsheet with each parent's name and email, and each child's name, teacher, and grade. A mobile number and other adults are optional. You can email each family a confirmation with their private link, or add them without emailing.",
+      },
+      {
+        q: "What if a parent registers twice?",
+        a: "Registering again with the same email doesn't make a second registration. We email that parent their private link, where they can change or cancel what they sent.",
       },
     ],
   },
