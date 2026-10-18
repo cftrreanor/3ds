@@ -115,7 +115,7 @@ export function bookingEmail(
   teacher: Teacher,
   link: string,
   to: BookingParent,
-  /** The teacher canceled it (not the family). */
+  /** The teacher canceled it, or moved the conference to a new day (not the family). */
   byTeacher = false,
 ) {
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
@@ -142,12 +142,20 @@ export function bookingEmail(
     };
   }
 
-  const heading = kind === "confirmation" ? "Your conference is booked" : kind === "changed" ? "Your conference was changed" : "Your conference is tomorrow";
+  const moved = kind === "changed" && byTeacher;
+  const heading =
+    kind === "confirmation"
+      ? "Your conference is booked"
+      : moved
+        ? `${teacher.name} moved your conference to a new day`
+        : kind === "changed"
+          ? "Your conference was changed"
+          : "Your conference is tomorrow";
   const subject =
     kind === "confirmation"
       ? `Booked: your conference with ${teacher.name}, ${when}`
       : kind === "changed"
-        ? `New time: your conference with ${teacher.name}, ${when}`
+        ? `${moved ? "New day" : "New time"}: your conference with ${teacher.name}, ${when}`
         : `Tomorrow: your conference with ${teacher.name}, ${when}`;
   return {
     subject,
@@ -156,8 +164,11 @@ export function bookingEmail(
       paragraphs: [
         kind === "reminder"
           ? `Hi ${first}, a reminder that you're meeting ${teacher.name} about ${b.child_name} tomorrow (${event.name}).`
-          : `Hi ${first}, you're booked to meet ${teacher.name} about ${b.child_name} (${event.name}).`,
-        ...(kind !== "reminder" ? ["A calendar invite is attached, so it's on your calendar with the details."] : []),
+          : moved
+            ? `Hi ${first}, ${teacher.name} moved ${event.name} to a new day. Your meeting about ${b.child_name} is at the same time of day, on the day below.`
+            : `Hi ${first}, you're booked to meet ${teacher.name} about ${b.child_name} (${event.name}).`,
+        ...(moved ? ["If the new day doesn't work for you, use the button below to pick another time or cancel."] : []),
+        ...(kind !== "reminder" ? [moved ? "An updated calendar invite is attached, so your calendar shows the new day." : "A calendar invite is attached, so it's on your calendar with the details."] : []),
       ],
       rows: [
         { title: "When", detail: when },
@@ -222,7 +233,7 @@ export function teacherBookingEmail(
   teacher: Teacher,
   /** Their Meetings page. */
   meetings: string,
-  /** The teacher canceled it themselves. */
+  /** The teacher canceled it, or moved the conference to a new day, themselves. */
   byTeacher = false,
 ) {
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
@@ -234,7 +245,7 @@ export function teacherBookingEmail(
     kind === "booked"
       ? `New conference booked: ${when}`
       : kind === "changed"
-        ? `Conference changed: ${when}`
+        ? `${byTeacher ? "Conference moved" : "Conference changed"}: ${when}`
         : byTeacher
           ? `You canceled a conference: ${when}`
           : `Canceled conference: ${when}`;
@@ -264,11 +275,13 @@ export function teacherBookingEmail(
   return {
     subject,
     ...emailLayout({
-      heading: kind === "booked" ? "A family booked a conference" : "A family changed their conference",
+      heading: kind === "booked" ? "A family booked a conference" : byTeacher ? "A conference moved to your new day" : "A family changed their conference",
       paragraphs: [
         kind === "booked"
           ? `${family} booked a conference with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
-          : `${family} changed their conference. The details below are current, and your calendar invite is updated.`,
+          : byTeacher
+            ? `You moved ${event.name} to a new day, so ${family}'s meeting moved with it, at the same time of day. We emailed the family, and your calendar invite is updated.`
+            : `${family} changed their conference. The details below are current, and your calendar invite is updated.`,
         "After the meeting, use the button below to mark it Met or No-show, so your records are complete.",
       ],
       rows: [

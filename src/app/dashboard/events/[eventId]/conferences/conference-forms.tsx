@@ -95,6 +95,8 @@ type TimesProps = {
   /** The conference's hours, "HH:MM" in the event's time zone. */
   start: string;
   end: string;
+  /** How many meeting times families have booked. */
+  booked: number;
 };
 
 /** Step 1: how long each meeting is, a gap between them, and breaks, with the meetings they make. */
@@ -121,6 +123,7 @@ function TimesForm({
   date,
   start,
   end,
+  booked,
   editing,
   setEditing,
   onCancel,
@@ -165,6 +168,12 @@ function TimesForm({
           <Field label="Last meeting ends by">
             <Input type="time" name="endTime" required value={to} onChange={(e) => setTo(e.target.value)} />
           </Field>
+          {booked > 0 && day !== date && (
+            <p className="text-sm text-muted sm:col-span-3">
+              {booked === 1 ? "The booked meeting moves" : `All ${booked} booked meetings move`} to this day at the same time, and we email
+              each family an updated calendar invite with a link to pick another time or cancel.
+            </p>
+          )}
         </div>
       ) : (
         <p className="rounded-md bg-background px-3 py-2 text-sm">

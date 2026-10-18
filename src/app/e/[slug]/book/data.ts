@@ -1,7 +1,10 @@
 import "server-only";
-import { BOOKING_COLUMNS, type Booking, type BookingEvent, type Teacher } from "@/lib/conference-bookings";
+import { BOOKING_COLUMNS, bookingEmail, bookingLink, emailTeacher, type Booking, type BookingEvent, type Teacher } from "@/lib/conference-bookings";
 import { DEFAULT_SETTINGS, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
+import { getOrigin } from "@/lib/data";
+import { pause, sendEmail } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/server";
+import { utcToZonedDate } from "@/lib/time";
 
 export type ConferenceEvent = BookingEvent & {
   id: string;
@@ -46,4 +49,36 @@ export async function loadBooking(token: string) {
     .eq("access_token", token)
     .maybeSingle();
   return data as (Booking & { event_id: string }) | null;
+}
+
+/**
+ * After the teacher changes the conference's day, the database moves each
+ * booking to the new day (20261210000000_conference_bookings_follow_day.sql).
+ * Each family, and the teacher, gets an updated calendar invite. Returns how
+ * many meetings moved and whether every email went.
+ */
+export async function emailMovedMeetings(eventId: string) {
+  const conf = await loadConference({ id: eventId });
+  if (!conf) return { moved: 0, allSent: true };
+  const { data } = await createAdminClient()
+    .from("conference_bookings")
+    .select(`${BOOKING_COLUMNS}, access_token`)
+    .eq("event_id", eventId)
+    .order("starts_at");
+  const bookings = ((data ?? []) as (Booking & { access_token: string })[]).filter(
+    (b) => utcToZonedDate(b.starts_at, conf.event.timezone) === conf.event.starts_on,
+  );
+  const origin = await getOrigin();
+  let allSent = true;
+  for (const [i, b] of bookings.entries()) {
+    if (i) await pause();
+    const link = bookingLink(origin, conf.event.slug, b.access_token);
+    for (const p of b.parents) {
+      const message = bookingEmail("changed", b, conf.event, conf.settings, conf.teacher, link, p, true);
+      allSent = (await sendEmail({ to: p.email, ...message, replyTo: conf.teacher.email ?? undefined })) && allSent;
+      await pause();
+    }
+    await emailTeacher("changed", b, conf, origin, true);
+  }
+  return { moved: bookings.length, allSent };
 }
