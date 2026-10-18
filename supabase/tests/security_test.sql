@@ -4969,21 +4969,23 @@ begin
   insert into public.appointment_services (event_id, name, minutes)
   values ('10000000-0000-0000-0000-0000000000a1', 'Tax review', 30),
          ('10000000-0000-0000-0000-0000000000a1', 'Full prep', 60);
-  -- Free during the pilot: no plan needed.
-  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a1';
+  -- Set up, but publishing needs a plan.
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a1';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'business accounts need an active plan to publish';
+  ok := false;
+  begin
+    update public.organizations set subscription_status = 'active' where id = org.id;
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a business can''t give itself a plan';
 
   insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address, created_by)
   values ('10000000-0000-0000-0000-0000000000a2', org.id, 'Spring Hours', 'bea-spring', 'appointments', today, today + 30,
           now(), now() + interval '30 days', '', auth.uid());
-  insert into public.appointment_settings (event_id, weekly_hours, hours_saved_at, meeting_mode, place)
-  values ('10000000-0000-0000-0000-0000000000a2', '[{"day": 1, "start": "09:00", "end": "10:00"}]', now(), 'in_person', 'Suite 4');
-  insert into public.appointment_services (event_id, name, minutes) values ('10000000-0000-0000-0000-0000000000a2', 'Chat', 15);
-  ok := false;
-  begin
-    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a2';
-  exception when sqlstate 'P0001' then ok := true;
-  end;
-  assert ok, 'one published appointments page at a time per account';
 
   ok := false;
   begin
@@ -4994,6 +4996,13 @@ begin
 end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000a2';
+-- With a plan (set by us), it publishes.
+update public.organizations set subscription_status = 'active'
+ where id = (select organization_id from public.events where id = '10000000-0000-0000-0000-0000000000a1');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"biz@example.com"}';
+update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a1';
+reset role;
 -- Fixed ids for the services, to refer to below.
 update public.appointment_services set id = '20000000-0000-0000-0000-0000000000a1' where name = 'Tax review';
 update public.appointment_services set id = '20000000-0000-0000-0000-0000000000a2' where name = 'Full prep';

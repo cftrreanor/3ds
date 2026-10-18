@@ -3,8 +3,9 @@
 -- takes appointments). One person takes every appointment. Clients book a
 -- time for a service, in person or on video, without an account.
 --
---   * Free business accounts: a business signs up on its own (like a free
---     teacher account) and hosts appointments only.
+--   * Business accounts: a business signs up on its own (no invitation) and
+--     hosts appointments only. Setting up is free; publishing needs an
+--     active plan, like every other kind of event except conferences.
 --   * appointment_settings: when you're open (weekly hours, specific dates,
 --     days closed, and daily breaks), how often appointments can start, the
 --     gap between them, booking rules (notice and how far ahead), where you
@@ -20,8 +21,8 @@
 --     app's server (clients aren't signed in).
 --   * purge_appointment_bookings(): bookings are deleted once they're older
 --     than the business's retention period (the daily job).
---   * Publishing: free during the pilot, one published at a time per
---     account, once hours, a service and the meeting place are set up.
+--   * Publishing: an active plan, once hours, a service and the meeting
+--     place are set up.
 --   * Appointments stay appointments (no switching kinds).
 --
 -- Times are "HH:MM" in the event's time zone. Days of the week are 0
@@ -77,7 +78,7 @@ begin
   values (org.id, me, 'owner');
   -- Their card in the admin pipeline.
   insert into pilot_requests (name, email, organization, status, organization_id, notes)
-  values (v_name, public.current_email()::text, v_business, 'new', org.id, 'Signed up for a free business account (appointments).');
+  values (v_name, public.current_email()::text, v_business, 'new', org.id, 'Signed up for a business account (appointments).');
   return org;
 end;
 $$;
@@ -92,7 +93,7 @@ as $$
 begin
   if coalesce(new.event_type::text, '') <> 'appointments'
      and exists (select 1 from organizations where id = new.organization_id and account_kind = 'business') then
-    raise exception 'Free business accounts host appointments. Request a pilot for other kinds of events.'
+    raise exception 'Business accounts host appointments. Request a pilot for other kinds of events.'
       using errcode = '42501';
   end if;
   return new;
@@ -661,22 +662,9 @@ $$;
 revoke execute on function public.appointments_not_ready(uuid) from public, anon;
 grant execute on function public.appointments_not_ready(uuid) to authenticated;
 
--- The account's other published appointments, if any. Hosts of the event only.
-create function public.other_published_appointments(ev uuid)
-returns text
-language sql stable security definer set search_path = public
-as $$
-  select o.name from events e
-    join events o on o.organization_id = e.organization_id
-   where e.id = ev and public.is_event_admin(ev)
-     and o.event_type::text = 'appointments' and o.status = 'published' and o.id <> ev
-   limit 1;
-$$;
-revoke execute on function public.other_published_appointments(uuid) from public, anon;
-grant execute on function public.other_published_appointments(uuid) to authenticated;
-
--- Conferences and appointments are free (one published at a time per
--- account, set up first); everything else needs an active plan, as before.
+-- Conferences are free (one published at a time per account, set up first).
+-- Appointments need to be set up first, then, like everything else, an
+-- active plan.
 create or replace function public.events_publish_needs_plan()
 returns trigger
 language plpgsql
@@ -699,17 +687,8 @@ begin
         raise exception 'You already have a published conference: %. Unpublish it first, then publish this one.', other
           using errcode = 'P0001';
       end if;
-    elsif new.event_type::text = 'appointments' then
-      missing_step := public.appointments_not_ready(new.id);
-      if missing_step is not null then
-        raise exception '%', missing_step using errcode = 'P0001';
-      end if;
-      perform pg_advisory_xact_lock(hashtext('appointments-publish:' || new.organization_id::text));
-      other := public.other_published_appointments(new.id);
-      if other is not null then
-        raise exception 'You already have published appointments: %. Unpublish them first, then publish these.', other
-          using errcode = 'P0001';
-      end if;
+    elsif new.event_type::text = 'appointments' and public.appointments_not_ready(new.id) is not null then
+      raise exception '%', public.appointments_not_ready(new.id) using errcode = 'P0001';
     elsif not public.org_has_active_plan(new.organization_id) then
       raise exception 'Publishing needs an active Field Command Events plan' using errcode = '42501';
     end if;
