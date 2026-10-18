@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
-import { infoBox } from "@/components/audience-page";
+import { FeatureSections, infoBox, SupportSection } from "@/components/audience-page";
 import { FaqList } from "@/components/faq-list";
 import { HowItWorks, type HowStep } from "@/components/how-it-works";
 import { SiteFooter } from "@/components/site-footer";
-import { CONFERENCES_PAGE } from "@/lib/audiences";
+import { CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 
 export const metadata: Metadata = {
@@ -39,11 +39,44 @@ const steps: HowStep[] = [
   },
 ];
 
-const points = [
-  "Each parent or guardian gets a confirmation and a calendar invite",
-  "A reminder the day before",
-  "Families change or cancel from their own link, and the time opens up for someone else",
-  "Up to four parents or guardians on one booking",
+const sections: Audience["sections"] = [
+  {
+    title: "Set up in minutes",
+    body: "Pick your day and hours, how long each meeting runs, and the minutes between meetings. Your meeting times are worked out for you.",
+    points: [
+      "Meetings of 10 to 60 minutes, with up to 15 minutes between them",
+      "Add up to eight breaks, like lunch or a planning period, each with its own label",
+      "Meet in person, on video, or let each family choose, with your room, a video link, or both",
+      "Using one video link for everyone? You confirm it has a waiting room first, so families don't walk in on each other",
+    ],
+    screen: {
+      src: "/screens/conference-where-you-meet.webp",
+      alt: "Conference setup on a phone: in person, on video, or the parent's choice, then your school and room.",
+    },
+  },
+  {
+    title: "Families are taken care of",
+    body: "Families book from your link without an account. Only open times are shown, so no one is double-booked.",
+    points: [
+      "Up to four parents or guardians on one booking, and each one gets the confirmation and a calendar invite",
+      "An optional note to you, like a question they'd like to cover",
+      "A reminder the day before, and a private link to change or cancel. A new time updates their calendar invite",
+      "Email subjects never include a child's name",
+    ],
+  },
+  {
+    title: "Your conference day",
+    body: "Your Meetings page shows who's now and who's next, with each family's note, on your phone or laptop.",
+    points: [
+      "Search for any family, and print a one-page summary or the full list",
+      "Mark each meeting Met or No-show once it starts, and undo it if you need to",
+      "Cancel a meeting, and the family is emailed",
+    ],
+    screen: {
+      src: "/screens/conference-meetings-day.webp",
+      alt: "A teacher's Meetings page on a phone on conference day: the family meeting now with their note, Met and No-show buttons, and the family up next.",
+    },
+  },
 ];
 
 const privacy = [
@@ -69,6 +102,22 @@ const faqs = [
   {
     q: "Can more than one parent come?",
     a: "Yes. Up to four parents or guardians can be on one booking, and each one gets the confirmation and calendar invite.",
+  },
+  {
+    q: "Can a family with two children in my class book both?",
+    a: "Yes. Each child has their own booking, so the family books two times. Each booking has its own link to change or cancel.",
+  },
+  {
+    q: "Can I print my schedule?",
+    a: "Yes. Your Meetings page prints a one-page summary or the full list.",
+  },
+  {
+    q: "What if a family doesn't show?",
+    a: "Mark the meeting No-show on your Meetings page once it starts. If they arrive late, undo it.",
+  },
+  {
+    q: "Do I get an email for each booking?",
+    a: "No. Every booking shows up on your Meetings page, so your inbox stays quiet. Families get the emails: a confirmation, a calendar invite, and a reminder the day before.",
   },
 ];
 
@@ -116,21 +165,9 @@ export default function ConferencesPage() {
 
         <HowItWorks steps={steps} className="" />
 
-        <section className="mx-auto grid max-w-6xl gap-4 px-4 py-14 sm:px-6 md:grid-cols-[2fr_3fr] md:gap-10">
-          <h2 className="text-2xl font-medium leading-tight tracking-tight sm:text-3xl">Families are taken care of</h2>
-          <ul className="space-y-2 leading-7">
-            {points.map((p) => (
-              <li key={p} className="flex gap-2">
-                <span aria-hidden className="text-success">
-                  ✓
-                </span>
-                <span>{p}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <FeatureSections sections={sections} />
 
-        <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6">
           <div className={`rounded-lg p-8 sm:p-12 ${infoBox}`}>
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-4xl">Who sees what</h2>
             <ul className="mt-6 grid max-w-5xl gap-4 leading-7 sm:grid-cols-2">
@@ -142,6 +179,8 @@ export default function ConferencesPage() {
             </ul>
           </div>
         </section>
+
+        <SupportSection />
 
         <section id="faq" className="scroll-mt-20 border-t border-border">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
