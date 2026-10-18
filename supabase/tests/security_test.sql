@@ -4551,4 +4551,67 @@ do $$ begin
 end $$;
 set request.jwt.claims = '';
 
+-- ---------------------------------------------------------------------------
+-- Account logo for volunteer badges (20261205000000_org_logo.sql): only the
+-- account's hosts set it, only into the account's own folder, and nobody
+-- writes the column directly.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+select public.set_org_logo(:'org_id', :'org_id' || '/logo.png') as first_old \gset
+do $$ begin
+  assert (select logo_path from public.organizations where id = (select organization_id from public.organization_members
+            where user_id = '00000000-0000-0000-0000-000000000001' limit 1)) like '%/logo.png', 'a host sets the account logo';
+end $$;
+select public.set_org_logo(:'org_id', :'org_id' || '/new.png') as old_path \gset
+\if :{?old_path}
+\else
+  \echo 'FAIL: no previous logo path returned'
+  select 1/0;
+\endif
+do $$ begin
+  begin
+    perform public.set_org_logo((select organization_id from public.organization_members
+                                  where user_id = '00000000-0000-0000-0000-000000000001' limit 1), '00000000-0000-0000-0000-00000000dead/x.png');
+    raise exception 'FAIL: a logo was set from another account''s folder';
+  exception when invalid_parameter_value then null;
+  end;
+  begin
+    update public.organizations set logo_path = null;
+    raise exception 'FAIL: the logo column was written directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+-- A Volunteer Lead, a Section Lead and a stranger can't change it.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  begin
+    perform public.set_org_logo((select organization_id from public.events where slug = 'future'), null);
+    raise exception 'FAIL: a Volunteer Lead changed the account logo';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.set_org_logo((select organization_id from public.events where slug = 'future'), null);
+    raise exception 'FAIL: a stranger changed the account logo';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set role anon;
+set request.jwt.claims = '';
+do $$ begin
+  begin
+    perform public.set_org_logo((select id from public.organizations limit 1), null);
+    raise exception 'FAIL: a visitor changed an account logo';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select logo_path from public.organizations where id = (select organization_id from public.events where slug = 'future')) like '%/new.png',
+         'the logo is unchanged by people who can''t set it';
+end $$;
+
 \echo 'All database security tests passed.'

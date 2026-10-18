@@ -194,6 +194,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 >
                   Check-in
                 </Link>
+                <Link
+                  href={`/dashboard/events/${eventId}/volunteering/badges`}
+                  className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                >
+                  Print volunteer badges
+                </Link>
               </div>
             </div>
             {event.status !== "published" ? (
