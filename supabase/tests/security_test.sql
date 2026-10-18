@@ -4878,4 +4878,312 @@ do $$ begin
          'pending registrations are untouched by browsers';
 end $$;
 
+
+-- ---------------------------------------------------------------------------
+-- Appointments (20261211000000_appointments.sql): free business accounts,
+-- hours, services, open times, bookings only the host sees, publishing
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('0000000b-0000-0000-0000-000000000001', 'biz@example.com', '{}'),
+  ('0000000b-0000-0000-0000-000000000002', 'bizpartner@example.com', '{}');
+set role anon;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.create_business_account('Anon', 'Anon Co', 'America/Chicago');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a business account needs a sign-in';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"biz@example.com"}';
+do $$
+declare
+  org public.organizations;
+  ok boolean := false;
+  today date := (now() at time zone 'America/Chicago')::date;
+begin
+  begin
+    perform public.create_business_account('Bea Baker', '', 'America/Chicago');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a business account needs a business name';
+  org := public.create_business_account('Bea Baker', 'Bea''s Tax Help', 'America/Chicago');
+  assert org.account_kind = 'business' and org.name = 'Bea''s Tax Help', 'a business signs up without an invitation';
+  assert exists (select 1 from public.organization_members where organization_id = org.id and user_id = auth.uid() and role = 'owner'),
+         'they own the account';
+  ok := false;
+  begin
+    perform public.create_business_account('Bea Baker', 'Second Co', 'America/Chicago');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'one account per person';
+
+  ok := false;
+  begin
+    insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+    values (org.id, 'Fun Run', 'bea-run', 'volunteer', today + 5, today + 5, now() + interval '5 days', now() + interval '5 days 3 hours', '1 Main St');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'business accounts can only create appointments';
+
+  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address, created_by)
+  values ('10000000-0000-0000-0000-0000000000a1', org.id, 'Tax Help', 'bea-tax', 'appointments', today, today + 30,
+          now(), now() + interval '30 days', '', auth.uid());
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a1';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'appointments publish only once they''re set up';
+
+  -- Open every day 9 to 11, with a break at 10.
+  insert into public.appointment_settings (event_id, weekly_hours, breaks, start_every_minutes, gap_minutes, min_notice_minutes,
+                                           max_days_ahead, hours_saved_at, meeting_mode, place, questions)
+  values ('10000000-0000-0000-0000-0000000000a1',
+          (select jsonb_agg(jsonb_build_object('day', d, 'start', '09:00', 'end', '11:00')) from generate_series(0, 6) d),
+          '[{"start": "10:00", "minutes": 30, "label": "Coffee"}]', 30, 0, 720, 60, now(), 'in_person', 'Suite 4, 1 Main St',
+          '[{"label": "What do you need help with?", "required": true}, {"label": "Anything else?", "required": false}]');
+  ok := false;
+  begin
+    update public.appointment_settings set weekly_hours = '[{"day": 7, "start": "09:00", "end": "11:00"}]'
+     where event_id = '10000000-0000-0000-0000-0000000000a1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'weekly hours need a real day';
+  ok := false;
+  begin
+    update public.appointment_settings set dates = '[{"date": "2026-11-02", "start": "12:00", "end": "09:00"}]'
+     where event_id = '10000000-0000-0000-0000-0000000000a1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'a date''s hours have to end after they start';
+
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a1';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'appointments need a service before publishing';
+  insert into public.appointment_services (event_id, name, minutes)
+  values ('10000000-0000-0000-0000-0000000000a1', 'Tax review', 30),
+         ('10000000-0000-0000-0000-0000000000a1', 'Full prep', 60);
+  -- Free during the pilot: no plan needed.
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a1';
+
+  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address, created_by)
+  values ('10000000-0000-0000-0000-0000000000a2', org.id, 'Spring Hours', 'bea-spring', 'appointments', today, today + 30,
+          now(), now() + interval '30 days', '', auth.uid());
+  insert into public.appointment_settings (event_id, weekly_hours, hours_saved_at, meeting_mode, place)
+  values ('10000000-0000-0000-0000-0000000000a2', '[{"day": 1, "start": "09:00", "end": "10:00"}]', now(), 'in_person', 'Suite 4');
+  insert into public.appointment_services (event_id, name, minutes) values ('10000000-0000-0000-0000-0000000000a2', 'Chat', 15);
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a2';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'one published appointments page at a time per account';
+
+  ok := false;
+  begin
+    update public.events set event_type = 'volunteer' where id = '10000000-0000-0000-0000-0000000000a2';
+  exception when sqlstate 'P0001' or insufficient_privilege then ok := true;
+  end;
+  assert ok, 'appointments stay appointments';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000a2';
+-- Fixed ids for the services, to refer to below.
+update public.appointment_services set id = '20000000-0000-0000-0000-0000000000a1' where name = 'Tax review';
+update public.appointment_services set id = '20000000-0000-0000-0000-0000000000a2' where name = 'Full prep';
+
+-- Open times, as anyone sees them.
+set role anon;
+do $$
+declare
+  d date := (now() at time zone 'America/Chicago')::date + 7;
+  n integer;
+begin
+  select count(*) into n from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1', d, d);
+  assert n = 3, format('9:00, 9:30 and 10:30 (not during the break): got %s', n);
+  select count(*) into n from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a2', d, d);
+  assert n = 1, format('an hour fits only at 9:00 (it would run into the break later): got %s', n);
+  select count(*) into n from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1',
+    (now() at time zone 'America/Chicago')::date, (now() at time zone 'America/Chicago')::date);
+  assert n <= 3, 'today''s times respect the 12 hours'' notice';
+  select count(*) into n from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1', d + 40, d + 40);
+  assert n = 0, 'nothing after the last day';
+end $$;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform 1 from public.appointment_bookings;
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'the public can''t read bookings';
+  ok := false;
+  begin
+    perform 1 from public.appointment_settings;
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'or settings (the video link)';
+end $$;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.book_appointment('10000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-0000000000a1',
+      now() + interval '7 days', 'X Y', 'x@example.com', null, '["a"]', null, null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'only the server books';
+end $$;
+reset role;
+
+-- Booking, as the server (clients aren't signed in).
+set role service_role;
+do $$
+declare
+  d   date := (now() at time zone 'America/Chicago')::date + 7;
+  t9  timestamptz := (d + time '09:00') at time zone 'America/Chicago';
+  t930 timestamptz := (d + time '09:30') at time zone 'America/Chicago';
+  tok uuid;
+  ok  boolean := false;
+begin
+  begin
+    perform public.book_appointment('10000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-0000000000a1',
+      t9, 'Cal Client', 'cal@example.com', null, '[]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'required questions have to be answered';
+  ok := false;
+  begin
+    perform public.book_appointment('10000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-0000000000a1',
+      t9 + interval '5 minutes', 'Cal Client', 'cal@example.com', null, '["Taxes"]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'only real start times can be booked';
+  ok := false;
+  begin
+    perform public.book_appointment('10000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-0000000000a1',
+      (d + time '10:00') at time zone 'America/Chicago', 'Cal Client', 'cal@example.com', null, '["Taxes"]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'breaks can''t be booked';
+
+  tok := public.book_appointment('10000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-0000000000a2',
+    t9, ' Cal Client ', ' Cal@Example.com ', '5125550101', '["Taxes", ""]', 'video', 'See you');
+  assert (select client_name = 'Cal Client' and email = 'cal@example.com' and meeting_mode = 'in_person'
+                 and ends_at = t9 + interval '60 minutes' and service_name = 'Full prep'
+                 and answers = '[{"label": "What do you need help with?", "answer": "Taxes"}]'::jsonb
+            from public.appointment_bookings where access_token = tok),
+         'a booking keeps the service, its length, and the answers given';
+  ok := false;
+  begin
+    perform public.book_appointment('10000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-0000000000a1',
+      t930, 'Dee Client', 'dee@example.com', null, '["Books"]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'an appointment can''t overlap another';
+  assert (select count(*) from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1', d, d)) = 1,
+         'booked times leave the open list (only 10:30 is left)';
+
+  -- After a 9:00–10:00 appointment, a 15-minute gap leaves 10:30 free; a 45-minute gap doesn't.
+  update public.appointment_settings set gap_minutes = 15 where event_id = '10000000-0000-0000-0000-0000000000a1';
+  assert (select count(*) from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1', d, d)) = 1,
+         'a gap that fits leaves the time open';
+  update public.appointment_settings set gap_minutes = 45 where event_id = '10000000-0000-0000-0000-0000000000a1';
+  assert not exists (select 1 from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1', d, d)),
+         'the gap is kept after an appointment';
+  update public.appointment_settings set gap_minutes = 0 where event_id = '10000000-0000-0000-0000-0000000000a1';
+
+  perform set_config('test.appt_token', tok::text, false);
+  -- The client moves it to the next day. 9:30 would run into the break, so 9:00.
+  ok := false;
+  begin
+    perform public.change_appointment(tok, ((d + 1) + time '09:30') at time zone 'America/Chicago', null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a 60-minute appointment can''t move into the break';
+  perform public.change_appointment(tok, ((d + 1) + time '09:00') at time zone 'America/Chicago', null);
+  assert (select starts_at = ((d + 1) + time '09:00') at time zone 'America/Chicago' and calendar_sequence = 1
+            from public.appointment_bookings where access_token = tok), 'the client can change their time';
+
+  -- A specific date replaces that day's weekly hours; a closed date has none.
+  update public.appointment_settings
+     set dates = jsonb_build_array(jsonb_build_object('date', (d + 2)::text, 'start', '13:00', 'end', '14:00'),
+                                   jsonb_build_object('date', (d + 3)::text, 'closed', true))
+   where event_id = '10000000-0000-0000-0000-0000000000a1';
+  assert (select array_agg(to_char(t at time zone 'America/Chicago', 'HH24:MI') order by t)
+            from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1', d + 2, d + 2) t)
+         = array['13:00', '13:30'], 'a date''s own hours replace the weekly hours';
+  assert not exists (select 1 from public.appointment_open_times('bea-tax', '20000000-0000-0000-0000-0000000000a1', d + 3, d + 3)),
+         'a closed date has no times';
+end $$;
+reset role;
+
+-- Only the person who set them up sees the bookings; another host on the account sees a count.
+insert into public.organization_members (organization_id, user_id, role)
+values ((select organization_id from public.events where id = '10000000-0000-0000-0000-0000000000a1'),
+        '0000000b-0000-0000-0000-000000000002', 'admin');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000002","email":"bizpartner@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  assert not public.is_appointment_host('10000000-0000-0000-0000-0000000000a1'), 'the other host isn''t the appointment host';
+  assert not exists (select 1 from public.appointment_bookings), 'and can''t read the clients';
+  assert public.appointment_upcoming_count('10000000-0000-0000-0000-0000000000a1') = 1, 'but sees how many are booked';
+  delete from public.appointment_bookings;
+  begin
+    perform public.set_appointment_outcome((select id from public.appointment_bookings limit 1), 'met');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'and can''t mark them';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.appointment_bookings), 'strangers see no bookings';
+  assert not exists (select 1 from public.appointment_services), 'or services';
+  assert public.appointment_upcoming_count('10000000-0000-0000-0000-0000000000a1') is null, 'or counts';
+end $$;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"biz@example.com"}';
+do $$
+declare
+  ok boolean := false;
+  b uuid;
+begin
+  assert (select count(*) from public.appointment_bookings) = 1, 'the host reads their bookings';
+  b := (select id from public.appointment_bookings limit 1);
+  begin
+    perform public.set_appointment_outcome(b, 'met');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'Met / No-show waits until the appointment starts';
+end $$;
+reset role;
+update public.appointment_bookings set starts_at = now() - interval '10 minutes', ends_at = now() + interval '50 minutes';
+set role authenticated;
+do $$ begin
+  perform public.set_appointment_outcome((select id from public.appointment_bookings limit 1), 'no_show');
+  assert (select outcome from public.appointment_bookings limit 1) = 'no_show', 'the host marks it once it starts';
+end $$;
+reset role;
+
+-- The client list is kept for the business's retention period, then deleted.
+set role service_role;
+do $$ begin
+  assert public.purge_appointment_bookings() = 0, 'recent bookings are kept';
+  update public.appointment_bookings set starts_at = now() - interval '40 days', ends_at = now() - interval '40 days' + interval '1 hour';
+  assert public.purge_appointment_bookings() = 0, 'kept for a year by default';
+  update public.appointment_settings set retention_days = 30;
+  assert public.purge_appointment_bookings() = 1, 'deleted after the business''s retention period';
+  perform public.cancel_appointment(gen_random_uuid());
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000a1';
+delete from public.organization_members where user_id in ('0000000b-0000-0000-0000-000000000001', '0000000b-0000-0000-0000-000000000002');
+
 \echo 'All database security tests passed.'
