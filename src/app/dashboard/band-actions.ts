@@ -129,7 +129,9 @@ export async function withdrawBand(bandId: string): Promise<ActionState> {
         `${band.band_name} (${band.school_name}) withdrew from ${event.name}.`,
         remove
           ? `Their registration was removed.`
-          : `They're marked withdrawn on your schedule and ${one} list, so you can adjust the schedule if you need to. If this looks like a mistake, contact the director.`,
+          : one === "group"
+            ? `They're marked withdrawn on your group list. Their room times stay on the schedule until you change it. If this looks like a mistake, contact the director.`
+            : `They're marked withdrawn on your schedule and band list, so you can adjust the schedule if you need to. If this looks like a mistake, contact the director.`,
       ],
       button: { label: `See your ${one}s`, url: `${origin}/dashboard/events/${band.event_id}/bands` },
     });
