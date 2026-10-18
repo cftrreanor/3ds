@@ -117,10 +117,12 @@ export type BandRow = {
   contest_day_conflicts: string | null;
   special_needs: string | null;
   created_at: string;
+  /** Withdrawn: by the director, or by the organizer's team on contest day. */
+  scratched_at?: string | null;
 };
 
 export const BAND_COLUMNS =
-  "id, event_id, director_user_id, school_name, band_name, classification, school_address, contact_email, head_director_name, head_director_email, head_director_phone, assistant_directors, student_count, chaperone_count, bus_count, box_truck_count, truck_trailer_count, semi_truck_count, contest_day_conflicts, special_needs, created_at";
+  "id, event_id, director_user_id, school_name, band_name, classification, school_address, contact_email, head_director_name, head_director_email, head_director_phone, assistant_directors, student_count, chaperone_count, bus_count, box_truck_count, truck_trailer_count, semi_truck_count, contest_day_conflicts, special_needs, created_at, scratched_at";
 
 /** Ready position default: lined up this many minutes before performing. Hosts can change it per event. */
 export const DEFAULT_READY_MINUTES = 5;

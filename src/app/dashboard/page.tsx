@@ -115,7 +115,7 @@ function signupLine(type: string | null, n: number) {
 }
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  const { deleted } = await searchParams;
+  const { deleted, withdrawn } = await searchParams;
   const user = await requireUser();
   const supabase = await createClient();
   const [org, { data: orgRows }, { data: staffRows }, { data: bandRows }] = await Promise.all([
@@ -218,6 +218,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       <div className="space-y-4">
         <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Your events</h1>
         {deleted && <SuccessToast message="Event deleted." />}
+        {withdrawn && <SuccessToast message="Registration withdrawn. The organizer has been emailed." />}
         {isAdmin && (
           <Link
             href="/admin"

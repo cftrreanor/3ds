@@ -24,8 +24,17 @@ import { DayStatusBanner } from "@/components/day-status";
 import { EventBannerSlot } from "@/components/event-banner-slot";
 import { dayStatus, groupSteps } from "@/lib/director-day";
 import { ContestDayCard, type ProgressRow } from "./contest-day-card";
+import { WithdrawBandButton } from "./withdraw-band";
+import { withdrawBand } from "@/app/dashboard/band-actions";
+import { eventLogoUrl, loadEventBrand } from "@/lib/event-brand";
 
-export const metadata: Metadata = { title: "Contest" };
+export async function generateMetadata({ params }: PageProps<"/dashboard/bands/[bandId]">): Promise<Metadata> {
+  const { bandId } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase.from("bands").select("band_name, events(name)").eq("id", bandId).maybeSingle();
+  const ev = (data as { band_name: string; events: { name: string } | null } | null)?.events;
+  return { title: ev?.name ?? "Registration" };
+}
 
 const linkClass = "font-medium text-brand underline-offset-4 hover:underline";
 
@@ -127,6 +136,105 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const infoOpen = !contestDay && !groupDay && cookieStore.get(CONTEST_INFO_COOKIE)?.value !== "closed";
   const people = `${band.student_count} ${group ? "participants" : "students"} · ${band.chaperone_count} chaperones`;
 
+  const one = group ? "group" : "band";
+  const withdrawn = Boolean(band.scratched_at);
+  const phase = eventPhase(event, new Date());
+  // Removed outright while registration is open and times aren't posted; marked withdrawn after that.
+  const withdrawRemoves = open && !event.performance_order_published;
+  const { logoPath } = await loadEventBrand(event.slug);
+  const logo = eventLogoUrl(event.slug, logoPath);
+  const contactButton = "inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold text-brand hover:border-brand";
+  const contactButtons = hasContact && (
+    <p className="flex flex-wrap items-center gap-2">
+      <span className="mr-1 text-muted">{contact.name || "Organizer"}</span>
+      {contact.email && (
+        <a href={`mailto:${contact.email}`} className={contactButton}>
+          Email
+        </a>
+      )}
+      {/* No digits on screen; the number only unlocks the day before and on contest day. */}
+      {phone && (
+        <>
+          <a href={`tel:${phone}`} className={contactButton}>
+            Call
+          </a>
+          <a href={`sms:${phone}`} className={contactButton}>
+            Text
+          </a>
+        </>
+      )}
+    </p>
+  );
+
+  const times = group ? (
+    event.performance_order_published && (myRooms ?? []).length > 0 ? (
+      <Card className="mt-6 border-brand">
+        <h2 className="font-semibold">Your schedule</h2>
+        {arrived && (
+          <p className="mt-1 text-sm font-medium text-success">
+            ✓ Checked in at {formatTime(arrived.created_at, event.timezone)}
+          </p>
+        )}
+        <ol className="mt-3 divide-y divide-border">
+          {(myRooms ?? []).map((s) => {
+            const room = roomById.get(s.room_id);
+            const done = tapped(s.room_id);
+            return (
+              <li key={s.room_id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
+                <span className={done ? "text-muted" : undefined}>
+                  <span className="font-semibold">{room?.name ?? "Room"}</span>
+                  {room?.note && <span className="text-sm text-muted"> · {room.note}</span>}
+                  {done && <span className="text-sm font-medium text-success"> · ✓ Done</span>}
+                </span>
+                <span className="tabular-nums">
+                  {event.starts_on !== event.ends_on && `${formatDate(utcToZonedDate(s.starts_at, event.timezone), { year: undefined })}, `}
+                  {formatTime(s.starts_at, event.timezone)}–{formatTime(s.ends_at, event.timezone)}{" "}
+                  {zoneAbbreviation(s.starts_at, event.timezone)}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+        {groupCalendar && (
+          <p className="mt-3 flex flex-wrap items-center gap-x-4 text-sm">
+            <span className="text-muted">Add to calendar:</span>
+            <a href={googleCalendarUrl(groupCalendar)} target="_blank" rel="noreferrer" className={`inline-flex min-h-11 items-center ${linkClass}`}>
+              Google
+            </a>
+            <a href={`/dashboard/bands/${bandId}/calendar?round=rooms`} className={`inline-flex min-h-11 items-center ${linkClass}`}>
+              Apple / Outlook
+            </a>
+          </p>
+        )}
+      </Card>
+    ) : null
+  ) : (
+    <>
+      {event.finalists_revealed && finalsSlot && (
+        <TimesCard
+          title={`Finals · #${finalsSlot.slot_number}`}
+          icon="🏆"
+          times={finalsSlot}
+          event={{ ...event, ready_minutes_before: event.finals_ready_minutes_before }}
+          calendar={calendar("finals", finalsSlot)}
+          icsUrl={`/dashboard/bands/${bandId}/calendar?round=finals`}
+          highlight
+        />
+      )}
+      {event.performance_order_published && slot && (
+        <TimesCard
+          title={`${hasFinals ? "Preliminaries" : "Your times"} · #${slot.performance_order} in the order`}
+          times={slot}
+          done={prelimsDone}
+          event={event}
+          calendar={calendar("order", slot)}
+          icsUrl={`/dashboard/bands/${bandId}/calendar`}
+        />
+      )}
+    </>
+  );
+  const timesPosted = group ? event.performance_order_published && (myRooms ?? []).length > 0 : event.performance_order_published && Boolean(slot);
+
   return (
     <div className="mx-auto max-w-2xl">
       {event.status === "published" && (
@@ -148,10 +256,23 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       {saved && <SuccessToast message="Registration updated." />}
 
       <header className="mt-4">
-        <p className="text-sm font-medium text-muted">{formatDateRange(event.starts_on, event.ends_on)}</p>
-        <h1 className="mt-1 text-3xl font-medium tracking-tight sm:text-4xl">{event.name}</h1>
-        <p className="mt-1 text-muted">
-          {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
+        <p className="flex flex-wrap items-center gap-x-2 text-sm">
+          <span aria-hidden="true">{group ? "👥" : "🎺"}</span>
+          <span className="font-semibold">{band.band_name}</span>
+          <span className="text-muted">· {band.school_name}</span>
+          {withdrawn && <Badge tone="off">Withdrawn</Badge>}
+        </p>
+        <div className="mt-2 flex items-center gap-3">
+          {logo && (
+            <span className="flex h-12 max-w-[7rem] shrink-0 items-center rounded-md border border-border bg-white p-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logo} alt="Organizer logo" className="max-h-full max-w-full object-contain" />
+            </span>
+          )}
+          <h1 className="min-w-0 text-3xl font-medium tracking-tight sm:text-4xl">{event.name}</h1>
+        </div>
+        <p className="mt-2 text-muted">
+          {formatDateRange(event.starts_on, event.ends_on)} · {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
           <a href={mapUrl} target="_blank" rel="noreferrer" className={linkClass}>
             Directions
           </a>{" "}
@@ -160,39 +281,18 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             Full schedule
           </Link>
         </p>
-        {(hasContact || event.director_info) && (
-          <CollapsibleInfo initialOpen={infoOpen} label={group ? "Event info" : "Contest info"}>
-            {hasContact && (
-              <p className="mt-2 flex flex-wrap items-center gap-2 text-muted">
-                <span className="mr-1">{contact.name || "Organizer"}</span>
-                {contact.email && (
-                  <a href={`mailto:${contact.email}`} className="inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold text-brand hover:border-brand">
-                    Email
-                  </a>
-                )}
-                {/* No digits on screen; the number only unlocks the day before and on contest day. */}
-                {phone && (
-                  <>
-                    <a href={`tel:${phone}`} className="inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold text-brand hover:border-brand">
-                      Call
-                    </a>
-                    <a href={`sms:${phone}`} className="inline-flex min-h-11 items-center rounded-md border border-field-border px-4 text-sm font-semibold text-brand hover:border-brand">
-                      Text
-                    </a>
-                  </>
-                )}
-              </p>
-            )}
-            {event.director_info && <p className="mt-2 whitespace-pre-line text-sm leading-6">{event.director_info}</p>}
-          </CollapsibleInfo>
-        )}
-        <p className="mt-4">
-          <span aria-hidden="true">{group ? "👥" : "🎺"}</span> <span className="font-semibold">{band.band_name}</span>{" "}
-          <span className="text-muted">· {band.school_name}</span>
-        </p>
       </header>
 
       <EventBannerSlot eventId={band.event_id} audience="band_directors" tz={event.timezone} className="mt-6" />
+
+      {withdrawn && !contestDay && (
+        <Card className="mt-6 border-danger/40" role="status">
+          <h2 className="font-semibold">{band.band_name} has withdrawn</h2>
+          <p className="mt-1 text-sm text-muted">
+            The organizer has been told. If this is a mistake, contact them{hasContact ? " below" : ""}. Only the organizer can undo it.
+          </p>
+        </Card>
+      )}
 
       {contestDay && (
         <>
@@ -223,89 +323,48 @@ export default async function BandContestPage({ params, searchParams }: PageProp
         </>
       )}
 
-      {files.length > 0 && (
+      {/* Before the day: what's done, and what comes next. */}
+      {!withdrawn && phase === "before" && (
         <Card className="mt-6">
-          <h2 className="font-semibold">Maps &amp; documents</h2>
-          <p className="mt-1 text-sm text-muted">From the organizer.</p>
-          <FileLinks files={files} className="mt-3" />
+          <h2 className="font-semibold">What&apos;s next</h2>
+          <ol className="mt-3 space-y-3">
+            <NextStep done title="Registered">
+              {open
+                ? event.band_registration_deadline
+                  ? `You can change your registration until the end of ${formatDate(event.band_registration_deadline)}.`
+                  : "You can change your registration while registration is open."
+                : "Registration is closed. Changes go through the organizer."}
+            </NextStep>
+            <NextStep done={timesPosted} title={group ? "Schedule posted" : "Times posted"}>
+              {timesPosted
+                ? `Your ${group ? "schedule is" : "times are"} below.`
+                : `We'll email you when the organizer posts ${group ? "your group's times in each room" : "your performance time"}.`}
+            </NextStep>
+            <NextStep done={false} title={group ? "Event day" : "Contest day"}>
+              {formatDateRange(event.starts_on, event.ends_on)}
+              {event.venue_name ? ` at ${event.venue_name}` : ""}
+            </NextStep>
+          </ol>
         </Card>
       )}
 
-      {group &&
-        (event.performance_order_published && (myRooms ?? []).length > 0 ? (
-          <Card className="mt-6 border-brand">
-            <h2 className="font-semibold">Your schedule</h2>
-            {arrived && (
-              <p className="mt-1 text-sm font-medium text-success">
-                ✓ Checked in at {formatTime(arrived.created_at, event.timezone)}
-              </p>
-            )}
-            <ol className="mt-3 divide-y divide-border">
-              {(myRooms ?? []).map((s) => {
-                const room = roomById.get(s.room_id);
-                const done = tapped(s.room_id);
-                return (
-                  <li key={s.room_id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
-                    <span className={done ? "text-muted" : undefined}>
-                      <span className="font-semibold">{room?.name ?? "Room"}</span>
-                      {room?.note && <span className="text-sm text-muted"> · {room.note}</span>}
-                      {done && <span className="text-sm font-medium text-success"> · ✓ Done</span>}
-                    </span>
-                    <span className="tabular-nums">
-                      {event.starts_on !== event.ends_on && `${formatDate(utcToZonedDate(s.starts_at, event.timezone), { year: undefined })}, `}
-                      {formatTime(s.starts_at, event.timezone)}–{formatTime(s.ends_at, event.timezone)}{" "}
-                      {zoneAbbreviation(s.starts_at, event.timezone)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-            {groupCalendar && (
-              <p className="mt-3 flex flex-wrap items-center gap-x-4 text-sm">
-                <span className="text-muted">Add to calendar:</span>
-                <a href={googleCalendarUrl(groupCalendar)} target="_blank" rel="noreferrer" className={`inline-flex min-h-11 items-center ${linkClass}`}>
-                  Google
-                </a>
-                <a href={`/dashboard/bands/${bandId}/calendar?round=rooms`} className={`inline-flex min-h-11 items-center ${linkClass}`}>
-                  Apple / Outlook
-                </a>
-              </p>
-            )}
-          </Card>
-        ) : (
-          <Card className="mt-6">
-            <h2 className="font-semibold">Your schedule</h2>
-            <p className="mt-2 text-sm text-muted">
-              The organizer hasn&apos;t posted the schedule yet. We&apos;ll email you your group&apos;s times in each room when it&apos;s ready.
-            </p>
-          </Card>
-        ))}
+      {times}
 
-      {!group && event.finalists_revealed && finalsSlot && (
-        <TimesCard
-          title={`🏆 Finals · #${finalsSlot.slot_number}`}
-          times={finalsSlot}
-          event={{ ...event, ready_minutes_before: event.finals_ready_minutes_before }}
-          calendar={calendar("finals", finalsSlot)}
-          icsUrl={`/dashboard/bands/${bandId}/calendar?round=finals`}
-          highlight
-        />
-      )}
-      {group ? null : event.performance_order_published && slot ? (
-        <TimesCard
-          title={`${hasFinals ? "Preliminaries" : "Your times"} · #${slot.performance_order} in the order`}
-          times={slot}
-          done={prelimsDone}
-          event={event}
-          calendar={calendar("order", slot)}
-          icsUrl={`/dashboard/bands/${bandId}/calendar`}
-        />
-      ) : (
+      {(hasContact || event.director_info || files.length > 0) && (
         <Card className="mt-6">
-          <h2 className="font-semibold">Your times</h2>
-          <p className="mt-2 text-sm text-muted">
-            The organizer hasn&apos;t posted the performance order yet. We&apos;ll email you when your times are ready.
-          </p>
+          <h2 className="font-semibold">From the organizer</h2>
+          {contactButtons && <div className="mt-3">{contactButtons}</div>}
+          {event.director_info && (
+            <CollapsibleInfo initialOpen={infoOpen} label={`${group ? "Event" : "Contest"} info: fees, arrival, and parking`}>
+              <p className="mt-1 whitespace-pre-line text-sm leading-6">{event.director_info}</p>
+            </CollapsibleInfo>
+          )}
+          {files.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold">Maps &amp; documents</h3>
+              <FileLinks files={files} className="mt-2" />
+            </div>
+          )}
         </Card>
       )}
 
@@ -314,12 +373,14 @@ export default async function BandContestPage({ params, searchParams }: PageProp
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">Your registration</h2>
-              <Badge tone={open ? "success" : "neutral"}>
-                {open
-                  ? event.band_registration_deadline
-                    ? `Editable until ${formatDate(event.band_registration_deadline, { year: undefined })}`
-                    : "Editable while registration is open"
-                  : "Registration closed"}
+              <Badge tone={open && !withdrawn ? "success" : "neutral"}>
+                {withdrawn
+                  ? "Withdrawn"
+                  : open
+                    ? event.band_registration_deadline
+                      ? `Editable until ${formatDate(event.band_registration_deadline, { year: undefined })}`
+                      : "Editable while registration is open"
+                    : "Registration closed"}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted">
@@ -327,51 +388,84 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             </p>
           </div>
           <span className="shrink-0 text-sm font-medium text-brand">
-            <span className="group-open:hidden">{open ? "View or edit" : "View"}</span>
+            <span className="group-open:hidden">{open && !withdrawn ? "View or edit" : "View"}</span>
             <span className="hidden group-open:inline">Hide</span>
           </span>
           <span aria-hidden="true" className="shrink-0 text-muted transition group-open:rotate-180">
             ▾
           </span>
         </summary>
-          <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
-            <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-              <Item label="Classification">{band.classification}</Item>
-              <Item label="People">{people}</Item>
-              <Item label="Vehicles">
-                {[
-                  [band.bus_count, "bus", "buses"],
-                  [band.box_truck_count, "box truck", "box trucks"],
-                  [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
-                  [band.semi_truck_count, "semi", "semis"],
-                ]
-                  .filter(([n]) => Number(n) > 0)
-                  .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
-                  .join(" · ") || "None listed"}
-              </Item>
-              <Item label="Head director">
-                {band.head_director_name} · {formatPhone(band.head_director_phone)}
-              </Item>
-              {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
-              <Item label={group ? "Group contact email" : "Band contact email"}>{band.contact_email}</Item>
-              <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
-              <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
-            </dl>
-            {open ? (
-              <Link
-                href={`/dashboard/bands/${bandId}/edit`}
-                className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
-              >
-                Edit registration
-              </Link>
-            ) : (
-              <p className="mt-5 text-sm text-muted">
-                Registration is closed, so changes go through the host{hasContact ? " (contact details above)" : ""}.
-              </p>
-            )}
-          </div>
+        <div className="border-t border-border px-5 pb-5 sm:px-6 sm:pb-6">
+          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <Item label="Classification">{band.classification}</Item>
+            <Item label="People">{people}</Item>
+            <Item label="Vehicles">
+              {[
+                [band.bus_count, "bus", "buses"],
+                [band.box_truck_count, "box truck", "box trucks"],
+                [band.truck_trailer_count, "truck + trailer", "trucks + trailers"],
+                [band.semi_truck_count, "semi", "semis"],
+              ]
+                .filter(([n]) => Number(n) > 0)
+                .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+                .join(" · ") || "None listed"}
+            </Item>
+            <Item label="Head director">
+              {band.head_director_name} · {formatPhone(band.head_director_phone)}
+            </Item>
+            {band.assistant_directors.length > 0 && <Item label="Assistant directors">{band.assistant_directors.join(", ")}</Item>}
+            <Item label={group ? "Group contact email" : "Band contact email"}>{band.contact_email}</Item>
+            <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
+            <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
+          </dl>
+          {withdrawn ? null : open ? (
+            <Link
+              href={`/dashboard/bands/${bandId}/edit`}
+              className="mt-5 inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background"
+            >
+              Edit registration
+            </Link>
+          ) : (
+            <div className="mt-5 space-y-2 text-sm">
+              <p className="text-muted">Registration is closed, so changes go through the organizer.</p>
+              {contactButtons}
+            </div>
+          )}
+          {!withdrawn && phase !== "after" && (
+            <div className="mt-6 border-t border-border pt-3">
+              <WithdrawBandButton
+                bandName={band.band_name}
+                eventName={event.name}
+                removes={withdrawRemoves}
+                one={one}
+                action={withdrawBand.bind(null, bandId)}
+              />
+            </div>
+          )}
+        </div>
       </details>
     </div>
+  );
+}
+
+/** One line of "What's next": a check when done, an open circle when not. */
+function NextStep({ done, title, children }: { done: boolean; title: string; children: ReactNode }) {
+  return (
+    <li className="flex items-start gap-3 text-sm">
+      <span
+        aria-hidden
+        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${done ? "border-success bg-success text-success-foreground" : "border-field-border"}`}
+      >
+        {done ? "✓" : ""}
+      </span>
+      <span className="min-w-0">
+        <span className="font-semibold">
+          {title}
+          <span className="sr-only">{done ? " (done)" : " (still to come)"}</span>
+        </span>
+        <span className="block text-muted">{children}</span>
+      </span>
+    </li>
   );
 }
 
@@ -389,6 +483,7 @@ type TimesEvent = { timezone: string; starts_on: string; ends_on: string; ready_
 /** Warm-up → ends → ready → performs, as a vertical timeline with the performance time up top. */
 function TimesCard({
   title,
+  icon,
   times: t,
   event,
   calendar,
@@ -397,6 +492,8 @@ function TimesCard({
   done = false,
 }: {
   title: string;
+  /** Shown before the title, hidden from screen readers. */
+  icon?: string;
   times: BandTimes;
   event: TimesEvent;
   calendar: ReturnType<typeof bandCalendarEvent>;
@@ -462,7 +559,10 @@ function TimesCard({
 
   return (
     <Card className={`mt-6 ${highlight ? "border-brand" : ""}`}>
-      <h2 className="font-semibold">{title}</h2>
+      <h2 className="font-semibold">
+        {icon && <span aria-hidden="true">{icon} </span>}
+        {title}
+      </h2>
       {done ? (
         <>
           <p className="mt-1 text-sm font-medium text-success">✓ Performed</p>

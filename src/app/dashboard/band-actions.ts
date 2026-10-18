@@ -6,12 +6,12 @@ import { after } from "next/server";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
-import { BAND_COLUMNS, bandColumns, parseBand, readyAt, warmUpEndAt, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, bandColumns, parseBand, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
 import { hasRooms } from "@/lib/event-types";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation, zonedToUtc } from "@/lib/time";
 
 // ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ async function createRegistration(
     .select("id")
     .single();
   if (error) {
-    if (error.code === "42501") return { error: "Registration for this event is closed. Please contact the host." };
+    if (error.code === "42501") return { error: "Registration for this event is closed. Please contact the organizer." };
     return { error: friendlyDbError(error) };
   }
 
@@ -128,20 +128,92 @@ export async function updateBand(bandId: string, _prev: ActionState, formData: F
   const supabase = await createClient();
   const { data, error } = await supabase.from("bands").update(bandColumns(parsed.data)).eq("id", bandId).select("id, event_id");
   if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "Registration is closed, so changes have to go through the host." };
+  if (!data?.length) return { error: "Registration is closed, so changes have to go through the organizer." };
   revalidatePath(`/dashboard/bands/${bandId}`);
   revalidatePath(`/dashboard/events/${data[0].event_id}/bands`);
   redirect(`/dashboard/bands/${bandId}?saved=1`);
 }
 
+/**
+ * A director withdraws their band. While registration is open and times
+ * aren't posted, the registration is removed. After that, the band stays on
+ * the schedule marked withdrawn, so the posted order isn't left with a gap.
+ * Either way, the organizer gets an email.
+ */
 export async function withdrawBand(bandId: string): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
   const supabase = await createClient();
-  const { data, error } = await supabase.from("bands").delete().eq("id", bandId).select("id");
-  if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "Registration is closed. Please contact the host to withdraw." };
+  const { data: band } = await supabase
+    .from("bands")
+    .select("id, event_id, band_name, school_name, director_user_id, scratched_at")
+    .eq("id", bandId)
+    .maybeSingle();
+  if (!band || band.director_user_id !== user.id) return { error: "Only the band's director can withdraw it." };
+  const { data: event } = await supabase
+    .from("events")
+    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, performance_order_published")
+    .eq("id", band.event_id)
+    .maybeSingle();
+  if (!event) return { error: "We couldn't find this event." };
+
+  const remove = registrationIsOpen(event) && !event.performance_order_published;
+  if (remove) {
+    const { data, error } = await supabase.from("bands").delete().eq("id", bandId).select("id");
+    if (error) return { error: friendlyDbError(error) };
+    if (!data?.length) return { error: "We couldn't withdraw the band. Please try again." };
+  } else if (!band.scratched_at) {
+    const { error } = await supabase.rpc("withdraw_my_band", { p_band: bandId });
+    if (error)
+      return {
+        error:
+          error.code === "PGRST202" || error.code === "42883"
+            ? "Withdrawing is being set up. Please contact the organizer for now."
+            : friendlyDbError(error),
+      };
+  }
+
+  const origin = await getOrigin();
+  const one = hasRooms(event.event_type) ? "group" : "band";
+  after(async () => {
+    const to = await organizerEmails(band.event_id);
+    if (!to.length) return;
+    const { html, text } = emailLayout({
+      heading: `${band.band_name} withdrew`,
+      paragraphs: [
+        `${band.band_name} (${band.school_name}) withdrew from ${event.name}.`,
+        remove
+          ? `Their registration was removed.`
+          : `They're marked withdrawn on your schedule and ${one} list, so you can adjust the schedule if you need to. If this looks like a mistake, contact the director.`,
+      ],
+      button: { label: `See your ${one}s`, url: `${origin}/dashboard/events/${band.event_id}/bands` },
+    });
+    for (const address of to) {
+      await sendEmail({ to: address, subject: `${band.band_name} withdrew from ${event.name}`, html, text });
+      await pause();
+    }
+  });
+
   revalidatePath("/dashboard");
-  redirect("/dashboard");
+  revalidatePath(`/dashboard/events/${band.event_id}/bands`);
+  if (remove) redirect("/dashboard?withdrawn=1");
+  revalidatePath(`/dashboard/bands/${bandId}`);
+  redirect(`/dashboard/bands/${bandId}?withdrawn=1`);
+}
+
+/** Who hears about a withdrawal: the organizer's contact for directors, or else the account's hosts. */
+async function organizerEmails(eventId: string): Promise<string[]> {
+  const admin = createAdminClient();
+  const { data: contact } = await admin.from("event_director_contacts").select("email").eq("event_id", eventId).maybeSingle();
+  if (contact?.email) return [contact.email];
+  const { data: event } = await admin.from("events").select("organization_id").eq("id", eventId).maybeSingle();
+  if (!event) return [];
+  const { data: members } = await admin
+    .from("organization_members")
+    .select("profiles(email)")
+    .eq("organization_id", event.organization_id);
+  return ((members ?? []) as unknown as { profiles: { email: string | null } | null }[])
+    .map((m) => m.profiles?.email)
+    .filter((e): e is string => Boolean(e));
 }
 
 // ---------------------------------------------------------------------------

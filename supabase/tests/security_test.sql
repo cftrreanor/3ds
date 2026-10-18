@@ -4666,4 +4666,56 @@ do $$ begin
          'the color is unchanged by people who can''t set it';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Director withdraw (20261207000000_director_withdraw.sql): a director marks
+-- only their own band withdrawn; nobody else can, and it can't be undone by them.
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.bands (id, event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('40000000-0000-0000-0000-0000000000dd', '10000000-0000-0000-0000-00000000000a',
+        '00000000-0000-0000-0000-000000000005', 'West HS', 'Westwind Winds', '5A', 'addr',
+        'band@example.com', 'Bo Band', 'band@example.com', '+15125550105', 60, 8);
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.withdraw_my_band('40000000-0000-0000-0000-0000000000dd');
+    raise exception 'FAIL: a stranger withdrew someone else''s band';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform public.withdraw_my_band('40000000-0000-0000-0000-0000000000dd');
+    raise exception 'FAIL: a host used the director''s withdraw';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"band@example.com"}';
+select public.withdraw_my_band('40000000-0000-0000-0000-0000000000dd');
+-- Undoing it isn't theirs to do: a direct write fails or changes nothing (checked below).
+do $$ begin
+  begin
+    update public.bands set scratched_at = null where id = '40000000-0000-0000-0000-0000000000dd';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set role anon;
+set request.jwt.claims = '';
+do $$ begin
+  begin
+    perform public.withdraw_my_band('40000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: a visitor withdrew a band';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select scratched_at from public.bands where id = '40000000-0000-0000-0000-0000000000dd') is not null,
+         'the director withdrew their band, and only the organizer can undo it';
+end $$;
+
 \echo 'All database security tests passed.'

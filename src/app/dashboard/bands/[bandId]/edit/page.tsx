@@ -8,7 +8,7 @@ import { BAND_COLUMNS, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { DeleteButton } from "../../../events/[eventId]/forms";
+import { WithdrawBandButton } from "../withdraw-band";
 
 export const metadata: Metadata = { title: "Edit registration" };
 
@@ -20,11 +20,11 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
   if (!band) missing();
   const { data: event } = await supabase
     .from("events")
-    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, chaperone_limit, classifications")
+    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, chaperone_limit, classifications, performance_order_published")
     .eq("id", band.event_id)
     .single();
   if (!event) missing();
-  // Only while registration is open; after that, changes go through the host.
+  // Only while registration is open; after that, changes go through the organizer.
   if (!registrationIsOpen(event)) redirect(`/dashboard/bands/${bandId}`);
 
   return (
@@ -47,11 +47,12 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
         />
       </div>
       <div className="mt-8 border-t border-border pt-4 text-sm">
-        <DeleteButton
+        <WithdrawBandButton
+          bandName={band.band_name}
+          eventName={event.name}
+          removes={!event.performance_order_published}
+          one={hasRooms(event.event_type) ? "group" : "band"}
           action={withdrawBand.bind(null, bandId)}
-          label="Withdraw this band"
-          text="Withdraw this band"
-          confirmMessage={`Withdraw ${band.band_name} from ${event.name}? This can't be undone.`}
         />
       </div>
     </div>
