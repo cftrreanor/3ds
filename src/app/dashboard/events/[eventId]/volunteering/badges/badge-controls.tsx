@@ -20,9 +20,9 @@ export function PrintBadgesButton({ disabled }: { disabled?: boolean }) {
 const NAVY = "#0b3558";
 
 /**
- * The badges, with the VOLUNTEER band in the logo's main color. Black or
- * near-white logos and pale colors are darkened until white text on the band
- * is easy to read.
+ * The badges, with the VOLUNTEER band in the logo's main color (navy
+ * without a logo). Pale colors are darkened until white text on the band is
+ * easy to read.
  */
 export function BadgeColorScope({ logo, className, children }: { logo: string | null; className?: string; children: ReactNode }) {
   const [found, setFound] = useState<{ logo: string; color: string } | null>(null);
@@ -46,7 +46,12 @@ export function BadgeColorScope({ logo, className, children }: { logo: string | 
   );
 }
 
-/** The logo's main color: the most common one, favoring colorful over gray, ignoring see-through and white. */
+/**
+ * The logo's main color: the most common colorful shade, chosen over black
+ * and gray (a color has to cover at least 2% of the logo, so a tiny detail
+ * doesn't decide it). A black-and-white logo gets its darkest common shade,
+ * usually black.
+ */
 function logoColor(img: HTMLImageElement): string | null {
   const size = 64;
   const canvas = document.createElement("canvas");
@@ -56,23 +61,36 @@ function logoColor(img: HTMLImageElement): string | null {
   if (!ctx) return null;
   ctx.drawImage(img, 0, 0, size, size);
   const { data } = ctx.getImageData(0, 0, size, size);
-  const buckets = new Map<string, { r: number; g: number; b: number; n: number; weight: number }>();
+  const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
+  const neutral = { r: 0, g: 0, b: 0, n: 0 };
+  let opaque = 0;
   for (let i = 0; i < data.length; i += 4) {
     const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
-    if (a < 128 || (r > 230 && g > 230 && b > 230)) continue;
+    if (a < 128) continue;
+    opaque += 1;
     const max = Math.max(r, g, b);
     const saturation = max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
+    // Black and gray are the fallback; white is the paper.
+    if (max < 50 || saturation < 0.25) {
+      if (max < 200) {
+        neutral.r += r;
+        neutral.g += g;
+        neutral.b += b;
+        neutral.n += 1;
+      }
+      continue;
+    }
     const key = `${r >> 5},${g >> 5},${b >> 5}`;
-    const s = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0, weight: 0 };
+    const s = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
     s.r += r;
     s.g += g;
     s.b += b;
     s.n += 1;
-    s.weight += 1 + saturation * 3;
     buckets.set(key, s);
   }
-  let best: { r: number; g: number; b: number; n: number; weight: number } | null = null;
-  for (const s of buckets.values()) if (!best || s.weight > best.weight) best = s;
+  let best: { r: number; g: number; b: number; n: number } | null = null;
+  for (const s of buckets.values()) if (!best || s.n > best.n) best = s;
+  if (!best || best.n < opaque * 0.02) best = neutral.n ? neutral : null;
   if (!best) return null;
   let [r, g, b] = [best.r / best.n, best.g / best.n, best.b / best.n];
   // Darken until white text has at least 4.5:1 contrast (the accessibility standard).
