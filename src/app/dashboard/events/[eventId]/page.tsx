@@ -36,7 +36,8 @@ import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
 import { personasFor } from "@/lib/demo";
 import { eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
-import { meetingStarts, meetingSummary, modeLabel, notReady, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
+import { meetingStarts, meetingSummary, modeLabel, notReady, weeklySummary } from "@/lib/conferences";
+import { loadConferenceSettings } from "@/lib/conference-settings";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
@@ -293,8 +294,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   // Conferences: meeting times and where they meet (hosts and the team can read them).
   const conference = conferenceHere
-    ? (((await supabase.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", eventId).maybeSingle()).data ??
-        null) as ConferenceSettings | null)
+    ? (await loadConferenceSettings(supabase, eventId)).saved
     : null;
   // A count only: the bookings themselves are the teacher's alone.
   const conferenceBooked = conferenceHere ? await conferenceBookedCount(supabase, eventId) : 0;
@@ -516,7 +516,9 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             <div className="space-y-1 text-sm leading-6">
               {conference?.times_saved_at ? (
                 <p className="font-medium">
-                  {published
+                  {conference.schedule === "weekly"
+                    ? `Every week · ${published ? `${conferenceBooked} booked` : weeklySummary(conference.weekly_hours)}`
+                    : published
                     ? `${conferenceBooked} of ${meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference).length} times booked`
                     : meetingSummary(
                         meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference),

@@ -10,8 +10,8 @@ import type { BookingState } from "./actions";
 type Parent = { name: string; email: string; phone: string };
 const blankParent = (): Parent => ({ name: "", email: "", phone: "" });
 
-/** One open meeting time: its value (an ISO instant) and how it reads ("3:20 PM"). */
-export type OpenTime = { value: string; label: string };
+/** One open meeting time: its value (an ISO instant), how it reads ("3:20 PM"), and its day ("2026-11-03", "Tue, Nov 3"). */
+export type OpenTime = { value: string; label: string; day: string; dayLabel: string };
 
 /**
  * A family books a meeting: pick an open time, their child, the parents who'll
@@ -22,12 +22,15 @@ export function BookingForm({
   action,
   times,
   askMode,
+  askPhone,
   zone,
 }: {
   action: (prev: BookingState, formData: FormData) => Promise<BookingState>;
   times: OpenTime[];
   /** Parent's choice: ask in person or video. */
   askMode: boolean;
+  /** Phone calls: ask for the number the teacher calls. */
+  askPhone: boolean;
   /** The conference's time zone by name, e.g. "Central Time". */
   zone: string;
 }) {
@@ -44,6 +47,10 @@ export function BookingForm({
     if (state.taken) router.refresh();
   }, [state, router]);
   const picked = times.some((t) => t.value === time) ? time : "";
+  // Weekly hours: pick a day, then a time.
+  const days = [...new Map(times.map((t) => [t.day, t.dayLabel]))];
+  const [day, setDay] = useState(() => times.find((t) => t.value === state.values?.startsAt)?.day ?? days[0]?.[0] ?? "");
+  const shown = days.length > 1 ? times.filter((t) => t.day === day) : times;
 
   if (state.booked) {
     const b = state.booked;
@@ -85,11 +92,30 @@ export function BookingForm({
         </label>
       </div>
 
+      {days.length > 1 && (
+        <fieldset>
+          <legend className="text-lg font-semibold">Pick a day</legend>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {days.map(([value, label]) => (
+              <label
+                key={value}
+                className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-2 text-center text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)] ${
+                  day === value ? "border-brand bg-brand text-brand-foreground" : "border-field-border hover:border-brand"
+                }`}
+              >
+                <input type="radio" name="day" value={value} checked={day === value} onChange={() => setDay(value)} className="sr-only" />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
       <fieldset>
         <legend className="text-lg font-semibold">Pick a time</legend>
         <p className="text-sm text-muted">Only open times are shown. All times are {zone}.</p>
         <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {times.map((t) => (
+          {shown.map((t) => (
             <label
               key={t.value}
               className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border text-sm font-semibold tabular-nums has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)] ${
@@ -115,8 +141,14 @@ export function BookingForm({
         <Input name="child" required maxLength={120} defaultValue={state.values?.child} autoComplete="off" />
       </Field>
 
+      {askPhone && (
+        <Field label="Phone number for the call" hint="Your child's teacher calls you at this number. The call may come from a school or private number.">
+          <Input name="callPhone" type="tel" required maxLength={30} defaultValue={state.values?.callPhone} autoComplete="tel" />
+        </Field>
+      )}
+
       <fieldset className="space-y-4">
-        <legend className="text-lg font-semibold">Parents or guardians coming</legend>
+        <legend className="text-lg font-semibold">{askPhone ? "Parents or guardians on the call" : "Parents or guardians coming"}</legend>
         <p className="-mt-3 text-sm text-muted">Each person gets the confirmation, calendar invite, and reminder.</p>
         {parents.map((p, i) => (
           <fieldset key={i} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">

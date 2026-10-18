@@ -55,6 +55,10 @@ export type SetupFacts = {
   teacherAccount?: boolean;
   /** Conferences: the account's other published conference, which has to come down first during the pilot. */
   otherConference?: { id: string; name: string } | null;
+  /** The account has a plan: no one-at-a-time limit, and weekly hours can be published. */
+  conferencePlan?: boolean;
+  /** The conference runs on weekly hours (premium). */
+  conferenceWeekly?: boolean;
 };
 
 export type SetupChecklist = {
@@ -297,7 +301,10 @@ export function publishEffects(f: SetupFacts): string[] {
     return [
       ...lines,
       // When another conference is already up, the note under this list says it (and what to do) instead.
-      ...(f.otherConference
+      ...(f.conferenceWeekly && !f.conferencePlan
+        ? ["Weekly hours are a premium feature, so publishing them needs a plan. Write to us to add them to your account."]
+        : []),
+      ...(f.otherConference || f.conferencePlan
         ? []
         : [
             f.teacherAccount

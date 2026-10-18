@@ -3,8 +3,8 @@ import * as Sentry from "@sentry/nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
-import { BOOKING_COLUMNS, bookingEmail, bookingLink, type Booking } from "@/lib/conference-bookings";
-import { DEFAULT_SETTINGS, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
+import { bookingEmail, bookingLink, withCallPhone, type Booking } from "@/lib/conference-bookings";
+import { loadConferenceSettings } from "@/lib/conference-settings";
 import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
 import { runRetention } from "@/lib/retention";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -110,30 +110,42 @@ async function runDailyJob() {
   }
   if (unsent) console.error(`Daily job: ${unsent} parent reminder(s) not sent`);
 
-  // Parent-teacher conferences tomorrow: remind every parent on each booking.
+  // Parent-teacher conferences: remind every parent on each meeting that's
+  // tomorrow in the conference's time zone (a conference day, or any day of
+  // weekly hours).
   let conferencesReminded = 0;
   let conferencesUnsent = 0;
   const { data: confEvents } = await admin
     .from("events")
-    .select("id, slug, name, starts_on, timezone, venue_name, venue_address, created_by")
+    .select("id, slug, name, starts_on, ends_on, timezone, venue_name, venue_address, created_by")
     .eq("event_type", "conference")
     .eq("status", "published")
-    .gte("starts_on", shift(0))
-    .lte("starts_on", shift(2));
-  for (const event of (confEvents ?? []).filter((e) => {
-    const local = utcToZonedDate(new Date(started).toISOString(), e.timezone);
+    .lte("starts_on", shift(2))
+    .gte("ends_on", shift(0));
+  for (const event of confEvents ?? []) {
+    const local = utcToZonedDate(new Date(started).toISOString(), event.timezone);
     const next = new Date(`${local}T12:00:00Z`);
     next.setUTCDate(next.getUTCDate() + 1);
-    return e.starts_on === next.toISOString().slice(0, 10);
-  })) {
-    const [{ data: settings }, { data: teacherRow }, { data: bookings }] = await Promise.all([
-      admin.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", event.id).maybeSingle(),
+    const tomorrow = next.toISOString().slice(0, 10);
+    const { data: due } = await withCallPhone((columns) =>
+      admin
+        .from("conference_bookings")
+        .select(`${columns}, access_token`)
+        .eq("event_id", event.id)
+        .is("reminded_at", null)
+        .gte("starts_at", new Date(started).toISOString())
+        .lte("starts_at", new Date(started + 2 * 86_400_000).toISOString()),
+    );
+    const bookings = ((due ?? []) as unknown as (Booking & { access_token: string })[]).filter(
+      (b) => utcToZonedDate(b.starts_at, event.timezone) === tomorrow,
+    );
+    if (!bookings.length) continue;
+    const [{ settings: s }, { data: teacherRow }] = await Promise.all([
+      loadConferenceSettings(admin, event.id),
       event.created_by ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle() : Promise.resolve({ data: null }),
-      admin.from("conference_bookings").select(`${BOOKING_COLUMNS}, access_token`).eq("event_id", event.id).is("reminded_at", null),
     ]);
-    const s = { ...DEFAULT_SETTINGS, ...(settings ?? {}) } as ConferenceSettings;
     const teacher = { name: teacherRow?.full_name?.trim() || "Your teacher", email: teacherRow?.email ?? null };
-    for (const b of (bookings ?? []) as (Booking & { access_token: string })[]) {
+    for (const b of bookings) {
       if (Date.now() - started > 270_000) {
         conferencesUnsent++;
         continue;

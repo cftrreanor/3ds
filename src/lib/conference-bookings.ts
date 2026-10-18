@@ -3,6 +3,8 @@ import { brand } from "@/lib/brand";
 import { emailLayout, sendEmail, type CalendarInvite } from "@/lib/email";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
 import type { ConferenceSettings } from "@/lib/conferences";
+import { formatPhone } from "@/lib/phone";
+import { isSchemaError } from "@/lib/schema-check";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
 
 // Parent-teacher conferences: a family's booked meeting, and the emails each
@@ -16,9 +18,11 @@ export type Booking = {
   starts_at: string;
   child_name: string;
   parents: BookingParent[];
-  meeting_mode: "in_person" | "video";
+  meeting_mode: "in_person" | "video" | "phone";
   note: string | null;
   calendar_sequence: number;
+  /** Phone calls: the number the teacher calls (read with withCallPhone). */
+  call_phone?: string | null;
 };
 
 export type BookingEvent = {
@@ -33,9 +37,19 @@ export type Teacher = { name: string; email: string | null };
 
 export const BOOKING_COLUMNS = "id, starts_at, child_name, parents, meeting_mode, note, calendar_sequence";
 
+/**
+ * Reads bookings with the number to call for phone calls. Before the weekly
+ * hours update (20261211000000) there's no such column (and no phone calls),
+ * so it reads without it. `run` gets the columns to select.
+ */
+export async function withCallPhone<T extends { error: { code?: string } | null }>(run: (columns: string) => PromiseLike<T>): Promise<T> {
+  const r = await run(`${BOOKING_COLUMNS}, call_phone`);
+  return isSchemaError(r.error) ? run(BOOKING_COLUMNS) : r;
+}
+
 /** The privacy promise, in one line (emails). The pages show it in full (book/privacy-note). */
-export const privacyLine = (teacher: Teacher) =>
-  `Only ${teacher.name} sees your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after the conference.`;
+export const privacyLine = (teacher: Teacher, weekly = false) =>
+  `Only ${teacher.name} sees your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`;
 
 /** A family's link to see, change or cancel their meeting. */
 export const bookingLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/book/r/${token}`;
@@ -51,7 +65,17 @@ export function meetingWhen(startsAt: string, minutes: number, tz: string) {
 export const familyName = (child: string) => `${child}'s family`;
 
 /** Where they'll meet and how they'll be let in, as short lines for emails and the family's page. */
-export function meetingPlace(b: Pick<Booking, "meeting_mode" | "child_name">, event: BookingEvent, s: ConferenceSettings, teacher: Teacher) {
+export function meetingPlace(b: Pick<Booking, "meeting_mode" | "child_name" | "call_phone">, event: BookingEvent, s: ConferenceSettings, teacher: Teacher) {
+  if (b.meeting_mode === "phone") {
+    return {
+      title: "Phone call",
+      lines: [
+        `${teacher.name} will call you at ${formatPhone(b.call_phone) || "the number you gave"}. Please keep your phone nearby.`,
+        "The call may come from a school or private number.",
+      ],
+      link: null as string | null,
+    };
+  }
   if (b.meeting_mode === "in_person") {
     const school = [event.venue_name, event.venue_address].filter(Boolean).join(", ");
     return {
@@ -89,7 +113,7 @@ function toIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teac
     start: new Date(b.starts_at),
     end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
     summary: `Conference with ${teacher.name}: ${b.child_name}`,
-    location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : "Video"),
+    location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : b.meeting_mode === "phone" ? `${teacher.name} calls you` : "Video"),
     description: [...place.lines, ...(place.link ? [`Join: ${place.link}`] : []), `Change or cancel: ${link}`].join("\n"),
     url: link,
     attendee: { name: to.name, email: to.email },
@@ -177,8 +201,8 @@ export function bookingEmail(
           detail: place.lines.join(" "),
           links: place.link ? [{ label: "Join the meeting", url: place.link }] : undefined,
         },
-        ...(b.parents.length > 1 ? [{ title: "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
-        { title: "Your child's privacy", detail: privacyLine(teacher) },
+        ...(b.parents.length > 1 ? [{ title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
+        { title: "Your child's privacy", detail: privacyLine(teacher, s.schedule === "weekly") },
       ],
       button: { label: "Change or cancel", url: link },
       footer,
@@ -197,6 +221,9 @@ export const shortName = (child: string) => {
   return last ? `${first} ${last[0].toUpperCase()}.` : first;
 };
 
+/** For the teacher: "Call (512) 555-0101". */
+const callLine = (b: Pick<Booking, "call_phone">) => (b.call_phone ? `Call ${formatPhone(b.call_phone)}` : "Phone call");
+
 /** The meeting on the teacher's own calendar. Its own UID, so it never collides with a parent's copy. */
 function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teacher: Teacher, meetings: string): IcsEvent {
   const place = meetingPlace(b, event, s, teacher);
@@ -209,9 +236,9 @@ function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings,
     start: new Date(b.starts_at),
     end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
     summary: `Conference: ${who}`,
-    location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : "Video"),
+    location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : b.meeting_mode === "phone" ? callLine(b) : "Video"),
     description: [
-      `${who} · ${place.title}`,
+      `${who} · ${b.meeting_mode === "phone" ? callLine(b) : place.title}`,
       `Mark Met or No-show after the meeting: ${mark}`,
     ].join("\n"),
     url: mark,
@@ -286,8 +313,11 @@ export function teacherBookingEmail(
       ],
       rows: [
         { title: "When", detail: when },
-        { title: place.title, detail: b.meeting_mode === "in_person" ? place.lines[0] || "Your room" : "On video" },
-        { title: "Coming", detail: b.parents.map((p) => p.name).join(", ") },
+        {
+          title: place.title,
+          detail: b.meeting_mode === "in_person" ? place.lines[0] || "Your room" : b.meeting_mode === "phone" ? callLine(b) : "On video",
+        },
+        { title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") },
         ...(b.note ? [{ title: "Their note", detail: "They left you a note. It's on your Meetings page." }] : []),
       ],
       button: { label: "Mark Met or No-show", url: meetingAnchor(meetings, b.id) },
