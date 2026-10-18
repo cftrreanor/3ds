@@ -52,10 +52,10 @@ export function InvitePastBands({
         <span className="font-medium">
           {picked.size} of {pickable.length} selected
         </span>
-        <button type="button" className="min-h-9 font-medium text-brand hover:underline" onClick={() => setPicked(new Set(pickable.map((d) => d.email)))}>
+        <button type="button" className="min-h-11 font-medium text-brand hover:underline" onClick={() => setPicked(new Set(pickable.map((d) => d.email)))}>
           Select all
         </button>
-        <button type="button" className="min-h-9 font-medium text-brand hover:underline" onClick={() => setPicked(new Set())}>
+        <button type="button" className="min-h-11 font-medium text-brand hover:underline" onClick={() => setPicked(new Set())}>
           Select none
         </button>
       </div>

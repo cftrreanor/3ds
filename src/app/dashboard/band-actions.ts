@@ -164,6 +164,22 @@ export async function setBandRegistrationOpen(eventId: string, open: boolean) {
   return updateEventRow(eventId, { band_registration_open: open });
 }
 
+/**
+ * Reopen registration after its deadline passed (closed too early, or
+ * directors asked for more time): a new deadline, or none.
+ */
+export async function reopenBandRegistration(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const deadline = String(formData.get("deadline") ?? "");
+  if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return { error: "Pick a valid deadline date." };
+  if (deadline) {
+    const supabase = await createClient();
+    const { data: event } = await supabase.from("events").select("timezone").eq("id", eventId).maybeSingle();
+    if (event && deadline < utcToZonedDate(new Date().toISOString(), event.timezone))
+      return { error: "Pick today or a later date for the new deadline." };
+  }
+  return updateEventRow(eventId, { band_registration_open: true, band_registration_deadline: deadline || null });
+}
+
 export async function updateBandSettings(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = z
     .object({
