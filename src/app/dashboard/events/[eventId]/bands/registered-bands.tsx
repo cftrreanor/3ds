@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card } from "@/components/ui";
+import { Badge, Button, Card } from "@/components/ui";
 import type { BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 
@@ -9,12 +9,12 @@ type Words = { one: string; many: string; One: string; Many: string };
 
 const n = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`;
 
-/** Only the vehicle types a band is bringing: "2 buses · 1 truck/trailer". */
+/** Only the vehicle types a band is bringing: "2 buses · 1 truck + trailer". */
 function vehicles(b: Pick<BandRow, "bus_count" | "box_truck_count" | "truck_trailer_count" | "semi_truck_count">, buses: boolean) {
   const parts = [
     b.bus_count ? n(b.bus_count, "bus", "buses") : null,
     buses ? null : b.box_truck_count ? n(b.box_truck_count, "box truck") : null,
-    buses ? null : b.truck_trailer_count ? n(b.truck_trailer_count, "truck/trailer") : null,
+    buses ? null : b.truck_trailer_count ? n(b.truck_trailer_count, "truck + trailer", "trucks + trailers") : null,
     buses ? null : b.semi_truck_count ? n(b.semi_truck_count, "semi") : null,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "None";
@@ -30,15 +30,15 @@ function cell(v: string | number) {
 function download(bands: BandRow[], words: Words, groups: boolean, fileName: string) {
   const head = [
     `${words.One} name`, "School", "Classification", groups ? "Participants" : "Students", "Chaperones", "Buses",
-    ...(groups ? [] : ["Box trucks", "Truck/trailers", "Semis"]),
+    ...(groups ? [] : ["Box trucks", "Trucks + trailers", "Semis"]),
     "Head director", "Director email", "Director phone", "Assistant directors", `${words.One} contact email`, "School address",
-    groups ? "Event-day conflicts" : "Contest-day conflicts", "Accessibility / staging", "Registered",
+    "Scheduling conflicts", "Accessibility or staging needs", "Registered", "Withdrawn",
   ];
   const rows = bands.map((b) => [
     b.band_name, b.school_name, b.classification, b.student_count, b.chaperone_count, b.bus_count,
     ...(groups ? [] : [b.box_truck_count, b.truck_trailer_count, b.semi_truck_count]),
     b.head_director_name, b.head_director_email, formatPhone(b.head_director_phone), b.assistant_directors.join(", "),
-    b.contact_email, b.school_address ?? "", b.contest_day_conflicts ?? "", b.special_needs ?? "", b.created_at.slice(0, 10),
+    b.contact_email, b.school_address ?? "", b.contest_day_conflicts ?? "", b.special_needs ?? "", b.created_at.slice(0, 10), b.scratched_at ? "Yes" : "",
   ]);
   const csv = [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }));
@@ -73,8 +73,11 @@ export function RegisteredBands({
     (c) => bands.some((b) => b.classification === c),
   );
   const shown = classification ? bands.filter((b) => b.classification === classification) : bands;
+  // Withdrawn bands stay listed, but aren't counted in the totals.
+  const coming = shown.filter((b) => !b.scratched_at);
+  const withdrawn = shown.length - coming.length;
   const sum = (k: keyof Pick<BandRow, "student_count" | "chaperone_count" | "bus_count" | "box_truck_count" | "truck_trailer_count" | "semi_truck_count">) =>
-    shown.reduce((t, b) => t + (b[k] ?? 0), 0);
+    coming.reduce((t, b) => t + (b[k] ?? 0), 0);
   const totals = {
     bus_count: sum("bus_count"),
     box_truck_count: sum("box_truck_count"),
@@ -123,7 +126,7 @@ export function RegisteredBands({
 
           {/* Totals for planning parking, seating, and check-in. */}
           <dl className="mt-4 grid grid-cols-2 gap-3 rounded-lg border border-border bg-surface p-4 text-sm sm:grid-cols-4">
-            <Total label={words.Many} value={shown.length} />
+            <Total label={withdrawn ? `${words.Many} (${withdrawn} withdrawn)` : words.Many} value={coming.length} />
             <Total label={groups ? "Participants" : "Students"} value={sum("student_count")} />
             <Total label="Chaperones" value={sum("chaperone_count")} />
             <Total label="Vehicles" value={vehicles(totals, groups)} />
@@ -138,7 +141,12 @@ export function RegisteredBands({
                       ▸
                     </span>
                     <span className="min-w-0">
-                      <span className="font-semibold">{b.band_name}</span>
+                      <span className={`font-semibold ${b.scratched_at ? "text-muted line-through" : ""}`}>{b.band_name}</span>
+                      {b.scratched_at && (
+                        <span className="ml-2 align-middle">
+                          <Badge tone="off">Withdrawn</Badge>
+                        </span>
+                      )}
                       <span className="text-muted">
                         {" "}
                         · {b.school_name} · {b.classification} · {n(b.student_count, groups ? "participant" : "student")}
@@ -163,8 +171,8 @@ export function RegisteredBands({
                       {n(b.student_count, groups ? "participant" : "student")} · {n(b.chaperone_count, "chaperone")}
                     </Detail>
                     <Detail label="Vehicles">{vehicles(b, groups)}</Detail>
-                    <Detail label={groups ? "Event-day conflicts" : "Contest-day conflicts"}>{b.contest_day_conflicts ?? "None"}</Detail>
-                    <Detail label="Accessibility / staging">{b.special_needs ?? "None"}</Detail>
+                    <Detail label="Scheduling conflicts">{b.contest_day_conflicts ?? "None"}</Detail>
+                    <Detail label="Accessibility or staging needs">{b.special_needs ?? "None"}</Detail>
                   </dl>
                 </details>
               </li>
