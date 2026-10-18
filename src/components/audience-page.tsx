@@ -238,8 +238,8 @@ export function FeatureSections({ sections }: { sections: Audience["sections"] }
   );
 }
 
-/** How support works, the same on every page that sells the product. */
-export function SupportSection() {
+/** How support works, the same on every page that sells the product. The administrators page says "facilitators" (docs/brand-voice.md). */
+export function SupportSection({ role = "organizers" }: { role?: "organizers" | "facilitators" }) {
   return (
     <section className="border-t border-border">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
@@ -251,7 +251,7 @@ export function SupportSection() {
           {SUPPORT_POINTS.map((p) => (
             <div key={p.title}>
               <dt className="font-semibold">{p.title}</dt>
-              <dd className="mt-1 leading-7 text-muted">{p.body}</dd>
+              <dd className="mt-1 leading-7 text-muted">{p.body.replace("organizers", role)}</dd>
             </div>
           ))}
         </dl>
