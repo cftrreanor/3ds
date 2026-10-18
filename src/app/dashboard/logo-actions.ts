@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { LOGO_BUCKET, LOGO_TYPES, MAX_LOGO_BYTES } from "@/lib/badges";
+import { isHexColor } from "@/lib/brand-color";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 /** The event's account, if the person signed in is one of its hosts. */
@@ -50,6 +51,22 @@ export async function saveLogo(eventId: string, path: string | null): Promise<{ 
     return { error: "We couldn't save the logo. Please try again." };
   }
   if (old && old !== path) await createAdminClient().storage.from(LOGO_BUCKET).remove([old as string]);
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return {};
+}
+
+/** The account's color (from the logo, or picked by the host); null goes back to none. */
+export async function saveBrandColor(eventId: string, color: string | null): Promise<{ error?: string }> {
+  await requireUser();
+  if (color !== null && !isHexColor(color)) return { error: "Please pick a color." };
+  const org = await hostAccount(eventId);
+  if (!org) return { error: "Only hosts can change the color." };
+  const { error } = await (await createClient()).rpc("set_org_brand_color", { p_org: org, p_color: color });
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") return { error: "A database update is needed before the color can be saved." };
+    console.error("set_org_brand_color failed", error);
+    return { error: "We couldn't save the color. Please try again." };
+  }
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return {};
 }

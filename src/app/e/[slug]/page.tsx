@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { FileLinks } from "@/components/file-links";
 import { filesFor } from "@/lib/event-files";
-import { HeaderBar } from "@/components/logo";
+import { EventHeaderBar, EventHeading } from "@/components/event-brand";
+import { loadEventBrand } from "@/lib/event-brand";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Fragment } from "react";
@@ -161,9 +162,32 @@ export default async function EventPublicPage({ params }: Params) {
   const at = (iso: string) =>
     `${multiDay ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ` : ""}${formatTime(iso, tz)}`;
 
+  // With the account's color, the event name sits on a full-width band of it.
+  const band = !!(await loadEventBrand(slug)).color;
+  const heading = (
+    <EventHeading band={band} title={event.name}>
+      <p className="mt-2 text-muted">
+        {event.starts_on === event.ends_on && event.window_start && event.window_end
+          ? `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, tz)}`
+          : formatDateRange(event.starts_on, event.ends_on)}
+      </p>
+      {isEventDay && <AutoRefresh status className="mt-1" />}
+      {event.venue_address && (
+        <p className="mt-1 text-muted">
+          {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
+          <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
+            Directions
+          </a>
+        </p>
+      )}
+      {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
+    </EventHeading>
+  );
+
   return (
     <>
-    <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
+    <EventHeaderBar slug={slug} />
+    {band && heading}
     {(bandsHere || roomsHere) && event.status === "published" && <ScheduleUpdateBanner slug={slug} version={event.schedule_updated_at} />}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {event.status !== "published" && (
@@ -172,24 +196,7 @@ export default async function EventPublicPage({ params }: Params) {
         </Card>
       )}
 
-      <header className="mt-6">
-        <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
-        <p className="mt-2 text-muted">
-          {event.starts_on === event.ends_on && event.window_start && event.window_end
-            ? `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, tz)}`
-            : formatDateRange(event.starts_on, event.ends_on)}
-        </p>
-        {isEventDay && <AutoRefresh status className="mt-1" />}
-        {event.venue_address && (
-          <p className="mt-1 text-muted">
-            {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
-            <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
-              Directions
-            </a>
-          </p>
-        )}
-        {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
-      </header>
+      {!band && heading}
 
       <EventBannerSlot eventId={event.id} audience="public" tz={tz} className="mt-6" />
 

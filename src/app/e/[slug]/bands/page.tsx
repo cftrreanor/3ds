@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { HeaderBar } from "@/components/logo";
+import { EventHeaderBar } from "@/components/event-brand";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
@@ -138,7 +138,7 @@ export default async function BandRegistrationPage({ params }: Params) {
 
   return (
     <>
-    <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
+    <EventHeaderBar slug={slug} />
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       <header className="mt-6">
         <p className="text-sm font-medium text-muted">{w.One} registration</p>

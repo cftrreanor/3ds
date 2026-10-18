@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { HeaderBar } from "@/components/logo";
+import { EventHeaderBar } from "@/components/event-brand";
 import { Card } from "@/components/ui";
 import { meetingPlace, meetingWhen } from "@/lib/conference-bookings";
 import { createClient } from "@/lib/supabase/server";
@@ -22,7 +22,7 @@ export default async function ManageBookingPage({ params }: Params) {
   if (!booking || !conf) {
     return (
       <>
-        <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
+        <EventHeaderBar slug={slug} />
         <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
           <Card>
             <p className="font-medium">This booking was canceled, or the link isn&apos;t complete.</p>
@@ -44,7 +44,7 @@ export default async function ManageBookingPage({ params }: Params) {
 
   return (
     <>
-      <HeaderBar maxWidth="max-w-2xl" href={`/e/${event.slug}`} />
+      <EventHeaderBar slug={event.slug} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
         <p className="text-sm font-medium text-muted">Parent-teacher conference with {teacher.name}</p>
         <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{booking.child_name}</h1>

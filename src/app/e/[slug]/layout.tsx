@@ -1,12 +1,23 @@
 import Link from "next/link";
 import { DemoBar } from "@/components/demo-bar";
 import { brand } from "@/lib/brand";
+import { brandThemeCss } from "@/lib/brand-color";
+import { loadEventBrand } from "@/lib/event-brand";
 
-export default function EventPublicLayout({ children }: LayoutProps<"/e/[slug]">) {
+export default async function EventPublicLayout({ children, params }: LayoutProps<"/e/[slug]">) {
+  // The account's color re-colors buttons, links, and the event band.
+  const { color } = await loadEventBrand((await params).slug);
   return (
     <>
       <DemoBar />
-      {children}
+      {color ? (
+        <div className="event-brand contents">
+          <style>{brandThemeCss(".event-brand", color)}</style>
+          {children}
+        </div>
+      ) : (
+        children
+      )}
       <footer className="mt-auto border-t border-border">
         <p className="mx-auto max-w-3xl px-4 py-6 text-center text-sm text-muted sm:px-6">
           Run with{" "}

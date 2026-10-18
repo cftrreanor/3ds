@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Card, Select } from "@/components/ui";
 import { NumberInput } from "@/components/number-input";
-import { loadBadges, loadLogo, type Badge, type BadgeRow } from "@/lib/badges";
+import { loadBadges, loadBrand, type Badge, type BadgeRow } from "@/lib/badges";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { FILES_BUCKET } from "@/lib/event-files";
 import { RECORDS_NOTE } from "@/lib/records";
@@ -52,9 +52,9 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
 
   const admin = createAdminClient();
   const publicUrl = `${await getOrigin()}/e/${event.slug}`;
-  const [badges, logo, qr, { data: stationData }, { data: fileData }] = await Promise.all([
+  const [badges, { logo, color: brandColor }, qr, { data: stationData }, { data: fileData }] = await Promise.all([
     loadBadges(eventId, event.timezone, days.length > 1, { station: station || undefined, day: day || undefined }),
-    loadLogo(event.organization_id),
+    loadBrand(event.organization_id),
     QRCode.toString(publicUrl, { type: "svg", margin: 0 }),
     supabase.from("stations").select("id, name").eq("event_id", eventId).order("sort_order").order("created_at"),
     // Maps for the back: what the team can see (hosts see every file).
@@ -191,7 +191,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
 
       {/* The sheets: a preview on screen, the printout on paper. Fronts and backs alternate for double-sided printing. */}
       {cards.length > 0 && (
-        <BadgeColorScope logo={logo} className="badge-preview mt-6 -mx-4 overflow-x-auto bg-border/40 px-4 py-6 sm:mx-0 sm:rounded-lg">
+        <BadgeColorScope logo={logo} color={brandColor} className="badge-preview mt-6 -mx-4 overflow-x-auto bg-border/40 px-4 py-6 sm:mx-0 sm:rounded-lg">
           {sheets.map((sheet, i) => (
             <div key={i}>
               <Sheet paper={paper}>

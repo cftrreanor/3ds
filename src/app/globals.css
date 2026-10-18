@@ -178,6 +178,14 @@
   :where(.bg-header, .hero-sky, .bg-teal-deep) {
     --focus: #ffffff;
   }
+
+  /* The event's color band on its public pages: all text and links in white. */
+  .event-band {
+    --focus: #ffffff;
+    --muted: #ffffff;
+    --brand: #ffffff;
+    --danger: #ffffff;
+  }
 }
 
 /* The home page hero: a soft sky-blue glow over the deep blue. */
