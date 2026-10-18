@@ -24,7 +24,8 @@ export type Audience = {
   replaces: string[];
   /** "How it works": 3 or 4 steps, each with a phone screenshot. */
   steps: HowStep[];
-  sections: { title: string; body: string; points: string[] }[];
+  /** Each with an optional phone screenshot of it (public/screens/, sample data only). */
+  sections: { title: string; body: string; points: string[]; screen?: { src: string; alt: string } }[];
   privacy: string[];
   faqs: { q: string; a: string }[];
 };
@@ -42,9 +43,9 @@ export const audiences = {
     metaDescription:
       "Run a marching band contest or jazz festival: online band registration with saved details, a published performance schedule with finals, a live order for spectators, and contest day check-in from parking to the gate.",
     eyebrow: "For band directors and band booster clubs",
-    headline: "Band contests from start to finish",
+    headline: "From the first registration to the last band through the gate",
     intro:
-      "Run a marching invitational, jazz festival, or solo & ensemble from registration to the last performance. Directors register online, you publish the schedule, and volunteers check every band through on their own phones.",
+      "Run a marching invitational, jazz festival, or solo & ensemble on one page. Directors register online, you publish the schedule, volunteers check every band through on their own phones, and families follow along live.",
     replaces: [
       "Registration forms emailed back and forth",
       "A schedule retyped and re-sent every time something changes",
@@ -54,13 +55,26 @@ export const audiences = {
     sections: [
       {
         title: "Band registration that remembers",
-        body: "Share one registration link. Directors enter their school, band, classification, directors, student and chaperone counts, vehicles, scheduling conflicts, and any staging or accessibility needs.",
+        body: "Share one link, and directors fill in their school, band, classification, directors, student and chaperone counts, vehicles, and any conflicts or staging needs. They confirm with a code we email them, with no account to set up first.",
         points: [
-          "Invite directors from your past contests, and their saved band details are filled in for them",
-          "Set your own classifications, a chaperone limit, and a registration deadline that closes on its own",
-          "Directors can update or withdraw while registration is open; after that, changes come through you",
+          "Invite directors from past contests, or import last year's list from a spreadsheet, and their details are filled in for them",
+          "See every registered band with totals for students, chaperones, and vehicles, filter by classification, and download the list",
+          "Set a chaperone limit and a deadline that closes on its own, then reopen with a new deadline if a band asks for more time",
           "Headcounts only: student names are never collected",
         ],
+      },
+      {
+        title: "What visiting directors get",
+        body: "Every director has one page for their band: when to be where, your information for directors, and your maps and documents. Fewer calls and emails land on you.",
+        points: [
+          "Their warm-up and performance times, added to their calendar in one tap",
+          "A checklist of what's next, then live check-in steps on contest day",
+          "Changes allowed until your deadline, and a withdraw button if plans change, which emails you",
+        ],
+        screen: {
+          src: "/screens/band-director-page.webp",
+          alt: "A band director's page on a phone: the band, the contest, a What's next checklist, and their performance time.",
+        },
       },
       {
         title: "A performance schedule everyone can trust",
@@ -69,49 +83,48 @@ export const audiences = {
           "Directors are emailed when their time changes, and anyone with the schedule open is told it was updated",
           "Running late? Push the rest of the schedule back in one step, and affected directors are emailed",
           "Publish finals times first, then reveal the finalists when you're ready",
-          "Directors add their performance and finals times to their calendar in one tap",
         ],
       },
       {
         title: "Contest day check-in, your way",
         body: "Set the stops every band moves through, like Parking, Check-in, Warm-up, and the Gate. Volunteers at each stop tap a band through on any phone, tablet, or laptop.",
         points: [
-          "Assign parking spots for buses, equipment trucks, and trailers as bands arrive",
-          "See which bands are on track, running late, or still to arrive",
+          "Each person sees buttons for their own jobs, like Check in bands or Push schedule back",
+          "Assign parking spots as buses, trucks, and trailers arrive, and see who's on track or running late",
           "Every tap records who made it and when, and can be undone",
-          "Directors see their band's next step on their own phone",
+          `Volunteers for concessions, parking, and the gate sign up for shifts on the same event, with printable badges that carry your logo`,
         ],
+        screen: {
+          src: "/screens/band-checkin-station.webp",
+          alt: "The parking station on contest day on a phone: a band marked late, with buttons for buses and equipment, and event-day buttons along the bottom.",
+        },
       },
       {
         title: "A live order for spectators",
-        body: "Families and fans follow the public schedule on their phones: who's performing now, who's next, and who has already performed.",
+        body: "Families and fans follow the public schedule on their phones: who just performed, who's up next, and the full order, under your logo and colors.",
         points: [
           "Spectators never see contact details or headcounts",
           "Post a banner for a weather delay or schedule change",
           "Share parking maps and director packets with exactly the people who need them",
         ],
-      },
-      {
-        title: "Volunteers for every station",
-        body: `Concessions, parking, the gate, and hospitality all run on the same event. ${VOLUNTEERS_TOO}`,
-        points: [
-          "Volunteer Leads and Section Leads see only what their role needs",
-          "Walk-up volunteers can be added and checked in on the day",
-        ],
+        screen: {
+          src: "/screens/band-live-order.webp",
+          alt: "The public contest page on a phone in the host's colors, with the host's logo and the live performance order.",
+        },
       },
     ],
     steps: [
       {
         title: "Open registration",
         body: "Set your classifications, a chaperone limit, and a deadline, then invite directors from your past contests.",
-        screen: "/screens/band-registration-setup.webp",
-        alt: "The organizer's Band Registration page: registration settings done, registration open, and three registered bands.",
+        screen: "/screens/band-registration-page.webp",
+        alt: "The organizer's Band Registration page: registration open, a deadline, and the registered bands with totals and classification filters.",
       },
       {
         title: "Directors register",
-        body: "Directors fill in their school, band, directors, student counts, and vehicles. They can update it until registration closes.",
-        screen: "/screens/band-registration-form.webp",
-        alt: "A band director filling in the registration form: school name, band name, classification, and contact email.",
+        body: "Directors fill in their school, band, directors, student counts, and vehicles, then confirm with a code. They can update it until registration closes.",
+        screen: "/screens/band-registration-confirm-code.webp",
+        alt: "The band registration form on a phone, with a note that it takes about 5 minutes and is confirmed with an emailed code.",
       },
       {
         title: "Publish the schedule",
@@ -135,11 +148,15 @@ export const audiences = {
     faqs: [
       {
         q: "How do band directors register for our contest?",
-        a: "Share one registration link. Directors sign in, register their band with its classification, directors, headcounts, chaperones, and vehicles, and can update it while registration is open. They see their performance time as soon as you publish the schedule.",
+        a: "Share one registration link. Directors fill in the form, with no account to set up first, then confirm with a code we email them. Directors you invite by email register in one tap with no code. They see their performance time as soon as you publish the schedule.",
       },
       {
         q: "Can returning bands reuse last year's registration?",
-        a: "Yes. Invite the directors who registered at your earlier contests. Their link opens registration with their saved band details already filled in.",
+        a: "Yes. Invite the directors who registered at your earlier contests, or import last year's list from a spreadsheet. Their link opens registration with their band details already filled in.",
+      },
+      {
+        q: "What if a band needs to withdraw, or asks for more time?",
+        a: "Directors can withdraw from their own page, and you're emailed. While registration is open and before you post times, their registration is removed. After that, the band is marked withdrawn on the schedule so your order keeps its shape. If a band asks for more time after your deadline, reopen registration with a new deadline in one step.",
       },
       {
         q: "Does it collect entry fees?",
@@ -151,7 +168,7 @@ export const audiences = {
       },
       {
         q: "Can parents and fans follow the performance order?",
-        a: "Yes. The public event page shows the schedule live on contest day: who's performing now, who's next, and who has performed, with no contact details or headcounts.",
+        a: "Yes. The public event page shows the schedule live on contest day: who just performed and who's up next, with no contact details or headcounts. It carries your logo and colors.",
       },
     ],
   },

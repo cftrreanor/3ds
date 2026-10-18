@@ -8,6 +8,7 @@ import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PublicBanners } from "@/components/site-banner";
 import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
+import { SUPPORT_POINTS as support } from "@/lib/support";
 import { SITE_URL } from "@/lib/site-url";
 import { ADMINISTRATORS_PAGE, audiences, CONFERENCES_PAGE } from "@/lib/audiences";
 import { SiteFooter } from "@/components/site-footer";
@@ -114,20 +115,7 @@ const different = [
 
 // "Supported" is a system, not a person on call: no phone numbers,
 // response-time promises, or "always available" language.
-const support = [
-  {
-    title: "Guidance built in",
-    body: "Each kind of event walks you through setup one step at a time, and event-day screens show who's here and what's next.",
-  },
-  {
-    title: "Quick answers",
-    body: "Our pages for each kind of event answer the questions organizers ask most, in plain words.",
-  },
-  {
-    title: "Real people when you need them",
-    body: "Email us and a person on our team writes back. No bots.",
-  },
-];
+
 
 // The principles behind every event's data (the database enforces each one).
 const privacy = [
