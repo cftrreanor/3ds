@@ -5,12 +5,14 @@ import { PilotForm } from "@/app/pilot-form";
 import { FaqList } from "@/components/faq-list";
 import { HowItWorks } from "@/components/how-it-works";
 import { JumpLink } from "@/components/jump-link";
+import { PhoneFrame } from "@/components/phone-frame";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
 import { AUDIENCES, CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
 import { PILOT_END_LABEL } from "@/lib/pilot";
+import { SUPPORT_POINTS } from "@/lib/support";
 
 const CTA = "Join the pilot";
 
@@ -116,7 +118,10 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
 
         <div className="mx-auto max-w-6xl divide-y divide-border px-4 sm:px-6">
           {a.sections.map((s) => (
-            <section key={s.title} className="grid gap-4 py-12 md:grid-cols-[2fr_3fr] md:gap-10">
+            <section
+              key={s.title}
+              className={`grid gap-4 py-12 md:gap-10 ${s.screen ? "md:grid-cols-[2fr_3fr_auto]" : "md:grid-cols-[2fr_3fr]"}`}
+            >
               <h2 className="text-2xl font-medium leading-tight tracking-tight sm:text-3xl">{s.title}</h2>
               <div>
                 <p className="leading-7">{s.body}</p>
@@ -133,6 +138,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
                   </ul>
                 )}
               </div>
+              {s.screen && <PhoneFrame src={s.screen.src} alt={s.screen.alt} className="mx-auto mt-2 w-full max-w-[240px] md:mt-0 md:w-[240px]" />}
             </section>
           ))}
         </div>
@@ -147,6 +153,23 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
                 </li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        <section className="border-t border-border">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+            <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-4xl">How support works</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-muted">
+              Support starts in the product, so most questions never come up. When one does, a real person is behind it.
+            </p>
+            <dl className="mt-8 grid gap-8 sm:grid-cols-3">
+              {SUPPORT_POINTS.map((p) => (
+                <div key={p.title}>
+                  <dt className="font-semibold">{p.title}</dt>
+                  <dd className="mt-1 leading-7 text-muted">{p.body}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 
