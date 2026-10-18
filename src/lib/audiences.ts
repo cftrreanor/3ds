@@ -333,7 +333,7 @@ export const audiences = {
     sections: [
       {
         title: "Booths, organized by zone",
-        body: "Add every booth with its location, a short description, and the partner or vendor running it, then group them into zones.",
+        body: "Add every booth with its location, a short description, and the partner or vendor running it, then group them into zones. Partners don't make an account or fill in a form: you add them.",
         points: [
           "Start with Game Zone, Activity Stations, Marketplace, Showcase, and Food & Drinks, or name your own zones",
           "Choose which booths are listed publicly",
@@ -341,28 +341,44 @@ export const audiences = {
         ],
       },
       {
-        title: "Community partners checked in on the day",
-        body: "As partners and vendors arrive, anyone on your team taps them Arrived on any phone, so you can see at a glance which booths are still waiting.",
-        points: ["Taps can be undone if someone taps the wrong booth"],
-      },
-      {
         title: "Volunteers for every booth",
-        body: VOLUNTEERS_TOO,
+        body: "Share one link or QR code, and parents pick a station and a shift on their phone without making an account. They get a confirmation, a calendar invite, and a reminder the day before.",
         points: [
           "Give each volunteer station a zone, and a Station Coordinator to run it",
-          "Parents can sign up with their student, under one sign-up",
-          "Mark stations like parking as adults only",
-          "Add walk-up volunteers on the day",
+          "Parents can sign up with their student under one sign-up, and stations like parking can be adults only",
+          "Already have volunteers lined up in a spreadsheet? Import them onto their shifts",
+          "Print name badges that carry your logo",
         ],
+        screen: {
+          src: "/screens/fair-volunteer-badges.webp",
+          alt: "A printable volunteer name badge with the organizer's logo, the volunteer's name and shift, and a QR code for event info.",
+        },
       },
       {
         title: "A “What's at the event” page",
-        body: "Families see everything at your fair, zone by zone, on one public page they can pull up on their phone. It's a simple way to thank the partners and sponsors who make the day happen.",
+        body: "Families see everything at your fair, zone by zone, on one public page under your logo and colors. It's a simple way to thank the partners and sponsors who make the day happen.",
         points: [
-          "Share it with a link or a QR code",
+          "Share it with a link, or download a QR code for flyers, emails, and slides",
           "Post a banner for a weather change or a new start time",
           "Share a map of the grounds with everyone, or a packet with just your volunteers",
         ],
+        screen: {
+          src: "/screens/fair-whats-here.webp",
+          alt: "The public fair page on a phone in the organizer's colors, with its logo, a volunteer sign-up link, and the booths in the Game Zone.",
+        },
+      },
+      {
+        title: "Fair day, from any phone",
+        body: "On the day, your team checks in partners and volunteers on any phone, tablet, or laptop. Each person sees buttons for their own jobs, like Check in booths and partners or Check in volunteers.",
+        points: [
+          "See how many booths have arrived and which are still waiting, updated on its own",
+          "Tap partners Arrived as they set up, and undo a wrong tap",
+          "Check volunteers in at the desk, add walk-ups, and release no-shows so someone else can take the spot",
+        ],
+        screen: {
+          src: "/screens/fair-day-booth-checkin.webp",
+          alt: "Fair day check-in on a phone: how many booths have arrived, the ones not here yet, and Arrived buttons for each booth.",
+        },
       },
     ],
     steps: [
@@ -405,6 +421,14 @@ export const audiences = {
       {
         q: "How do volunteers sign up for booths?",
         a: "Share one link or QR code. Volunteers pick a station and shift on their phone without making an account, and get a confirmation, a calendar invite, and a reminder the day before.",
+      },
+      {
+        q: "Do our partners and vendors need to do anything?",
+        a: "No. You add each booth and the partner running it, and their contact details stay private to your team. Partners don't make an account or fill in a form. On the day, your team taps them Arrived as they set up.",
+      },
+      {
+        q: "What about volunteers who walk up on the day?",
+        a: "Add them at the volunteer desk in a few taps, with no account needed, and they're checked in right away. If someone doesn't show, release their spot so a walk-up can take it.",
       },
       {
         q: "Can students volunteer at our fair?",
