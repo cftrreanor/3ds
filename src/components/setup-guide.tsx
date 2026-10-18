@@ -388,13 +388,18 @@ function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & St
           <span className={`block text-sm font-medium ${st.done ? "text-muted" : ""}`}>
             {st.label}
             <span className="sr-only">{st.done ? " (done)" : st.partial ? " (in progress)" : " (to do)"}</span>
-            {isNext && <span className="ml-2 rounded-full bg-brand px-2 py-0.5 align-middle text-[11px] font-semibold text-brand-foreground">Next</span>}
-            {!st.required && !st.done && (
-              <span className="ml-2 rounded-full bg-background px-2 py-0.5 align-middle text-[11px] font-semibold text-muted ring-1 ring-border">
-                Optional
-              </span>
-            )}
           </span>
+          {/* Pills on their own row, so they wrap inside the narrow sidebar instead of running past its edge. */}
+          {(isNext || (!st.required && !st.done)) && (
+            <span className="mt-1 flex flex-wrap gap-1.5">
+              {isNext && <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold text-brand-foreground">Next</span>}
+              {!st.required && !st.done && (
+                <span className="rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold text-muted ring-1 ring-border">
+                  Optional
+                </span>
+              )}
+            </span>
+          )}
           {!st.done &&
             (st.partial ? (
               <span className="mt-0.5 block text-xs leading-5">
