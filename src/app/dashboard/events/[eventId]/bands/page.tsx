@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
+import { reopenBandRegistration, setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
 import { Badge } from "@/components/ui";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import { requireUser } from "@/lib/auth";
@@ -21,6 +21,7 @@ import { ActionButton, CopyLinkButton } from "../forms";
 import { BandSettingsForm } from "./settings-form";
 import { SavedBy } from "@/components/saved-by";
 import { OpenStepLink, RegisteredBands } from "./registered-bands";
+import { ReopenRegistration } from "./reopen-registration";
 
 export const metadata: Metadata = { title: "Registration" };
 
@@ -91,6 +92,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
   // Past directors are band directors so far; group events start fresh.
   const directors = [...imported.values(), ...(roomsHere ? [] : pastDirectors.filter((d) => !imported.has(d.email.toLowerCase())))];
   const regOpen = registrationIsOpen(event);
+  const today = utcToZonedDate(new Date().toISOString(), event.timezone);
   const pastDeadline = event.band_registration_open && deadlinePassed(event);
   const bands = (bandData ?? []) as BandRow[];
   const origin = await getOrigin();
@@ -149,12 +151,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
                 {regOpen && event.band_registration_deadline
                   ? `Closes at the end of ${formatDate(event.band_registration_deadline)}`
                   : pastDeadline
-                    ? (
-                        <>
-                          The deadline ({formatDate(event.band_registration_deadline!)}) has passed. To reopen, change it in{" "}
-                          <OpenStepLink step="registration-settings">Registration settings</OpenStepLink>.
-                        </>
-                      )
+                    ? `The deadline (${formatDate(event.band_registration_deadline!)}) has passed.`
                     : regOpen
                       ? "No deadline set"
                       : null}
@@ -168,7 +165,8 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               </p>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {/* With the reopen form showing, the buttons take their own row. */}
+          <div className="flex flex-wrap items-center gap-2 has-[form]:basis-full">
             <CopyLinkButton url={registrationUrl} label="Copy registration link" />
             {published && !pastDeadline && (
               <ActionButton
@@ -178,6 +176,9 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               >
                 {event.band_registration_open ? "Close registration" : "Open registration"}
               </ActionButton>
+            )}
+            {published && pastDeadline && (
+              <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />
             )}
           </div>
         </div>
@@ -235,7 +236,7 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
             {event.band_registration_deadline && (
               <p className="text-sm text-muted">
                 {pastDeadline
-                  ? `The deadline (${formatDate(event.band_registration_deadline)}) has passed. Change it in step 1 to reopen.`
+                  ? `The deadline (${formatDate(event.band_registration_deadline)}) has passed. Reopen with a new deadline below.`
                   : `Closes automatically at the end of ${formatDate(event.band_registration_deadline)}.`}
               </p>
             )}
@@ -254,6 +255,9 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               >
                 {event.band_registration_open ? `Close ${w.one} registration` : `Open ${w.one} registration`}
               </ActionButton>
+            )}
+            {published && pastDeadline && (
+              <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />
             )}
           </div>
         </SetupStep>
