@@ -3,12 +3,11 @@
 import { useState, useTransition } from "react";
 import { Button, Field, FormMessage, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { createClient } from "@/lib/supabase/client";
+import { uploadToSignedUrl } from "@/lib/signed-upload";
 import type { UploadedFile } from "../../../file-actions";
 
 const TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const MAX = 10 * 1024 * 1024;
-const BUCKET = "event-files";
 
 export type ManagedFile = {
   id: string;
@@ -38,7 +37,7 @@ export function FilesManager({
   /** Offer to email people about a file (band contests only). */
   canNotify?: boolean;
   audiences: readonly Audience[];
-  prepareUpload: (file: { fileName: string; contentType: string; size: number }) => Promise<{ error?: string; path?: string; token?: string }>;
+  prepareUpload: (file: { fileName: string; contentType: string; size: number }) => Promise<{ error?: string; path?: string; url?: string }>;
   saveFile: (fileId: string | null, uploaded: UploadedFile | null, prev: ActionState, formData: FormData) => Promise<ActionState>;
   deleteFile: (fileId: string) => Promise<ActionState>;
 }) {
@@ -148,7 +147,7 @@ function FileForm({
   canNotify: boolean;
   file?: ManagedFile;
   audiences: readonly Audience[];
-  prepareUpload: (file: { fileName: string; contentType: string; size: number }) => Promise<{ error?: string; path?: string; token?: string }>;
+  prepareUpload: (file: { fileName: string; contentType: string; size: number }) => Promise<{ error?: string; path?: string; url?: string }>;
   saveFile: (fileId: string | null, uploaded: UploadedFile | null, prev: ActionState, formData: FormData) => Promise<ActionState>;
   onDone: (message: string | null) => void;
   onCancel?: () => void;
@@ -173,14 +172,11 @@ function FileForm({
       if (upload.size > MAX) return setError("That file is over 10 MB. Try a smaller PDF or a photo.");
       setStep("Uploading…");
       const ticket = await prepareUpload({ fileName: upload.name, contentType: upload.type, size: upload.size });
-      if (ticket.error || !ticket.path || !ticket.token) {
+      if (ticket.error || !ticket.path || !ticket.url) {
         setStep(null);
         return setError(ticket.error ?? "We couldn't start the upload. Please try again.");
       }
-      const { error: upErr } = await createClient()
-        .storage.from(BUCKET)
-        .uploadToSignedUrl(ticket.path, ticket.token, upload, { contentType: upload.type });
-      if (upErr) {
+      if (!(await uploadToSignedUrl(ticket.url, upload))) {
         setStep(null);
         return setError("The upload didn't go through. Check your connection and try again.");
       }
@@ -199,7 +195,8 @@ function FileForm({
       className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
-        void submit(e.currentTarget).catch(() => {
+        void submit(e.currentTarget).catch((err) => {
+          console.error("File upload failed", err);
           setStep(null);
           setError("Something went wrong. Please try again.");
         });

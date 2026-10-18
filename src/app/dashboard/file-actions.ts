@@ -30,7 +30,7 @@ async function isHost(eventId: string) {
 export async function prepareUpload(
   eventId: string,
   file: { fileName: string; contentType: string; size: number },
-): Promise<{ error?: string; path?: string; token?: string }> {
+): Promise<{ error?: string; path?: string; url?: string }> {
   await requireUser();
   const parsed = uploadSchema.safeParse(file);
   if (!parsed.success) {
@@ -49,7 +49,7 @@ export async function prepareUpload(
     console.error("createSignedUploadUrl failed", error);
     return { error: "We couldn't start the upload. Please try again." };
   }
-  return { path, token: data.token };
+  return { path, url: data.signedUrl };
 }
 
 const detailsSchema = z.object({
