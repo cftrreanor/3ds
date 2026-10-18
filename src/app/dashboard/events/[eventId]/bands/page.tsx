@@ -246,6 +246,10 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
               <div className="mt-2">
                 <CopyLinkButton url={registrationUrl} label="Copy link" />
               </div>
+              <p className="mt-2 text-sm text-muted">
+                Directors who use this link confirm their email with a code after they fill in the form. Directors you{" "}
+                <OpenStepLink step="invite-directors">invite by email</OpenStepLink> register with one tap, with no code.
+              </p>
             </div>
             {published && !pastDeadline && (
               <ActionButton

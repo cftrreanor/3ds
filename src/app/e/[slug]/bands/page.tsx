@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { EventHeaderBar } from "@/components/event-brand";
+import { EventHeaderBar, EventHeading } from "@/components/event-brand";
+import { loadEventBrand } from "@/lib/event-brand";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
@@ -11,6 +12,7 @@ import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTimeRange } from "@/lib/time";
+import { GuestRegister } from "./guest-register";
 import { RegisterForm, type PreviousBand } from "./register-form";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -39,7 +41,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
+    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -80,7 +82,7 @@ export default async function BandRegistrationPage({ params }: Params) {
     .filter((p) => !registeredNames.has(p.band_name.toLowerCase()))
     .map((p) => ({
       id: p.id,
-      from: "the host",
+      from: "the organizer",
       prefilled: true,
       band_name: p.band_name,
       school_name: p.school_name ?? "",
@@ -136,20 +138,49 @@ export default async function BandRegistrationPage({ params }: Params) {
     />
   );
 
+  // With the account's color, the event name sits on a full-width band of it.
+  const band = !!(await loadEventBrand(slug)).color;
+  const mapUrl = event.venue_address
+    ? `https://www.google.com/maps/search/?${new URLSearchParams({
+        api: "1",
+        query: event.venue_address,
+        ...(event.venue_place_id ? { query_place_id: event.venue_place_id } : {}),
+      })}`
+    : null;
+  const heading = (
+    <EventHeading band={band} eyebrow={`${w.One} registration`} title={event.name}>
+      <p className="mt-2 text-muted">
+        {event.starts_on === event.ends_on && event.window_start && event.window_end
+          ? `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`
+          : formatDateRange(event.starts_on, event.ends_on)}
+      </p>
+      {(event.venue_name || event.venue_address) && (
+        <p className="mt-1 text-muted">
+          {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
+          {mapUrl && (
+            <>
+              {" "}
+              ·{" "}
+              <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
+                Directions
+              </a>
+            </>
+          )}
+        </p>
+      )}
+    </EventHeading>
+  );
+  // How long it takes, and that answers can change later.
+  const promise = `It takes about 5 minutes, and you can change your answers ${
+    event.band_registration_deadline ? `until the end of ${formatDate(event.band_registration_deadline)}` : "while registration is open"
+  }.`;
+
   return (
     <>
     <EventHeaderBar slug={slug} />
+    {band && heading}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      <header className="mt-6">
-        <p className="text-sm font-medium text-muted">{w.One} registration</p>
-        <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
-        <p className="mt-2 text-muted">
-          {event.starts_on === event.ends_on && event.window_start && event.window_end
-            ? `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`
-            : formatDateRange(event.starts_on, event.ends_on)}
-        </p>
-        <p className="mt-1 text-muted">{[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}</p>
-      </header>
+      {!band && heading}
 
       {(event.director_info || (open && event.band_registration_deadline)) && (
         <Card className="mt-8 space-y-3">
@@ -188,33 +219,42 @@ export default async function BandRegistrationPage({ params }: Params) {
             </p>
             <p className="mt-1 text-sm text-muted">
               {event.status === "published"
-                ? "Please contact the organizer if you need to make a change."
+                ? mine.length > 0
+                  ? `To change your registration now, contact the organizer from your ${w.one}'s page.`
+                  : `If you still need to register a ${w.one}, contact the organizer directly.`
                 : `Publish the event and open ${w.one} registration to accept registrations.`}
             </p>
+            {event.status === "published" && (
+              <Link href={`/e/${slug}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline">
+                See the event page
+              </Link>
+            )}
           </Card>
         ) : !user ? (
-          <Card>
-            <h2 className="font-semibold">Directors: sign in to register</h2>
-            <p className="mt-2 leading-7 text-muted">
-              We&apos;ll email you a sign-in link, no password needed. Your registration is saved to your account so
-              you can update it and see your {kind === "group" ? "schedule" : "performance time"} when it&apos;s posted.
+          <>
+            <p className="mb-2 text-sm text-muted">
+              {promise} After you submit, we&apos;ll email the head director a code to confirm, with no password needed.
             </p>
-            <Link
-              href={`/login?next=${encodeURIComponent(here)}`}
-              className="mt-4 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
-            >
-              Sign in to register
-            </Link>
-          </Card>
+            <p className="mb-6 text-sm">
+              Registered with us before?{" "}
+              <Link href={`/login?next=${encodeURIComponent(here)}`} className="font-medium text-brand underline-offset-4 hover:underline">
+                Sign in to use your saved details
+              </Link>
+            </p>
+            <GuestRegister eventId={event.id} classifications={event.classifications} chaperoneLimit={event.chaperone_limit} kind={kind} />
+          </>
         ) : mine.length > 0 ? (
           <details className="group">
             <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-background group-open:mb-6">
-              + Register another ensemble
+              + Register another {w.one}
             </summary>
             {form}
           </details>
         ) : (
-          form
+          <>
+            <p className="mb-4 text-sm text-muted">{promise}</p>
+            {form}
+          </>
         )}
       </div>
     </main>
