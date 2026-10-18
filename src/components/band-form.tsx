@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ActionForm } from "@/components/action-form";
 import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
@@ -46,6 +47,9 @@ export function BandForm({
 }) {
   const group = kind === "group";
   const num = (v: number | undefined) => (v === undefined ? "" : String(v));
+  // Over the chaperone limit: say so as they type, not after they submit.
+  const [chaperones, setChaperones] = useState(num(initial.chaperone_count));
+  const overLimit = chaperones !== "" && Number(chaperones) > chaperoneLimit;
   return (
     <ActionForm action={action} className="space-y-6" resetOnSuccess={false}>
       <fieldset disabled={disabled} className="space-y-6">
@@ -75,10 +79,10 @@ export function BandForm({
                 ))}
               </Select>
             </Field>
-            <Field label={group ? "Group contact email" : "Band contact email"} hint="Where the host should send updates.">
+            <Field label={group ? "Group contact email" : "Band contact email"} hint="Where the organizer should send updates.">
               <Input name="contactEmail" type="email" required defaultValue={initial.contact_email} />
             </Field>
-            <Field label="School address (optional)" hint="If the host needs it, for example to mail a receipt." className="sm:col-span-2">
+            <Field label="School address (optional)" hint="If the organizer needs it, for example to mail a receipt." className="sm:col-span-2">
               <Input name="schoolAddress" defaultValue={initial.school_address} autoComplete="street-address" />
             </Field>
           </div>
@@ -96,7 +100,7 @@ export function BandForm({
             <Field label="Head director's email" className="sm:col-span-2">
               <Input name="headDirectorEmail" type="email" required defaultValue={initial.head_director_email} />
             </Field>
-            <Field label="Assistant directors" hint="Optional. One per line." className="sm:col-span-2">
+            <Field label="Assistant directors (optional)" hint="One per line." className="sm:col-span-2">
               <Textarea name="assistantDirectors" defaultValue={(initial.assistant_directors ?? []).join("\n")} />
             </Field>
           </div>
@@ -108,11 +112,19 @@ export function BandForm({
             <Field label={group ? "Participants" : "Student performers"}>
               <NumberInput name="studentCount" required defaultValue={num(initial.student_count)} />
             </Field>
-            <Field label="Chaperones" hint={`Up to ${chaperoneLimit} for this event.`}>
+            <Field
+              label="Chaperones"
+              hint={overLimit ? undefined : `Up to ${chaperoneLimit} for this event.`}
+              error={overLimit ? `This event allows up to ${chaperoneLimit} chaperones per ${kind}.` : undefined}
+              errorId="chaperone-limit"
+            >
               <NumberInput
                 name="chaperoneCount"
                 required
                 defaultValue={num(initial.chaperone_count)}
+                onChange={(e) => setChaperones(e.target.value)}
+                aria-invalid={overLimit || undefined}
+                aria-describedby={overLimit ? "chaperone-limit" : undefined}
               />
             </Field>
           </div>
@@ -121,7 +133,7 @@ export function BandForm({
         <Card className="space-y-4">
           <div>
             <h2 className="font-semibold">Vehicles</h2>
-            <p className="mt-1 text-sm text-muted">Helps the parking crew plan space for you.</p>
+            <p className="mt-1 text-sm text-muted">Leave at 0 for any you aren&apos;t bringing. Helps the parking crew plan space for you.</p>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Field label="Buses">
@@ -146,25 +158,29 @@ export function BandForm({
         <Card className="space-y-4">
           <h2 className="font-semibold">{group ? "Event day" : "Contest day"}</h2>
           <Field
-            label="Scheduling conflicts"
+            label="Scheduling conflicts (optional)"
             hint={
               group
-                ? "Optional. E.g. can't arrive before 10 AM, another performance that afternoon."
-                : "Optional. E.g. ACT testing until noon, cross country meet, homecoming that night."
+                ? "For example, can't arrive before 10 AM, or another performance that afternoon."
+                : "For example, ACT testing until noon, a cross country meet, or homecoming that night."
             }
           >
             <Textarea name="contestDayConflicts" defaultValue={initial.contest_day_conflicts ?? ""} />
           </Field>
           <Field
-            label="Accessibility or staging needs"
-            hint={group ? "Optional. ADA needs, risers, piano, power, anything we should know. Please don't include students' names or health details." : "Optional. ADA needs, pit equipment, power, anything we should know. Please don't include students' names or health details."}
+            label="Accessibility or staging needs (optional)"
+            hint={group ? "ADA needs, risers, piano, power, or anything else we should know. Please don't include students' names or health details." : "ADA needs, pit equipment, power, or anything else we should know. Please don't include students' names or health details."}
           >
             <Textarea name="specialNeeds" defaultValue={initial.special_needs ?? ""} />
           </Field>
         </Card>
       </fieldset>
 
-      {!disabled && <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>}
+      {!disabled && (
+        <SubmitButton pendingText="Saving…" disabled={overLimit}>
+          {submitLabel}
+        </SubmitButton>
+      )}
     </ActionForm>
   );
 }

@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Button, Card } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 
-/** A band to copy from: the director's own from an earlier event, or details the host filled in for them. */
+/** A band to copy from: the director's own from an earlier event, or details the organizer filled in for them. */
 export type PreviousBand = BandFormValues & { id: string; from: string; prefilled?: boolean };
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -118,7 +118,7 @@ function SavedBand({
   onEdit: () => void;
 }) {
   // Things this contest needs changed before a one-tap registration works.
-  // Details the host filled in are always reviewed by the director before registering.
+  // Details the organizer filled in are always reviewed by the director before registering.
   const problems = b.prefilled ? [] : [
     b.classification && !classifications.includes(b.classification)
       ? `This event doesn't have a ${b.classification} classification. Pick one in Review & edit.`
@@ -128,7 +128,7 @@ function SavedBand({
   const vehicles = [
     [b.bus_count, "bus", "buses"],
     [b.box_truck_count, "box truck", "box trucks"],
-    [b.truck_trailer_count, "truck/trailer", "truck/trailers"],
+    [b.truck_trailer_count, "truck + trailer", "trucks + trailers"],
     [b.semi_truck_count, "semi", "semis"],
   ]
     .filter(([n]) => Number(n) > 0)
@@ -178,7 +178,7 @@ function Detail({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
       <dt className="text-xs font-semibold text-muted">{label}</dt>
-      <dd>{value || "—"}</dd>
+      <dd>{value || "Not given"}</dd>
     </div>
   );
 }
