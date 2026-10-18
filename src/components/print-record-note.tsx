@@ -12,5 +12,5 @@ export function PrintRecordNote() {
     window.addEventListener("beforeprint", stamp);
     return () => window.removeEventListener("beforeprint", stamp);
   }, []);
-  return <p className="mt-10 hidden border-t border-border pt-3 text-xs print:block">{printedNote(date || "this date")}</p>;
+  return <p data-print-note className="mt-10 hidden border-t border-border pt-3 text-xs print:block">{printedNote(date || "this date")}</p>;
 }

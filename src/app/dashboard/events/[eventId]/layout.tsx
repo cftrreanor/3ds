@@ -19,7 +19,7 @@ export default async function EventLayout({ children, params }: LayoutProps<"/da
       {facts && <SetupStrip eventId={eventId} initial={setupChecklist(facts)} />}
       {children}
       {/* Room for the tab bar along the bottom of a phone. */}
-      {day && <div aria-hidden className="h-16 lg:hidden" />}
+      {day && <div aria-hidden className="h-16 lg:hidden print:hidden" />}
     </>
   );
 }
