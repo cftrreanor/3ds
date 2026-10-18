@@ -59,7 +59,7 @@ export function WithdrawBandButton({
               </>
             ) : (
               <>
-                <li>Your {one} is marked withdrawn on the schedule.</li>
+                <li>{one === "group" ? "Your group is marked withdrawn on the organizer's list." : "Your band is marked withdrawn on the schedule."}</li>
                 <li>Only the organizer can undo this.</li>
               </>
             )}
