@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requestPilot } from "@/app/pilot-actions";
 import { PilotForm } from "@/app/pilot-form";
-import { infoBox } from "@/components/audience-page";
+import { FeatureSections, infoBox, SupportSection } from "@/components/audience-page";
 import { FaqList } from "@/components/faq-list";
 import { HowItWorks, type HowStep } from "@/components/how-it-works";
 import { JumpLink } from "@/components/jump-link";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
-import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
+import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE, STUDENT_PRIVACY_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 import { PILOT_END_LABEL } from "@/lib/pilot";
 
@@ -53,7 +53,7 @@ const steps: HowStep[] = [
   },
 ];
 
-const sections = [
+const sections: Audience["sections"] = [
   {
     title: "Every school event in one place",
     body: `The same ${brand.name} account runs every kind of event on your campus, all year, so families see one familiar sign-up page.`,
@@ -63,7 +63,12 @@ const sections = [
       "Volunteer events like concessions, field day, and book fairs",
       "Family lunches, open houses, and other visitor days, with door check-in",
       "Parent-teacher conferences, with a free account for each teacher",
+      "Your logo and colors on every public event page and printed badge",
     ],
+    screen: {
+      src: "/screens/fair-volunteer-badges.webp",
+      alt: "A printable volunteer name badge with the school's logo, the volunteer's name and shift, and a QR code for event information.",
+    },
   },
   {
     title: "Less strain on your staff",
@@ -72,16 +77,44 @@ const sections = [
       "Families and volunteers sign up without an account or an app",
       "Confirmations, calendar invites, and reminders are sent for you",
       "Changes reach the people affected by email, like a new performance time",
-      "Emergency messages go to the event team, volunteers, and directors by email right away",
+      "Emergency messages can also be emailed right away to the groups you choose",
+      "Start from the lists you already have: import families, volunteers, or visiting directors from a spreadsheet",
     ],
+  },
+  {
+    title: "Safer events on campus",
+    body: "The tools that help keep people safe are built into each event, not added on.",
+    points: [
+      "Parents are reminded to bring a photo ID, and your door team finds any family by an adult's or child's name",
+      "Volunteers wear printable name badges with your logo and a QR code for event information",
+      "Stations like parking can be adults only, and under-18 helpers are stored by first name and last initial with a parent's contact details",
+      "Section Leads see volunteers' phone numbers only on event day",
+    ],
+    screen: {
+      src: "/screens/parent-door-search.webp",
+      alt: "Door check-in on a phone: a search for a family, how many adults are checked in, and a Check in button for each adult once their photo ID is checked.",
+    },
+  },
+  {
+    title: "Accountability you can see",
+    body: "When something changes, your team can see who did it and when.",
+    points: [
+      "Every setup step shows who last saved it and when",
+      "Every check-in tap records who made it and when, and can be undone",
+      "Each event's team is invited by name, so there are no shared logins",
+    ],
+    screen: {
+      src: "/screens/group-room-taps.webp",
+      alt: "A check-in list on a phone on event day: a group marked Done with the time and the name of the person who tapped it.",
+    },
   },
   {
     title: "Clear roles and permissions",
     body: "Facilitators invite the people helping them, and each person sees only what their job needs.",
     points: [
-      "Hosts and Co-hosts run the event",
+      "Account Hosts can run every event on your school's account",
+      "Hosts and Co-hosts run their event",
       "Volunteer Leads manage volunteers, and Section Leads run one station",
-      "Section Leads see volunteers' phone numbers only on event day",
       "Visiting directors see their own registration, never other schools' contact details",
     ],
   },
@@ -89,7 +122,7 @@ const sections = [
 
 const privacy = [
   "We ask for only what each event needs: headcounts instead of student names for contests, and no accounts for families or spectators.",
-  "Children's details from school visitor events and conferences are deleted 30 days after the event, and volunteers' details 10 days after.",
+  "Children's details from school visitor events and conferences are deleted 30 days after the event, volunteers' details 10 days after, fair partners' contact details 15 months after, and visiting directors' personal details 2 years after.",
   "Information families and volunteers give is your school's or organization's. We store it for you, and copies your staff print or download are your records.",
   "No ads, no spam, and emails used only for your event.",
 ];
@@ -112,8 +145,12 @@ const faqs = [
     a: "Yes. Our student data privacy page lists what's collected, who can see it, and when it's deleted. Email us, and a person on our team will send our district packet, answer their questions, and work through your district's data privacy agreement with you.",
   },
   {
-    q: "What does it cost?",
-    a: `Your pilot is free, and the pilot ends ${PILOT_END_LABEL}. After that, organizing events is a paid plan for the school or organization running them. We'll go over it with you before your pilot ends, and nothing charges automatically. Teachers' parent-teacher conference accounts are free, and volunteers, families, and visiting groups never pay a platform fee.`,
+    q: "Can we start from the lists we already have?",
+    a: "Yes. Import families for a visitor day or volunteers onto their shifts from a spreadsheet, and choose whether each one gets a confirmation email. Visiting band and choir directors can be imported too: their details are filled in for them, and you invite them to register when you're ready.",
+  },
+  {
+    q: "Can we see who did what?",
+    a: "Yes. Every setup step shows who last saved it and when, and every check-in tap on event day records who made it and when. Each person on your team signs in with their own email, so there are no shared logins.",
   },
 ];
 
@@ -173,26 +210,7 @@ export default function AdministratorsPage() {
 
         <HowItWorks steps={steps} className="" />
 
-        <div className="mx-auto max-w-6xl divide-y divide-border px-4 sm:px-6">
-          {sections.map((s) => (
-            <section key={s.title} className="grid gap-4 py-12 md:grid-cols-[2fr_3fr] md:gap-10">
-              <h2 className="text-2xl font-medium leading-tight tracking-tight sm:text-3xl">{s.title}</h2>
-              <div>
-                <p className="leading-7">{s.body}</p>
-                <ul className="mt-4 space-y-2 leading-7 text-muted">
-                  {s.points.map((p) => (
-                    <li key={p} className="flex gap-2">
-                      <span aria-hidden className="text-success">
-                        ✓
-                      </span>
-                      <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          ))}
-        </div>
+        <FeatureSections sections={sections} />
 
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6">
           <div className={`rounded-lg p-8 sm:p-12 ${infoBox}`}>
@@ -210,28 +228,7 @@ export default function AdministratorsPage() {
           </div>
         </section>
 
-        <section className="border-t border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-            <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">How support works</h2>
-            <p className="mt-3 max-w-2xl leading-7 text-muted">
-              Support starts in the product, so most questions never come up. When one does, a real person is behind it.
-            </p>
-            <dl className="mt-10 grid gap-8 sm:grid-cols-3">
-              <div>
-                <dt className="font-semibold">Guidance built in</dt>
-                <dd className="mt-1 leading-7 text-muted">Setup goes one step at a time, and event-day screens show who&apos;s here and what&apos;s next.</dd>
-              </div>
-              <div>
-                <dt className="font-semibold">Quick answers</dt>
-                <dd className="mt-1 leading-7 text-muted">Each kind of event has its own page that answers the questions facilitators ask most.</dd>
-              </div>
-              <div>
-                <dt className="font-semibold">Real people when you need them</dt>
-                <dd className="mt-1 leading-7 text-muted">Email us and a person on our team writes back. No bots.</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
+        <SupportSection role="facilitators" />
 
         <section id="faq" tabIndex={-1} className="scroll-mt-20 border-t border-border outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
