@@ -4482,6 +4482,59 @@ reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d3';
 delete from public.organization_members where user_id = '00000000-0000-0000-0000-000000000009';
 
+-- Conference bookings follow the day (20261210000000_conference_bookings_follow_day.sql)
+-- Changing a conference's day moves each booking to the new day at the same
+-- time of day, and bumps its calendar sequence for the updated invites.
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address, created_by)
+values ('10000000-0000-0000-0000-0000000000d4', :'org_id', 'Moving Conferences', 'conf-d4', 'published', 'conference', 'America/Chicago',
+        current_date + 3, current_date + 3,
+        ((current_date + 3) + time '15:00') at time zone 'America/Chicago',
+        ((current_date + 3) + time '16:00') at time zone 'America/Chicago', '1 School Rd', '00000000-0000-0000-0000-000000000001');
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room)
+values ('10000000-0000-0000-0000-0000000000d4', 15, 0, '[]', now(), 'in_person', 'Room 4');
+select set_config('test.move_token', public.book_conference('10000000-0000-0000-0000-0000000000d4',
+  ((current_date + 3) + time '15:15') at time zone 'America/Chicago', 'Max Ruiz', '[{"name": "Ana Ruiz", "email": "ana@example.com"}]', null, null)::text, false) \g /dev/null
+update public.conference_bookings set reminded_at = now() where access_token = current_setting('test.move_token')::uuid;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.move_conference_bookings('10000000-0000-0000-0000-0000000000d4', 'UTC');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'nobody calls move_conference_bookings directly';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  perform public.reschedule_event('10000000-0000-0000-0000-0000000000d4', current_date + 5, current_date + 5,
+    ((current_date + 5) + time '15:00') at time zone 'America/Chicago',
+    ((current_date + 5) + time '16:00') at time zone 'America/Chicago', 'America/Chicago');
+end $$;
+reset role;
+do $$ begin
+  assert (select starts_at from public.conference_bookings where access_token = current_setting('test.move_token')::uuid)
+         = ((current_date + 5) + time '15:15') at time zone 'America/Chicago',
+         'a booking moves to the conference''s new day at the same time';
+  assert (select calendar_sequence = 1 and reminded_at is null from public.conference_bookings where access_token = current_setting('test.move_token')::uuid),
+         'a moved booking gets a new calendar sequence and a fresh reminder';
+end $$;
+-- A booking left on another day (before this fix) lands on the conference's
+-- day the next time the day changes.
+update public.conference_bookings set starts_at = ((current_date + 9) + time '15:30') at time zone 'America/Chicago'
+ where access_token = current_setting('test.move_token')::uuid;
+update public.events set starts_on = current_date + 6, ends_on = current_date + 6,
+       window_start = ((current_date + 6) + time '15:00') at time zone 'America/Chicago',
+       window_end = ((current_date + 6) + time '16:00') at time zone 'America/Chicago'
+ where id = '10000000-0000-0000-0000-0000000000d4';
+do $$ begin
+  assert (select starts_at from public.conference_bookings where access_token = current_setting('test.move_token')::uuid)
+         = ((current_date + 6) + time '15:30') at time zone 'America/Chicago',
+         'a stray booking lands on the conference''s day';
+end $$;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d4';
+
 -- ---------------------------------------------------------------------------
 -- Children's details: the 30 days are counted in the event's own time zone.
 -- Kiritimati (UTC+14) and Pago Pago (UTC-11) are always 1 or 2 calendar days

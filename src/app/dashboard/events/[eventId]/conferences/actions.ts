@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { GAP_LENGTHS, MEETING_LENGTHS, type ConferenceBreak, type MeetingMode } from "@/lib/conferences";
-import { loadConference } from "@/app/e/[slug]/book/data";
+import { emailMovedMeetings, loadConference } from "@/app/e/[slug]/book/data";
 import { BOOKING_COLUMNS, bookingEmail, emailTeacher, type Booking } from "@/lib/conference-bookings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
@@ -54,6 +54,8 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
   if (breaks.length > 8) return { error: "Add up to 8 breaks." };
 
   // Changed the day or hours here: move the event too (as Edit details does).
+  // Booked meetings move with the day, and each family is emailed.
+  let moved: Awaited<ReturnType<typeof emailMovedMeetings>> | null = null;
   const day = formData.get("conferenceDay");
   if (day !== null) {
     const date = String(day);
@@ -63,7 +65,7 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
     if (!TIME.test(from) || !TIME.test(to)) return { error: "Pick when your first meeting starts and your last one ends." };
     if (to <= from) return { error: "Your last meeting has to end after the first one starts." };
     const supabase = await createClient();
-    const { data: event } = await supabase.from("events").select("timezone").eq("id", eventId).maybeSingle();
+    const { data: event } = await supabase.from("events").select("timezone, starts_on").eq("id", eventId).maybeSingle();
     if (!event) return { error: "Only the conference's host can change it." };
     const { error } = await supabase.rpc("reschedule_event", {
       p_event_id: eventId,
@@ -74,6 +76,7 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
       p_timezone: event.timezone,
     });
     if (error) return { error: friendlyDbError(error) };
+    if (date !== event.starts_on) moved = await emailMovedMeetings(eventId);
   }
 
   const error = await saveSettings(eventId, {
@@ -84,6 +87,15 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
   });
   if (error) return { error: friendlyDbError(error) };
   refresh(eventId);
+  if (moved?.moved) {
+    const n = moved.moved === 1 ? "Your booked meeting" : `Your ${moved.moved} booked meetings`;
+    return {
+      ok: true,
+      message: moved.allSent
+        ? `Meeting times saved. ${n} moved to the new day at the same time, and we emailed each family an updated calendar invite.`
+        : `Meeting times saved. ${n} moved to the new day at the same time. We couldn't email every family, so please check your Meetings page and let them know.`,
+    };
+  }
   return { ok: true, message: "Meeting times saved." };
 }
 

@@ -22,6 +22,7 @@ import { formatDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { setEventPublished } from "../../../actions";
 import { ActionButton } from "../forms";
 import { saveMeetingPlace, saveMeetingTimes } from "./actions";
+import { conferenceBookedCount } from "@/lib/conference-access";
 import { ConferencePublishBar, ConferenceSetup, MeetingPlaceForm, MeetingTimesForm } from "./conference-forms";
 import { SavedBy } from "@/components/saved-by";
 
@@ -56,6 +57,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
   const hours = `${displayTime(start)} – ${displayTime(end)}`;
   const starts = meetingStarts(start, end, settings);
   const timesDone = Boolean(saved?.times_saved_at);
+  const booked = await conferenceBookedCount(supabase, eventId);
   const placeTodo = placeMissing(saved, event.venue_address);
   const published = event.status === "published";
 
@@ -95,7 +97,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
           open={!timesDone}
           intro="How long each meeting is, and any breaks. Your hours are cut into meetings families can book."
         >
-          <MeetingTimesForm action={saveMeetingTimes.bind(null, eventId)} initial={settings} date={event.starts_on} start={start} end={end} />
+          <MeetingTimesForm action={saveMeetingTimes.bind(null, eventId)} initial={settings} date={event.starts_on} start={start} end={end} booked={booked} />
         </SetupStep>
 
         <SetupStep

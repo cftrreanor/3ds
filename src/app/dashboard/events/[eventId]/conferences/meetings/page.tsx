@@ -99,7 +99,8 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
             mode: showMode ? (b.meeting_mode === "video" ? "Video" : "In person") : null,
             note: b.note,
             cancel: cancelMeeting.bind(null, eventId, b.id),
-            started: isOver || (isToday && m <= now),
+            // The real start, as Met / No-show checks it (not just the time of day).
+            started: Date.parse(b.starts_at) <= Date.parse(nowIso),
             outcome: outcomesReady ? (b.outcome ?? null) : undefined,
             setOutcome: setMeetingOutcome.bind(null, eventId, b.id),
           }

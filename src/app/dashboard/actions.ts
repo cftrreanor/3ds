@@ -8,6 +8,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
+import { emailMovedMeetings } from "@/app/e/[slug]/book/data";
 import { getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
 import { slugify } from "@/lib/slug";
@@ -229,6 +230,8 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
       (!conference && before.venue_address !== v.venueAddress) ||
       (!conference && (before.venue_name ?? null) !== (v.venueName ?? null)) ||
       before.name !== v.name);
+  // A conference's booked meetings moved with the day: email each family.
+  if (conference && (before.starts_on !== v.startsOn || before.timezone !== v.timezone)) await emailMovedMeetings(eventId);
   if (changed) {
     const { data: shiftRows } = await supabase.from("shifts").select("id").eq("event_id", eventId);
     await notifyVolunteersOfChanges((shiftRows ?? []).map((r) => r.id));

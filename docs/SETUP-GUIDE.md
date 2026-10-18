@@ -148,6 +148,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261207000000_director_withdraw.sql` | **Withdraw a band**: band directors can withdraw after registration closes or times are posted (the band is marked withdrawn on the schedule, and the organizer is emailed) | ✅ run |
 | `20261208000000_pending_band_registrations.sql` | **Register first, confirm after**: directors who aren't signed in fill in the band registration form, then confirm with a code we email them | ✅ run |
 | `20261209000000_conference_teacher_only.sql` | **Conference bookings, teacher only**: only the teacher who set up a conference sees its bookings and families' notes; other hosts on the account see how many times are booked | ⬜ not yet |
+| `20261210000000_conference_bookings_follow_day.sql` | **Conference meetings follow the day**: when a conference's day changes, booked meetings move to the new day at the same time (families are emailed an updated invite), and meetings left on an old day by earlier changes are put back on the conference's day | ⬜ not yet |
 
 ## Pilot requests
 
