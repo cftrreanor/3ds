@@ -32,6 +32,8 @@ export type MeetingRow =
         child: string;
         parents: MeetingParent[];
         mode: string | null;
+        /** Phone calls: the number to call. */
+        call: { tel: string; display: string } | null;
         note: string | null;
         cancel: (prev: ActionState, formData: FormData) => Promise<ActionState>;
         /** The meeting's time has come: Met / No-show replace Cancel. */
@@ -63,7 +65,8 @@ export function MeetingList({
 }: {
   rows: MeetingRow[];
   booked: number;
-  total: number;
+  /** Meeting times in all (a conference day), or null for weekly hours (booked meetings only). */
+  total: number | null;
   /** The one-page summary to print or save as a PDF. */
   summaryHref: string;
 }) {
@@ -150,6 +153,14 @@ export function MeetingList({
               )}
             </p>
             <p className="text-lg font-semibold">{r.booking.child}</p>
+            {r.booking.call && (
+              <a
+                href={`tel:${r.booking.call.tel}`}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-brand px-3 text-sm font-semibold text-brand hover:bg-brand-soft print:min-h-0 print:border-0 print:px-0"
+              >
+                <span aria-hidden>📞</span> Call {r.booking.call.display}
+              </a>
+            )}
             <ul className="text-sm">
               {r.booking.parents.map((p) => (
                 <li key={p.email} className="flex flex-wrap items-center gap-x-4">
@@ -228,7 +239,7 @@ export function MeetingList({
             <span className="text-2xl font-semibold tabular-nums">{booked}</span>
             <span className="text-muted">
               {" "}
-              / {total} times booked · {total - booked} open
+              {total === null ? ` ${booked === 1 ? "meeting" : "meetings"} booked` : ` / ${total} times booked · ${total - booked} open`}
               {met + noShows > 0 && ` · ${met} met · ${noShows} ${noShows === 1 ? "no-show" : "no-shows"}`}
             </span>
           </p>
@@ -242,10 +253,15 @@ export function MeetingList({
           />
         </div>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-5 text-sm print:hidden">
-          <label className="inline-flex min-h-11 items-center gap-2">
-            <input type="checkbox" checked={openTimes} onChange={(e) => setOpenTimes(e.target.checked)} className="h-4 w-4" />
-            Show open times and breaks
-          </label>
+          {total === null ? (
+            // Weekly hours list booked meetings only.
+            <span />
+          ) : (
+            <label className="inline-flex min-h-11 items-center gap-2">
+              <input type="checkbox" checked={openTimes} onChange={(e) => setOpenTimes(e.target.checked)} className="h-4 w-4" />
+              Show open times and breaks
+            </label>
+          )}
           <details className="group relative">
             <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 font-medium text-brand hover:underline">
               Print or copy

@@ -1,6 +1,7 @@
 import "server-only";
 import { getEventAccess } from "@/lib/data";
-import { notReady, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
+import { notReady } from "@/lib/conferences";
+import { loadConferenceSettings } from "@/lib/conference-settings";
 import { hasBooths, hasConferences, hasRooms } from "@/lib/event-types";
 import type { SetupFacts } from "@/lib/setup-checklist";
 import { createClient } from "@/lib/supabase/server";
@@ -37,12 +38,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     hasRooms(type) ? count(supabase.from("rooms").select("id", head).eq("event_id", eventId).not("path_order", "is", null)) : 0,
     hasBooths(type) ? count(supabase.from("fair_booths").select("id", head).eq("event_id", eventId)) : 0,
     hasConferences(type)
-      ? supabase
-          .from("conference_settings")
-          .select(SETTINGS_COLUMNS)
-          .eq("event_id", eventId)
-          .maybeSingle()
-          .then(({ data }) => (data ?? null) as ConferenceSettings | null)
+      ? loadConferenceSettings(supabase, eventId).then((r) => r.saved)
       : null,
     hasRooms(type) ? count(supabase.from("rooms").select("id", head).eq("event_id", eventId)) : 0,
     hasRooms(type)
@@ -52,7 +48,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
         : 0,
   ]);
   // Conferences: whether it's a free teacher account, and any other conference already published (one at a time in the pilot).
-  const [org, other] = conferenceHere
+  // With a plan, conferences aren't limited to one at a time, and weekly hours (premium) can be published.
+  const [org, other, plan] = conferenceHere
     ? await Promise.all([
         supabase.from("organizations").select("account_kind").eq("id", event.organization_id).maybeSingle(),
         supabase
@@ -64,8 +61,10 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
           .neq("id", eventId)
           .limit(1)
           .maybeSingle(),
+        supabase.rpc("org_has_active_plan", { org: event.organization_id }),
       ])
-    : [null, null];
+    : [null, null, null];
+  const hasPlan = plan?.data === true;
   return {
     eventId,
     eventType: type,
@@ -92,6 +91,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     parentClosesAt: Boolean(event.parent_registration_closes_at),
     conferenceMissing: conferenceHere ? notReady(conference, event.venue_address) : null,
     teacherAccount: org?.data?.account_kind === "teacher",
-    otherConference: other?.data ? { id: other.data.id, name: other.data.name } : null,
+    otherConference: other?.data && !hasPlan ? { id: other.data.id, name: other.data.name } : null,
+    conferencePlan: hasPlan,
+    conferenceWeekly: conference?.schedule === "weekly",
   };
 }

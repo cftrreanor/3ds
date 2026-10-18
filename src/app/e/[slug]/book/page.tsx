@@ -5,7 +5,8 @@ import { Card } from "@/components/ui";
 import { formatDuration } from "@/lib/schedule";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatTime, formatTimeRange, zoneName } from "@/lib/time";
+import { weeklySummary } from "@/lib/conferences";
+import { formatDate, formatTime, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 import { bookConference } from "./actions";
 import { BookingForm } from "./booking-form";
 import { loadConference } from "./data";
@@ -35,14 +36,20 @@ export default async function BookConferencePage({ params, searchParams }: Param
   // A draft is only previewed by the teacher (who can read it), like any event page.
   if (!published && !(await supabase.from("events").select("id").eq("id", event.id).maybeSingle()).data) missing();
   const { data: open } = published ? await supabase.rpc("conference_open_times", { p_slug: slug }) : { data: [] };
-  const times = ((open ?? []) as { starts_at: string }[]).map((t) => ({ value: t.starts_at, label: formatTime(t.starts_at, event.timezone) }));
+  const times = ((open ?? []) as { starts_at: string }[]).map((t) => {
+    const day = utcToZonedDate(t.starts_at, event.timezone);
+    return { value: t.starts_at, label: formatTime(t.starts_at, event.timezone), day, dayLabel: formatDate(day, { year: undefined }) };
+  });
+  const weekly = settings.schedule === "weekly";
   const school = [event.venue_name, event.venue_address].filter(Boolean).join(", ");
   // Where to meet, one line each: the room and school, and the video option.
   const place = [settings.room, school].filter(Boolean).join(", ");
   const where =
-    settings.meeting_mode === "video"
-      ? ["On video. You'll get the details when you book."]
-      : [place ? `In person: ${place}` : "In person", ...(settings.meeting_mode === "either" ? ["Or on video. You choose when you book."] : [])];
+    settings.meeting_mode === "phone"
+      ? [`By phone. ${teacher.name} calls you at the number you give.`]
+      : settings.meeting_mode === "video"
+        ? ["On video. You'll get the details when you book."]
+        : [place ? `In person: ${place}` : "In person", ...(settings.meeting_mode === "either" ? ["Or on video. You choose when you book."] : [])];
 
   return (
     <>
@@ -52,8 +59,11 @@ export default async function BookConferencePage({ params, searchParams }: Param
           <p className="text-sm font-medium text-muted">Parent-teacher conference with {teacher.name}</p>
           <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
           <p className="mt-2 text-muted">
-            {formatDate(event.starts_on)} · {formatTimeRange(event.window_start, event.window_end, event.timezone)}
+            {weekly
+              ? `Every week: ${weeklySummary(settings.weekly_hours)}`
+              : `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`}
           </p>
+          {weekly && <p className="mt-1 text-muted">Through {formatDate(event.ends_on, { year: undefined })}</p>}
           <p className="mt-1 text-muted">{formatDuration(settings.meeting_minutes)} meetings</p>
           {where.map((line) => (
             <p key={line} className="mt-1 text-muted">
@@ -76,10 +86,11 @@ export default async function BookConferencePage({ params, searchParams }: Param
                 action={bookConference.bind(null, event.id)}
                 times={times}
                 askMode={settings.meeting_mode === "either"}
+                askPhone={settings.meeting_mode === "phone"}
                 zone={zoneName(event.timezone)}
               />
               <div className="mt-6">
-                <PrivacyNote teacher={teacher.name} />
+                <PrivacyNote teacher={teacher.name} weekly={weekly} />
               </div>
             </>
           ) : (

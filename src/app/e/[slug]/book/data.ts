@@ -1,6 +1,6 @@
 import "server-only";
-import { BOOKING_COLUMNS, bookingEmail, bookingLink, emailTeacher, type Booking, type BookingEvent, type Teacher } from "@/lib/conference-bookings";
-import { DEFAULT_SETTINGS, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
+import { bookingEmail, withCallPhone, bookingLink, emailTeacher, type Booking, type BookingEvent, type Teacher } from "@/lib/conference-bookings";
+import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -12,12 +12,13 @@ export type ConferenceEvent = BookingEvent & {
   status: string;
   event_type: string;
   starts_on: string;
+  ends_on: string;
   window_start: string;
   window_end: string;
   public_notes: string | null;
 };
 
-const EVENT_COLUMNS = "id, slug, name, status, event_type, timezone, starts_on, window_start, window_end, venue_name, venue_address, public_notes, created_by";
+const EVENT_COLUMNS = "id, slug, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, public_notes, created_by";
 
 /**
  * A conference as the server sees it: the event, its settings (with the video
@@ -29,13 +30,12 @@ export async function loadConference(by: { slug: string } | { id: string }) {
   const q = admin.from("events").select(EVENT_COLUMNS);
   const { data: event } = await ("slug" in by ? q.eq("slug", by.slug) : q.eq("id", by.id)).maybeSingle();
   if (!event || event.event_type !== "conference") return null;
-  const [{ data: settings }, { data: teacher }] = await Promise.all([
-    admin.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", event.id).maybeSingle(),
+  const [{ settings: s }, { data: teacher }] = await Promise.all([
+    loadConferenceSettings(admin, event.id),
     event.created_by
       ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const s = { ...DEFAULT_SETTINGS, ...(settings ?? {}) } as ConferenceSettings;
   const t: Teacher = { name: teacher?.full_name?.trim() || "Your teacher", email: teacher?.email ?? null };
   return { event: event as ConferenceEvent, settings: s, teacher: t };
 }
@@ -43,11 +43,10 @@ export async function loadConference(by: { slug: string } | { id: string }) {
 /** A family's booking from their link. */
 export async function loadBooking(token: string) {
   if (!/^[0-9a-f-]{36}$/i.test(token)) return null;
-  const { data } = await createAdminClient()
-    .from("conference_bookings")
-    .select(`${BOOKING_COLUMNS}, event_id`)
-    .eq("access_token", token)
-    .maybeSingle();
+  const admin = createAdminClient();
+  const { data } = await withCallPhone((columns) =>
+    admin.from("conference_bookings").select(`${columns}, event_id`).eq("access_token", token).maybeSingle(),
+  );
   return data as (Booking & { event_id: string }) | null;
 }
 
@@ -60,12 +59,11 @@ export async function loadBooking(token: string) {
 export async function emailMovedMeetings(eventId: string) {
   const conf = await loadConference({ id: eventId });
   if (!conf) return { moved: 0, allSent: true };
-  const { data } = await createAdminClient()
-    .from("conference_bookings")
-    .select(`${BOOKING_COLUMNS}, access_token`)
-    .eq("event_id", eventId)
-    .order("starts_at");
-  const bookings = ((data ?? []) as (Booking & { access_token: string })[]).filter(
+  const admin = createAdminClient();
+  const { data } = await withCallPhone((columns) =>
+    admin.from("conference_bookings").select(`${columns}, access_token`).eq("event_id", eventId).order("starts_at"),
+  );
+  const bookings = ((data ?? []) as unknown as (Booking & { access_token: string })[]).filter(
     (b) => utcToZonedDate(b.starts_at, conf.event.timezone) === conf.event.starts_on,
   );
   const origin = await getOrigin();

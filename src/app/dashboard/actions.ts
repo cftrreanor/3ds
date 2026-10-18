@@ -271,6 +271,9 @@ export async function setEventPublished(eventId: string, publish: boolean): Prom
     .eq("id", eventId)
     .select("id");
   if (error) {
+    if (error.code === "42501" && error.message.startsWith("Weekly hours are a premium feature")) {
+      return { error: `Weekly hours are a premium feature. Write to us at ${brand.supportEmail} to add them to your account.` };
+    }
     if (error.code === "42501") {
       return {
         error:

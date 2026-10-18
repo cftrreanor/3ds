@@ -3,7 +3,7 @@ import { EventHeaderBar } from "@/components/event-brand";
 import { Card } from "@/components/ui";
 import { meetingPlace, meetingWhen } from "@/lib/conference-bookings";
 import { createClient } from "@/lib/supabase/server";
-import { formatTime, zoneName } from "@/lib/time";
+import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
 import { cancelBooking, changeBooking } from "../../actions";
 import { loadBooking, loadConference } from "../../data";
 import { PrivacyNote } from "../../privacy-note";
@@ -40,7 +40,10 @@ export default async function ManageBookingPage({ params }: Params) {
   const place = meetingPlace(booking, event, settings, teacher);
   const started = new Date(booking.starts_at) <= new Date();
   const { data: open } = started ? { data: [] } : await (await createClient()).rpc("conference_open_times", { p_slug: event.slug });
-  const times = ((open ?? []) as { starts_at: string }[]).map((t) => ({ value: t.starts_at, label: formatTime(t.starts_at, tz) }));
+  // Weekly hours span many days, so each time says its day.
+  const label = (iso: string) =>
+    settings.schedule === "weekly" ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${formatTime(iso, tz)}` : formatTime(iso, tz);
+  const times = ((open ?? []) as { starts_at: string }[]).map((t) => ({ value: t.starts_at, label: label(t.starts_at) }));
 
   return (
     <>
@@ -98,7 +101,7 @@ export default async function ManageBookingPage({ params }: Params) {
               <div className="mt-4">
                 <ChangeBookingForm
                   action={changeBooking.bind(null, token)}
-                  current={{ value: booking.starts_at, label: formatTime(booking.starts_at, tz) }}
+                  current={{ value: booking.starts_at, label: label(booking.starts_at) }}
                   times={times}
                   mode={booking.meeting_mode}
                   askMode={settings.meeting_mode === "either"}
@@ -115,7 +118,7 @@ export default async function ManageBookingPage({ params }: Params) {
           </>
         )}
         <div className="mt-8">
-          <PrivacyNote teacher={teacher.name} />
+          <PrivacyNote teacher={teacher.name} weekly={settings.schedule === "weekly"} />
         </div>
       </main>
     </>

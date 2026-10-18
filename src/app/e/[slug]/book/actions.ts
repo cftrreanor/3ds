@@ -17,6 +17,8 @@ export type BookingValues = {
   parents: { name: string; email: string; phone: string }[];
   mode: string;
   note: string;
+  /** Phone calls: the number the teacher calls. */
+  callPhone: string;
 };
 
 export type BookingState = ActionState & {
@@ -41,6 +43,7 @@ function readForm(formData: FormData): { values: BookingValues; error?: string }
     parents: Array.isArray(parents) ? parents.slice(0, 4) : [],
     mode: String(formData.get("mode") ?? ""),
     note: String(formData.get("note") ?? "").trim(),
+    callPhone: String(formData.get("callPhone") ?? "").trim(),
   };
   if (!values.startsAt || Number.isNaN(Date.parse(values.startsAt))) return { values, error: "Pick a time." };
   if (values.child.length < 2) return { values, error: "Please enter your child's first and last name." };
@@ -53,6 +56,9 @@ function readForm(formData: FormData): { values: BookingValues; error?: string }
     }
   }
   if (values.note.length > 500) return { values, error: "Please keep your note under 500 characters." };
+  if (values.callPhone && !normalizePhone(values.callPhone)) {
+    return { values, error: "Please enter a 10-digit phone number for your teacher to call." };
+  }
   return { values };
 }
 
@@ -91,6 +97,8 @@ export async function bookConference(eventId: string, _prev: BookingState, formD
     p_parents: values.parents.map((p) => ({ name: p.name.trim(), email: p.email.trim(), phone: normalizePhone(p.phone ?? "") ?? null })),
     p_mode: values.mode || null,
     p_note: values.note || null,
+    // Only phone calls send a number, so bookings work before the weekly hours update too.
+    ...(values.callPhone ? { p_call_phone: normalizePhone(values.callPhone) } : {}),
   });
   if (error || !token) {
     if (error?.code === "P0001") {

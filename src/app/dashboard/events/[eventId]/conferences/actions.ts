@@ -3,15 +3,28 @@
 import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
-import { GAP_LENGTHS, MEETING_LENGTHS, type ConferenceBreak, type MeetingMode } from "@/lib/conferences";
+import {
+  AHEAD_DAYS,
+  GAP_LENGTHS,
+  MEETING_LENGTHS,
+  NOTICE_HOURS,
+  sortWeekly,
+  WEEKDAYS,
+  type ConferenceBreak,
+  type MeetingMode,
+  type WeeklyRange,
+} from "@/lib/conferences";
+import { conferenceBookedCount } from "@/lib/conference-access";
+import { loadConferenceSettings } from "@/lib/conference-settings";
 import { emailMovedMeetings, loadConference } from "@/app/e/[slug]/book/data";
-import { BOOKING_COLUMNS, bookingEmail, emailTeacher, type Booking } from "@/lib/conference-bookings";
+import { bookingEmail, emailTeacher, withCallPhone, type Booking } from "@/lib/conference-bookings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { zonedToUtc } from "@/lib/time";
 
 const TIME = /^\d{2}:\d{2}$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function refresh(eventId: string) {
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
@@ -31,7 +44,7 @@ async function saveSettings(eventId: string, values: Record<string, unknown>) {
   return error;
 }
 
-/** Step 1: meeting length, the gap between meetings and any breaks. */
+/** Step 1: one day or weekly hours, meeting length, the gap between meetings and any breaks. */
 export async function saveMeetingTimes(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const meeting = Number(formData.get("meetingMinutes"));
@@ -53,20 +66,97 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
   }
   if (breaks.length > 8) return { error: "Add up to 8 breaks." };
 
+  const supabase = await createClient();
+  const [{ data: event }, current, booked] = await Promise.all([
+    supabase.from("events").select("timezone, starts_on").eq("id", eventId).maybeSingle(),
+    loadConferenceSettings(supabase, eventId),
+    conferenceBookedCount(supabase, eventId),
+  ]);
+  if (!event) return { error: "Only the conference's host can change it." };
+  const weekly = formData.get("schedule") === "weekly";
+  const was = current.settings.schedule;
+  // Families' meetings are kept as booked: switching between a day and weekly hours waits until they're canceled.
+  if (booked > 0 && (weekly ? "weekly" : "one_day") !== was) {
+    return {
+      error:
+        was === "weekly"
+          ? "Families have booked weekly meetings. Cancel them on your Meetings page first, or make a new conference for one day."
+          : "Families have booked your conference day. Cancel those meetings on your Meetings page first, or make a new conference for weekly hours.",
+    };
+  }
+  if (current.legacy && weekly) return { error: "Weekly hours need a database update first. Please write to us." };
+  const common = {
+    meeting_minutes: meeting,
+    gap_minutes: gap,
+    breaks: breaks.sort((a, b) => a.start.localeCompare(b.start)),
+    times_saved_at: new Date().toISOString(),
+  };
+
+  if (weekly) {
+    const days = formData.getAll("weeklyDay").map(String);
+    const froms = formData.getAll("weeklyStart").map(String);
+    const tos = formData.getAll("weeklyEnd").map(String);
+    const hours: WeeklyRange[] = [];
+    for (let i = 0; i < days.length; i++) {
+      const d = Number(days[i]);
+      if (!Number.isInteger(d) || d < 0 || d > 6 || !TIME.test(froms[i] ?? "") || !TIME.test(tos[i] ?? "")) {
+        return { error: "Give each block of weekly hours a day, a start, and an end." };
+      }
+      if (tos[i] <= froms[i]) return { error: `Your ${WEEKDAYS[d]} hours have to end after they start.` };
+      hours.push({ day: d, start: froms[i], end: tos[i] });
+    }
+    if (!hours.length) return { error: "Add your weekly hours." };
+    if (hours.length > 21) return { error: "Add up to 21 blocks of weekly hours." };
+    const from = String(formData.get("weeklyFrom") ?? "");
+    const to = String(formData.get("weeklyTo") ?? "");
+    if (!DATE.test(from) || !DATE.test(to)) return { error: "Pick your first and last day." };
+    if (to < from) return { error: "Your last day has to be on or after your first day." };
+    if (Date.parse(to) - Date.parse(from) > 366 * 86_400_000) return { error: "Weekly hours can run for up to a year. Pick an earlier last day." };
+    const closed = [...new Set(formData.getAll("closedDate").map(String).filter(Boolean))].sort();
+    if (closed.some((d) => !DATE.test(d))) return { error: "Pick a date for each day off, or remove it." };
+    if (closed.length > 60) return { error: "Add up to 60 days off." };
+    const notice = Number(formData.get("minNotice"));
+    const ahead = Number(formData.get("maxAhead"));
+    if (!(NOTICE_HOURS as readonly number[]).includes(notice)) return { error: "Pick how much notice families give." };
+    if (!(AHEAD_DAYS as readonly number[]).includes(ahead)) return { error: "Pick how far ahead families can book." };
+
+    // Settings first (weekly hours may run more than one day), then the event's days.
+    const error = await saveSettings(eventId, {
+      ...common,
+      schedule: "weekly",
+      weekly_hours: sortWeekly(hours),
+      closed_dates: closed,
+      min_notice_hours: notice,
+      max_days_ahead: ahead,
+    });
+    if (error) return { error: friendlyDbError(error) };
+    const opens = hours.map((h) => h.start).sort()[0];
+    const closes = hours.map((h) => h.end).sort().at(-1)!;
+    const { error: daysError } = await supabase.rpc("reschedule_event", {
+      p_event_id: eventId,
+      p_starts_on: from,
+      p_ends_on: to,
+      p_window_start: zonedToUtc(from, opens, event.timezone).toISOString(),
+      p_window_end: zonedToUtc(to, closes, event.timezone).toISOString(),
+      p_timezone: event.timezone,
+    });
+    if (daysError) return { error: friendlyDbError(daysError) };
+    refresh(eventId);
+    return { ok: true, message: "Meeting times saved." };
+  }
+
   // Changed the day or hours here: move the event too (as Edit details does).
   // Booked meetings move with the day, and each family is emailed.
   let moved: Awaited<ReturnType<typeof emailMovedMeetings>> | null = null;
   const day = formData.get("conferenceDay");
+  if (day === null && was === "weekly") return { error: "Pick your conference day." };
   if (day !== null) {
     const date = String(day);
     const from = String(formData.get("startTime") ?? "");
     const to = String(formData.get("endTime") ?? "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Pick the conference day." };
+    if (!DATE.test(date)) return { error: "Pick the conference day." };
     if (!TIME.test(from) || !TIME.test(to)) return { error: "Pick when your first meeting starts and your last one ends." };
     if (to <= from) return { error: "Your last meeting has to end after the first one starts." };
-    const supabase = await createClient();
-    const { data: event } = await supabase.from("events").select("timezone, starts_on").eq("id", eventId).maybeSingle();
-    if (!event) return { error: "Only the conference's host can change it." };
     const { error } = await supabase.rpc("reschedule_event", {
       p_event_id: eventId,
       p_starts_on: date,
@@ -76,15 +166,10 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
       p_timezone: event.timezone,
     });
     if (error) return { error: friendlyDbError(error) };
-    if (date !== event.starts_on) moved = await emailMovedMeetings(eventId);
+    if (date !== event.starts_on && was === "one_day") moved = await emailMovedMeetings(eventId);
   }
 
-  const error = await saveSettings(eventId, {
-    meeting_minutes: meeting,
-    gap_minutes: gap,
-    breaks: breaks.sort((a, b) => a.start.localeCompare(b.start)),
-    times_saved_at: new Date().toISOString(),
-  });
+  const error = await saveSettings(eventId, current.legacy ? common : { ...common, schedule: "one_day" });
   if (error) return { error: friendlyDbError(error) };
   refresh(eventId);
   if (moved?.moved) {
@@ -101,16 +186,18 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
 
 /**
  * Step 2: in person (the school and a room), video (one link with a waiting
- * room, or the teacher sends their own), or the family's choice. The school
+ * room, or the teacher sends their own), a phone call (the teacher calls the
+ * number the family gives), or the family's choice of in person or video. The school
  * goes on the event, so the public page and calendar invites show it; a
  * video-only conference has no address.
  */
 export async function saveMeetingPlace(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const mode = String(formData.get("mode") ?? "") as MeetingMode;
-  if (!["in_person", "video", "either"].includes(mode)) return { error: "Choose where you'll meet." };
-  const inPerson = mode !== "video";
-  const video = mode !== "in_person";
+  if (!["in_person", "video", "either", "phone"].includes(mode)) return { error: "Choose where you'll meet." };
+  // Phone calls need nothing here: families give the number to call when they book.
+  const inPerson = mode === "in_person" || mode === "either";
+  const video = mode === "video" || mode === "either";
 
   const room = String(formData.get("room") ?? "").trim();
   const link = String(formData.get("videoLink") ?? "").trim();
@@ -174,7 +261,8 @@ export async function cancelMeeting(eventId: string, bookingId: string): Promise
   // Only the teacher can see (and delete) their bookings.
   const { data: seen } = await supabase.from("conference_bookings").select("id").eq("id", bookingId).eq("event_id", eventId).maybeSingle();
   if (!seen) return { error: "You don't have permission to do that." };
-  const { data: booking } = await createAdminClient().from("conference_bookings").select(BOOKING_COLUMNS).eq("id", bookingId).single();
+  const admin = createAdminClient();
+  const { data: booking } = await withCallPhone((columns) => admin.from("conference_bookings").select(columns).eq("id", bookingId).single());
   const { data: deleted, error } = await supabase.from("conference_bookings").delete().eq("id", bookingId).select("id");
   if (error) return { error: friendlyDbError(error) };
   if (!deleted?.length) return { error: "You don't have permission to do that." };
@@ -182,7 +270,7 @@ export async function cancelMeeting(eventId: string, bookingId: string): Promise
   let emailed = false;
   const conf = await loadConference({ id: eventId });
   if (booking && conf) {
-    const b = booking as Booking;
+    const b = booking as unknown as Booking;
     const origin = await getOrigin();
     const link = `${origin}/e/${conf.event.slug}/book`;
     emailed = true;

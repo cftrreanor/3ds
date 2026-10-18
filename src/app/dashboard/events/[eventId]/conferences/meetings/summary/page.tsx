@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Booking } from "@/lib/conference-bookings";
-import { DEFAULT_SETTINGS, SETTINGS_COLUMNS, type ConferenceSettings } from "@/lib/conferences";
+import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
 import { hasConferences } from "@/lib/event-types";
 import { RECORDS_NOTE } from "@/lib/records";
@@ -11,7 +11,7 @@ import { isSchemaError, missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { conferenceBookedCount, isConferenceTeacher } from "@/lib/conference-access";
 import { NotTheTeacher } from "../not-teacher";
-import { formatDate, utcToZonedTime, zoneName } from "@/lib/time";
+import { formatDate, formatDateRange, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { PrintButton } from "./print-button";
 
 export const metadata: Metadata = { title: "Meeting summary" };
@@ -28,7 +28,7 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
   if (!access.isHost) redirect(`/dashboard/events/${eventId}`);
 
   const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select("id, name, event_type, timezone, starts_on").eq("id", eventId).maybeSingle();
+  const { data: event } = await supabase.from("events").select("id, name, event_type, timezone, starts_on, ends_on").eq("id", eventId).maybeSingle();
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
   if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} />;
@@ -40,23 +40,25 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
       .select(columns + extra)
       .eq("event_id", eventId)
       .order("starts_at");
-  const [{ data: saved }, withOutcomes] = await Promise.all([
-    supabase.from("conference_settings").select(SETTINGS_COLUMNS).eq("event_id", eventId).maybeSingle(),
+  const [{ settings }, withOutcomes] = await Promise.all([
+    loadConferenceSettings(supabase, eventId),
     load(", outcome"),
   ]);
   // Before the conference outcomes update there's no Met / No-show to show.
   const outcomesReady = !isSchemaError(withOutcomes.error);
   const { data, error } = outcomesReady ? withOutcomes : await load("");
   if (error) missing();
-  const settings: ConferenceSettings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
   const bookings = (data ?? []) as unknown as (Pick<Booking, "id" | "starts_at" | "child_name" | "parents"> & {
     outcome?: keyof typeof OUTCOME_LABEL | null;
   })[];
 
   const tz = event.timezone;
+  const weekly = settings.schedule === "weekly";
   const time = (iso: string) => {
     const start = utcToZonedTime(iso, tz);
-    return `${displayTime(start)} – ${displayTime(toTime(toMinutes(start) + settings.meeting_minutes))}`;
+    const range = `${displayTime(start)} – ${displayTime(toTime(toMinutes(start) + settings.meeting_minutes))}`;
+    // Weekly hours run over many days, so each meeting says its day.
+    return weekly ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${range}` : range;
   };
   const met = bookings.filter((b) => b.outcome === "met").length;
   const noShows = bookings.filter((b) => b.outcome === "no_show").length;
@@ -74,7 +76,8 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
 
       <h1 className="mt-6 text-2xl font-semibold print:mt-0">Meeting summary</h1>
       <p className="mt-1 text-sm text-muted">
-        {event.name} · {formatDate(event.starts_on)} · All times are {zoneName(tz)}
+        {event.name} · {weekly ? `Every week · ${formatDateRange(event.starts_on, event.ends_on)}` : formatDate(event.starts_on)} · All times are{" "}
+        {zoneName(tz)}
       </p>
       <p className="mt-2 text-sm">
         <span className="font-semibold">{bookings.length}</span> {bookings.length === 1 ? "meeting" : "meetings"}
