@@ -47,9 +47,13 @@ health, discipline, or special education information, and students never have ac
 Access is enforced by the database itself, not just by the app's screens, and every rule has an
 automated test.
 
-- **Families' and children's details:** only the event's organizers (Hosts and Co-hosts) and,
-  on event day only, the team members working check-in. For conferences, only the teacher.
-- **Volunteers' phone numbers:** Section Leads see them only on event day.
+- **Families' and children's details (visitor days):** the event's Hosts, Co-hosts, and
+  Volunteer Leads (who run the door desk), and Section Leads on event day only.
+- **Conference bookings and parents' notes:** only the teacher who set up the conference.
+  Other hosts on the same account see how many times are booked, not who booked
+  (database update `20261209000000_conference_teacher_only.sql`).
+- **Volunteers' phone numbers:** Hosts, Co-hosts, and Volunteer Leads; Section Leads only on
+  event day.
 - **Visiting directors:** see their own registration, never other schools' contact details.
 - **The public:** sees only what the organizer publishes, such as the schedule. Families never
   see who else booked or registered.
@@ -65,7 +69,7 @@ All data is stored in the United States. **[confirm]** the data region chosen fo
 |---|---|---|
 | Supabase | Database, sign-in, and file storage (US region) | Everything listed above |
 | Vercel | Hosts the website and app (US) | Requests as they pass through; short-term server logs |
-| Resend | Sends email | Recipients' addresses and each email's content, which can include a child's name in that family's own confirmation |
+| Resend | Sends email | Recipients' addresses and each email's content, which can include a child's name in that family's own confirmation, and in the teacher's booking notice (subjects never name the child) |
 | Sentry | Error alerts | Technical error details only. Names of people, email addresses, phone numbers, form contents, and private links are removed or never collected. |
 | Cloudflare Turnstile | "Not a robot" check on public forms | The visitor's IP address and browser signals, for that check only |
 | Google Maps Platform | Venue address search for organizers | The address text an organizer types. No personal information. |
@@ -81,7 +85,7 @@ We don't use advertising, analytics, or tracking services.
   (no critical, high, or medium issues in the database).
 - **Private links** for families and volunteers use long random keys, not guessable numbers.
 - **Files** (maps, packets) are stored privately and opened through links that expire after 60
-  seconds.
+  seconds (30 minutes on the volunteer badge print page, for a map printed on the back).
 - **Abuse limits:** bot protection on public forms, and limits on how often links and
   invitations can be re-sent.
 - **Pages can't be embedded** in other sites, and the app sends standard security headers.
@@ -102,7 +106,9 @@ Deletion runs automatically every day.
 | Email delivery records | 14 to 180 days |
 
 An organizer can also delete an event at any time, which removes everything attached to it
-right away. Copies an organizer prints, downloads, or copies out of the app are the school's own
+right away. Emails and calendar invites already sent (to families, volunteers, directors, and
+conference teachers, whose invite names the child by first name and last initial) stay in each
+recipient's inbox and calendar. Copies an organizer prints, downloads, or copies out of the app are the school's own
 records, kept under the school's policies.
 
 ## Ownership and how we use it
@@ -169,7 +175,7 @@ Check marks show data the service can collect when a district uses the matching 
 | Student work | Any | | Not collected |
 | Transcript | Any | | Not collected |
 | Transportation | Bus routes and the like | | Not collected. Contests record how many buses and trucks a band brings. |
-| Other | Conference outcome | ✓ | Whether a scheduled meeting took place (met or no-show), visible only to the teacher |
+| Other | Conference outcome | ✓ | Whether a scheduled meeting took place (met or no-show), visible only to the teacher who set up the conference |
 
 ## Exhibit D: Directive for disposition of data
 

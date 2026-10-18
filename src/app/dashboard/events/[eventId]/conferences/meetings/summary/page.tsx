@@ -9,6 +9,8 @@ import { RECORDS_NOTE } from "@/lib/records";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 import { isSchemaError, missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
+import { conferenceBookedCount, isConferenceTeacher } from "@/lib/conference-access";
+import { NotTheTeacher } from "../not-teacher";
 import { formatDate, utcToZonedTime, zoneName } from "@/lib/time";
 import { PrintButton } from "./print-button";
 
@@ -29,6 +31,7 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
   const { data: event } = await supabase.from("events").select("id, name, event_type, timezone, starts_on").eq("id", eventId).maybeSingle();
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
+  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} />;
 
   const columns = "id, starts_at, child_name, parents";
   const load = (extra: string) =>

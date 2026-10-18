@@ -15,20 +15,50 @@ export const metadata: Metadata = {
   alternates: { canonical: STUDENT_PRIVACY_PAGE.path },
 };
 
+/** Shown at the top, for reviewers. Change it whenever this page changes. */
+const UPDATED = "October 2026";
+
+const glance = [
+  "Most events collect no student information at all",
+  "Where an event needs it: a child's name, and for visitor days their teacher and grade",
+  "Deleted on a schedule, starting 30 days after the event",
+  "Owned by your school or organization, never sold, and never used for ads",
+  "Stored in the United States, with access rules enforced inside the database",
+];
+
+const sectionLinks = [
+  ["collect", "What we collect"],
+  ["see", "Who can see it"],
+  ["deleted", "When it's deleted"],
+  ["owns", "Who owns it"],
+  ["stored", "Where it's stored"],
+  ["protected", "How it's protected"],
+  ["agreements", "Data privacy agreements"],
+] as const;
+
 const collected = [
-  { event: "Band contests and group festivals", students: "None. Headcounts only.", adults: "Directors' names, school email addresses, and phone numbers" },
+  {
+    event: "Band contests and group festivals",
+    students: "None. Headcounts only.",
+    adults: "Directors' and assistant directors' names, the head director's email address and phone number, the school's address and contact email, and any accessibility or staging needs",
+  },
   {
     event: "Volunteer events",
     students: "Under-18 helpers: first name and last initial only, signed up by a parent or guardian",
-    adults: "Volunteers' names, email addresses, and phone numbers",
+    adults: "Volunteers' names, email addresses, and phone numbers, and shift check-in times",
   },
-  { event: "School fairs", students: "None", adults: "Booth partners' contact details" },
-  { event: "Family visitor days", students: "Each child's name, teacher, and grade", adults: "Parent's name, email address, and phone number" },
+  { event: "School fairs", students: "None", adults: "Booth partners' contact name, email address, and phone number" },
+  {
+    event: "Family visitor days",
+    students: "Each child's name, teacher, and grade",
+    adults: "Parent's name, email address, and optional phone number, other adults' names, and door check-in times",
+  },
   {
     event: "Parent-teacher conferences",
-    students: "The child's name, and the parent's optional note to the teacher",
-    adults: "Parents' names, email addresses, and phone numbers",
+    students: "The child's name, the parent's optional note to the teacher, and whether the meeting took place",
+    adults: "Up to four parents' names and email addresses, with optional phone numbers",
   },
+  { event: "Organizer and team accounts", students: "None", adults: "Name, email address, optional phone number, and sign-in history" },
 ];
 
 const deleted = [
@@ -36,6 +66,9 @@ const deleted = [
   { what: "Parent-teacher conference bookings", when: "30 days after the conference" },
   { what: "Volunteers, including under-18 helpers", when: "10 days after the event" },
   { what: "Files shared with an event", when: "30 days after the event" },
+  { what: "Booth partners' contact details", when: "15 months after the event" },
+  { what: "Band and group directors' contact details", when: "2 years after the event, so a contest can invite them back" },
+  { what: "Records of the emails we sent", when: "14 to 180 days after sending" },
   { what: "A closed account and everything in it", when: "90 days after it's closed" },
 ];
 
@@ -45,6 +78,7 @@ const providers = [
   { name: "Resend", does: "Sends confirmation and reminder emails" },
   { name: "Sentry", does: "Error alerts, with names, email addresses, phone numbers, and form contents removed" },
   { name: "Cloudflare Turnstile", does: "The “not a robot” check on public forms" },
+  { name: "Google Maps Platform", does: "Venue address search for organizers. It receives no personal information." },
 ];
 
 const h2 = "text-2xl font-medium leading-tight tracking-tight sm:text-3xl";
@@ -69,8 +103,32 @@ export default function StudentDataPrivacyPage() {
           Most events collect no student information at all. Where an event needs it, it&apos;s limited to a name, and for family visitor days
           the child&apos;s teacher and grade, and it&apos;s deleted 30 days after the event.
         </p>
+        <p className="mt-3 text-sm text-muted">Last updated {UPDATED}</p>
 
-        <section className="mt-12">
+        <section aria-labelledby="glance" className="mt-10 rounded-lg border border-border bg-surface p-6 sm:p-8">
+          <h2 id="glance" className="text-xl font-semibold">
+            At a glance
+          </h2>
+          <ul className="mt-4 space-y-2 leading-7">
+            {glance.map((g) => (
+              <li key={g} className="flex gap-2">
+                <span aria-hidden className="text-success">
+                  ✓
+                </span>
+                <span>{g}</span>
+              </li>
+            ))}
+          </ul>
+          <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {sectionLinks.map(([id, label]) => (
+              <a key={id} href={`#${id}`} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline">
+                {label}
+              </a>
+            ))}
+          </nav>
+        </section>
+
+        <section id="collect" className="mt-12 scroll-mt-20">
           <h2 className={h2}>What we collect</h2>
           <ul className="mt-6 divide-y divide-border rounded-lg border border-border">
             {collected.map((c) => (
@@ -88,23 +146,28 @@ export default function StudentDataPrivacyPage() {
             ))}
           </ul>
           <p className="mt-4 leading-7 text-muted">
-            We never collect student ID numbers, dates of birth, home addresses, grades or scores, attendance, or health, discipline, or special
-            education information, and students never have accounts.
+            We never collect student ID numbers, dates of birth, home addresses, grades or scores, school attendance, or health, discipline, or special
+            education information, and students never have accounts. The two optional free-text boxes, a band&apos;s accessibility or staging
+            needs and a parent&apos;s note to a teacher, ask people to leave health details out.
           </p>
         </section>
 
-        <section className="mt-12">
+        <section id="see" className="mt-12 scroll-mt-20">
           <h2 className={h2}>Who can see it</h2>
           <ul className="mt-4 list-disc space-y-2 pl-5 leading-7">
-            <li>Children&apos;s and families&apos; details: the event&apos;s organizers, and the check-in team on event day only</li>
-            <li>Conference bookings: only the teacher</li>
-            <li>Volunteers&apos; phone numbers: Section Leads on event day only</li>
+            <li>
+              Children&apos;s and families&apos; details from visitor days: the event&apos;s Hosts, Co-hosts, and Volunteer Leads, who run the
+              door, and Section Leads on event day only
+            </li>
+            <li>Conference bookings and parents&apos; notes: only the teacher who set up the conference. Other hosts on the account see how many times are booked, not who booked.</li>
+            <li>Volunteers&apos; phone numbers: Hosts, Co-hosts, and Volunteer Leads, and Section Leads on event day only</li>
+            <li>Visiting directors see their own registration, never other schools&apos; contact details</li>
             <li>Families never see who else registered or booked</li>
             <li>These rules are enforced inside the database, with an automated test for each one</li>
           </ul>
         </section>
 
-        <section className="mt-12">
+        <section id="deleted" className="mt-12 scroll-mt-20">
           <h2 className={h2}>When it&apos;s deleted</h2>
           <p className="mt-3 leading-7 text-muted">Deletion runs automatically every day. Organizers can also delete an event at any time.</p>
           <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
@@ -115,9 +178,14 @@ export default function StudentDataPrivacyPage() {
               </li>
             ))}
           </ul>
+          <p className="mt-4 leading-7 text-muted">
+            Kept until the account is closed: organizer, team, and director sign-in accounts and their sign-in history. Emails and calendar
+            invites we send live in each recipient&apos;s own inbox and calendar, and anything your staff print or download is your school&apos;s
+            own record, kept under your policies.
+          </p>
         </section>
 
-        <section className="mt-12">
+        <section id="owns" className="mt-12 scroll-mt-20">
           <h2 className={h2}>Who owns it</h2>
           <ul className="mt-4 list-disc space-y-2 pl-5 leading-7">
             <li>The school or organization running the event owns the information, and we store it for them</li>
@@ -126,7 +194,7 @@ export default function StudentDataPrivacyPage() {
           </ul>
         </section>
 
-        <section className="mt-12">
+        <section id="stored" className="mt-12 scroll-mt-20">
           <h2 className={h2}>Where it&apos;s stored, and who helps us run the service</h2>
           <p className="mt-3 leading-7 text-muted">
             Data is stored in the United States. These providers handle it only to run the service. We don&apos;t use advertising, analytics,
@@ -142,18 +210,18 @@ export default function StudentDataPrivacyPage() {
           </ul>
         </section>
 
-        <section className="mt-12">
+        <section id="protected" className="mt-12 scroll-mt-20">
           <h2 className={h2}>How it&apos;s protected</h2>
           <ul className="mt-4 list-disc space-y-2 pl-5 leading-7">
             <li>Encrypted in transit and at rest</li>
             <li>Database rules that keep each school&apos;s information separate, checked in a security review in October 2026</li>
             <li>Private links for families and volunteers that use long random keys</li>
-            <li>Shared files opened through links that expire after 60 seconds</li>
+            <li>Shared files opened through private links that expire within minutes</li>
             <li>Bot protection and sending limits on public forms</li>
           </ul>
         </section>
 
-        <section className="mt-12 rounded-lg border border-border bg-surface p-6 sm:p-8">
+        <section id="agreements" className="mt-12 scroll-mt-20 rounded-lg border border-border bg-surface p-6 sm:p-8">
           <h2 className={h2}>Data privacy agreements</h2>
           <p className="mt-3 leading-7">
             We work with districts on their data privacy agreements, including the Texas Student Privacy Alliance&apos;s agreement. Email us
