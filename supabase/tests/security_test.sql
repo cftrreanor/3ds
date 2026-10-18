@@ -4614,4 +4614,56 @@ do $$ begin
          'the logo is unchanged by people who can''t set it';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Account color (20261206000000_org_brand_color.sql): only the account's hosts
+-- set it, only as a #rrggbb color, and nobody writes the column directly.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+select public.set_org_brand_color(:'org_id', '#7a1f2b');
+do $$ begin
+  assert (select brand_color from public.organizations where id = (select organization_id from public.events where slug = 'future')) = '#7a1f2b',
+         'a host sets the account color';
+  begin
+    perform public.set_org_brand_color((select organization_id from public.events where slug = 'future'), 'red; drop table events');
+    raise exception 'FAIL: a color that isn''t #rrggbb was saved';
+  exception when invalid_parameter_value then null;
+  end;
+  begin
+    update public.organizations set brand_color = '#000000';
+    raise exception 'FAIL: the color column was written directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  begin
+    perform public.set_org_brand_color((select organization_id from public.events where slug = 'future'), '#000000');
+    raise exception 'FAIL: a Volunteer Lead changed the account color';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.set_org_brand_color((select organization_id from public.events where slug = 'future'), '#000000');
+    raise exception 'FAIL: a stranger changed the account color';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set role anon;
+set request.jwt.claims = '';
+do $$ begin
+  begin
+    perform public.set_org_brand_color((select id from public.organizations limit 1), '#000000');
+    raise exception 'FAIL: a visitor changed an account color';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select brand_color from public.organizations where id = (select organization_id from public.events where slug = 'future')) = '#7a1f2b',
+         'the color is unchanged by people who can''t set it';
+end $$;
+
 \echo 'All database security tests passed.'

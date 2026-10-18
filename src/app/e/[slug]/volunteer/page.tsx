@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { HeaderBar } from "@/components/logo";
+import { EventHeaderBar, EventHeading } from "@/components/event-brand";
+import { loadEventBrand } from "@/lib/event-brand";
 import Link from "next/link";
 import { Card } from "@/components/ui";
 import { missing } from "@/lib/schema-check";
@@ -75,24 +76,29 @@ export default async function VolunteerSignupPage({ params }: Params) {
     ...(event.venue_place_id ? { query_place_id: event.venue_place_id } : {}),
   })}`;
 
+  // With the account's color, the event name sits on a full-width band of it.
+  const band = !!(await loadEventBrand(slug)).color;
+  const heading = (
+    <EventHeading band={band} eyebrow="Volunteer signup" title={event.name}>
+      <p className="mt-2 text-muted">
+        {formatDateRange(event.starts_on, event.ends_on)} · All times {zoneName(tz)}
+      </p>
+      <p className="mt-1 text-muted">
+        {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
+        <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
+          Map
+        </a>
+      </p>
+      {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
+    </EventHeading>
+  );
+
   return (
     <>
-    <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
+    <EventHeaderBar slug={slug} />
+    {band && heading}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-      <header className="mt-6">
-        <p className="text-sm font-medium text-muted">Volunteer signup</p>
-        <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
-        <p className="mt-2 text-muted">
-          {formatDateRange(event.starts_on, event.ends_on)} · All times {zoneName(tz)}
-        </p>
-        <p className="mt-1 text-muted">
-          {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")} ·{" "}
-          <a href={mapUrl} target="_blank" rel="noreferrer" className="font-medium text-brand underline-offset-4 hover:underline">
-            Map
-          </a>
-        </p>
-        {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
-      </header>
+      {!band && heading}
 
       {!isOpen && (
         <Card className="mt-8 bg-brand-soft">

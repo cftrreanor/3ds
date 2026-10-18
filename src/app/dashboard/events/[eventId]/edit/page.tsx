@@ -16,7 +16,7 @@ import { FilesManager } from "./files-manager";
 import { EventForm } from "../../_components/event-form";
 import { SavedBy } from "@/components/saved-by";
 import { LogoForm } from "@/components/logo-form";
-import { loadLogo } from "@/lib/badges";
+import { loadBrand } from "@/lib/badges";
 
 export const metadata: Metadata = { title: "Edit Event Details" };
 
@@ -55,7 +55,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   if (!event) missing();
   // The account's logo for volunteer badges lives with the other uploads, here.
   const badgesHere = !hasConferences(event.event_type);
-  const logo = badgesHere ? await loadLogo(event.organization_id) : null;
+  const brand = badgesHere ? await loadBrand(event.organization_id) : { logo: null, color: null };
   const [{ count }, { data: fileData }, { count: bandCount }, { count: parentCount }, { count: boothCount }] = await Promise.all([
     supabase.from("shifts").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase
@@ -132,7 +132,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
             groupsHere
               ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map, or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers, or your team.`
               : "Share a site map, parking map, or volunteer guide. Choose who sees each one: the public page, volunteers, or your team."
-          }${badgesHere ? " Your logo for volunteer badges is here too, and any map can go on the back of the badges." : ""}`}
+          }${badgesHere ? " Your logo and color for your public pages and volunteer badges are here too, and any map can go on the back of the badges." : ""}`}
         >
           <FilesManager
             files={files}
@@ -144,16 +144,17 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           />
           {badgesHere && (
             <div id="logo" className="mt-6 scroll-mt-6 border-t border-border pt-5">
-              <p className="font-semibold">Logo for volunteer badges</p>
+              <p className="font-semibold">Your logo and color</p>
               <p className="mt-1 text-sm text-muted">
-                One logo for your account, printed at the top of every event&apos;s volunteer badges. Print badges from{" "}
+                One logo for your account, shown next to ours at the top of your public event pages and printed on volunteer
+                badges. Print badges from{" "}
                 <Link href={`/dashboard/events/${eventId}/volunteering/badges`} className="font-medium text-brand underline">
                   Volunteer Setup
                 </Link>
                 .
               </p>
               <div className="mt-3">
-                <LogoForm eventId={eventId} logo={logo} />
+                <LogoForm eventId={eventId} logo={brand.logo} color={brand.color} />
               </div>
             </div>
           )}

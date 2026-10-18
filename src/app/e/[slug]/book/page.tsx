@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { HeaderBar } from "@/components/logo";
+import { EventHeaderBar } from "@/components/event-brand";
 import { Card } from "@/components/ui";
 import { formatDuration } from "@/lib/schedule";
 import { missing } from "@/lib/schema-check";
@@ -46,7 +46,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
 
   return (
     <>
-      <HeaderBar maxWidth="max-w-2xl" href={`/e/${slug}`} />
+      <EventHeaderBar slug={slug} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
         <header>
           <p className="text-sm font-medium text-muted">Parent-teacher conference with {teacher.name}</p>

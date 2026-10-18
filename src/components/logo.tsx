@@ -11,20 +11,36 @@ export function Logo({ href = "/", className = "h-11 w-auto sm:h-12" }: { href?:
   );
 }
 
-/** Dark bar across the top of a page with the logo, plus optional links on the right. */
+/**
+ * Dark bar across the top of a page with the logo, plus optional links on the
+ * right. On an event's pages, the account's logo sits beside ours on a white tile.
+ */
 export function HeaderBar({
   href = "/",
   maxWidth = "max-w-5xl",
+  eventLogo,
   children,
 }: {
   href?: string;
   maxWidth?: string;
+  eventLogo?: { src: string; alt: string } | null;
   children?: React.ReactNode;
 }) {
   return (
     <header className="bg-header text-header-foreground">
       <div className={`mx-auto flex ${maxWidth} items-center justify-between gap-3 px-4 py-2.5 sm:px-6`}>
-        <Logo href={href} />
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <Logo href={href} />
+          {eventLogo && (
+            <>
+              <span aria-hidden className="h-9 w-px shrink-0 bg-white/35" />
+              <span className="flex h-11 min-w-0 items-center rounded-md bg-white px-2 py-1 sm:h-12">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={eventLogo.src} alt={eventLogo.alt} className="max-h-full max-w-[9rem] object-contain sm:max-w-[12rem]" />
+              </span>
+            </>
+          )}
+        </div>
         {children && <div className="flex items-center gap-1 text-sm sm:gap-2">{children}</div>}
       </div>
     </header>

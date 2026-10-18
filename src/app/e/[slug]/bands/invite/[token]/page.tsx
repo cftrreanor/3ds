@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { acceptBandInvite } from "@/app/dashboard/band-invite-actions";
 import { ActionForm } from "@/components/action-form";
-import { HeaderBar } from "@/components/logo";
+import { EventHeaderBar } from "@/components/event-brand";
 import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
@@ -26,7 +26,7 @@ export default async function BandInvitePage({ params }: PageProps<"/e/[slug]/ba
 
   return (
     <>
-      <HeaderBar maxWidth="max-w-md" href={`/e/${slug}`} />
+      <EventHeaderBar slug={slug} maxWidth="max-w-md" />
       <main className="mx-auto w-full max-w-md flex-1 px-4 py-12">
         <Card>
           {!invite?.event || invite.event.slug !== slug ? (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
-import { HeaderBar } from "@/components/logo";
+import { EventHeaderBar } from "@/components/event-brand";
 import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
 import { GRADES } from "@/lib/grades";
@@ -45,7 +45,7 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
 
   return (
     <>
-      <HeaderBar maxWidth="max-w-md" href={`/e/${slug}`} />
+      <EventHeaderBar slug={slug} maxWidth="max-w-md" />
       <main className="mx-auto w-full max-w-md flex-1 px-4 py-12">
         {!reg || !event || event.slug !== slug ? (
           <Card>

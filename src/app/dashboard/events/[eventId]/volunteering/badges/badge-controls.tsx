@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { darkForWhiteText } from "@/lib/brand-color";
+import { colorOf } from "@/lib/logo-color";
 
 /** Opens the browser's print window, where "Save as PDF" is one of the printers. */
 export function PrintBadgesButton({ disabled }: { disabled?: boolean }) {
@@ -20,89 +22,36 @@ export function PrintBadgesButton({ disabled }: { disabled?: boolean }) {
 const NAVY = "#0b3558";
 
 /**
- * The badges, with the VOLUNTEER band in the logo's main color (navy
- * without a logo). Pale colors are darkened until white text on the band is
- * easy to read.
+ * The badges, with the VOLUNTEER band in the account's color: the one saved
+ * with the logo (or picked by the host), else read from the logo, else navy.
+ * It's darkened until white text on the band is easy to read.
  */
-export function BadgeColorScope({ logo, className, children }: { logo: string | null; className?: string; children: ReactNode }) {
+export function BadgeColorScope({
+  logo,
+  color: saved,
+  className,
+  children,
+}: {
+  logo: string | null;
+  color: string | null;
+  className?: string;
+  children: ReactNode;
+}) {
   const [found, setFound] = useState<{ logo: string; color: string } | null>(null);
-  const color = logo && found?.logo === logo ? found.color : NAVY;
+  const base = saved ?? (logo && found?.logo === logo ? found.color : NAVY);
   useEffect(() => {
-    if (!logo) return;
+    if (!logo || saved) return;
     let live = true;
-    const img = new Image();
-    img.onload = () => {
-      if (live) setFound({ logo, color: logoColor(img) ?? NAVY });
-    };
-    img.src = logo;
+    colorOf(logo).then((c) => {
+      if (live) setFound({ logo, color: c ?? NAVY });
+    });
     return () => {
       live = false;
     };
-  }, [logo]);
+  }, [logo, saved]);
   return (
-    <div className={className} style={{ "--badge-band": color } as CSSProperties}>
+    <div className={className} style={{ "--badge-band": darkForWhiteText(base) } as CSSProperties}>
       {children}
     </div>
   );
-}
-
-/**
- * The logo's main color: the most common colorful shade, chosen over black
- * and gray (a color has to cover at least 2% of the logo, so a tiny detail
- * doesn't decide it). A black-and-white logo gets its darkest common shade,
- * usually black.
- */
-function logoColor(img: HTMLImageElement): string | null {
-  const size = 64;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.drawImage(img, 0, 0, size, size);
-  const { data } = ctx.getImageData(0, 0, size, size);
-  const buckets = new Map<string, { r: number; g: number; b: number; n: number }>();
-  const neutral = { r: 0, g: 0, b: 0, n: 0 };
-  let opaque = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
-    if (a < 128) continue;
-    opaque += 1;
-    const max = Math.max(r, g, b);
-    const saturation = max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
-    // Black and gray are the fallback; white is the paper.
-    if (max < 50 || saturation < 0.25) {
-      if (max < 200) {
-        neutral.r += r;
-        neutral.g += g;
-        neutral.b += b;
-        neutral.n += 1;
-      }
-      continue;
-    }
-    const key = `${r >> 5},${g >> 5},${b >> 5}`;
-    const s = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
-    s.r += r;
-    s.g += g;
-    s.b += b;
-    s.n += 1;
-    buckets.set(key, s);
-  }
-  let best: { r: number; g: number; b: number; n: number } | null = null;
-  for (const s of buckets.values()) if (!best || s.n > best.n) best = s;
-  if (!best || best.n < opaque * 0.02) best = neutral.n ? neutral : null;
-  if (!best) return null;
-  let [r, g, b] = [best.r / best.n, best.g / best.n, best.b / best.n];
-  // Darken until white text has at least 4.5:1 contrast (the accessibility standard).
-  while (contrastWithWhite(r, g, b) < 4.5) [r, g, b] = [r * 0.9, g * 0.9, b * 0.9];
-  return `rgb(${Math.round(r)} ${Math.round(g)} ${Math.round(b)})`;
-}
-
-function contrastWithWhite(r: number, g: number, b: number) {
-  const lin = (c: number) => {
-    const v = c / 255;
-    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  };
-  const l = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-  return 1.05 / (l + 0.05);
 }

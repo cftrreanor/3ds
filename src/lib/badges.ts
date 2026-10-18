@@ -1,4 +1,5 @@
 import "server-only";
+import { isHexColor } from "@/lib/brand-color";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
 
@@ -128,13 +129,26 @@ export async function loadBadges(
   return badges.sort((a, b) => (a.last || a.first).localeCompare(b.last || b.first) || a.first.localeCompare(b.first));
 }
 
-/** The account's logo as an inline image (data URL), or null. Read by our server only. */
-export async function loadLogo(organizationId: string): Promise<string | null> {
+/**
+ * The account's logo as an inline image (data URL) and its color, or nulls.
+ * Read by our server only. Works before the color's database update too.
+ */
+export async function loadBrand(organizationId: string): Promise<{ logo: string | null; color: string | null }> {
   const admin = createAdminClient();
-  const { data: org } = await admin.from("organizations").select("logo_path").eq("id", organizationId).maybeSingle();
-  if (!org?.logo_path) return null;
-  const { data: file } = await admin.storage.from(LOGO_BUCKET).download(org.logo_path);
-  if (!file) return null;
+  const withColor = await admin.from("organizations").select("logo_path, brand_color").eq("id", organizationId).maybeSingle();
+  const org = withColor.error
+    ? (await admin.from("organizations").select("logo_path").eq("id", organizationId).maybeSingle()).data
+    : withColor.data;
+  const row = org as { logo_path: string | null; brand_color?: string | null } | null;
+  const color = isHexColor(row?.brand_color) ? row.brand_color : null;
+  if (!row?.logo_path) return { logo: null, color };
+  const { data: file } = await admin.storage.from(LOGO_BUCKET).download(row.logo_path);
+  if (!file) return { logo: null, color };
   const type = file.type && (LOGO_TYPES as readonly string[]).includes(file.type) ? file.type : "image/png";
-  return `data:${type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`;
+  return { logo: `data:${type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`, color };
+}
+
+/** The account's logo as an inline image (data URL), or null. */
+export async function loadLogo(organizationId: string): Promise<string | null> {
+  return (await loadBrand(organizationId)).logo;
 }
