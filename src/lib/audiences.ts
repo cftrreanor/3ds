@@ -461,35 +461,54 @@ export const audiences = {
     ],
     sections: [
       {
-        title: "Stations and shifts, built with ease",
+        title: "Stations and shifts that fill evenly",
         body: "Set up each station, its shifts, and how many people each shift needs. Sign-ups stop when a shift is full, so you never end up with ten people at one table and nobody at the next.",
         points: [
-          "Add where volunteers should report and who's leading each station",
-          "Open and close sign-ups whenever you're ready",
-          "Mark stations like parking as adults only",
+          "Build a day of equal shifts in one step, or add each shift by hand",
+          "Add where volunteers should report, any instructions, and who's leading each station",
+          "Mark stations like parking as adults only, and open or close sign-ups whenever you're ready",
         ],
       },
       {
-        title: "Sign-ups without accounts",
-        body: "Share one link or QR code. Volunteers pick their shifts on their phone without making an account or downloading anything.",
+        title: "Sign-ups and reminders, without accounts",
+        body: "Share one link or QR code. Volunteers pick one shift or several on their phone and see how many spots are left, with no account to make and nothing to download.",
         points: [
-          "Sign up with up to four others, such as a spouse or a student",
-          "Under-18 helpers sign up with a parent's contact details",
-          "A private link lets each volunteer see or cancel their shifts",
+          "Sign up with up to four others, such as a spouse or a student, and under-18 helpers use a parent's contact details",
+          "A confirmation with a calendar invite, an update if their shift changes, and a reminder the day before with their station, time, where to report, and their lead's name and phone",
+          "A private link lets each volunteer see their shifts, sign up for more, or cancel",
         ],
+        screen: {
+          src: "/screens/volunteer-shift-picker.webp",
+          alt: "The volunteer sign-up page on a phone in the organizer's colors: stations with their shifts and how many spots are left.",
+        },
       },
       {
-        title: "Reminders that go out on their own",
-        body: "Every volunteer gets a confirmation email with a calendar invite, an update if their shift changes, and a reminder the day before with their station, time, where to report, and who their lead is.",
-        points: ["No advertisements in any email", "No extra work for you"],
+        title: "Ready for the day",
+        body: "Everything volunteers need before they arrive, and a way to reach them when plans change.",
+        points: [
+          "Already have volunteers lined up in a spreadsheet? Import them onto their shifts, and email their confirmations if you like",
+          "Print name badges with your logo and color, a QR code, and blank badges for walk-ups",
+          "Share a packet or map with just your volunteers, on their own page",
+          "Post a message to volunteers or your leads when plans change",
+        ],
+        screen: {
+          src: "/screens/volunteer-my-shifts.webp",
+          alt: "A volunteer's own page on a phone: their shift, where to report, their lead's contact details, and the volunteer packet.",
+        },
       },
       {
         title: "Check-in on any device",
         body: "Check volunteers in at the desk with one tap, on any phone, tablet, or laptop. Walk-ups can be added and checked in on the spot, even onto a full shift.",
         points: [
+          "Search for anyone by name, and undo a wrong tap",
+          "See how many have arrived out of how many signed up at each station, and who isn't here yet for shifts that have started",
           "Release a no-show to free up their spot",
-          "See who's registered, who's arrived, and who's still to come",
+          "The desk updates on its own, so everyone checking people in sees the same list",
         ],
+        screen: {
+          src: "/screens/volunteer-desk-overview.webp",
+          alt: "The volunteer check-in desk on a phone: arrived and signed-up counts by station, and who isn't here yet.",
+        },
       },
       {
         title: "Leads for every station",
@@ -529,7 +548,7 @@ export const audiences = {
     faqs: [
       {
         q: "Do volunteers need to create an account?",
-        a: "No. Volunteers sign up from a link or QR code with just their name and contact details. Their confirmation email includes a private link to see or cancel their shifts.",
+        a: "No. Volunteers sign up from a link or QR code with just their name and contact details. Their confirmation email includes a private link to see their shifts, sign up for more, or cancel.",
       },
       {
         q: "Do volunteers get reminders?",
@@ -537,7 +556,7 @@ export const audiences = {
       },
       {
         q: "How do we keep track of who showed up?",
-        a: "Check volunteers in at the desk with one tap on any device. You see who's registered, who's arrived, and who's still to come, and you can add walk-ups or release no-shows on the spot.",
+        a: "Check volunteers in at the desk with one tap on any device. Each station shows how many have arrived out of how many signed up, and the desk lists who isn't here yet for shifts that have started. You can add walk-ups or release no-shows on the spot.",
       },
       {
         q: "Can parents sign up with their kids?",
