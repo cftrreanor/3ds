@@ -195,17 +195,17 @@ export function bookingEmail(
         ...(kind !== "reminder" ? [moved ? "An updated calendar invite is attached, so your calendar shows the new day." : "A calendar invite is attached, so it's on your calendar with the details."] : []),
       ],
       rows: [
-        { title: "When", detail: when },
-        {
-          title: place.title,
-          detail: place.lines.join(" "),
-          links: place.link ? [{ label: "Join the meeting", url: place.link }] : undefined,
-        },
+        { title: "When", detail: when, strong: true },
+        { title: place.title, detail: place.lines.join(" ") },
         ...(b.parents.length > 1 ? [{ title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
         { title: "Your child's privacy", detail: privacyLine(teacher, s.schedule === "weekly") },
       ],
-      button: { label: "Change or cancel", url: link },
+      // On video, joining is what they'll need most, so it gets the button.
+      ...(place.link
+        ? { button: { label: "Join the meeting", url: place.link }, link: { label: "Change or cancel", url: link } }
+        : { button: { label: "Change or cancel", url: link } }),
       footer,
+      preheader: `${when} · ${place.title} with ${teacher.name}`,
     }),
     ...(kind !== "reminder" ? { invite: invite("REQUEST", b, event, s, teacher, link, to) } : {}),
   };
@@ -309,10 +309,10 @@ export function teacherBookingEmail(
           : byTeacher
             ? `You moved ${event.name} to a new day, so ${family}'s meeting moved with it, at the same time of day. We emailed the family, and your calendar invite is updated.`
             : `${family} changed their conference. The details below are current, and your calendar invite is updated.`,
-        "After the meeting, use the button below to mark it Met or No-show, so your records are complete.",
+        "After the meeting, mark it Met or No-show on your Meetings page, so your records are complete.",
       ],
       rows: [
-        { title: "When", detail: when },
+        { title: "When", detail: when, strong: true },
         {
           title: place.title,
           detail: b.meeting_mode === "in_person" ? place.lines[0] || "Your room" : b.meeting_mode === "phone" ? callLine(b) : "On video",
@@ -320,8 +320,9 @@ export function teacherBookingEmail(
         { title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") },
         ...(b.note ? [{ title: "Their note", detail: "They left you a note. It's on your Meetings page." }] : []),
       ],
-      button: { label: "Mark Met or No-show", url: meetingAnchor(meetings, b.id) },
+      button: { label: "Open your Meetings page", url: meetingAnchor(meetings, b.id) },
       footer,
+      preheader: `${when} · ${b.parents.map((p) => p.name).join(", ")}`,
     }),
     invite: ics("REQUEST", b.calendar_sequence),
   };

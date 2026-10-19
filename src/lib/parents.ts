@@ -136,11 +136,13 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "al
     ...emailLayout({
       heading: kind === "confirmation" ? "You're registered" : "See you tomorrow",
       paragraphs: [
-        `Hi ${first}, ${kind === "confirmation" ? "you're registered for" : "a reminder about"} ${event.name}: ${when} at ${where}.`,
+        `Hi ${first}, ${kind === "confirmation" ? "you're registered for" : "a reminder about"} ${event.name}.`,
         ID_REMINDER,
         ...(kind === "confirmation" ? [CALENDAR_TIP] : []),
       ],
       rows: [
+        { title: "When", detail: when, strong: true },
+        ...(where ? [{ title: "Where", detail: where }] : []),
         ...r.children.map((c, i) => ({ title: r.children.length > 1 ? `Child ${i + 1}` : "Your child", detail: childLine(c) })),
         ...(r.other_adults.length
           ? [{ title: "Also coming", detail: `${r.other_adults.join(", ")}. Each adult needs their own photo ID.` }]
@@ -148,6 +150,7 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "al
       ],
       button: { label: "View, change, or cancel my registration", url: link },
       footer,
+      preheader: `${when}${where ? ` · ${where}` : ""}`,
     }),
     ...(kind === "confirmation" ? { invite: invite("REQUEST", r, event, link) } : {}),
   };

@@ -2,7 +2,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { brand } from "@/lib/brand";
 import { isDemoEmail } from "@/lib/demo-email";
-import { brandBar } from "@/lib/email-format";
+import { emailButton, emailShell } from "@/lib/email-format";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
@@ -244,52 +244,72 @@ export const pause = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+export type EmailRow = {
+  title: string;
+  detail: string;
+  /** Show the detail large and dark: the thing people look for (like when). */
+  strong?: boolean;
+  links?: { label: string; url: string }[];
+  /** Words before the links, like "Other calendars:". */
+  linksLabel?: string;
+};
+
 /** A simple, readable layout that works in every email client. */
 export function emailLayout({
   heading,
   paragraphs,
   rows,
   button,
+  link,
   footer,
+  preheader,
 }: {
   heading: string;
   paragraphs: string[];
-  rows?: { title: string; detail: string; links?: { label: string; url: string }[] }[];
+  rows?: EmailRow[];
   button?: { label: string; url: string };
+  /** A quieter second choice under the button. */
+  link?: { label: string; url: string };
   footer?: string;
+  /** The inbox preview line; the first paragraph if not given. */
+  preheader?: string;
 }) {
   const p = (t: string) => `<p style="font-size:16px;line-height:24px;margin:0 0 16px">${escape(t)}</p>`;
+  const a = (l: { label: string; url: string }) => `<a href="${escape(l.url)}" style="color:#0b3558;font-weight:bold">${escape(l.label)}</a>`;
   const list = rows?.length
     ? `<table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 24px">${rows
         .map(
           (r) =>
-            `<tr><td style="padding:12px 0;border-top:1px solid #dfe3e8"><div style="font-weight:bold;font-size:15px">${escape(r.title)}</div><div style="color:#4b5f72;font-size:14px;line-height:20px">${escape(r.detail)}</div>${
+            `<tr><td style="padding:12px 0;border-top:1px solid #dfe3e8">${
+              r.strong
+                ? `<div style="color:#4b5f72;font-size:14px;line-height:20px">${escape(r.title)}</div><div style="font-weight:bold;font-size:17px;line-height:24px">${escape(r.detail)}</div>`
+                : `<div style="font-weight:bold;font-size:15px">${escape(r.title)}</div><div style="color:#4b5f72;font-size:14px;line-height:20px">${escape(r.detail)}</div>`
+            }${
               r.links?.length
-                ? `<div style="font-size:14px;line-height:22px;margin-top:4px">${r.links
-                    .map((l) => `<a href="${escape(l.url)}" style="color:#0b3558;font-weight:bold">${escape(l.label)}</a>`)
-                    .join(" &nbsp;·&nbsp; ")}</div>`
+                ? `<div style="font-size:14px;line-height:22px;margin-top:4px;color:#4b5f72">${r.linksLabel ? `${escape(r.linksLabel)} ` : ""}${r.links.map(a).join(" &nbsp;·&nbsp; ")}</div>`
                 : ""
             }</td></tr>`,
         )
         .join("")}</table>`
     : "";
-  const btn = button
-    ? `<p style="margin:0 0 24px"><a href="${escape(button.url)}" style="background:#0b3558;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:bold;display:inline-block">${escape(button.label)}</a></p>`
-    : "";
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0a0a0a">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr>${brandBar(emailLogoUrl())}</tr></table>
-<h1 style="font-size:22px;line-height:28px;margin:0 0 16px">${escape(heading)}</h1>
-${paragraphs.map(p).join("")}${list}${btn}
-<p style="font-size:13px;line-height:20px;color:#4b5f72;margin:24px 0 0">${escape(footer ?? `Sent by ${brand.name}.`)}</p>
-</div>`;
+  const btn = button ? emailButton(button.label, button.url) : "";
+  const second = link ? `<p style="font-size:15px;line-height:22px;margin:-8px 0 24px">${a(link)}</p>` : "";
+  const html = emailShell({
+    content: `<h1 style="font-size:22px;line-height:28px;margin:0 0 16px">${escape(heading)}</h1>
+${paragraphs.map(p).join("")}${list}${btn}${second}`,
+    footer: footer ? [footer] : [],
+    logoUrl: emailLogoUrl(),
+    preheader: preheader ?? paragraphs[0],
+  });
   const text = [
     heading,
     "",
     ...paragraphs,
     "",
-    ...(rows ?? []).map((r) => `- ${r.title}: ${r.detail}`),
+    ...(rows ?? []).flatMap((r) => [`- ${r.title}: ${r.detail}`, ...(r.links ?? []).map((l) => `  ${l.label}: ${l.url}`)]),
     "",
     ...(button ? [`${button.label}: ${button.url}`] : []),
+    ...(link ? [`${link.label}: ${link.url}`] : []),
   ].join("\n");
   return { html, text };
 }

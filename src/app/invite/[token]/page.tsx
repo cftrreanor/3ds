@@ -80,7 +80,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
             <>
               <h1 className="text-2xl font-medium">Invitation not found</h1>
               <p className="mt-2 leading-7 text-muted">
-                This link isn&apos;t valid or was cancelled. Ask the person who invited you for a new one.
+                This link isn&apos;t valid or was canceled. Ask the person who invited you for a new one.
               </p>
             </>
           ) : (

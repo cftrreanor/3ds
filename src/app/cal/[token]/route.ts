@@ -3,7 +3,7 @@ import { buildIcs } from "@/lib/ics";
 import { createAdminClient } from "@/lib/supabase/server";
 import { loadCalendarEntries, toIcsEvent } from "@/lib/volunteer-emails";
 
-// "Apple / Outlook calendar" button: downloads one shift as a calendar file.
+// "Apple or Outlook" link: downloads one shift as a calendar file.
 // The token is the signup's private manage token, so only the volunteer has it.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

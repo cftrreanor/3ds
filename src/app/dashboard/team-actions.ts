@@ -172,7 +172,7 @@ export async function joinFromEmail(token: string, key: string, _prev: ActionSta
     .eq("token", token)
     .eq("email_token", key)
     .maybeSingle();
-  if (!inv) return { error: "This link has been replaced by a newer email, or the invitation was cancelled. Use the newest email, or ask for a new invitation." };
+  if (!inv) return { error: "This link has been replaced by a newer email, or the invitation was canceled. Use the newest email, or ask for a new invitation." };
   if (inv.accepted_at) return { error: "This invitation has already been accepted. Sign in to continue." };
   if (new Date(inv.expires_at) < new Date()) return { error: "This invitation has expired. Ask for a new one." };
   // The one-tap sign-in works for a week after the email; after that, sign in normally.
