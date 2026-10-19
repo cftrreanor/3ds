@@ -4,8 +4,7 @@
 -- Emails still come from our own address (email apps reject mail that claims
 -- someone else's domain), shown as "Lone Star Band Boosters via Field Command
 -- Events". Reply-To is where a reply goes:
---   * no row here: the event's creator, except conferences (no replies, so a
---     teacher never hands out an address by default);
+--   * no row here: the event's creator (for a conference, the teacher);
 --   * replies = false: nowhere (our no-reply address);
 --   * replies = true: reply_to, or the creator's account email when blank.
 --

@@ -68,7 +68,7 @@ function ReplyToField({ defaultValue, hidden }: { defaultValue: string; hidden: 
     <div hidden={hidden}>
       <Field
         label="Reply email"
-        hint="A shared address, like info@boosters.org, keeps your personal inbox private."
+        hint="A work or shared address, like your school email or info@boosters.org, keeps your personal inbox private."
         error={error}
         errorId="reply-to-error"
       >

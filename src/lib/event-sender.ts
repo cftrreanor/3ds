@@ -12,9 +12,6 @@ export type EventSender = { name: string; replyTo: string | null };
 /** What the Replies setting looks like, before falling back to the defaults. */
 export type ReplySetting = { replies: boolean; replyTo: string | null };
 
-/** Conferences don't take replies unless the teacher turns them on; other events do. */
-export const repliesByDefault = (eventType: string) => eventType !== "conference";
-
 const cache = new Map<string, { at: number; sender: EventSender | null }>();
 const CACHE_MS = 60_000;
 
@@ -53,9 +50,9 @@ async function loadSender(eventId: string): Promise<EventSender | null> {
   // A conference is the teacher's own; everything else is the organization's.
   const name = (type === "conference" ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
 
+  // No setting yet (or before the database update): replies go to the event's creator.
   const { data: row, error } = await admin.from("event_email_settings").select("replies, reply_to").eq("event_id", eventId).maybeSingle();
-  // Before the database update, keep replies where they were: nowhere.
-  if (error && isSchemaError(error)) return { name, replyTo: null };
-  const replies = row ? row.replies : repliesByDefault(type);
+  if (error && !isSchemaError(error)) console.error("Loading the event's reply setting failed", error.message);
+  const replies = row ? row.replies : true;
   return { name, replyTo: replies ? row?.reply_to || creator?.email || null : null };
 }

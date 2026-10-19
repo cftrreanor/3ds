@@ -10,7 +10,6 @@ import { missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { brand as product } from "@/lib/brand";
 import { isSchemaError } from "@/lib/schema-check";
-import { repliesByDefault } from "@/lib/event-sender";
 import { saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
@@ -81,7 +80,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   ]);
   const conference = hasConferences(event.event_type);
   const senderName = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
-  const repliesOn = replyRow ? replyRow.replies : repliesByDefault(event.event_type);
+  const repliesOn = replyRow ? replyRow.replies : true;
   const replyTo = replyRow?.reply_to || (creator?.email as string | undefined) || "";
   const repliesUnavailable = isSchemaError(replyError);
   const bandsHere = hasBands(event.event_type);
