@@ -11,7 +11,7 @@ import { brand } from "@/lib/brand";
 export const metadata: Metadata = {
   title: "Parent-Teacher Conference Scheduling, Free for Teachers",
   description:
-    "Free for teachers: set aside a day and families book their own conference time, in person or on video, with calendar invites, reminders, and a link to change or cancel.",
+    "Free for teachers: set aside a day and families book their own conference time, in person, on video, or by phone, with calendar invites, reminders, and a link to change or cancel. Weekly hours for calls with premium.",
   alternates: { canonical: CONFERENCES_PAGE.path },
 };
 
@@ -21,13 +21,13 @@ const START = "/login?next=/dashboard/teacher";
 const steps: HowStep[] = [
   {
     title: "Set your day and hours",
-    body: "Pick the meeting length and a few minutes between meetings. Add breaks if you need them.",
+    body: "Pick the meeting length and a few minutes between meetings. Add breaks if you need them. With premium, set the same hours every week instead.",
     screen: "/screens/conference-meeting-times.webp",
     alt: "Conference Setup: the day and hours, 15-minute meetings with 5 minutes between them, and breaks.",
   },
   {
     title: "Families pick a time",
-    body: "Share one link. Families choose an open time, in person or on video. Taken times aren't shown, so no one is double-booked.",
+    body: "Share one link. Families choose an open time, in person, on video, or by phone. Taken times aren't shown, so no one is double-booked.",
     screen: "/screens/conference-booking-page.webp",
     alt: "A parent booking a conference: open times to pick from, their child's name, and their own details.",
   },
@@ -46,12 +46,12 @@ const sections: Audience["sections"] = [
     points: [
       "Meetings of 10 to 60 minutes, with up to 15 minutes between them",
       "Add up to eight breaks, like lunch or a planning period, each with its own label",
-      "Meet in person, on video, or let each family choose, with your room, a video link, or both",
+      "Meet in person, on video, or by phone, or let each family choose in person or video",
       "Using one video link for everyone? You confirm it has a waiting room first, so families don't walk in on each other",
     ],
     screen: {
-      src: "/screens/conference-where-you-meet.webp",
-      alt: "Conference setup on a phone: in person, on video, or the parent's choice, then your school and room.",
+      src: "/screens/conference-meet-options.webp",
+      alt: "Conference setup on a phone: in person, video, phone call, or the parent's choice, then your school and room.",
     },
   },
   {
@@ -63,6 +63,20 @@ const sections: Audience["sections"] = [
       "A reminder the day before, and a private link to change or cancel. A new time updates their calendar invite",
       "Email subjects never include a child's name",
     ],
+  },
+  {
+    title: "Weekly hours and phone calls",
+    body: "With premium, offer the same times every week, like calls on Tuesday afternoons. Families pick a day, then a time, and you call them.",
+    points: [
+      "Weekly hours on any days, with days off for holidays and field trips",
+      "You choose how much notice families give and how far ahead they can book",
+      "For phone calls, families give the number to call. Your number is never asked for or shared",
+      "Each family has one upcoming meeting at a time, and can book again once it's past",
+    ],
+    screen: {
+      src: "/screens/conference-weekly-hours.webp",
+      alt: "Conference setup on a phone: Every week chosen, a first and last day, and Tuesday hours from 3:30 to 4:30 PM.",
+    },
   },
   {
     title: "Your conference day",
@@ -83,18 +97,26 @@ const sections: Audience["sections"] = [
 const privacy = [
   "Only you see children's names and family notes, not anyone else at the school or any other family.",
   "Families never see who else booked. Taken times simply aren't listed.",
-  "Bookings are deleted 30 days after your conferences.",
+  "Bookings are deleted 30 days after your conferences, or for weekly hours, 30 days after each meeting.",
 ];
 
 // Plain answers to what teachers ask before signing up.
 const faqs = [
   {
     q: "Is it really free for teachers?",
-    a: "Yes. A teacher account is free and runs parent-teacher conferences, one published at a time while we're in the pilot. You sign in with your email, and there's no credit card.",
+    a: "Yes. A teacher account is free and runs parent-teacher conference days, one published at a time while we're in the pilot. You sign in with your email, and there's no credit card. Weekly hours are a premium feature.",
   },
   {
-    q: "Can families meet on video?",
-    a: "Yes. Families choose in person or on video when they book. When you set up, you add your room, a video link, or both.",
+    q: "Can families meet on video or by phone?",
+    a: "Yes. Meet on video, by phone, or in person, or let each family choose in person or video. For phone calls, families give the number to call when they book, and you call them.",
+  },
+  {
+    q: "Do families see my phone number?",
+    a: "No. We never ask for your number. Calling from your own phone? In the US, dial *67 before the number to hide yours, or use a school phone.",
+  },
+  {
+    q: "Can I offer the same times every week?",
+    a: `Yes, with premium. Set weekly hours, like Tuesday and Thursday afternoons, add days off, and choose how much notice families give and how far ahead they can book. Write to us at ${brand.supportEmail} to add premium to your account.`,
   },
   {
     q: "Do families need to make an account?",
@@ -152,7 +174,7 @@ export default function ConferencesPage() {
               Parent-teacher conferences that schedule themselves
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
-              Set aside a day, share one link, and families book their own time, in person or on video. No sign-up
+              Set aside a day, share one link, and families book their own time, in person, on video, or by phone. No sign-up
               sheets, no reply-all emails, and no double bookings.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
