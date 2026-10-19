@@ -94,7 +94,12 @@ export async function bookConference(eventId: string, _prev: BookingState, formD
     p_event: eventId,
     p_starts_at: values.startsAt,
     p_child: values.child,
-    p_parents: values.parents.map((p) => ({ name: p.name.trim(), email: p.email.trim(), phone: normalizePhone(p.phone ?? "") ?? null })),
+    // Phone calls: the number to call is also the first parent's phone.
+    p_parents: values.parents.map((p, i) => ({
+      name: p.name.trim(),
+      email: p.email.trim(),
+      phone: normalizePhone((i === 0 && !p.phone?.trim() ? values.callPhone : p.phone) ?? "") ?? null,
+    })),
     p_mode: values.mode || null,
     p_note: values.note || null,
     // Only phone calls send a number, so bookings work before the weekly hours update too.
