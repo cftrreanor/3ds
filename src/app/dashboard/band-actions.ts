@@ -433,7 +433,7 @@ function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round
             title: "Ready position",
             detail: `${at(readyAt(s.perform_at, readyMin))} (${readyMin} min before performing)`,
           },
-          { title: "Performance", detail: at(s.perform_at) },
+          { title: "Performance", detail: at(s.perform_at), strong: true },
           { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },
         ],
         button: { label: "See the full schedule", url: `${origin}/e/${event.slug}` },

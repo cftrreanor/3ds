@@ -315,7 +315,14 @@ export function teacherBookingEmail(
         { title: "When", detail: when, strong: true },
         {
           title: place.title,
-          detail: b.meeting_mode === "in_person" ? place.lines[0] || "Your room" : b.meeting_mode === "phone" ? callLine(b) : "On video",
+          detail:
+            b.meeting_mode === "in_person"
+              ? place.lines[0] || "Your room"
+              : b.meeting_mode === "phone"
+                ? callLine(b)
+                : s.own_link || !s.video_link
+                  ? "You send the family your video link"
+                  : s.video_link,
         },
         { title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") },
         ...(b.note ? [{ title: "Their note", detail: "They left you a note. It's on your Meetings page." }] : []),

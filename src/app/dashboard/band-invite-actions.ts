@@ -75,7 +75,7 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
       const { html, text } = emailLayout({
         heading: `You're invited: ${event.name}`,
         paragraphs: [
-          `${name ? `Hi ${name.split(" ")[0]}! ` : ""}${host?.full_name ?? "The host"} would love to have your ${w.one} at ${event.name}, ${formatDateRange(event.starts_on, event.ends_on)}${event.venue_name ? ` at ${event.venue_name}` : ""}.`,
+          `${name ? `Hi ${name.split(" ")[0]}. ` : ""}${host?.full_name ?? "The host"} would love to have your ${w.one} at ${event.name}, ${formatDateRange(event.starts_on, event.ends_on)}${event.venue_name ? ` at ${event.venue_name}` : ""}.`,
           filledIn.has(row.email)
             ? `Your ${w.one}'s details are already filled in from the host's records. Check them, change anything you need, and register.`
             : `Your ${w.one}'s details from last time are saved. Check them and register in one tap, or change anything first.`,

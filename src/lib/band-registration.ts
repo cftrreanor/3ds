@@ -46,7 +46,7 @@ export async function createRegistration(
     const { html, text } = emailLayout({
       heading: `${v.band_name} is registered`,
       paragraphs: [
-        `Thanks! ${v.school_name} is registered for ${event?.name ?? "the event"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
+        `Thanks. ${v.school_name} is registered for ${event?.name ?? "the event"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
         `You can review or change your registration while registration is open. We'll email you when ${group ? "the schedule and your group's times in each room are" : "the performance order and your times are"} posted.`,
       ],
       rows: [
