@@ -19,6 +19,9 @@ import {
   meetingSummary,
   NOTICE_HOURS,
   noticeLabel,
+  dateRuns,
+  datesBetween,
+  groupWeekly,
   sortWeekly,
   WEEKDAYS,
   weeklyMeetingCount,
@@ -95,8 +98,11 @@ function SaveCancel({ editing, onCancel, label, disabled }: { editing: boolean; 
 }
 
 type BreakDraft = { key: number; start: string; minutes: string; label: string };
-type RangeDraft = { key: number; day: string; start: string; end: string };
-type DateDraft = { key: number; date: string };
+type GroupDraft = { key: number; days: number[]; start: string; end: string };
+type DaysOffDraft = { key: number; from: string; to: string };
+
+/** Days of the week, Sunday first (0), as short tap targets. */
+const DAY_LETTERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type TimesProps = {
   action: Action;
@@ -157,10 +163,10 @@ function TimesForm({
   const [breaks, setBreaks] = useState<BreakDraft[]>(() =>
     initial.breaks.map((b, i) => ({ key: i, start: b.start, minutes: String(b.minutes), label: b.label })),
   );
-  const [ranges, setRanges] = useState<RangeDraft[]>(() =>
-    sortWeekly(initial.weekly_hours).map((h, i) => ({ key: i, day: String(h.day), start: h.start, end: h.end })),
-  );
-  const [closed, setClosed] = useState<DateDraft[]>(() => initial.closed_dates.map((d, i) => ({ key: i, date: d })));
+  // Weekly hours as days that share the same times; each picked day is saved as its own block.
+  const [groups, setGroups] = useState<GroupDraft[]>(() => groupWeekly(initial.weekly_hours).map((g, i) => ({ key: i, ...g })));
+  // Days off as runs of dates (a single day, or a break like Dec 21 – Jan 4).
+  const [daysOff, setDaysOff] = useState<DaysOffDraft[]>(() => dateRuns(initial.closed_dates).map((r, i) => ({ key: i, ...r })));
   const [nextKey, setNextKey] = useState(100);
   const newKey = () => {
     setNextKey((k) => k + 1);
@@ -177,10 +183,11 @@ function TimesForm({
   const askDay = changingHours || (!weekly && initial.schedule === "weekly");
   const lengths = { meeting_minutes: meeting, gap_minutes: gap, breaks: breaks.map((b) => ({ start: b.start, minutes: Number(b.minutes) || 0, label: b.label })) };
   const starts = meetingStarts(from, to, lengths);
-  const weeklyHours = ranges.filter((r) => r.start && r.end && r.end > r.start).map((r) => ({ day: Number(r.day), start: r.start, end: r.end }));
+  const weeklyHours = groups.flatMap((g) => (g.start && g.end && g.end > g.start ? g.days.map((day) => ({ day, start: g.start, end: g.end })) : []));
   const perWeek = weeklyMeetingCount(weeklyHours, lengths);
+  const offDates = [...new Set(daysOff.flatMap((d) => datesBetween(d.from, d.to)))];
+  const changeGroup = (key: number, patch: Partial<GroupDraft>) => setGroups((gs) => gs.map((g) => (g.key === key ? { ...g, ...patch } : g)));
   const change = (key: number, patch: Partial<BreakDraft>) => setBreaks((bs) => bs.map((b) => (b.key === key ? { ...b, ...patch } : b)));
-  const changeRange = (key: number, patch: Partial<RangeDraft>) => setRanges((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   return (
     <ActionForm
@@ -196,19 +203,23 @@ function TimesForm({
       <fieldset>
         <legend className="text-sm font-semibold">When can families meet with you?</legend>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {SCHEDULES.map((o) => (
+          {SCHEDULES.map((o) => {
+            // Booked meetings stay as booked: switching waits until they're canceled.
+            const locked = booked > 0 && o.value !== initial.schedule;
+            return (
             <label
               key={o.value}
-              className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${schedule === o.value ? "border-brand bg-brand-soft" : "border-field-border"}`}
+              className={`flex gap-3 rounded-lg border p-3 ${locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${schedule === o.value ? "border-brand bg-brand-soft" : "border-field-border"}`}
             >
               <input
                 type="radio"
                 name="schedule"
                 value={o.value}
+                disabled={locked}
                 checked={schedule === o.value}
                 onChange={() => {
                   setSchedule(o.value);
-                  if (o.value === "weekly" && !ranges.length) setRanges([{ key: newKey(), day: "2", start: "15:30", end: "16:30" }]);
+                  if (o.value === "weekly" && !groups.length) setGroups([{ key: newKey(), days: [2, 4], start: "15:30", end: "16:30" }]);
                 }}
                 className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
               />
@@ -217,10 +228,13 @@ function TimesForm({
                   {o.label}
                   {o.value === "weekly" && <span className="rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-brand-foreground">Premium</span>}
                 </span>
-                <span className="block text-sm text-muted">{o.hint}</span>
+                <span className="block text-sm text-muted">
+                  {locked ? "Families have booked. Cancel their meetings on your Meetings page to switch." : o.hint}
+                </span>
               </span>
             </label>
-          ))}
+            );
+          })}
         </div>
       </fieldset>
 
@@ -245,103 +259,138 @@ function TimesForm({
             </Field>
           </div>
 
-          <div>
-            <p className="text-sm font-semibold">Weekly hours</p>
-            <p className="text-sm text-muted">Add a row for each block of time. Add two rows for two blocks on the same day.</p>
+          <fieldset>
+            <legend className="text-sm font-semibold">Weekly hours</legend>
+            <p className="text-sm text-muted">Tap the days you meet, then set your hours.</p>
             <ul className="mt-3 space-y-3">
-              {ranges.map((r) => (
-                <li key={r.key} className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_8rem_8rem_auto]">
-                  <Field label="Day" className="col-span-2 sm:col-span-1">
-                    <Select name="weeklyDay" value={r.day} onChange={(e) => changeRange(r.key, { day: e.target.value })}>
-                      {WEEKDAYS.map((w, i) => (
-                        <option key={w} value={i}>
-                          {w}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="From">
-                    <Input type="time" name="weeklyStart" required value={r.start} onChange={(e) => changeRange(r.key, { start: e.target.value })} />
-                  </Field>
-                  <Field label="To">
-                    <Input type="time" name="weeklyEnd" required value={r.end} onChange={(e) => changeRange(r.key, { end: e.target.value })} />
-                  </Field>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    className="col-span-2 sm:col-span-1"
-                    disabled={ranges.length === 1}
-                    onClick={() => {
-                      setRanges((rs) => rs.filter((x) => x.key !== r.key));
-                      setEditing(true);
-                    }}
-                  >
-                    Remove
-                  </Button>
+              {groups.map((g, gi) => (
+                <li key={g.key} className="space-y-3 rounded-lg border border-border p-3">
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label={groups.length > 1 ? `Days for hours ${gi + 1}` : "Days"}>
+                    {DAY_LETTERS.map((label, day) => {
+                      const on = g.days.includes(day);
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          aria-pressed={on}
+                          aria-label={WEEKDAYS[day]}
+                          onClick={() => {
+                            changeGroup(g.key, { days: on ? g.days.filter((d) => d !== day) : [...g.days, day].sort() });
+                            setEditing(true);
+                          }}
+                          className={`min-h-11 min-w-12 rounded-md border px-2 text-sm font-semibold ${
+                            on ? "border-brand bg-brand text-brand-foreground" : "border-field-border hover:border-brand"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[8rem_8rem_auto]">
+                    <Field label="From">
+                      <Input type="time" required value={g.start} onChange={(e) => changeGroup(g.key, { start: e.target.value })} />
+                    </Field>
+                    <Field label="To">
+                      <Input type="time" required value={g.end} onChange={(e) => changeGroup(g.key, { end: e.target.value })} />
+                    </Field>
+                    {groups.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="danger"
+                        className="col-span-2 sm:col-span-1"
+                        onClick={() => {
+                          setGroups((gs) => gs.filter((x) => x.key !== g.key));
+                          setEditing(true);
+                        }}
+                      >
+                        Remove Hours
+                      </Button>
+                    )}
+                  </div>
+                  {!g.days.length && <p className="text-sm font-semibold text-danger">Tap at least one day.</p>}
+                  {/* Saved as one block per day. */}
+                  {g.days.map((day) => (
+                    <span key={day} hidden>
+                      <input type="hidden" name="weeklyDay" value={day} />
+                      <input type="hidden" name="weeklyStart" value={g.start} />
+                      <input type="hidden" name="weeklyEnd" value={g.end} />
+                    </span>
+                  ))}
                 </li>
               ))}
             </ul>
-            {ranges.length < 21 && (
+            {groups.length < 7 && (
               <Button
                 type="button"
                 variant="secondary"
                 className="mt-3"
                 onClick={() => {
-                  const last = ranges.at(-1);
-                  setRanges((rs) => [...rs, { key: newKey(), day: last?.day ?? "2", start: last?.start ?? "15:30", end: last?.end ?? "16:30" }]);
+                  setGroups((gs) => [...gs, { key: newKey(), days: [], start: "15:30", end: "16:30" }]);
                   setEditing(true);
                 }}
               >
-                + Add hours
+                + Add different hours
               </Button>
             )}
-          </div>
+          </fieldset>
 
-          <div>
-            <p className="text-sm font-semibold">Days off</p>
-            <p className="text-sm text-muted">Holidays, field trips, or any day you can&apos;t meet. No meetings are booked on them.</p>
-            {closed.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-3">
-                {closed.map((c) => (
-                  <li key={c.key} className="flex items-end gap-2">
+          <fieldset>
+            <legend className="text-sm font-semibold">Days off</legend>
+            <p className="text-sm text-muted">
+              Holidays, field trips, or a break like winter break. No meetings are booked on them. Leave the last day blank for a single day.
+            </p>
+            {daysOff.length > 0 && (
+              <ul className="mt-3 space-y-3">
+                {daysOff.map((d) => (
+                  <li key={d.key} className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[10rem_10rem_auto]">
                     <Field label="Day off">
                       <Input
                         type="date"
-                        name="closedDate"
                         required
-                        value={c.date}
-                        onChange={(e) => setClosed((cs) => cs.map((x) => (x.key === c.key ? { ...x, date: e.target.value } : x)))}
+                        value={d.from}
+                        onChange={(e) => setDaysOff((ds) => ds.map((x) => (x.key === d.key ? { ...x, from: e.target.value } : x)))}
+                      />
+                    </Field>
+                    <Field label="Through (optional)">
+                      <Input
+                        type="date"
+                        min={d.from}
+                        value={d.to === d.from ? "" : d.to}
+                        onChange={(e) => setDaysOff((ds) => ds.map((x) => (x.key === d.key ? { ...x, to: e.target.value } : x)))}
                       />
                     </Field>
                     <Button
                       type="button"
-                      variant="secondary"
-                      aria-label="Remove this day off"
+                      variant="danger"
+                      className="col-span-2 sm:col-span-1"
                       onClick={() => {
-                        setClosed((cs) => cs.filter((x) => x.key !== c.key));
+                        setDaysOff((ds) => ds.filter((x) => x.key !== d.key));
                         setEditing(true);
                       }}
                     >
-                      Remove
+                      Remove Day Off
                     </Button>
                   </li>
                 ))}
               </ul>
             )}
-            {closed.length < 60 && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-3"
-                onClick={() => {
-                  setClosed((cs) => [...cs, { key: newKey(), date: "" }]);
-                  setEditing(true);
-                }}
-              >
-                + Add a day off
-              </Button>
-            )}
-          </div>
+            {offDates.map((date) => (
+              <input key={date} type="hidden" name="closedDate" value={date} />
+            ))}
+            {offDates.length > 60 && <p className="mt-2 text-sm font-semibold text-danger">Add up to 60 days off in all.</p>}
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-3"
+              onClick={() => {
+                setDaysOff((ds) => [...ds, { key: newKey(), from: "", to: "" }]);
+                setEditing(true);
+              }}
+            >
+              + Add a day off
+            </Button>
+          </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Families book at least" hint="So no one books a meeting that starts in a few minutes.">

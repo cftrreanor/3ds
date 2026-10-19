@@ -110,6 +110,46 @@ export function meetingStarts(
   return out;
 }
 
+/** Weekly hours shared by several days, as set up: "Tue and Thu, 3:30 – 4:30 PM". */
+export type HoursGroup = { days: number[]; start: string; end: string };
+
+/** Weekly hours gathered into groups of days that share the same times. */
+export function groupWeekly(hours: WeeklyRange[]): HoursGroup[] {
+  const groups: HoursGroup[] = [];
+  for (const h of sortWeekly(hours)) {
+    const g = groups.find((x) => x.start === h.start && x.end === h.end);
+    if (g) g.days.push(h.day);
+    else groups.push({ days: [h.day], start: h.start, end: h.end });
+  }
+  return groups;
+}
+
+/** Each day in a range of dates, "YYYY-MM-DD", inclusive (up to a year). */
+export function datesBetween(from: string, to: string): string[] {
+  if (!from) return [];
+  const out: string[] = [];
+  const d = new Date(`${from}T12:00:00Z`);
+  const last = to && to >= from ? to : from;
+  while (out.length < 366) {
+    const iso = d.toISOString().slice(0, 10);
+    out.push(iso);
+    if (iso >= last) break;
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/** Days off gathered into runs of back-to-back dates, like a week of winter break. */
+export function dateRuns(dates: string[]): { from: string; to: string }[] {
+  const runs: { from: string; to: string }[] = [];
+  for (const d of [...new Set(dates)].sort()) {
+    const last = runs.at(-1);
+    if (last && datesBetween(last.to, d).length === 2) last.to = d;
+    else runs.push({ from: d, to: d });
+  }
+  return runs;
+}
+
 /** Weekly hours sorted by day, then time. */
 export const sortWeekly = (hours: WeeklyRange[]) => [...hours].sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
 

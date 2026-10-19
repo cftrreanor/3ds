@@ -51,6 +51,7 @@ export function BookingForm({
   const days = [...new Map(times.map((t) => [t.day, t.dayLabel]))];
   const [day, setDay] = useState(() => times.find((t) => t.value === state.values?.startsAt)?.day ?? days[0]?.[0] ?? "");
   const shown = days.length > 1 ? times.filter((t) => t.day === day) : times;
+  const openOn = (d: string) => times.filter((t) => t.day === d).length;
 
   if (state.booked) {
     const b = state.booked;
@@ -104,7 +105,12 @@ export function BookingForm({
                 }`}
               >
                 <input type="radio" name="day" value={value} checked={day === value} onChange={() => setDay(value)} className="sr-only" />
-                {label}
+                <span className="flex flex-col items-center py-1 leading-tight">
+                  {label}
+                  <span className={`text-xs font-normal ${day === value ? "" : "text-muted"}`}>
+                    {openOn(value)} open
+                  </span>
+                </span>
               </label>
             ))}
           </div>
@@ -167,9 +173,12 @@ export function BookingForm({
                 autoComplete={i ? "off" : "email"}
               />
             </Field>
-            <Field label="Mobile phone (optional)">
-              <Input type="tel" maxLength={30} value={p.phone} onChange={(e) => set(i, { phone: e.target.value })} autoComplete={i ? "off" : "tel"} />
-            </Field>
+            {/* Phone calls: the first parent's number is the one asked for above. */}
+            {!(askPhone && i === 0) && (
+              <Field label="Mobile phone (optional)">
+                <Input type="tel" maxLength={30} value={p.phone} onChange={(e) => set(i, { phone: e.target.value })} autoComplete={i ? "off" : "tel"} />
+              </Field>
+            )}
             {parents.length > 1 && (
               <div className="flex items-end">
                 <Button

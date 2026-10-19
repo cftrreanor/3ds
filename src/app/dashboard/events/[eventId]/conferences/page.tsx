@@ -71,7 +71,13 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
       </p>
 
       <ConferenceSetup>
-        <ConferencePublishBar published={published} missing={notReady(saved, event.venue_address)}>
+        <ConferencePublishBar
+          published={published}
+          missing={
+            notReady(saved, event.venue_address) ??
+            (weekly && premium !== true ? "Weekly hours are a premium feature. Write to us to add them to your account." : null)
+          }
+        >
           {published ? (
             <ActionButton
               action={setEventPublished.bind(null, eventId, false)}

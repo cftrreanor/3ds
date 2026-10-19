@@ -79,12 +79,11 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
   const card = (b: (typeof bookings)[number]) => ({
     id: b.id,
     child: b.child_name,
-    parents: b.parents.map((p) => ({
-      name: p.name,
-      email: p.email,
-      phone: p.phone,
-      phoneDisplay: p.phone ? formatPhone(p.phone) : null,
-    })),
+    // A parent's phone that's also the number to call shows once, on the Call button.
+    parents: b.parents.map((p) => {
+      const shown = p.phone && !(b.meeting_mode === "phone" && p.phone === b.call_phone) ? p.phone : null;
+      return { name: p.name, email: p.email, phone: shown, phoneDisplay: shown ? formatPhone(shown) : null };
+    }),
     mode: modeText(b),
     call: b.meeting_mode === "phone" && b.call_phone ? { tel: b.call_phone, display: formatPhone(b.call_phone) } : null,
     note: b.note,
@@ -104,7 +103,9 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
     return {
       kind: "meeting",
       key: b.id,
-      time: `${formatDate(utcToZonedDate(b.starts_at, tz), { year: undefined })} · ${formatTimeRange(b.starts_at, new Date(end).toISOString(), tz, { zone: false })}`,
+      time: formatTimeRange(b.starts_at, new Date(end).toISOString(), tz, { zone: false }),
+      day: utcToZonedDate(b.starts_at, tz),
+      dayLabel: formatDate(utcToZonedDate(b.starts_at, tz), { weekday: "long", year: undefined }),
       over: end <= nowMs,
       status: end <= nowMs ? "past" : start <= nowMs ? "now" : b.id === nextWeekly ? "next" : null,
       booking: card(b),
@@ -168,6 +169,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
             rows={rows}
             booked={bookings.length}
             total={weekly ? null : starts.length}
+            today={weekly ? today : undefined}
             summaryHref={`/dashboard/events/${eventId}/conferences/meetings/summary`}
           />
         </div>

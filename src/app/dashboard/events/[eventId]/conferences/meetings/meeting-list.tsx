@@ -23,6 +23,9 @@ export type MeetingRow =
       kind: "meeting";
       key: string;
       time: string;
+      /** Weekly hours: the meeting's day ("2026-11-03") and how it reads ("Tuesday, Nov 3"). */
+      day?: string;
+      dayLabel?: string;
       /** Its time has passed (on or after the day). */
       over: boolean;
       /** On the day: this meeting is happening now, is up next, or is over. */
@@ -62,7 +65,10 @@ export function MeetingList({
   booked,
   total,
   summaryHref,
+  today,
 }: {
+  /** Weekly hours: today's date, to list Today, Needs marking, and Upcoming by day. */
+  today?: string;
   rows: MeetingRow[];
   booked: number;
   /** Meeting times in all (a conference day), or null for weekly hours (booked meetings only). */
@@ -118,6 +124,12 @@ export function MeetingList({
   const isDone = (r: MeetingRow) => r.kind === "meeting" && Boolean(r.booking) && Boolean(outcomes[r.key]);
   const upcoming = shown.filter((r) => !isDone(r) && !(r.over && (r.kind === "break" || !r.booking)));
   const finished = shown.filter(isDone);
+  // Weekly hours: today's meetings first, then earlier ones still to mark, then later days.
+  const dayOf = (r: MeetingRow) => (r.kind === "meeting" ? (r.day ?? "") : "");
+  const todays = today ? upcoming.filter((r) => dayOf(r) === today) : [];
+  const toMark = today ? upcoming.filter((r) => dayOf(r) < today) : [];
+  const later = today ? upcoming.filter((r) => dayOf(r) > today) : [];
+  const laterDays = [...new Map(later.map((r) => [dayOf(r), r.kind === "meeting" ? (r.dayLabel ?? "") : ""]))];
 
   const row = (r: MeetingRow) =>
     r.kind === "break" ? (
@@ -320,7 +332,42 @@ export function MeetingList({
         <p className="mt-6 text-muted">{q ? "No family matches that." : "No meetings booked yet."}</p>
       ) : (
         <>
-          {upcoming.length > 0 ? (
+          {today ? (
+            <>
+              <section className="mt-5" aria-labelledby="today-meetings">
+                <h2 id="today-meetings" className="text-lg font-semibold">
+                  Today
+                </h2>
+                {todays.length > 0 ? (
+                  <ol className="mt-3 space-y-3">{todays.map(row)}</ol>
+                ) : (
+                  <p className="mt-1 text-muted">{q ? "No family matches that today." : "No meetings today."}</p>
+                )}
+              </section>
+              {toMark.length > 0 && (
+                <section className="mt-10 print:mt-6" aria-labelledby="needs-marking">
+                  <h2 id="needs-marking" className="text-lg font-semibold">
+                    Needs marking <span className="font-normal text-muted">({toMark.length})</span>
+                  </h2>
+                  <p className="mt-1 text-sm text-muted print:hidden">Earlier meetings. Mark each one Met or No-show.</p>
+                  <ol className="mt-3 space-y-3">{toMark.map(row)}</ol>
+                </section>
+              )}
+              {later.length > 0 && (
+                <section className="mt-10 print:mt-6" aria-labelledby="upcoming-meetings">
+                  <h2 id="upcoming-meetings" className="text-lg font-semibold">
+                    Upcoming <span className="font-normal text-muted">({later.length})</span>
+                  </h2>
+                  {laterDays.map(([d, label]) => (
+                    <div key={d} className="mt-4">
+                      <h3 className="text-sm font-semibold text-muted">{label}</h3>
+                      <ol className="mt-2 space-y-3">{later.filter((r) => dayOf(r) === d).map(row)}</ol>
+                    </div>
+                  ))}
+                </section>
+              )}
+            </>
+          ) : upcoming.length > 0 ? (
             <ol className="mt-5 space-y-3">{upcoming.map(row)}</ol>
           ) : (
             <p className="mt-6 text-muted">{finished.length ? "Every meeting is marked." : "No meetings left."}</p>
