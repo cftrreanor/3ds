@@ -99,7 +99,7 @@ async function runDailyJob() {
         event,
         parentLink(origin, event.slug, r.access_token),
       );
-      if (await sendEmail({ to: r.email, subject, html, text })) {
+      if (await sendEmail({ to: r.email, subject, html, text, eventId: event.id })) {
         await admin.from("parent_registrations").update({ reminded_at: new Date().toISOString() }).eq("id", r.id);
         reminded++;
       } else {
@@ -153,7 +153,7 @@ async function runDailyJob() {
       let all = true;
       for (const p of b.parents) {
         const message = bookingEmail("reminder", b, event, s, teacher, bookingLink(origin, event.slug, b.access_token), p);
-        all = (await sendEmail({ to: p.email, ...message, replyTo: teacher.email ?? undefined })) && all;
+        all = (await sendEmail({ to: p.email, ...message, eventId: event.id })) && all;
         await pause();
       }
       if (all) {

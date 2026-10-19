@@ -27,6 +27,8 @@ export type CalendarEntry = {
   ends_at: string;
   lead_name: string | null;
   lead_phone: string | null;
+  /** Missing before the 20261212000000 database update. */
+  event_id?: string;
 };
 
 /** Load signups for emailing. With bump, they're marked as a new calendar version first. */
@@ -129,6 +131,7 @@ export async function sendSignupConfirmation(
   });
   const sent = await sendEmail({
     to: first.volunteer_email,
+    eventId: first.event_id,
     subject: `You're signed up: ${first.event_name}`,
     html,
     text,
@@ -145,6 +148,7 @@ export async function sendSignupConfirmation(
       });
       await sendEmail({
         to: e.volunteer_email,
+        eventId: e.event_id,
         subject: `Calendar invite: ${e.station_name}, ${when}`,
         html: msg.html,
         text: msg.text,
@@ -173,7 +177,7 @@ export async function sendShiftReminder(entries: CalendarEntry[], tz: string, or
     button: { label: "View or cancel my shifts", url: manageUrl(origin, first) },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}.`,
   });
-  return sendEmail({ to: first.volunteer_email, subject: `Tomorrow: your volunteer shift at ${first.event_name}`, html, text });
+  return sendEmail({ to: first.volunteer_email, eventId: first.event_id, subject: `Tomorrow: your volunteer shift at ${first.event_name}`, html, text });
 }
 
 /** Tell each volunteer their shift changed and update their calendar. */
@@ -190,6 +194,7 @@ export async function sendShiftUpdates(entries: CalendarEntry[], tz: string, ori
     });
     await sendEmail({
       to: e.volunteer_email,
+      eventId: e.event_id,
       subject: `Updated: your shift at ${e.event_name}`,
       html,
       text,
@@ -216,6 +221,7 @@ export async function sendCancellation(e: CalendarEntry, tz: string, origin: str
   });
   return sendEmail({
     to: e.volunteer_email,
+    eventId: e.event_id,
     subject: `Canceled: your shift at ${e.event_name}`,
     html,
     text,

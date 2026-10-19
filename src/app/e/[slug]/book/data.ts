@@ -73,7 +73,7 @@ export async function emailMovedMeetings(eventId: string) {
     const link = bookingLink(origin, conf.event.slug, b.access_token);
     for (const p of b.parents) {
       const message = bookingEmail("changed", b, conf.event, conf.settings, conf.teacher, link, p, true);
-      allSent = (await sendEmail({ to: p.email, ...message, replyTo: conf.teacher.email ?? undefined })) && allSent;
+      allSent = (await sendEmail({ to: p.email, ...message, eventId: conf.event.id })) && allSent;
       await pause();
     }
     await emailTeacher("changed", b, conf, origin, true);

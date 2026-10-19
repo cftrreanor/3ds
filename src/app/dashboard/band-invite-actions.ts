@@ -84,7 +84,7 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
         button: { label: "Review and register", url: `${origin}/e/${event.slug}/bands/invite/${row.token}` },
         footer: `This button signs you in as ${row.email} once, within ${EMAIL_LINK_DAYS} days, so please don't forward this email.`,
       });
-      await sendEmail({ to: row.email, subject: `You're invited: ${event.name}`, html, text });
+      await sendEmail({ to: row.email, subject: `You're invited: ${event.name}`, html, text, eventId });
       await pause();
     }
   });

@@ -3,12 +3,30 @@ import nodemailer from "nodemailer";
 import { brand } from "@/lib/brand";
 import { isDemoEmail } from "@/lib/demo-email";
 import { emailButton, emailShell } from "@/lib/email-format";
+import { eventSender } from "@/lib/event-sender";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
 // Without RESEND_API_KEY, emails are skipped and logged, so the app still works.
 
 const FROM = process.env.EMAIL_FROM ?? `${brand.name} <no-reply@fieldcommandevents.com>`;
+const FROM_ADDRESS = FROM.match(/<([^>]+)>/)?.[1] ?? FROM;
+
+/**
+ * "Lone Star Band Boosters via Field Command Events" <no-reply@…>: the
+ * organizer's name on our own address (email apps reject mail that claims
+ * someone else's domain). Quotes, angle brackets and line breaks are dropped.
+ */
+function fromWithName(name: string | null | undefined) {
+  const clean = (name ?? "").replace(/["\\<>\r\n]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+  return clean ? `"${clean} via ${brand.name}" <${FROM_ADDRESS}>` : FROM;
+}
+
+/** The From and Reply-To for an email: the event's organizer when there's an event. */
+async function senderFor(eventId: string | undefined, replyTo: string | undefined) {
+  const sender = eventId ? await eventSender(eventId) : null;
+  return { from: fromWithName(sender?.name), replyTo: replyTo ?? sender?.replyTo ?? undefined };
+}
 
 /**
  * Notes each email in email_log, for the admin dashboard's person and account
@@ -62,15 +80,20 @@ export function inviteMessage({
   html,
   text,
   invite,
+  from = FROM,
+  replyTo,
 }: {
   to: string;
   subject: string;
   html: string;
   text: string;
   invite: CalendarInvite;
+  from?: string;
+  replyTo?: string;
 }) {
   return {
-    from: FROM,
+    from,
+    ...(replyTo ? { replyTo } : {}),
     to,
     subject,
     html,
@@ -117,6 +140,7 @@ export async function sendEmail({
   attachments,
   invite,
   author,
+  eventId,
 }: {
   to: string;
   subject: string;
@@ -126,10 +150,13 @@ export async function sendEmail({
   attachments?: EmailAttachment[];
   invite?: CalendarInvite;
   author?: EmailAuthor;
+  /** An event's email: from its organizer's name, replies per its Replies setting. */
+  eventId?: string;
 }): Promise<boolean> {
   // Demo people (src/lib/demo.ts) have made-up addresses: never email them.
   if (isDemoEmail(to)) return true;
-  if (invite) return sendInvite({ to, subject, html, text, invite });
+  const sender = await senderFor(eventId, replyTo);
+  if (invite) return sendInvite({ to, subject, html, text, invite, ...sender });
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn("RESEND_API_KEY not set; skipped email:", subject);
@@ -141,12 +168,12 @@ export async function sendEmail({
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: FROM,
+        from: sender.from,
         to: [to],
         subject,
         html,
         text,
-        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(sender.replyTo ? { reply_to: sender.replyTo } : {}),
         ...(withAttachments && attachments?.length
           ? {
               attachments: attachments.map((a) => ({
@@ -191,12 +218,14 @@ export async function sendEmailToMany({
   html,
   text,
   replyTo,
+  eventId,
 }: {
   to: string[];
   subject: string;
   html: string;
   text: string;
   replyTo?: string;
+  eventId?: string;
 }): Promise<number> {
   const recipients = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && !isDemoEmail(t));
   if (recipients.length === 0) return 0;
@@ -212,6 +241,7 @@ export async function sendEmailToMany({
     await log(recipients, "skipped", "Email isn't set up (RESEND_API_KEY)");
     return 0;
   }
+  const sender = await senderFor(eventId, replyTo);
   let sent = 0;
   for (let i = 0; i < recipients.length; i += 100) {
     const chunk = recipients.slice(i, i + 100);
@@ -219,7 +249,7 @@ export async function sendEmailToMany({
       const res = await fetch("https://api.resend.com/emails/batch", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify(chunk.map((e) => ({ from: FROM, to: [e], subject, html, text, ...(replyTo ? { reply_to: replyTo } : {}) }))),
+        body: JSON.stringify(chunk.map((e) => ({ from: sender.from, to: [e], subject, html, text, ...(sender.replyTo ? { reply_to: sender.replyTo } : {}) }))),
       });
       if (!res.ok) {
         const body = await res.text();

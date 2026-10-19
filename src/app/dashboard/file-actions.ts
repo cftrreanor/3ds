@@ -172,7 +172,7 @@ async function notify(
         paragraphs: [intro, "Sign in with the email you registered your band with to open it."],
         button: { label: `Open ${label}`, url: `${origin}${fileHref(fileId)}` },
       });
-      await sendEmail({ to, subject: `${heading} · ${event.name}`, html, text });
+      await sendEmail({ to, subject: `${heading} · ${event.name}`, html, text, eventId });
       await pause();
     }
   }
@@ -188,7 +188,7 @@ async function notify(
         paragraphs: [intro, "It's on your shifts page, along with your times."],
         button: { label: "View my shifts", url: manageUrl(origin, v) },
       });
-      await sendEmail({ to: v.email!, subject: `${heading} · ${event.name}`, html, text });
+      await sendEmail({ to: v.email!, subject: `${heading} · ${event.name}`, html, text, eventId });
       await pause();
     }
   }

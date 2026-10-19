@@ -67,7 +67,7 @@ export async function createRegistration(
       ],
       button: { label: "View my registration", url: `${origin}/dashboard/bands/${data.id}` },
     });
-    await sendEmail({ to: user.email, subject: `Registered: ${v.band_name} at ${event?.name ?? "the event"}`, html, text });
+    await sendEmail({ to: user.email, subject: `Registered: ${v.band_name} at ${event?.name ?? "the event"}`, html, text, eventId });
   });
 
   revalidatePath("/dashboard");
