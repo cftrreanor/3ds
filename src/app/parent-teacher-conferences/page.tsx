@@ -50,8 +50,8 @@ const sections: Audience["sections"] = [
       "Using one video link for everyone? You confirm it has a waiting room first, so families don't walk in on each other",
     ],
     screen: {
-      src: "/screens/conference-where-you-meet.webp",
-      alt: "Conference setup on a phone: in person, on video, or the parent's choice, then your school and room.",
+      src: "/screens/conference-meet-options.webp",
+      alt: "Conference setup on a phone: in person, video, phone call, or the parent's choice, then your school and room.",
     },
   },
   {
