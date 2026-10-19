@@ -31,7 +31,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
   const { subject, heading, paragraphs } = inv.as_host
     ? {
         subject: `You're invited to co-host ${inv.organization} on ${brand.name}`,
-        heading: `Co-host ${inv.organization}'s events`,
+        heading: `Co-host events for ${inv.organization}`,
         paragraphs: [
           `${who} invited you to co-host their events on ${brand.name}, starting with ${inv.event_name} (${when}).`,
           bands

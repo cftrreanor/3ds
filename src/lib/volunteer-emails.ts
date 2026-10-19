@@ -160,7 +160,7 @@ export async function sendShiftReminder(entries: CalendarEntry[], tz: string, or
   if (entries.length === 0) return false;
   const first = entries[0];
   const single = entries.length === 1;
-  const leads = [...new Set(entries.filter((e) => e.lead_name).map((e) => `${e.lead_name}${e.lead_phone ? ` (${formatPhone(e.lead_phone)})` : ""}`))];
+  const leads = [...new Set(entries.filter((e) => e.lead_name).map((e) => `${e.lead_name}${e.lead_phone ? ` at ${formatPhone(e.lead_phone)}` : ""}`))];
   const { html, text } = emailLayout({
     heading: `See you tomorrow at ${first.event_name}`,
     paragraphs: [

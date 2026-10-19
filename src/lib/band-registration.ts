@@ -41,6 +41,7 @@ export async function createRegistration(
 
   const { data: event } = await supabase.from("events").select("name, starts_on, ends_on, event_type").eq("id", eventId).single();
   const group = hasRooms(event?.event_type);
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const origin = await getOrigin();
   after(async () => {
     const { html, text } = emailLayout({
@@ -51,12 +52,17 @@ export async function createRegistration(
       ],
       rows: [
         { title: "Classification", detail: v.classification },
-        { title: "People", detail: `${v.student_count} ${group ? "participants" : "students"} · ${v.chaperone_count} chaperones` },
+        { title: "People", detail: `${v.student_count} ${group ? "participants" : "students"} · ${count(v.chaperone_count, "chaperone", "chaperones")}` },
         {
           title: "Vehicles",
           detail: group
-            ? `${v.bus_count} ${v.bus_count === 1 ? "bus" : "buses"}`
-            : `${v.bus_count} buses · ${v.box_truck_count} box trucks · ${v.truck_trailer_count} trucks + trailers · ${v.semi_truck_count} semis`,
+            ? count(v.bus_count, "bus", "buses")
+            : [
+                count(v.bus_count, "bus", "buses"),
+                count(v.box_truck_count, "box truck", "box trucks"),
+                count(v.truck_trailer_count, "truck + trailer", "trucks + trailers"),
+                count(v.semi_truck_count, "semi", "semis"),
+              ].join(" · "),
         },
       ],
       button: { label: "View my registration", url: `${origin}/dashboard/bands/${data.id}` },
