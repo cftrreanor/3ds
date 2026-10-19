@@ -28,9 +28,9 @@ const kinds = [
   {
     icon: CONFERENCES_PAGE.icon,
     title: "Parent-teacher conferences",
-    summary: "Fall and spring conferences, in person or on video",
+    summary: "Fall and spring conferences, in person, on video, or by phone",
     href: CONFERENCES_PAGE.path,
-    examples: "Fall and spring conferences, in person or on video",
+    examples: "Fall and spring conferences, in person, on video, or by phone",
     points: [
       "Families book their own meeting time from one link",
       "Calendar invites for families and the teacher, a reminder the day before, and easy changes",

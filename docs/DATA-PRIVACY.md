@@ -36,7 +36,7 @@ parent-teacher conferences.
 | Volunteer events and fair volunteer stations | Under-18 helpers: **first name and last initial only** (for example "Emma R."), signed up by a parent or guardian | Volunteers' names, email addresses, and phone numbers; shift check-in times |
 | School fairs | None | Booth partners' contact name, email address, and phone number |
 | Family visitor days (lunches, open houses, class parties) | Each child's **name, teacher, and grade** | Parent's name, email address, and phone number; other adults' names; door check-in times |
-| Parent-teacher conferences | The child's **name** and the parent's optional note to the teacher | Up to four parents' names, email addresses, and phone numbers; whether the meeting happened |
+| Parent-teacher conferences | The child's **name** and the parent's optional note to the teacher | Up to four parents' names, email addresses, and phone numbers; for phone calls, the number the teacher calls; whether the meeting happened |
 | Organizer and team accounts | None | Name, email address, phone number (optional), and sign-in history |
 
 We don't collect student ID numbers, dates of birth, addresses, grades or scores, attendance,
@@ -49,7 +49,7 @@ automated test.
 
 - **Families' and children's details (visitor days):** the event's Hosts, Co-hosts, and
   Volunteer Leads (who run the door desk), and Section Leads on event day only.
-- **Conference bookings and parents' notes:** only the teacher who set up the conference.
+- **Conference bookings, parents' notes, and the number to call for phone calls:** only the teacher who set up the conference.
   Other hosts on the same account see how many times are booked, not who booked
   (database update `20261209000000_conference_teacher_only.sql`).
 - **Volunteers' phone numbers:** Hosts, Co-hosts, and Volunteer Leads; Section Leads only on
@@ -97,7 +97,7 @@ Deletion runs automatically every day.
 | Information | Deleted |
 |---|---|
 | Children's details from visitor days | 30 days after the event |
-| Conference bookings (child's name, parents, notes) | 30 days after the conference |
+| Conference bookings (child's name, parents, notes, number to call) | 30 days after the conference; for weekly hours, 30 days after each meeting (`20261211000000_conference_weekly_hours.sql`) |
 | Volunteers, including under-18 helpers | 10 days after the event (shift totals are kept, without names) |
 | Files shared with an event | 30 days after the event |
 | Booth partners' contact details | 15 months after the event |
@@ -107,7 +107,8 @@ Deletion runs automatically every day.
 
 An organizer can also delete an event at any time, which removes everything attached to it
 right away. Emails and calendar invites already sent (to families, volunteers, directors, and
-conference teachers, whose invite names the child by first name and last initial) stay in each
+conference teachers, whose invite names the child by first name and last initial and, for phone
+calls, gives the number to call) stay in each
 recipient's inbox and calendar. Copies an organizer prints, downloads, or copies out of the app are the school's own
 records, kept under the school's policies.
 

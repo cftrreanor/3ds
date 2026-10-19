@@ -56,14 +56,14 @@ const collected = [
   {
     event: "Parent-teacher conferences",
     students: "The child's name, the parent's optional note to the teacher, and whether the meeting took place",
-    adults: "Up to four parents' names and email addresses, with optional phone numbers",
+    adults: "Up to four parents' names and email addresses, with optional phone numbers, and for phone calls, the number the teacher calls",
   },
   { event: "Organizer and team accounts", students: "None", adults: "Name, email address, optional phone number, and sign-in history" },
 ];
 
 const deleted = [
   { what: "Children's details from family visitor days", when: "30 days after the event" },
-  { what: "Parent-teacher conference bookings", when: "30 days after the conference" },
+  { what: "Parent-teacher conference bookings", when: "30 days after the conference, or for weekly hours, 30 days after each meeting" },
   { what: "Volunteers, including under-18 helpers", when: "10 days after the event" },
   { what: "Files shared with an event", when: "30 days after the event" },
   { what: "Booth partners' contact details", when: "15 months after the event" },
@@ -159,7 +159,7 @@ export default function StudentDataPrivacyPage() {
               Children&apos;s and families&apos; details from visitor days: the event&apos;s Hosts, Co-hosts, and Volunteer Leads, who run the
               door, and Section Leads on event day only
             </li>
-            <li>Conference bookings and parents&apos; notes: only the teacher who set up the conference. Other hosts on the account see how many times are booked, not who booked.</li>
+            <li>Conference bookings, parents&apos; notes, and the number to call for phone calls: only the teacher who set up the conference. Other hosts on the account see how many times are booked, not who booked.</li>
             <li>Volunteers&apos; phone numbers: Hosts, Co-hosts, and Volunteer Leads, and Section Leads on event day only</li>
             <li>Visiting directors see their own registration, never other schools&apos; contact details</li>
             <li>Families never see who else registered or booked</li>
