@@ -5,7 +5,15 @@ import { useActionState, useEffect, useState } from "react";
 import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input, Textarea } from "@/components/ui";
+import type { Mode } from "@/lib/conferences";
 import type { BookingState } from "./actions";
+
+/** How a family can meet, as they see it. */
+export const FAMILY_MODES: { value: Mode; label: string; hint: string }[] = [
+  { value: "in_person", label: "In person", hint: "Come to the classroom." },
+  { value: "video", label: "Video", hint: "Join online." },
+  { value: "phone", label: "Phone call", hint: "Your child's teacher calls you." },
+];
 
 type Parent = { name: string; email: string; phone: string };
 const blankParent = (): Parent => ({ name: "", email: "", phone: "" });
@@ -15,27 +23,32 @@ export type OpenTime = { value: string; label: string; day: string; dayLabel: st
 
 /**
  * A family books a meeting: pick an open time, their child, the parents who'll
- * come (each is emailed), in person or video when it's their choice, and an
- * optional note. Booked times never show.
+ * come (each is emailed), how they'll meet when the teacher offers more than
+ * one way (and the number to call, for a phone call), and an optional note.
+ * Booked times never show.
  */
 export function BookingForm({
   action,
   times,
-  askMode,
-  askPhone,
+  modes,
   zone,
 }: {
   action: (prev: BookingState, formData: FormData) => Promise<BookingState>;
   times: OpenTime[];
-  /** Parent's choice: ask in person or video. */
-  askMode: boolean;
-  /** Phone calls: ask for the number the teacher calls. */
-  askPhone: boolean;
+  /** The ways the teacher offers; with more than one, the family picks. */
+  modes: Mode[];
   /** The conference's time zone by name, e.g. "Central Time". */
   zone: string;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, {});
+  const askMode = modes.length > 1;
+  const [mode, setMode] = useState<Mode | "">(() => {
+    const before = modes.find((m) => m === state.values?.mode);
+    return before ?? (askMode ? "" : (modes[0] ?? ""));
+  });
+  // Phone calls: ask for the number the teacher calls.
+  const askPhone = mode === "phone";
   const [startedAt] = useState(() => Date.now());
   const [time, setTime] = useState(state.values?.startsAt ?? "");
   const [parents, setParents] = useState<Parent[]>(() => state.values?.parents ?? [blankParent()]);
@@ -147,6 +160,31 @@ export function BookingForm({
         <Input name="child" required maxLength={120} defaultValue={state.values?.child} autoComplete="off" />
       </Field>
 
+      {askMode && (
+        <fieldset>
+          <legend className="text-lg font-semibold">How would you like to meet?</legend>
+          <div className={`mt-2 grid gap-2 ${modes.length > 2 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            {FAMILY_MODES.filter((m) => modes.includes(m.value)).map((m) => (
+              <label key={m.value} className="flex cursor-pointer gap-3 rounded-lg border border-field-border p-3 has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
+                <input
+                  type="radio"
+                  name="mode"
+                  value={m.value}
+                  required
+                  checked={mode === m.value}
+                  onChange={() => setMode(m.value)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+                />
+                <span>
+                  <span className="block font-semibold">{m.label}</span>
+                  <span className="block text-sm text-muted">{m.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
       {askPhone && (
         <Field label="Phone number for the call" hint="Your child's teacher calls you at this number. The call may come from a school or private number.">
           <Input name="callPhone" type="tel" required maxLength={30} defaultValue={state.values?.callPhone} autoComplete="tel" />
@@ -199,33 +237,6 @@ export function BookingForm({
           </Button>
         )}
       </fieldset>
-
-      {askMode && (
-        <fieldset>
-          <legend className="text-lg font-semibold">How would you like to meet?</legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {[
-              { value: "in_person", label: "In person", hint: "Come to the classroom." },
-              { value: "video", label: "Video", hint: "Join online." },
-            ].map((m) => (
-              <label key={m.value} className="flex cursor-pointer gap-3 rounded-lg border border-field-border p-3 has-[:checked]:border-brand has-[:checked]:bg-brand-soft">
-                <input
-                  type="radio"
-                  name="mode"
-                  value={m.value}
-                  required
-                  defaultChecked={state.values?.mode === m.value}
-                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
-                />
-                <span>
-                  <span className="block font-semibold">{m.label}</span>
-                  <span className="block text-sm text-muted">{m.hint}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      )}
 
       <Field label="Anything you'd like to talk about? (optional)" hint="Only your child's teacher sees this. Please leave out health or medical details; share those with the school directly.">
         <Textarea name="note" rows={3} maxLength={500} defaultValue={state.values?.note} />

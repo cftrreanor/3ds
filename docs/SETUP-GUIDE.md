@@ -151,6 +151,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261210000000_conference_bookings_follow_day.sql` | **Conference meetings follow the day**: when a conference's day changes, booked meetings move to the new day at the same time (families are emailed an updated invite), and meetings left on an old day by earlier changes are put back on the conference's day | ✅ run |
 | `20261211000000_conference_weekly_hours.sql` | **Conference weekly hours and phone calls (part 1, the database)**: teachers can offer the same times every week (a premium feature that needs a plan to publish), with days off, notice, and how far ahead families can book; phone calls where the teacher calls the family; one upcoming meeting per child; children's details deleted 30 days after each weekly meeting. | ✅ run |
 | `20261212000000_event_email_settings.sql` | **Emails from the organizer**: event emails show the organizer's name, and each event's Edit details page has an Email replies step (replies go to the organizer's email to start, for conferences the teacher's, or another email, or nowhere). The reply email is only visible to Hosts. | ⬜ not yet |
+| `20261213000000_conference_meeting_modes.sql` | **Several ways to meet**: teachers tick any mix of in person, video, and phone calls, and each family picks one when they book. Families can switch to a phone call when they change their meeting. | ⬜ not yet |
 
 ## Pilot requests
 

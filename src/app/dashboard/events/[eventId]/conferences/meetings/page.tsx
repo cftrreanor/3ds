@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { withCallPhone, type Booking } from "@/lib/conference-bookings";
-import { meetingStarts } from "@/lib/conferences";
+import { meetingStarts, modesOf } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
 import { hasConferences } from "@/lib/event-types";
@@ -72,8 +72,8 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
   const now = toMinutes(utcToZonedTime(nowIso, tz));
   const nextBooked = isToday ? times.find((t) => toMinutes(t) > now && byTime.has(t)) : undefined;
   const range = (start: string, minutes: number) => `${displayTime(start)} – ${displayTime(toTime(toMinutes(start) + minutes))}`;
-  const showMode = settings.meeting_mode === "either";
-  // Parent's choice shows which they picked; phone calls show the number to call (below).
+  const showMode = modesOf(settings).length > 1;
+  // With more than one way to meet, each shows which the family picked; phone calls show the number to call (below).
   const modeText = (b: (typeof bookings)[number]) =>
     b.meeting_mode === "phone" ? (b.call_phone ? null : "Phone call") : showMode ? (b.meeting_mode === "video" ? "Video" : "In person") : null;
   const card = (b: (typeof bookings)[number]) => ({

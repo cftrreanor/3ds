@@ -5,7 +5,7 @@ import { Card } from "@/components/ui";
 import { formatDuration } from "@/lib/schedule";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { weeklySummary } from "@/lib/conferences";
+import { modesOf, weeklySummary } from "@/lib/conferences";
 import { formatDate, formatTime, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 import { bookConference } from "./actions";
 import { BookingForm } from "./booking-form";
@@ -44,12 +44,13 @@ export default async function BookConferencePage({ params, searchParams }: Param
   const school = [event.venue_name, event.venue_address].filter(Boolean).join(", ");
   // Where to meet, one line each: the room and school, and the video option.
   const place = [settings.room, school].filter(Boolean).join(", ");
-  const where =
-    settings.meeting_mode === "phone"
-      ? [`By phone. ${teacher.name} calls you at the number you give.`]
-      : settings.meeting_mode === "video"
-        ? ["On video. You'll get the details when you book."]
-        : [place ? `In person: ${place}` : "In person", ...(settings.meeting_mode === "either" ? ["Or on video. You choose when you book."] : [])];
+  const modes = modesOf(settings);
+  const where = [
+    ...(modes.includes("in_person") ? [place ? `In person: ${place}` : "In person"] : []),
+    ...(modes.includes("video") ? [modes.length > 1 ? "On video" : "On video. You'll get the details when you book."] : []),
+    ...(modes.includes("phone") ? [`By phone: ${teacher.name} calls you at the number you give`] : []),
+    ...(modes.length > 1 ? ["You choose when you book."] : []),
+  ];
 
   return (
     <>
@@ -85,8 +86,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
               <BookingForm
                 action={bookConference.bind(null, event.id)}
                 times={times}
-                askMode={settings.meeting_mode === "either"}
-                askPhone={settings.meeting_mode === "phone"}
+                modes={modes}
                 zone={zoneName(event.timezone)}
               />
               <div className="mt-6">

@@ -5084,4 +5084,102 @@ end $$;
 reset role;
 delete from public.event_email_settings;
 
+-- ---------------------------------------------------------------------------
+-- Several ways to meet: a teacher offers any mix of in person, video and phone;
+-- each family picks one the teacher offers, and a phone call needs a number.
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address, created_by)
+values ('10000000-0000-0000-0000-0000000000f1', :'org_id', 'Ms. Ito Conferences', 'conf-f1', 'published', 'conference', 'America/Chicago',
+        current_date + 3, current_date + 3,
+        ((current_date + 3) + time '15:00') at time zone 'America/Chicago',
+        ((current_date + 3) + time '16:00') at time zone 'America/Chicago', '1 School Rd', '00000000-0000-0000-0000-000000000001');
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_modes, room)
+values ('10000000-0000-0000-0000-0000000000f1', 15, 0, '[]', now(), array['in_person', 'phone'], 'Room 9');
+do $$
+declare
+  d    date := current_date + 3;
+  s1   timestamptz := (d + time '15:00') at time zone 'America/Chicago';
+  s2   timestamptz := (d + time '15:15') at time zone 'America/Chicago';
+  s3   timestamptz := (d + time '15:30') at time zone 'America/Chicago';
+  t_in uuid;
+  t_ph uuid;
+  fam  jsonb := '[{"name": "Lee Ito", "email": "lee@example.com"}]';
+  ok   boolean;
+begin
+  assert (select meeting_mode from public.conference_settings where event_id = '10000000-0000-0000-0000-0000000000f1') = 'in_person',
+         'the old single column follows the list';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000f1', s1, 'Kai Ito', fam, 'video', null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a family can''t pick a way the teacher doesn''t offer';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000f1', s1, 'Kai Ito', fam, null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'with several ways, the family has to pick one';
+  ok := false;
+  begin
+    perform public.book_conference('10000000-0000-0000-0000-0000000000f1', s1, 'Kai Ito', fam, 'phone', null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a phone call needs a number to call';
+  t_ph := public.book_conference('10000000-0000-0000-0000-0000000000f1', s1, 'Kai Ito', fam, 'phone', null, '(512) 555-0199');
+  assert (select meeting_mode = 'phone' and call_phone = '5125550199' from public.conference_bookings where access_token = t_ph),
+         'a family books a phone call';
+  t_in := public.book_conference('10000000-0000-0000-0000-0000000000f1', s2, 'Mia Ito', fam, 'in_person', null, '5125550199');
+  assert (select meeting_mode = 'in_person' and call_phone is null from public.conference_bookings where access_token = t_in),
+         'an in-person meeting keeps no number to call';
+  ok := false;
+  begin
+    perform public.change_conference_booking(t_in, s3, 'phone');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'switching to a phone call needs a number';
+  perform public.change_conference_booking(t_in, s3, 'phone', '512-555-0123');
+  assert (select meeting_mode = 'phone' and call_phone = '5125550123' and starts_at = s3
+            from public.conference_bookings where access_token = t_in),
+         'a family switches to a phone call';
+  perform public.change_conference_booking(t_ph, s2, 'in_person');
+  assert (select meeting_mode = 'in_person' and call_phone is null from public.conference_bookings where access_token = t_ph),
+         'switching away from a call drops the number';
+  ok := false;
+  begin
+    update public.conference_settings set meeting_modes = array['fax'] where event_id = '10000000-0000-0000-0000-0000000000f1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'only in person, video and phone';
+  ok := false;
+  begin
+    update public.conference_settings set meeting_modes = array['video', 'video'] where event_id = '10000000-0000-0000-0000-0000000000f1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'each way once';
+  ok := false;
+  begin
+    update public.conference_settings set meeting_modes = array[]::text[] where event_id = '10000000-0000-0000-0000-0000000000f1';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'at least one way';
+  -- The app from before this update still sets the old column.
+  update public.conference_settings set meeting_mode = 'either' where event_id = '10000000-0000-0000-0000-0000000000f1';
+  assert (select meeting_modes = array['in_person', 'video'] from public.conference_settings where event_id = '10000000-0000-0000-0000-0000000000f1'),
+         'the list follows the old single column';
+end $$;
+-- Publishing checks every way offered: adding video needs its link.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  update public.conference_settings set meeting_modes = array['in_person', 'phone'] where event_id = '10000000-0000-0000-0000-0000000000f1';
+  assert public.conference_not_ready('10000000-0000-0000-0000-0000000000f1') is null, 'in person and phone with a room is ready';
+  update public.conference_settings set meeting_modes = array['phone', 'video'] where event_id = '10000000-0000-0000-0000-0000000000f1';
+  assert public.conference_not_ready('10000000-0000-0000-0000-0000000000f1') = 'Add your meeting link first (step 2).',
+         'adding video needs a meeting link';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000f1';
+
 \echo 'All database security tests passed.'

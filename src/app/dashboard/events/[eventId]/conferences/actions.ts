@@ -10,10 +10,13 @@ import {
   NOTICE_HOURS,
   sortWeekly,
   WEEKDAYS,
+  isMode,
+  MODES,
   type ConferenceBreak,
-  type MeetingMode,
+  type Mode,
   type WeeklyRange,
 } from "@/lib/conferences";
+import { isSchemaError } from "@/lib/schema-check";
 import { conferenceBookedCount } from "@/lib/conference-access";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { emailMovedMeetings, loadConference } from "@/app/e/[slug]/book/data";
@@ -185,19 +188,20 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
 }
 
 /**
- * Step 2: in person (the school and a room), video (one link with a waiting
- * room, or the teacher sends their own), a phone call (the teacher calls the
- * number the family gives), or the family's choice of in person or video. The school
- * goes on the event, so the public page and calendar invites show it; a
- * video-only conference has no address.
+ * Step 2: any mix of in person (the school and a room), video (one link with
+ * a waiting room, or the teacher sends their own), and phone calls (the
+ * teacher calls the number the family gives). With more than one, each family
+ * picks when they book. The school goes on the event, so the public page and
+ * calendar invites show it; a conference with no in-person meetings has no address.
  */
 export async function saveMeetingPlace(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
-  const mode = String(formData.get("mode") ?? "") as MeetingMode;
-  if (!["in_person", "video", "either", "phone"].includes(mode)) return { error: "Choose where you'll meet." };
+  const picked = formData.getAll("modes").filter(isMode);
+  const modes = MODES.map((m) => m.value).filter((m) => picked.includes(m));
+  if (!modes.length) return { error: "Choose at least one way to meet.", fieldErrors: { modes: "Choose at least one" } };
   // Phone calls need nothing here: families give the number to call when they book.
-  const inPerson = mode === "in_person" || mode === "either";
-  const video = mode === "video" || mode === "either";
+  const inPerson = modes.includes("in_person");
+  const video = modes.includes("video");
 
   const room = String(formData.get("room") ?? "").trim();
   const link = String(formData.get("videoLink") ?? "").trim();
@@ -238,16 +242,29 @@ export async function saveMeetingPlace(eventId: string, _prev: ActionState, form
   if (school.error) return { error: friendlyDbError(school.error) };
   if (!school.data?.length) return { error: "Only the conference's host can change it." };
 
-  const error = await saveSettings(eventId, {
-    meeting_mode: mode,
+  const place = {
     room: inPerson ? room : null,
     own_link: ownLink,
     video_link: video && !ownLink ? link : null,
     waiting_room_confirmed: video && !ownLink && waitingRoom,
-  });
+  };
+  let error = await saveSettings(eventId, { ...place, meeting_modes: modes });
+  // Before the several-ways-to-meet update (20261213000000), only one way, or in person and video, can be saved.
+  if (isSchemaError(error)) {
+    const single = legacyMode(modes);
+    if (!single) return { error: "Offering phone calls alongside other ways needs a database update first. Please write to us." };
+    error = await saveSettings(eventId, { ...place, meeting_mode: single });
+  }
   if (error) return { error: friendlyDbError(error) };
   refresh(eventId);
   return { ok: true, message: "Saved." };
+}
+
+/** The old single setting for a list of ways, when it can say it. */
+function legacyMode(modes: Mode[]) {
+  if (modes.length === 1) return modes[0];
+  if (modes.length === 2 && modes.includes("in_person") && modes.includes("video")) return "either";
+  return null;
 }
 
 /**

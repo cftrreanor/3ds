@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SetupStep, StepStatus } from "@/components/setup-step";
-import { meetingStarts, meetingSummary, modeLabel, notReady, placeMissing, weeklyMeetingCount, weeklySummary } from "@/lib/conferences";
+import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, placeMissing, weeklyMeetingCount, weeklySummary } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
@@ -121,9 +121,9 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
         <SetupStep
           id="place"
           title="2. Where you'll meet"
-          status={<StepStatus done={!placeTodo} doneLabel={modeLabel(settings.meeting_mode) ?? "Done"} />}
+          status={<StepStatus done={!placeTodo} doneLabel={modesLabel(modesOf(settings)) ?? "Done"} />}
           open={timesDone && Boolean(placeTodo)}
-          intro="Your room, a video link, or a phone call. Families wait until you're ready for them, or you call them."
+          intro="Your room, a video link, phone calls, or any mix. Families wait until you're ready for them, or you call them."
         >
           <MeetingPlaceForm
             action={saveMeetingPlace.bind(null, eventId)}

@@ -36,7 +36,7 @@ import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
 import { personasFor } from "@/lib/demo";
 import { eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
-import { meetingStarts, meetingSummary, modeLabel, notReady, weeklySummary } from "@/lib/conferences";
+import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, weeklySummary } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
@@ -524,7 +524,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                         meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), conference),
                         conference.meeting_minutes,
                       )}
-                  {conference.meeting_mode && ` · ${modeLabel(conference.meeting_mode)}`}
+                  {modesOf(conference).length > 0 && ` · ${modesLabel(modesOf(conference))}`}
                 </p>
               ) : (
                 <p className="font-medium">Set your meeting length, breaks, and your room or video link.</p>
