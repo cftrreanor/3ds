@@ -115,7 +115,7 @@ export async function registerParents(eventId: string, _prev: ParentState, formD
         event,
         parentLink(origin, event.slug, reg.access_token),
       );
-      emailSent = await sendEmail({ to: reg.email, ...message });
+      emailSent = await sendEmail({ to: reg.email, ...message, eventId });
     }
     return { ok: true, confirmed: { email: v.email, emailSent, children: [], existing: true } };
   }
@@ -129,7 +129,7 @@ export async function registerParents(eventId: string, _prev: ParentState, formD
       event,
       parentLink(origin, event.slug, token as string),
     );
-    emailSent = await sendEmail({ to: v.email, ...message });
+    emailSent = await sendEmail({ to: v.email, ...message, eventId });
   }
   return { ok: true, confirmed: { email: v.email, emailSent, children: v.children } };
 }
@@ -164,7 +164,7 @@ export async function updateParents(token: string, _prev: ParentState, formData:
       event,
       parentLink(await getOrigin(), event.slug, token),
     );
-    emailSent = await sendEmail({ to: reg.email, ...message });
+    emailSent = await sendEmail({ to: reg.email, ...message, eventId: eventId as string });
   }
   revalidatePath(`/e/${event?.slug}/parents/r/${token}`);
   return { ok: true, confirmed: { email: reg?.email ?? "", emailSent, children: v.children, updated: true } };
@@ -187,7 +187,7 @@ export async function cancelParents(token: string): Promise<ActionState> {
   const { data: event } = reg ? await admin.from("events").select(EVENT_FIELDS).eq("id", reg.event_id).single() : { data: null };
   if (reg && event) {
     const message = parentEmail("canceled", { ...reg, children: reg.children as Child[], other_adults: adultNames(reg.other_adults) }, event, `${await getOrigin()}/e/${event.slug}/parents`);
-    await sendEmail({ to: reg.email, ...message });
+    await sendEmail({ to: reg.email, ...message, eventId: reg.event_id });
   }
   redirect(event ? `/e/${event.slug}/parents?canceled=1` : "/");
 }

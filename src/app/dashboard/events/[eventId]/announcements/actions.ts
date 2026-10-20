@@ -70,7 +70,7 @@ export async function postAnnouncement(eventId: string, _prev: ActionState, form
     footer: `You're getting this because you're part of ${event.name}. Sent by ${brand.name} for the event's organizers.`,
   });
   after(async () => {
-    const sent = await sendEmailToMany({ to, subject: `Emergency: ${event.name}`, html, text, replyTo: user.email ?? undefined });
+    const sent = await sendEmailToMany({ to, subject: `Emergency: ${event.name}`, html, text, replyTo: user.email ?? undefined, eventId });
     if (sent < to.length) console.error(`Emergency email reached ${sent} of ${to.length} people`, { eventId });
   });
   return { ok: true, message: `Posted. It's showing now and being emailed to ${to.length} ${to.length === 1 ? "person" : "people"}.` };

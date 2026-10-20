@@ -161,7 +161,7 @@ export async function importParents(eventId: string, records: unknown, sendEmail
           event,
           parentLink(origin, event.slug, token),
         );
-        await sendEmail({ to: item.email, ...message });
+        await sendEmail({ to: item.email, ...message, eventId });
         await pause();
       }
     });

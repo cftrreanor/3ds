@@ -5023,4 +5023,65 @@ end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000e2';
 
+-- ---------------------------------------------------------------------------
+-- Event email settings (where replies go): Hosts only, never the public or
+-- the event team, and only a plain email address.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  insert into public.event_email_settings (event_id, replies, reply_to)
+  values ('10000000-0000-0000-0000-00000000000a', true, 'info@boosters.org');
+  assert (select reply_to from public.event_email_settings where event_id = '10000000-0000-0000-0000-00000000000a') = 'info@boosters.org',
+         'a host saves where replies go';
+  update public.event_email_settings set replies = false where event_id = '10000000-0000-0000-0000-00000000000a';
+  assert (select not replies from public.event_email_settings where event_id = '10000000-0000-0000-0000-00000000000a'),
+         'a host turns replies off';
+  begin
+    update public.event_email_settings set reply_to = 'x@y.org>, evil@z.org' where event_id = '10000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: a reply address with extra recipients was saved';
+  exception when check_violation then null;
+  end;
+end $$;
+-- Volunteer Lead, Section Lead and a stranger: can't see or change it.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.event_email_settings), 'a Volunteer Lead can''t read where replies go';
+  update public.event_email_settings set reply_to = 'vl@example.com' where event_id = '10000000-0000-0000-0000-00000000000a';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.event_email_settings), 'a Section Lead can''t read where replies go';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.event_email_settings), 'a stranger can''t read where replies go';
+  begin
+    insert into public.event_email_settings (event_id, replies, reply_to)
+    values ('10000000-0000-0000-0000-00000000000b', true, 'phish@example.com');
+    raise exception 'FAIL: a stranger set where an event''s replies go';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select reply_to from public.event_email_settings where event_id = '10000000-0000-0000-0000-00000000000a') = 'info@boosters.org',
+         'the Volunteer Lead''s change didn''t apply';
+end $$;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.event_email_settings;
+    raise exception 'FAIL: the public read event email settings';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.calendar_entries(array[]::uuid[], false);
+    raise exception 'FAIL: the public called calendar_entries';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.event_email_settings;
+
 \echo 'All database security tests passed.'

@@ -2,13 +2,31 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { brand } from "@/lib/brand";
 import { isDemoEmail } from "@/lib/demo-email";
-import { brandBar } from "@/lib/email-format";
+import { emailButton, emailShell } from "@/lib/email-format";
+import { eventSender } from "@/lib/event-sender";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
 // Without RESEND_API_KEY, emails are skipped and logged, so the app still works.
 
 const FROM = process.env.EMAIL_FROM ?? `${brand.name} <no-reply@fieldcommandevents.com>`;
+const FROM_ADDRESS = FROM.match(/<([^>]+)>/)?.[1] ?? FROM;
+
+/**
+ * "Lone Star Band Boosters via Field Command Events" <no-reply@…>: the
+ * organizer's name on our own address (email apps reject mail that claims
+ * someone else's domain). Quotes, angle brackets and line breaks are dropped.
+ */
+function fromWithName(name: string | null | undefined) {
+  const clean = (name ?? "").replace(/["\\<>\r\n]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+  return clean ? `"${clean} via ${brand.name}" <${FROM_ADDRESS}>` : FROM;
+}
+
+/** The From and Reply-To for an email: the event's organizer when there's an event. */
+async function senderFor(eventId: string | undefined, replyTo: string | undefined) {
+  const sender = eventId ? await eventSender(eventId) : null;
+  return { from: fromWithName(sender?.name), replyTo: replyTo ?? sender?.replyTo ?? undefined };
+}
 
 /**
  * Notes each email in email_log, for the admin dashboard's person and account
@@ -62,15 +80,20 @@ export function inviteMessage({
   html,
   text,
   invite,
+  from = FROM,
+  replyTo,
 }: {
   to: string;
   subject: string;
   html: string;
   text: string;
   invite: CalendarInvite;
+  from?: string;
+  replyTo?: string;
 }) {
   return {
-    from: FROM,
+    from,
+    ...(replyTo ? { replyTo } : {}),
     to,
     subject,
     html,
@@ -117,6 +140,7 @@ export async function sendEmail({
   attachments,
   invite,
   author,
+  eventId,
 }: {
   to: string;
   subject: string;
@@ -126,10 +150,13 @@ export async function sendEmail({
   attachments?: EmailAttachment[];
   invite?: CalendarInvite;
   author?: EmailAuthor;
+  /** An event's email: from its organizer's name, replies per its Replies setting. */
+  eventId?: string;
 }): Promise<boolean> {
   // Demo people (src/lib/demo.ts) have made-up addresses: never email them.
   if (isDemoEmail(to)) return true;
-  if (invite) return sendInvite({ to, subject, html, text, invite });
+  const sender = await senderFor(eventId, replyTo);
+  if (invite) return sendInvite({ to, subject, html, text, invite, ...sender });
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn("RESEND_API_KEY not set; skipped email:", subject);
@@ -141,12 +168,12 @@ export async function sendEmail({
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: FROM,
+        from: sender.from,
         to: [to],
         subject,
         html,
         text,
-        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(sender.replyTo ? { reply_to: sender.replyTo } : {}),
         ...(withAttachments && attachments?.length
           ? {
               attachments: attachments.map((a) => ({
@@ -191,12 +218,14 @@ export async function sendEmailToMany({
   html,
   text,
   replyTo,
+  eventId,
 }: {
   to: string[];
   subject: string;
   html: string;
   text: string;
   replyTo?: string;
+  eventId?: string;
 }): Promise<number> {
   const recipients = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && !isDemoEmail(t));
   if (recipients.length === 0) return 0;
@@ -212,6 +241,7 @@ export async function sendEmailToMany({
     await log(recipients, "skipped", "Email isn't set up (RESEND_API_KEY)");
     return 0;
   }
+  const sender = await senderFor(eventId, replyTo);
   let sent = 0;
   for (let i = 0; i < recipients.length; i += 100) {
     const chunk = recipients.slice(i, i + 100);
@@ -219,7 +249,7 @@ export async function sendEmailToMany({
       const res = await fetch("https://api.resend.com/emails/batch", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify(chunk.map((e) => ({ from: FROM, to: [e], subject, html, text, ...(replyTo ? { reply_to: replyTo } : {}) }))),
+        body: JSON.stringify(chunk.map((e) => ({ from: sender.from, to: [e], subject, html, text, ...(sender.replyTo ? { reply_to: sender.replyTo } : {}) }))),
       });
       if (!res.ok) {
         const body = await res.text();
@@ -244,52 +274,72 @@ export const pause = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+export type EmailRow = {
+  title: string;
+  detail: string;
+  /** Show the detail large and dark: the thing people look for (like when). */
+  strong?: boolean;
+  links?: { label: string; url: string }[];
+  /** Words before the links, like "Other calendars:". */
+  linksLabel?: string;
+};
+
 /** A simple, readable layout that works in every email client. */
 export function emailLayout({
   heading,
   paragraphs,
   rows,
   button,
+  link,
   footer,
+  preheader,
 }: {
   heading: string;
   paragraphs: string[];
-  rows?: { title: string; detail: string; links?: { label: string; url: string }[] }[];
+  rows?: EmailRow[];
   button?: { label: string; url: string };
+  /** A quieter second choice under the button. */
+  link?: { label: string; url: string };
   footer?: string;
+  /** The inbox preview line; the first paragraph if not given. */
+  preheader?: string;
 }) {
   const p = (t: string) => `<p style="font-size:16px;line-height:24px;margin:0 0 16px">${escape(t)}</p>`;
+  const a = (l: { label: string; url: string }) => `<a href="${escape(l.url)}" style="color:#0b3558;font-weight:bold">${escape(l.label)}</a>`;
   const list = rows?.length
     ? `<table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 24px">${rows
         .map(
           (r) =>
-            `<tr><td style="padding:12px 0;border-top:1px solid #dfe3e8"><div style="font-weight:bold;font-size:15px">${escape(r.title)}</div><div style="color:#4b5f72;font-size:14px;line-height:20px">${escape(r.detail)}</div>${
+            `<tr><td style="padding:12px 0;border-top:1px solid #dfe3e8">${
+              r.strong
+                ? `<div style="color:#4b5f72;font-size:14px;line-height:20px">${escape(r.title)}</div><div style="font-weight:bold;font-size:17px;line-height:24px">${escape(r.detail)}</div>`
+                : `<div style="font-weight:bold;font-size:15px">${escape(r.title)}</div><div style="color:#4b5f72;font-size:14px;line-height:20px">${escape(r.detail)}</div>`
+            }${
               r.links?.length
-                ? `<div style="font-size:14px;line-height:22px;margin-top:4px">${r.links
-                    .map((l) => `<a href="${escape(l.url)}" style="color:#0b3558;font-weight:bold">${escape(l.label)}</a>`)
-                    .join(" &nbsp;·&nbsp; ")}</div>`
+                ? `<div style="font-size:14px;line-height:22px;margin-top:4px;color:#4b5f72">${r.linksLabel ? `${escape(r.linksLabel)} ` : ""}${r.links.map(a).join(" &nbsp;·&nbsp; ")}</div>`
                 : ""
             }</td></tr>`,
         )
         .join("")}</table>`
     : "";
-  const btn = button
-    ? `<p style="margin:0 0 24px"><a href="${escape(button.url)}" style="background:#0b3558;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:bold;display:inline-block">${escape(button.label)}</a></p>`
-    : "";
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0a0a0a">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr>${brandBar(emailLogoUrl())}</tr></table>
-<h1 style="font-size:22px;line-height:28px;margin:0 0 16px">${escape(heading)}</h1>
-${paragraphs.map(p).join("")}${list}${btn}
-<p style="font-size:13px;line-height:20px;color:#4b5f72;margin:24px 0 0">${escape(footer ?? `Sent by ${brand.name}.`)}</p>
-</div>`;
+  const btn = button ? emailButton(button.label, button.url) : "";
+  const second = link ? `<p style="font-size:15px;line-height:22px;margin:-8px 0 24px">${a(link)}</p>` : "";
+  const html = emailShell({
+    content: `<h1 style="font-size:22px;line-height:28px;margin:0 0 16px">${escape(heading)}</h1>
+${paragraphs.map(p).join("")}${list}${btn}${second}`,
+    footer: footer ? [footer] : [],
+    logoUrl: emailLogoUrl(),
+    preheader: preheader ?? paragraphs[0],
+  });
   const text = [
     heading,
     "",
     ...paragraphs,
     "",
-    ...(rows ?? []).map((r) => `- ${r.title}: ${r.detail}`),
+    ...(rows ?? []).flatMap((r) => [`- ${r.title}: ${r.detail}`, ...(r.links ?? []).map((l) => `  ${l.label}: ${l.url}`)]),
     "",
     ...(button ? [`${button.label}: ${button.url}`] : []),
+    ...(link ? [`${link.label}: ${link.url}`] : []),
   ].join("\n");
   return { html, text };
 }

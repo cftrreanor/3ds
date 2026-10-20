@@ -99,7 +99,7 @@ function bodyHtml(blocks: Block[]) {
             .map((i) => `<li style="margin:0 0 6px;font-size:16px;line-height:24px;color:${INK}">${inline(i)}</li>`)
             .join("")}</ul>`;
         case "button":
-          return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr><td style="border-radius:8px;background:${BRAND}"><a href="${escape(b.url)}" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">${escape(b.label)}</a></td></tr></table>`;
+          return emailButton(b.label, b.url);
         case "hr":
           return `<hr style="border:0;border-top:1px solid ${LINE};margin:24px 0">`;
       }
@@ -135,30 +135,60 @@ function bodyText(blocks: Block[]) {
 /**
  * The brand bar: the (white) logo on indigo, or the name in white when
  * there's no address for the logo. Email apps that block images show the
- * name instead (the alt text), still white on indigo.
+ * name instead (the alt text), still white on indigo, small enough to fit
+ * the logo's box.
  */
 export function brandBar(logoUrl: string | null | undefined) {
   const inner = logoUrl
-    ? `<img src="${escape(logoUrl)}" alt="${escape(brand.name)}" width="78" height="48" style="display:block;height:48px;width:78px;border:0;outline:none;color:#ffffff;font-size:18px;font-weight:bold">`
+    ? `<img src="${escape(logoUrl)}" alt="${escape(brand.name)}" width="78" height="48" style="display:block;height:48px;width:78px;border:0;outline:none;color:#ffffff;font-size:12px;line-height:15px;font-weight:bold">`
     : escape(brand.name);
   return `<td style="background:${BRAND};border-radius:12px 12px 0 0;padding:${logoUrl ? "14px 28px" : "18px 28px"};font-size:18px;font-weight:bold;letter-spacing:0.3px;color:#ffffff">${inner}</td>`;
+}
+
+/** The email button (a table, so Outlook keeps its shape). */
+export function emailButton(label: string, url: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr><td style="border-radius:8px;background:${BRAND}"><a href="${escape(url)}" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">${escape(label)}</a></td></tr></table>`;
+}
+
+/**
+ * Every email's frame: brand bar, white card with the message, quiet footer.
+ * The preheader is the hidden line email apps show after the subject in the
+ * inbox (otherwise they show the logo's alt text).
+ */
+export function emailShell({
+  content,
+  footer,
+  logoUrl,
+  preheader,
+}: {
+  content: string;
+  /** Lines under the card; the product name and tagline always come last. */
+  footer?: string[];
+  logoUrl?: string | null;
+  preheader?: string;
+}) {
+  const hidden = preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f4f2ee">${escape(preheader)}${"&#8199;&#847;".repeat(40)}</div>`
+    : "";
+  const lines = [...(footer ?? []).map(escape), `${escape(brand.name)} · ${escape(brand.tagline)}`];
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0;padding:0;background:#f4f2ee">
+${hidden}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ee;padding:24px 12px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;font-family:Helvetica,Arial,sans-serif">
+<tr>${brandBar(logoUrl)}</tr>
+<tr><td style="background:#ffffff;border:1px solid ${LINE};border-top:0;border-radius:0 0 12px 12px;padding:28px;color:${INK}">
+${content}
+</td></tr>
+<tr><td style="padding:16px 28px;font-size:13px;line-height:20px;color:${MUTED};text-align:center">${lines.join("<br>")}</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
 }
 
 /** A finished email: brand bar (with the logo), white card with the message, quiet footer. */
 export function renderEmail(body: string, { logoUrl }: { logoUrl?: string | null } = {}) {
   const blocks = parse(body);
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f4f2ee">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ee;padding:24px 12px">
-<tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;font-family:Helvetica,Arial,sans-serif">
-<tr>${brandBar(logoUrl)}</tr>
-<tr><td style="background:#ffffff;border:1px solid ${LINE};border-top:0;border-radius:0 0 12px 12px;padding:28px">
-${bodyHtml(blocks)}
-</td></tr>
-<tr><td style="padding:16px 28px;font-size:13px;line-height:20px;color:${MUTED};text-align:center">${escape(brand.name)} · ${escape(brand.tagline)}<br>Questions? Just reply to this email.</td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+  const html = emailShell({ content: bodyHtml(blocks), footer: ["Questions? Just reply to this email."], logoUrl });
   return { html, text: bodyText(blocks) };
 }

@@ -217,7 +217,7 @@ async function emailItineraries(eventId: string, bandIds: string[] | null, kind:
       });
       const subject = kind === "changed" ? `Time change: ${b.band_name} at ${event.name}` : `Your schedule: ${b.band_name} at ${event.name}`;
       for (const to of new Set([b.head_director_email, b.contact_email])) {
-        await sendEmail({ to, subject, html, text });
+        await sendEmail({ to, subject, html, text, eventId });
         await pause();
       }
     }

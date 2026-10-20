@@ -374,6 +374,7 @@ export async function saveSchedule(eventId: string, scheduleJson: string): Promi
 }
 
 type EmailEvent = {
+  id: string;
   name: string;
   slug: string;
   timezone: string;
@@ -392,7 +393,7 @@ type EmailSlot = {
   bands: { band_name: string; school_name: string; contact_email: string; head_director_email: string } | null;
 };
 
-const EMAIL_EVENT_COLUMNS = "name, slug, timezone, venue_name, venue_address, ready_minutes_before, finals_ready_minutes_before, finals_published";
+const EMAIL_EVENT_COLUMNS = "id, name, slug, timezone, venue_name, venue_address, ready_minutes_before, finals_ready_minutes_before, finals_published";
 const EMAIL_BAND_COLUMNS = "bands(band_name, school_name, contact_email, head_director_email)";
 
 /** Email each band's director their times. Runs after the response is sent. */
@@ -433,7 +434,7 @@ function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round
             title: "Ready position",
             detail: `${at(readyAt(s.perform_at, readyMin))} (${readyMin} min before performing)`,
           },
-          { title: "Performance", detail: at(s.perform_at) },
+          { title: "Performance", detail: at(s.perform_at), strong: true },
           { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },
         ],
         button: { label: "See the full schedule", url: `${origin}/e/${event.slug}` },
@@ -445,7 +446,7 @@ function emailTimes(event: EmailEvent, slots: EmailSlot[], origin: string, round
             ? `Finals time: ${s.bands.band_name} at ${event.name}`
             : `${event.finals_published ? "Preliminary" : "Performance"} time: ${s.bands.band_name} at ${event.name}`;
       for (const to of new Set([s.bands.head_director_email, s.bands.contact_email])) {
-        await sendEmail({ to, subject, html, text });
+        await sendEmail({ to, subject, html, text, eventId: event.id });
         await pause();
       }
     }

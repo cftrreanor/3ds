@@ -25,7 +25,7 @@ export async function inviteHost(pilotRequestId: string | null, _prev: ActionSta
   const { html, text } = emailLayout({
     heading: `You're invited to host on ${brand.name}`,
     paragraphs: [
-      `${name ? `Hi ${name.split(" ")[0]}! ` : ""}Your pilot spot is ready. Sign in with this email address (${email}) to set up your organization and create your first event.`,
+      `${name ? `Hi ${name.split(" ")[0]}. ` : ""}Your pilot spot is ready. Sign in with this email address (${email}) to set up your organization and create your first event.`,
       "There's no password to remember: we'll email you a sign-in link. The invitation works for 30 days.",
     ],
     button: { label: "Set up my organization", url },

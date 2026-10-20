@@ -70,7 +70,7 @@ async function emailParents(kind: Parameters<typeof bookingEmail>[0], booking: B
   for (const [i, p] of booking.parents.entries()) {
     if (i) await pause();
     const message = bookingEmail(kind, booking, conf.event, conf.settings, conf.teacher, link, p);
-    all = (await sendEmail({ to: p.email, ...message, replyTo: conf.teacher.email ?? undefined })) && all;
+    all = (await sendEmail({ to: p.email, ...message, eventId: conf.event.id })) && all;
   }
   return all;
 }

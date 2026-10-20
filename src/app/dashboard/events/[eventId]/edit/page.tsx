@@ -7,7 +7,11 @@ import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
 import { missing } from "@/lib/schema-check";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { brand as product } from "@/lib/brand";
+import { isSchemaError } from "@/lib/schema-check";
+import { saveReplies } from "../../../reply-actions";
+import { RepliesForm } from "./replies-form";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, utcToZonedTime } from "@/lib/time";
 import { setEventType, updateEvent } from "../../../actions";
@@ -48,7 +52,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, name, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng",
+      "id, organization_id, name, event_type, created_by, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -67,6 +71,18 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     supabase.from("parent_registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase.from("fair_booths").select("id", { count: "exact", head: true }).eq("event_id", eventId),
   ]);
+  // Email replies: who the emails show as from, and where replies go (lib/event-sender).
+  const admin = createAdminClient();
+  const [{ data: replyRow, error: replyError }, { data: creator }, { data: org }] = await Promise.all([
+    supabase.from("event_email_settings").select("replies, reply_to").eq("event_id", eventId).maybeSingle(),
+    event.created_by ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from("organizations").select("name").eq("id", event.organization_id).maybeSingle(),
+  ]);
+  const conference = hasConferences(event.event_type);
+  const senderName = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
+  const repliesOn = replyRow ? replyRow.replies : true;
+  const replyTo = replyRow?.reply_to || (creator?.email as string | undefined) || "";
+  const repliesUnavailable = isSchemaError(replyError);
   const bandsHere = hasBands(event.event_type);
   const groupsHere = hasEnsembles(event.event_type);
   const words = groupWords(event.event_type);
@@ -95,7 +111,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           id="details"
           title="1. Event details"
           status={<StepStatus done doneLabel="Saved" />}
-          open={step !== "files" && step !== "kind"}
+          open={step !== "files" && step !== "kind" && step !== "replies"}
           intro="The name, dates, times, and venue everyone sees."
         >
           <EventForm
@@ -200,6 +216,32 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
               </div>
             )}
           </div>
+        </SetupStep>
+
+        <SetupStep
+          id="replies"
+          title="4. Email replies"
+          status={<StepStatus done={repliesOn} doneLabel="Replies on" todoLabel="No replies" />}
+          open={step === "replies"}
+          intro={`Emails about this event show as from \u201c${senderName ? `${senderName} via ` : ""}${product.name}\u201d. Choose whether people can reply to them.`}
+        >
+          {repliesUnavailable ? (
+            <p className="text-sm text-muted">
+              A database update is needed before replies can be set up. See “Applying database updates” in the setup guide.
+            </p>
+          ) : (
+            <RepliesForm action={saveReplies.bind(null, eventId)} replies={repliesOn} replyTo={replyTo}
+              who={
+                conference
+                  ? "Families"
+                  : groupsHere
+                    ? `${words.one[0].toUpperCase()}${words.one.slice(1)} directors and volunteers`
+                    : hasParents(event.event_type)
+                      ? "Families and volunteers"
+                      : "Volunteers"
+              }
+            />
+          )}
         </SetupStep>
       </div>
     </div>
