@@ -14,7 +14,8 @@ import {
   aheadLabel,
   GAP_LENGTHS,
   MEETING_LENGTHS,
-  MEETING_MODES,
+  MODES,
+  modesOf,
   meetingStarts,
   meetingSummary,
   NOTICE_HOURS,
@@ -26,7 +27,7 @@ import {
   WEEKDAYS,
   weeklyMeetingCount,
   type ConferenceSettings,
-  type MeetingMode,
+  type Mode,
   type Schedule,
 } from "@/lib/conferences";
 import { displayTime, formatDuration } from "@/lib/schedule";
@@ -608,11 +609,12 @@ function PlaceForm({
   setEditing,
   onCancel,
 }: PlaceProps & { editing: boolean; setEditing: (on: boolean) => void; onCancel: () => void }) {
-  const [mode, setMode] = useState<MeetingMode | null>(initial.meeting_mode);
+  const [modes, setModes] = useState<Mode[]>(modesOf(initial));
   const [link, setLink] = useState(initial.video_link ?? "");
   const [ownLink, setOwnLink] = useState(initial.own_link);
-  const inPerson = mode === "in_person" || mode === "either";
-  const video = mode === "video" || mode === "either";
+  const inPerson = modes.includes("in_person");
+  const video = modes.includes("video");
+  const toggle = (m: Mode) => setModes((now) => (now.includes(m) ? now.filter((x) => x !== m) : [...now, m]));
   const linkOk = /^https:\/\/\S+$/.test(link.trim());
 
   return (
@@ -625,19 +627,19 @@ function PlaceForm({
     >
       <fieldset>
         <legend className="text-sm font-semibold">How will you meet?</legend>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {MEETING_MODES.map((m) => (
+        <p className="mt-1 text-sm text-muted">Choose all that work for you. With more than one, each family picks when they book.</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {MODES.map((m) => (
             <label
               key={m.value}
-              className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${mode === m.value ? "border-brand bg-brand-soft" : "border-field-border"}`}
+              className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${modes.includes(m.value) ? "border-brand bg-brand-soft" : "border-field-border"}`}
             >
               <input
-                type="radio"
-                name="mode"
+                type="checkbox"
+                name="modes"
                 value={m.value}
-                required
-                checked={mode === m.value}
-                onChange={() => setMode(m.value)}
+                checked={modes.includes(m.value)}
+                onChange={() => toggle(m.value)}
                 className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
               />
               <span>
@@ -754,7 +756,7 @@ function PlaceForm({
         </p>
       )}
 
-      {mode === "phone" && (
+      {modes.includes("phone") && (
         <div className="rounded-lg border border-border bg-brand-soft p-4 text-sm leading-6">
           <p className="font-semibold">You call each family</p>
           <p className="mt-1">
@@ -768,7 +770,7 @@ function PlaceForm({
         </div>
       )}
 
-      <SaveCancel editing={editing} onCancel={onCancel} label="Save" disabled={!mode} />
+      <SaveCancel editing={editing} onCancel={onCancel} label="Save" disabled={!modes.length} />
     </ActionForm>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { EventHeaderBar } from "@/components/event-brand";
 import { Card } from "@/components/ui";
 import { meetingPlace, meetingWhen } from "@/lib/conference-bookings";
+import { modesOf } from "@/lib/conferences";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
 import { cancelBooking, changeBooking } from "../../actions";
@@ -104,7 +105,7 @@ export default async function ManageBookingPage({ params }: Params) {
                   current={{ value: booking.starts_at, label: label(booking.starts_at) }}
                   times={times}
                   mode={booking.meeting_mode}
-                  askMode={settings.meeting_mode === "either"}
+                  modes={modesOf(settings)}
                 />
               </div>
             </section>

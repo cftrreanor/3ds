@@ -46,12 +46,12 @@ const sections: Audience["sections"] = [
     points: [
       "Meetings of 10 to 60 minutes, with up to 15 minutes between them",
       "Add up to eight breaks, like lunch or a planning period, each with its own label",
-      "Meet in person, on video, or by phone, or let each family choose in person or video",
+      "Offer any mix of in person, video, and phone calls, and each family picks one",
       "Using one video link for everyone? You confirm it has a waiting room first, so families don't walk in on each other",
     ],
     screen: {
       src: "/screens/conference-meet-options.webp",
-      alt: "Conference setup on a phone: in person, video, phone call, or the parent's choice, then your school and room.",
+      alt: "Conference setup on a phone: tick in person, video, or phone call, then your school and room.",
     },
   },
   {
@@ -108,7 +108,7 @@ const faqs = [
   },
   {
     q: "Can families meet on video or by phone?",
-    a: "Yes. Meet on video, by phone, or in person, or let each family choose in person or video. For phone calls, families give the number to call when they book, and you call them.",
+    a: "Yes. Offer in person, video, phone calls, or any mix, and each family picks one when they book. For phone calls, families give the number to call, and you call them.",
   },
   {
     q: "Do families see my phone number?",

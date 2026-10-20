@@ -3,29 +3,40 @@
 import { useState } from "react";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
-import { Field, Select } from "@/components/ui";
+import { Field, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import type { Mode } from "@/lib/conferences";
+import { FAMILY_MODES } from "../../booking-form";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
-/** Move the meeting to another open time (and, for parent's choice, in person or video). */
+/**
+ * Move the meeting to another open time (and, when the teacher offers more
+ * than one way, change how they'll meet; switching to a phone call asks for
+ * the number to call).
+ */
 export function ChangeBookingForm({
   action,
   current,
   times,
   mode,
-  askMode,
+  modes,
 }: {
   action: Action;
   /** The booked time, kept as the first choice. */
   current: { value: string; label: string };
   times: { value: string; label: string }[];
-  mode: string;
-  askMode: boolean;
+  mode: Mode;
+  /** The ways the teacher offers now. */
+  modes: Mode[];
 }) {
+  const askMode = modes.length > 1;
   const [time, setTime] = useState(current.value);
-  const [how, setHow] = useState(mode);
-  const changed = time !== current.value || how !== mode;
+  const [how, setHow] = useState<Mode>(askMode && !modes.includes(mode) ? modes[0] : mode);
+  const next = askMode ? how : (modes[0] ?? mode);
+  // A call needs a number; a booking that's already a call has one.
+  const askPhone = next === "phone" && mode !== "phone";
+  const changed = time !== current.value || next !== mode;
   return (
     <ActionForm action={action} resetOnSuccess={false} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -41,13 +52,21 @@ export function ChangeBookingForm({
         </Field>
         {askMode && (
           <Field label="How you'll meet">
-            <Select name="mode" value={how} onChange={(e) => setHow(e.target.value)}>
-              <option value="in_person">In person</option>
-              <option value="video">Video</option>
+            <Select name="mode" value={how} onChange={(e) => setHow(e.target.value as Mode)}>
+              {FAMILY_MODES.filter((m) => modes.includes(m.value)).map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
             </Select>
           </Field>
         )}
       </div>
+      {askPhone && (
+        <Field label="Phone number for the call" hint="Your child's teacher calls you at this number. The call may come from a school or private number.">
+          <Input name="callPhone" type="tel" required maxLength={30} autoComplete="tel" />
+        </Field>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <SubmitButton disabled={!changed} aria-describedby={changed ? undefined : "change-hint"}>
           Save the change

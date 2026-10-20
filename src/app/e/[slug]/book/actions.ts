@@ -134,13 +134,21 @@ export async function bookConference(eventId: string, _prev: BookingState, formD
   };
 }
 
-/** From the family's link: a new time (and, for parent's choice, in person or video). */
+/** From the family's link: a new time (and, when there's a choice, how they'll meet; a phone call needs the number). */
 export async function changeBooking(token: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const startsAt = String(formData.get("startsAt") ?? "");
   const mode = String(formData.get("mode") ?? "");
+  const callPhone = String(formData.get("callPhone") ?? "").trim();
   if (!startsAt || Number.isNaN(Date.parse(startsAt))) return { error: "Pick a time." };
+  if (callPhone && !normalizePhone(callPhone)) return { error: "Please enter a 10-digit phone number for your teacher to call." };
   const admin = createAdminClient();
-  const { data: eventId, error } = await admin.rpc("change_conference_booking", { p_token: token, p_starts_at: startsAt, p_mode: mode || null });
+  const { data: eventId, error } = await admin.rpc("change_conference_booking", {
+    p_token: token,
+    p_starts_at: startsAt,
+    p_mode: mode || null,
+    // Only a switch to a phone call sends a number, so changes work before the 20261213000000 update too.
+    ...(callPhone ? { p_call_phone: normalizePhone(callPhone) } : {}),
+  });
   if (error || !eventId) {
     if (error?.code === "P0001") return { error: error.message };
     console.error("change_conference_booking failed", error);

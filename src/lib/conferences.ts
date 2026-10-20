@@ -6,13 +6,17 @@ import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 export const MEETING_LENGTHS = [10, 15, 20, 25, 30, 45, 60] as const;
 export const GAP_LENGTHS = [0, 5, 10, 15] as const;
 
-export type MeetingMode = "in_person" | "video" | "either" | "phone";
-export const MEETING_MODES: { value: MeetingMode; label: string; hint: string }[] = [
+/** One way to meet. A teacher offers one or more; each booking has one. */
+export type Mode = "in_person" | "video" | "phone";
+export const MODES: { value: Mode; label: string; hint: string }[] = [
   { value: "in_person", label: "In person", hint: "Families come to your room." },
   { value: "video", label: "Video", hint: "Families join your Zoom or Google Meet." },
   { value: "phone", label: "Phone call", hint: "You call each family at the number they give. Your number isn't shared." },
-  { value: "either", label: "Parent's choice", hint: "Each family picks in person or video when they book." },
 ];
+export const isMode = (m: unknown): m is Mode => MODES.some((x) => x.value === m);
+
+/** The old single setting, before several ways to meet (20261213000000): "either" was in person or video. */
+export type MeetingMode = Mode | "either";
 
 /** A conference day, or the same hours every week (premium). */
 export type Schedule = "one_day" | "weekly";
@@ -46,6 +50,8 @@ export type ConferenceSettings = {
   breaks: ConferenceBreak[];
   times_saved_at: string | null;
   meeting_mode: MeetingMode | null;
+  /** Every way the teacher offers (missing before the 20261213000000 update; read it with modesOf). */
+  meeting_modes?: Mode[] | null;
   room: string | null;
   video_link: string | null;
   waiting_room_confirmed: boolean;
@@ -79,7 +85,27 @@ export const DEFAULT_SETTINGS: ConferenceSettings = {
 /** Before the weekly hours update (20261211000000) has been run. */
 export const LEGACY_SETTINGS_COLUMNS =
   "meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room, video_link, waiting_room_confirmed, own_link";
-export const SETTINGS_COLUMNS = `${LEGACY_SETTINGS_COLUMNS}, schedule, weekly_hours, closed_dates, min_notice_hours, max_days_ahead`;
+/** Before the several-ways-to-meet update (20261213000000) has been run. */
+export const WEEKLY_SETTINGS_COLUMNS = `${LEGACY_SETTINGS_COLUMNS}, schedule, weekly_hours, closed_dates, min_notice_hours, max_days_ahead`;
+export const SETTINGS_COLUMNS = `${WEEKLY_SETTINGS_COLUMNS}, meeting_modes`;
+
+/** The ways a conference offers, in a fixed order (from the old single setting before the update). */
+export function modesOf(s: Pick<ConferenceSettings, "meeting_mode" | "meeting_modes"> | null): Mode[] {
+  const list = s?.meeting_modes?.length ? s.meeting_modes : s?.meeting_mode === "either" ? (["in_person", "video"] as Mode[]) : s?.meeting_mode ? [s.meeting_mode] : [];
+  return MODES.map((m) => m.value).filter((m) => list.includes(m));
+}
+
+/** "In person", "In person or phone call", "In person, video, or phone call". */
+export function modesLabel(modes: Mode[]): string | null {
+  const words = modes.map((m, i) => {
+    const label = MODES.find((x) => x.value === m)!.label;
+    return i === 0 ? label : label.toLowerCase();
+  });
+  if (!words.length) return null;
+  if (words.length === 1) return words[0];
+  if (words.length === 2) return `${words[0]} or ${words[1]}`;
+  return `${words.slice(0, -1).join(", ")}, or ${words.at(-1)}`;
+}
 
 /**
  * Each meeting's start between `start` and `end`: back to back (plus the
@@ -180,12 +206,12 @@ export function meetingSummary(starts: string[], meetingMinutes: number) {
  * their own.
  */
 export function placeMissing(s: ConferenceSettings | null, venueAddress: string | null): string | null {
-  if (!s?.meeting_mode) return "Choose where you'll meet (step 2).";
-  if (s.meeting_mode === "phone") return null;
-  if (s.meeting_mode !== "video" && !venueAddress?.trim()) return "Add your school's address (step 2).";
-  if (s.meeting_mode !== "video" && !s.room?.trim()) return "Add your room and directions (step 2).";
-  if (s.meeting_mode !== "in_person" && !s.own_link && !s.video_link) return "Add your meeting link (step 2).";
-  if (s.meeting_mode !== "in_person" && !s.own_link && !s.waiting_room_confirmed)
+  const modes = modesOf(s);
+  if (!s || !modes.length) return "Choose where you'll meet (step 2).";
+  if (modes.includes("in_person") && !venueAddress?.trim()) return "Add your school's address (step 2).";
+  if (modes.includes("in_person") && !s.room?.trim()) return "Add your room and directions (step 2).";
+  if (modes.includes("video") && !s.own_link && !s.video_link) return "Add your meeting link (step 2).";
+  if (modes.includes("video") && !s.own_link && !s.waiting_room_confirmed)
     return "Tick that your meeting has a waiting room and runs the whole time (step 2).";
   return null;
 }
@@ -197,4 +223,3 @@ export function notReady(s: ConferenceSettings | null, venueAddress: string | nu
   return placeMissing(s, venueAddress);
 }
 
-export const modeLabel = (m: MeetingMode | null) => MEETING_MODES.find((x) => x.value === m)?.label ?? null;
