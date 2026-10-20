@@ -9,13 +9,13 @@ import { CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Parent-Teacher Conference Scheduling, Free for Teachers",
+  title: "Parent-Teacher Conference Scheduling, Free During the Pilot",
   description:
-    "Free for teachers: set aside a day and families book their own conference time, in person, on video, or by phone, with calendar invites, reminders, and a link to change or cancel. Weekly hours for calls with premium.",
+    "Free for teachers during the pilot: set aside a day and families book their own conference time, in person, on video, or by phone, with calendar invites, reminders, and a link to change or cancel. Weekly hours for calls with premium.",
   alternates: { canonical: CONFERENCES_PAGE.path },
 };
 
-/** "Free for teachers": signing in from here lands on the teacher setup page. */
+/** "Free during the pilot": signing in from here lands on the teacher setup page. */
 const START = "/login?next=/dashboard/teacher";
 
 const steps: HowStep[] = [
@@ -103,8 +103,8 @@ const privacy = [
 // Plain answers to what teachers ask before signing up.
 const faqs = [
   {
-    q: "Is it really free for teachers?",
-    a: "Yes. A teacher account is free and runs parent-teacher conference days, one published at a time while we're in the pilot. You sign in with your email, and there's no credit card. Weekly hours are a premium feature.",
+    q: "Is it free for teachers?",
+    a: "Yes, during the pilot. A teacher account is free and runs parent-teacher conference days, one published at a time. You sign in with your email, and there's no credit card. Weekly hours are a premium feature.",
   },
   {
     q: "Can families meet on video or by phone?",
@@ -159,7 +159,7 @@ export default function ConferencesPage() {
           href={START}
           className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-header transition hover:opacity-90 sm:px-5 sm:text-sm"
         >
-          Free for teachers
+          Free during the pilot
         </Link>
       </HeaderBar>
 
@@ -179,7 +179,7 @@ export default function ConferencesPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href={START} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
-                Free for teachers
+                Free during the pilot
               </Link>
             </div>
             <p className="mt-4 text-sm text-on-dark-mute">Sign in with your email. No credit card.</p>
@@ -230,7 +230,7 @@ export default function ConferencesPage() {
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
             <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Every detail organized. Every organizer supported.</h2>
             <Link href={START} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
-              Free for teachers
+              Free during the pilot
             </Link>
           </div>
         </section>
