@@ -152,7 +152,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261211000000_conference_weekly_hours.sql` | **Conference weekly hours and phone calls (part 1, the database)**: teachers can offer the same times every week (a premium feature that needs a plan to publish), with days off, notice, and how far ahead families can book; phone calls where the teacher calls the family; one upcoming meeting per child; children's details deleted 30 days after each weekly meeting. | ✅ run |
 | `20261212000000_event_email_settings.sql` | **Emails from the organizer**: event emails show the organizer's name, and each event's Edit details page has an Email replies step (replies go to the organizer's email to start, for conferences the teacher's, or another email, or nowhere). The reply email is only visible to Hosts. | ✅ run |
 | `20261213000000_conference_meeting_modes.sql` | **Several ways to meet**: teachers tick any mix of in person, video, and phone calls, and each family picks one when they book. Families can switch to a phone call when they change their meeting. | ✅ run |
-| `20261214000000_explicit_table_grants.sql` | **Table access written down**: Supabase stops giving new tables access automatically on October 30, 2026. This spells out the access every table already has, so rebuilding the database from these files still works. Nothing changes on the live site. | ⬜ not yet |
+| `20261214000000_explicit_table_grants.sql` | **Table access written down**: Supabase stops giving new tables access automatically on October 30, 2026. This spells out the access every table already has, so rebuilding the database from these files still works. Nothing changes on the live site. | ✅ run |
 
 ## Pilot requests
 
