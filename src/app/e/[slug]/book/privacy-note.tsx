@@ -3,7 +3,7 @@ export function PrivacyNote({ teacher, weekly = false }: { teacher: string; /** 
   return (
     <section aria-labelledby="privacy-heading" className="rounded-xl border border-border bg-brand-soft p-4 text-sm leading-6 sm:p-5">
       <h2 id="privacy-heading" className="text-base font-semibold">
-        🔒 Your child&apos;s privacy
+        <span aria-hidden>🔒</span> Your child&apos;s privacy
       </h2>
       <ul className="mt-2 list-disc space-y-1 pl-5">
         <li>

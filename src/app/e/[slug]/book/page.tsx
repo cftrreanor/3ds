@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
 import { EventHeaderBar } from "@/components/event-brand";
 import { Card } from "@/components/ui";
 import { formatDuration } from "@/lib/schedule";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { modesOf, weeklySummary } from "@/lib/conferences";
+import { modesLabel, modesOf, weeklySummary } from "@/lib/conferences";
 import { formatDate, formatTime, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 import { bookConference } from "./actions";
 import { BookingForm } from "./booking-form";
@@ -42,14 +43,29 @@ export default async function BookConferencePage({ params, searchParams }: Param
   });
   const weekly = settings.schedule === "weekly";
   const school = [event.venue_name, event.venue_address].filter(Boolean).join(", ");
-  // Where to meet, one line each: the room and school, and the video option.
+  // Where to meet: with one way, its details; with more, the family picks below.
   const place = [settings.room, school].filter(Boolean).join(", ");
   const modes = modesOf(settings);
-  const where = [
-    ...(modes.includes("in_person") ? [place ? `In person: ${place}` : "In person"] : []),
-    ...(modes.includes("video") ? [modes.length > 1 ? "On video" : "On video. You'll get the details when you book."] : []),
-    ...(modes.includes("phone") ? [`By phone: ${teacher.name} calls you at the number you give`] : []),
-    ...(modes.length > 1 ? ["You choose when you book."] : []),
+  const only: Record<string, string> = {
+    in_person: place ? `In person: ${place}` : "In person",
+    video: "Video. You'll get the details when you book.",
+    phone: `Phone call. ${teacher.name} calls you at the number you give.`,
+  };
+  const ways = modes.length > 1 ? `${modesLabel(modes)}. You choose below.` : (only[modes[0]] ?? "");
+  const summary: [string, ReactNode][] = [
+    [
+      "When",
+      weekly ? (
+        <>
+          Every week: {weeklySummary(settings.weekly_hours)}
+          <span className="block text-muted">Through {formatDate(event.ends_on, { year: undefined })}</span>
+        </>
+      ) : (
+        `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`
+      ),
+    ],
+    ["Meetings", `${formatDuration(settings.meeting_minutes)} each`],
+    ["How you'll meet", ways],
   ];
 
   return (
@@ -57,20 +73,17 @@ export default async function BookConferencePage({ params, searchParams }: Param
       <EventHeaderBar slug={slug} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
         <header>
-          <p className="text-sm font-medium text-muted">Parent-teacher conference with {teacher.name}</p>
+          <p className="text-sm font-medium text-muted">Parent-teacher conference</p>
           <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
-          <p className="mt-2 text-muted">
-            {weekly
-              ? `Every week: ${weeklySummary(settings.weekly_hours)}`
-              : `${formatDate(event.starts_on)} · ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`}
-          </p>
-          {weekly && <p className="mt-1 text-muted">Through {formatDate(event.ends_on, { year: undefined })}</p>}
-          <p className="mt-1 text-muted">{formatDuration(settings.meeting_minutes)} meetings</p>
-          {where.map((line) => (
-            <p key={line} className="mt-1 text-muted">
-              {line}
-            </p>
-          ))}
+          <p className="mt-2 text-xl font-medium">with {teacher.name}</p>
+          <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-border pt-4">
+            {summary.map(([term, value]) => (
+              <div key={term} className="contents">
+                <dt className="text-sm font-semibold text-muted sm:text-base">{term}</dt>
+                <dd className="text-sm sm:text-base">{value}</dd>
+              </div>
+            ))}
+          </dl>
           {event.public_notes && <p className="mt-4 leading-7">{event.public_notes}</p>}
         </header>
 
@@ -87,6 +100,8 @@ export default async function BookConferencePage({ params, searchParams }: Param
                 action={bookConference.bind(null, event.id)}
                 times={times}
                 modes={modes}
+                teacher={teacher.name}
+                place={place}
                 zone={zoneName(event.timezone)}
               />
               <div className="mt-6">
