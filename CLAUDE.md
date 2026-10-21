@@ -2,6 +2,8 @@
 
 # Project notes
 - Owner is non-technical: explain setup steps plainly, never ask them to paste secrets into chat.
+- A migration that creates a table grants its access in the same file (`grant ... to service_role`,
+  plus `authenticated`/`anon` as needed): Supabase no longer grants it automatically.
 - Privacy rules live in the database (supabase/migrations). Any change to RLS or the
   security-definer functions needs a matching case in supabase/tests/security_test.sql.
 - Run `npm run lint && npm run typecheck && npm run build && npm run test:db` before pushing.

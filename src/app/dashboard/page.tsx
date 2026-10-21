@@ -241,7 +241,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           title={teacher ? "Your conferences" : "Hosting"}
           description={
             teacher
-              ? "Parent-teacher conferences you're running. Free for teachers."
+              ? "Parent-teacher conferences you're running. Free during the pilot."
               : `Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`
           }
           action={<NewEventButton teacherOnly={teacher} />}

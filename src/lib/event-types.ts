@@ -36,7 +36,7 @@ export const EVENT_TYPES = [
     value: "conference",
     label: "Parent-teacher conferences",
     icon: "🍎",
-    blurb: "Free for teachers. Set aside a day, and families book a meeting time, in person or on video, with reminders and a link to change or cancel.",
+    blurb: "Free during the pilot. Set aside a day, and families book a meeting time, in person, on video, or by phone, with reminders and a link to change or cancel.",
   },
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number]["value"];

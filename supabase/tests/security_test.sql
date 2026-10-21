@@ -5182,4 +5182,23 @@ end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000f1';
 
+-- Tables get no access automatically (Supabase from October 30, 2026), so a
+-- migration that creates one must grant it: the server's key needs every table.
+do $$
+declare missing text;
+begin
+  select string_agg(c.relname, ', ' order by c.relname) into missing
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and c.relkind in ('r', 'p')
+     and not has_table_privilege('service_role', c.oid, 'select, insert, update, delete');
+  if missing is not null then
+    raise exception 'FAIL: grant select, insert, update, delete to service_role on: %', missing;
+  end if;
+  -- The live database still has today's access; this keeps the tests honest about it.
+  assert has_table_privilege('anon', 'public.events', 'select'), 'published events stay readable by visitors';
+  assert not has_table_privilege('anon', 'public.events', 'insert'), 'visitors still can''t write';
+  assert not has_table_privilege('authenticated', 'public.event_email_settings', 'insert'),
+         'reply settings stay limited to their own columns';
+end $$;
+
 \echo 'All database security tests passed.'
