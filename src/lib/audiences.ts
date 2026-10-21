@@ -709,7 +709,7 @@ export const audiences = {
 } satisfies Record<string, Audience>;
 
 /** In the order of the home page's event-type cards. */
-/** Parent-teacher conferences have their own page (free for teachers, so no pilot form). */
+/** Parent-teacher conferences have their own page (free for teachers during the pilot, so no pilot form). */
 /** For principals and district staff (not an event type, so it has its own page). */
 export const ADMINISTRATORS_PAGE = { path: "/school-administrators", name: "For administrators", icon: "🏛️" } as const;
 
