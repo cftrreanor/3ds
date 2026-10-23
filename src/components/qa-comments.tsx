@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import {
   addComment,
+  closedOnGithub,
   loadThread,
   pinsFor,
   replyTo,
@@ -143,6 +144,17 @@ export function QaComments() {
     pinsFor(pathname).then((saved) => setPins((all) => [...saved, ...all.filter((p) => p.id.startsWith("saving-"))]));
   }, [pathname]);
   useEffect(refresh, [refresh]);
+
+  // Comments fixed and closed on GitHub drop off the page (once per page visit).
+  useEffect(() => {
+    let live = true;
+    closedOnGithub(pathname).then((closed) => {
+      if (live && closed.length) setPins((all) => all.map((p) => (closed.includes(p.id) ? { ...p, status: "resolved" } : p)));
+    });
+    return () => {
+      live = false;
+    };
+  }, [pathname]);
 
   // Pins follow their elements as the page lays out.
   useEffect(() => {
