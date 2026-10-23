@@ -57,7 +57,7 @@ export function QaControl({ events }: { events: QaEvent[] }) {
 
   if (framed) return null;
   return (
-    <div className="print:hidden">
+    <div data-qa-ui data-qa-float className="print:hidden">
       <button
         type="button"
         onClick={() => setOpen(true)}

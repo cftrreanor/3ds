@@ -161,10 +161,11 @@ export const SITE_PAGES: { group: string; pages: { label: string; href: string }
     ],
   },
   {
-    group: "Volunteers and emails",
+    group: "Volunteers, emails, and comments",
     pages: [
       { label: "A volunteer's page", href: "/my" },
       { label: "Outbox", href: "/qa/outbox" },
+      { label: "Comments", href: "/qa/comments" },
     ],
   },
 ];
