@@ -125,11 +125,14 @@ export function QaComments() {
   const [cardId, setCardId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
+  // A save that failed in the background, with a way to try it again.
+  const [notice, setNotice] = useState<{ message: string; retry?: () => void } | null>(null);
   const [, setTick] = useState(0);
   const shown = openId ?? (linked && linked !== dismissed ? linked : null);
 
   const refresh = useCallback(() => {
-    pinsFor(pathname).then(setPins);
+    // Keep any comment still saving in the background.
+    pinsFor(pathname).then((saved) => setPins((all) => [...saved, ...all.filter((p) => p.id.startsWith("saving-"))]));
   }, [pathname]);
   useEffect(refresh, [refresh]);
 
@@ -182,11 +185,12 @@ export function QaComments() {
               <button
                 key={p.id}
                 type="button"
+                disabled={p.id.startsWith("saving-")}
                 onClick={() => setCardId(cardId === p.id ? null : p.id)}
                 aria-label={`Comment ${i + 1} from ${p.author}: ${p.body.slice(0, 60)}`}
                 aria-expanded={cardId === p.id}
                 style={{ position: "absolute", left: at.x - 14, top: at.y - 14 }}
-                className={`${picking || card ? "z-[61]" : "z-30"} flex h-7 w-7 items-center justify-center rounded-full rounded-bl-none bg-danger text-xs font-bold text-danger-foreground shadow-md ring-2 ring-white`}
+                className={`${picking || card ? "z-[61]" : "z-30"} flex h-7 w-7 items-center justify-center rounded-full rounded-bl-none bg-danger text-xs font-bold text-danger-foreground shadow-md ring-2 ring-white disabled:opacity-60`}
               >
                 {i + 1}
               </button>
@@ -251,22 +255,30 @@ export function QaComments() {
                 // Let the QA controls disappear before the screenshot.
                 await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
                 const shot = await screenshot(draft.x, draft.y);
-                const r = await addComment({
-                  body,
-                  path: pathname,
-                  anchor: draft.anchor,
-                  screen: `${window.innerWidth} × ${window.innerHeight}`,
-                  screenshot: shot,
-                });
-                if ("error" in r) {
-                  setMode("compose");
-                  return r.error;
-                }
-                // Straight back to comment mode for the next spot.
+                const input = { body, path: pathname, anchor: draft.anchor, screen: `${window.innerWidth} × ${window.innerHeight}`, screenshot: shot };
+                // The pin shows now and the comment saves in the background, so the next spot can start right away.
+                const temp: Pin = { id: `saving-${Date.now()}`, author: "You", body, anchor: draft.anchor, status: "open", createdAt: new Date().toISOString() };
+                setPins((all) => [...all, temp]);
                 setMode("pick");
                 setDraft(null);
                 setHover(null);
-                refresh();
+                const save = async () => {
+                  const r = await addComment(input).catch(() => ({ error: "We couldn't reach the server." }));
+                  if ("error" in r) {
+                    setPins((all) => all.filter((p) => p.id !== temp.id));
+                    setNotice({
+                      message: `Your comment “${body.slice(0, 60)}${body.length > 60 ? "…" : ""}” didn't save. ${r.error}`,
+                      retry: () => {
+                        setPins((all) => [...all, temp]);
+                        save();
+                      },
+                    });
+                  } else {
+                    setPins((all) => all.map((p) => (p.id === temp.id ? { ...p, id: r.id } : p)));
+                    refresh();
+                  }
+                };
+                save();
                 return null;
               }}
             />
@@ -278,15 +290,44 @@ export function QaComments() {
               pin={card}
               number={open.indexOf(card) + 1}
               onClose={() => setCardId(null)}
-              onResolved={() => {
+              onResolve={() => {
+                // Gone from the page at once; the save happens behind it.
                 setCardId(null);
-                refresh();
+                setPins((all) => all.filter((p) => p.id !== card.id));
+                setResolved(card.id, true)
+                  .catch(() => ({ error: "We couldn't reach the server." }))
+                  .then((r) => {
+                    if ("error" in r) setNotice({ message: `That comment didn't resolve. ${r.error}` });
+                    refresh();
+                  });
               }}
               onDetails={() => {
                 setCardId(null);
                 setOpenId(card.id);
               }}
             />
+          )}
+
+          {notice && (
+            <div role="alert" className="fixed bottom-20 right-4 z-[70] w-[min(360px,calc(100vw-32px))] space-y-3 rounded-lg border border-border bg-background p-3 text-sm shadow-xl">
+              <p>{notice.message}</p>
+              <div className="flex gap-2">
+                {notice.retry && (
+                  <Button
+                    onClick={() => {
+                      const retry = notice.retry;
+                      setNotice(null);
+                      retry?.();
+                    }}
+                  >
+                    Try again
+                  </Button>
+                )}
+                <Button variant="ghost" onClick={() => setNotice(null)}>
+                  Dismiss
+                </Button>
+              </div>
+            </div>
           )}
 
           {shown && (
@@ -377,26 +418,53 @@ function useThread(id: string) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
+  // Replies sent from here, kept through a load that started before they saved.
+  const mine = useRef<Reply[]>([]);
+
+  // The comment and its replies here first (quick), then again with the ones left on GitHub.
   const load = useCallback(() => {
-    loadThread(id).then((r) => {
-      if ("error" in r) setError(r.error);
-      else setThread(r.thread);
-    });
+    let live = true;
+    (async () => {
+      for (const github of [false, true]) {
+        const r = await loadThread(id, github);
+        if (!live) return;
+        if ("error" in r) return setError(r.error);
+        const known = new Set(r.thread.replies.map((x) => x.id));
+        const extra = mine.current.filter((x) => !known.has(x.id));
+        setThread({ ...r.thread, replies: [...r.thread.replies, ...extra].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) });
+      }
+    })();
+    return () => {
+      live = false;
+    };
   }, [id]);
   useEffect(load, [load]);
 
-  const act = (fn: () => Promise<{ error: string } | { ok: true }>, then?: () => void) =>
+  const act = (fn: () => Promise<{ error: string } | { ok: true }>) =>
     start(async () => {
       const r = await fn();
       if ("error" in r) setError(r.error);
       else {
         setError(null);
         load();
-        then?.();
       }
     });
 
-  return { thread, error, setError, pending, act };
+  /** Show the reply at once and save it behind; on failure, take it back and say why. */
+  const send = async (text: string): Promise<boolean> => {
+    const temp: Reply = { id: `sending-${Date.now()}`, author: "You", body: text, createdAt: new Date().toISOString() };
+    setError(null);
+    mine.current = [...mine.current, temp];
+    setThread((t) => (t ? { ...t, replies: [...t.replies, temp] } : t));
+    const r = await replyTo(id, text).catch(() => ({ error: "We couldn't reach the server." }));
+    const swap = (list: Reply[]) => list.flatMap((x) => (x.id !== temp.id ? [x] : "error" in r ? [] : [r.reply]));
+    mine.current = swap(mine.current);
+    setThread((t) => (t ? { ...t, replies: swap(t.replies) } : t));
+    if ("error" in r) setError(r.error);
+    return !("error" in r);
+  };
+
+  return { thread, error, setError, pending, act, send };
 }
 
 function Replies({ replies }: { replies: Reply[] }) {
@@ -406,7 +474,8 @@ function Replies({ replies }: { replies: Reply[] }) {
       {replies.map((r) => (
         <li key={r.id} className="rounded-lg border border-border p-3">
           <p className="text-sm">
-            <span className="font-semibold">{r.author}</span> <span className="text-muted">{when(r.createdAt)}</span>
+            <span className="font-semibold">{r.author}</span>{" "}
+            <span className="text-muted">{r.id.startsWith("sending-") ? "Sending…" : when(r.createdAt)}</span>
             {r.onGithub && <span className="ml-2 text-muted">on GitHub</span>}
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{r.body}</p>
@@ -421,32 +490,34 @@ function ReplyForm({
   thread,
   pending,
   act,
+  send,
   setError,
   rows,
   autoFocus,
-  onResolved,
+  onResolve,
 }: {
   thread: Thread;
   pending: boolean;
   act: ReturnType<typeof useThread>["act"];
+  send: ReturnType<typeof useThread>["send"];
   setError: (e: string | null) => void;
   rows: number;
   autoFocus?: boolean;
-  onResolved?: () => void;
+  /** Resolve here instead (the pin card does it without waiting). */
+  onResolve?: () => void;
 }) {
   const [reply, setReply] = useState("");
   const resolving = thread.status !== "resolved";
   return (
     <form
       className="space-y-2"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        if (!reply.trim()) return setError("Type your reply first.");
-        act(async () => {
-          const r = await replyTo(thread.id, reply);
-          if ("ok" in r) setReply("");
-          return r;
-        });
+        const text = reply;
+        if (!text.trim()) return setError("Type your reply first.");
+        setReply("");
+        // Didn't save: put the words back so nothing is lost.
+        if (!(await send(text))) setReply((now) => now || text);
       }}
     >
       <Textarea
@@ -463,14 +534,12 @@ function ReplyForm({
         placeholder="Reply"
       />
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={pending}>
-          Reply
-        </Button>
+        <Button type="submit">Reply</Button>
         <Button
           type="button"
           variant="secondary"
           disabled={pending}
-          onClick={() => act(() => setResolved(thread.id, resolving), resolving ? onResolved : undefined)}
+          onClick={() => (resolving && onResolve ? onResolve() : act(() => setResolved(thread.id, resolving)))}
         >
           {resolving ? "Resolve" : "Reopen"}
         </Button>
@@ -484,16 +553,16 @@ function PinCard({
   pin,
   number,
   onClose,
-  onResolved,
+  onResolve,
   onDetails,
 }: {
   pin: Pin;
   number: number;
   onClose: () => void;
-  onResolved: () => void;
+  onResolve: () => void;
   onDetails: () => void;
 }) {
-  const { thread, error, setError, pending, act } = useThread(pin.id);
+  const { thread, error, setError, pending, act, send } = useThread(pin.id);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -530,7 +599,7 @@ function PinCard({
             <div className="max-h-56 overflow-y-auto">
               <Replies replies={thread.replies} />
             </div>
-            <ReplyForm thread={thread} pending={pending} act={act} setError={setError} rows={2} autoFocus onResolved={onResolved} />
+            <ReplyForm thread={thread} pending={pending} act={act} send={send} setError={setError} rows={2} autoFocus onResolve={onResolve} />
             <FormMessage error={error ?? undefined} />
           </>
         )}
@@ -543,7 +612,7 @@ function PinCard({
 }
 
 function ThreadPanel({ id, pathname, onClose, onGo }: { id: string; pathname: string; onClose: () => void; onGo: (path: string) => void }) {
-  const { thread, error, setError, pending, act } = useThread(id);
+  const { thread, error, setError, pending, act, send } = useThread(id);
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -588,7 +657,7 @@ function ThreadPanel({ id, pathname, onClose, onGo }: { id: string; pathname: st
               <section className="space-y-3">
                 <h3 className="font-semibold">{thread.replies.length ? "Replies" : "No replies yet"}</h3>
                 <Replies replies={thread.replies} />
-                <ReplyForm thread={thread} pending={pending} act={act} setError={setError} rows={2} />
+                <ReplyForm thread={thread} pending={pending} act={act} send={send} setError={setError} rows={2} />
                 <FormMessage error={error ?? undefined} />
               </section>
 

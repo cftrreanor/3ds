@@ -33,19 +33,27 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   return (res.status === 204 ? null : await res.json()) as T;
 }
 
+/** Labels this server has already made (or found), so each is tried once, not on every comment. */
+const madeLabels = new Set<string>();
+
 /** Labels for a reviewer's issues ("qa-comment", "from: Becca"), made the first time. */
 async function ensureLabels(author: string) {
   const labels = [
     { name: "qa-comment", color: "b9d3f0", description: "From the QA site" },
     { name: `from: ${author}`.slice(0, 50), color: "0b3558", description: "Who left the QA comment" },
   ];
-  for (const label of labels) {
-    try {
-      await call("POST", "/labels", label);
-    } catch {
-      // Already there (422), or labels aren't allowed: the issue still goes in.
-    }
-  }
+  await Promise.all(
+    labels
+      .filter((l) => !madeLabels.has(l.name))
+      .map(async (label) => {
+        try {
+          await call("POST", "/labels", label);
+        } catch {
+          // Already there (422), or labels aren't allowed: the issue still goes in.
+        }
+        madeLabels.add(label.name);
+      }),
+  );
   return labels.map((l) => l.name);
 }
 

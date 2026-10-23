@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import { getUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { getDemoState, personaLabel } from "@/lib/demo";
@@ -72,7 +73,7 @@ export async function pinsFor(path: string): Promise<Pin[]> {
   return (data ?? []).map((c) => ({ id: c.id, author: c.author, body: c.body, anchor: c.anchor as Anchor, status: c.status, createdAt: c.created_at }));
 }
 
-/** Leave a comment on a spot on a page, then open its GitHub issue. */
+/** Leave a comment on a spot on a page; its GitHub issue opens after the reply is sent. */
 export async function addComment(input: {
   body: string;
   path: string;
@@ -105,7 +106,8 @@ export async function addComment(input: {
     console.error("Saving the QA comment failed", error);
     return { error: `We couldn't save your comment. Please try again. (Details: ${error?.message ?? "unknown"})` };
   }
-  await toGithub(data.id);
+  // GitHub takes a few round trips: do them once the reviewer has their answer.
+  after(() => toGithub(data.id));
   return { ok: true, id: data.id };
 }
 
@@ -113,7 +115,11 @@ export async function addComment(input: {
 async function toGithub(id: string): Promise<string | null> {
   if (!githubConfigured()) return "GitHub isn't connected yet (docs/QA-SETUP.md).";
   const admin = createAdminClient();
-  const { data: c } = await admin.from("qa_comments").select("*").eq("id", id).maybeSingle();
+  const { data: c } = await admin
+    .from("qa_comments")
+    .select("id, author, body, path, anchor, viewing_as, screen, github_issue, screenshot")
+    .eq("id", id)
+    .maybeSingle();
   if (!c) return "That comment is gone.";
   if (c.github_issue) return null;
   const origin = await getOrigin();
@@ -156,8 +162,8 @@ export async function sendToGithub(id: string): Promise<Result<object>> {
   return problem ? { error: problem } : { ok: true };
 }
 
-/** One comment with its replies, from the QA site and from GitHub. */
-export async function loadThread(id: string): Promise<Result<{ thread: Thread }>> {
+/** One comment with its replies, from the QA site and (unless `github` is false, for a quick first look) from GitHub. */
+export async function loadThread(id: string, github = true): Promise<Result<{ thread: Thread }>> {
   const name = await reviewer();
   if (typeof name !== "string") return name;
   const admin = createAdminClient();
@@ -171,7 +177,7 @@ export async function loadThread(id: string): Promise<Result<{ thread: Thread }>
   const replies: Reply[] = (rows ?? []).map((r) => ({ id: r.id, author: r.author, body: r.body, createdAt: r.created_at }));
 
   let status = c.status as "open" | "resolved";
-  if (c.github_issue && githubConfigured()) {
+  if (github && c.github_issue && githubConfigured()) {
     try {
       const issue = await readIssue(c.github_issue);
       replies.push(...issue.replies.map((r: GithubReply) => ({ id: `gh-${r.id}`, author: r.author, body: r.body, createdAt: r.createdAt, onGithub: true })));
@@ -210,8 +216,8 @@ export async function loadThread(id: string): Promise<Result<{ thread: Thread }>
   };
 }
 
-/** Answer a comment; the reply goes to its GitHub issue too. */
-export async function replyTo(id: string, text: string): Promise<Result<object>> {
+/** Answer a comment; the reply goes to its GitHub issue too, after the reviewer has their answer. */
+export async function replyTo(id: string, text: string): Promise<Result<{ reply: Reply }>> {
   const name = await reviewer();
   if (typeof name !== "string") return name;
   const body = clean(text);
@@ -219,17 +225,24 @@ export async function replyTo(id: string, text: string): Promise<Result<object>>
   const admin = createAdminClient();
   const { data: c } = await admin.from("qa_comments").select("github_issue").eq("id", id).maybeSingle();
   if (!c) return { error: "That comment is gone." };
-  const { data: reply, error } = await admin.from("qa_comment_replies").insert({ comment_id: id, author: name, body }).select("id").single();
+  const { data: reply, error } = await admin
+    .from("qa_comment_replies")
+    .insert({ comment_id: id, author: name, body })
+    .select("id, created_at")
+    .single();
   if (error || !reply) return { error: `We couldn't save your reply. (Details: ${error?.message ?? "unknown"})` };
-  if (c.github_issue && githubConfigured()) {
-    try {
-      const ghId = await addIssueComment(c.github_issue, `**${name}** replied on the QA site:\n\n${body}\n\n${qaMarker(reply.id)}`);
-      await admin.from("qa_comment_replies").update({ github_comment: ghId }).eq("id", reply.id);
-    } catch (err) {
-      console.error("Copying the QA reply to GitHub failed", err);
-    }
+  const issue = c.github_issue;
+  if (issue && githubConfigured()) {
+    after(async () => {
+      try {
+        const ghId = await addIssueComment(issue, `**${name}** replied on the QA site:\n\n${body}\n\n${qaMarker(reply.id)}`);
+        await admin.from("qa_comment_replies").update({ github_comment: ghId }).eq("id", reply.id);
+      } catch (err) {
+        console.error("Copying the QA reply to GitHub failed", err);
+      }
+    });
   }
-  return { ok: true };
+  return { ok: true, reply: { id: reply.id, author: name, body, createdAt: reply.created_at } };
 }
 
 /** Resolve or reopen a comment, and close or reopen its GitHub issue. */
@@ -244,12 +257,15 @@ export async function setResolved(id: string, resolved: boolean): Promise<Result
     .select("github_issue")
     .maybeSingle();
   if (error || !c) return { error: "We couldn't update that comment. Please try again." };
-  if (c.github_issue && githubConfigured()) {
-    try {
-      await setIssueOpen(c.github_issue, !resolved);
-    } catch (err) {
-      console.error("Updating the QA comment's GitHub issue failed", err);
-    }
+  const issue = c.github_issue;
+  if (issue && githubConfigured()) {
+    after(async () => {
+      try {
+        await setIssueOpen(issue, !resolved);
+      } catch (err) {
+        console.error("Updating the QA comment's GitHub issue failed", err);
+      }
+    });
   }
   return { ok: true };
 }
