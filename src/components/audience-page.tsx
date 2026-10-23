@@ -238,20 +238,20 @@ export function FeatureSections({ sections }: { sections: Audience["sections"] }
   );
 }
 
-/** How support works, the same on every page that sells the product. The administrators page says "facilitators" (docs/brand-voice.md). */
-export function SupportSection({ role = "organizers" }: { role?: "organizers" | "facilitators" }) {
+/** How support works, the same on every page that sells the product. */
+export function SupportSection() {
   return (
     <section className="border-t border-border">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-4xl">How support works</h2>
         <p className="mt-3 max-w-2xl leading-7 text-muted">
-          Support starts in the product, so most questions never come up. When one does, a real person is behind it.
+          Support starts in the product, so fewer questions come up. When one does, a real person answers it.
         </p>
         <dl className="mt-8 grid gap-8 sm:grid-cols-3">
           {SUPPORT_POINTS.map((p) => (
             <div key={p.title}>
               <dt className="font-semibold">{p.title}</dt>
-              <dd className="mt-1 leading-7 text-muted">{p.body.replace("organizers", role)}</dd>
+              <dd className="mt-1 leading-7 text-muted">{p.body}</dd>
             </div>
           ))}
         </dl>

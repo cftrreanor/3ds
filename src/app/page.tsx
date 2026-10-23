@@ -123,13 +123,13 @@ const heroScreens = [
 const carouselCard = "w-[85%] shrink-0 snap-start sm:w-[60%] md:w-[44%]";
 
 const different = [
-  { title: "Organized", body: "Everything for your event is on one page." },
-  { title: "Supported", body: "Real people answer your questions, not bots." },
-  { title: "Respectful", body: "Families sign up in minutes, with no account to make." },
+  { title: "Organized", body: "Sign-ups, schedules, and check-in are all in one place." },
+  { title: "Supported", body: "Setup walks you through each step, and real people, not bots, answer the rest." },
+  { title: "Respectful", body: "Families, volunteers, and visitors sign up without an account and never get ads or spam from us." },
 ];
 
-// "Supported" is a system, not a person on call: no phone numbers,
-// response-time promises, or "always available" language.
+// "Supported" is a system, not a person on call: no phone numbers or
+// "always available" language, and only the response time we keep (lib/support.ts).
 
 
 // The principles behind every event's data (the database enforces each one).
@@ -395,7 +395,7 @@ export default async function Home() {
 
         {/* 3. Why it's different */}
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <h2 className={sectionTitle}>Why it&apos;s different</h2>
+          <h2 className={sectionTitle}>Built for the people running school events</h2>
           <dl className="mt-10 grid gap-8 sm:grid-cols-3">
             {different.map((d) => (
               <div key={d.title}>
@@ -411,7 +411,7 @@ export default async function Home() {
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className={sectionTitle}>How support works</h2>
             <p className="mt-3 max-w-2xl leading-7 text-muted">
-              Support starts in the product, so most questions never come up. When one does, a real person is behind it.
+              Support starts in the product, so fewer questions come up. When one does, a real person answers it.
             </p>
             <dl className="mt-10 grid gap-8 sm:grid-cols-3">
               {support.map((s) => (

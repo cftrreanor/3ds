@@ -228,7 +228,7 @@ export default function AdministratorsPage() {
           </div>
         </section>
 
-        <SupportSection role="facilitators" />
+        <SupportSection />
 
         <section id="faq" tabIndex={-1} className="scroll-mt-20 border-t border-border outline-none">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">

@@ -56,7 +56,7 @@ The core voice never changes. Only the leading details shift.
 
 - **The product supports first:** clear setup, in-app guidance, and event-day screens that prevent questions
 - **Self-serve help:** short guides and answers for common questions
-- **Real people behind it:** humans, not bots, with honest response times
+- **Real people behind it:** humans, not bots, with honest response times (we promise a reply within a day)
 - **Extra care where it matters:** priority help for big events, possibly in a higher pricing tier
 
 ## Claims guardrails
@@ -88,10 +88,10 @@ The core voice never changes. Only the leading details shift.
    - **Classroom sign-ups:** Parties, conferences, and visits, ready in minutes
    - **For administrators:** Reliable events with less strain on your staff
 
-3. **Why it's different** (three points)
-   - **Organized:** everything for your event on one page
-   - **Supported:** real people, not bots
-   - **Respectful:** no ads and no spam for your families
+3. **Built for the people running school events** (three points)
+   - **Organized:** sign-ups, schedules, and check-in in one place
+   - **Supported:** guided setup, and real people, not bots, for the rest
+   - **Respectful:** no account for families, volunteers, or visitors, and no ads or spam
 
 4. **Classroom sign-ups**
    - Headline: *Sign-ups that respect everyone's time*
