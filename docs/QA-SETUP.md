@@ -98,3 +98,24 @@ From now on it runs by itself whenever a database update reaches the live site.
 
 Each reviewer's QA account is an admin, so **Admin** and demo mode's **View as**
 work there too. Tell me "The QA site is set up" when it's done.
+
+---
+
+## Using the QA tools
+Every QA page has a **QA tools** button in the bottom-right corner. It opens:
+
+- **See this page on a phone:** the page you're on, at phone size.
+- **Your test events:** each event in your test organization, with links to its
+  organizer view and its public pages, and **View as** (Host, Volunteer Lead,
+  Section Lead, Director, Volunteer, or Parent) to see it as that person.
+- **Ready-made events:** one click makes a published event, dated from today and
+  filled with sample people: a band contest with registration open, a band contest
+  happening today, a choir festival, a school fair, a volunteer event, a family
+  visitor day, or parent-teacher conferences with families already booked.
+- **Pages:** every website page and organizer screen, plus the Outbox.
+- **Start over:** deletes every event in your own test organization. Other
+  reviewers keep theirs.
+
+To see a different day (an event tomorrow, or happening right now), make the
+ready-made event that's dated that way, or change an event's date on its
+**Edit details** page.

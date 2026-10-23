@@ -6,9 +6,12 @@ import type { NextConfig } from "next";
 //   overlays our buttons to trick a signed-in host into clicking them).
 // - Other sites only learn our domain, not full page addresses, from links.
 // - Browsers don't guess file types; no camera, microphone or location.
+// The QA site (src/lib/qa.ts) may show its own pages in a frame, for its
+// phone-size view; other sites still can't.
+const qa = process.env.QA_MODE === "1";
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
-  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: qa ? "frame-ancestors 'self'" : "frame-ancestors 'none'" },
+  { key: "X-Frame-Options", value: qa ? "SAMEORIGIN" : "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },

@@ -9,7 +9,8 @@ import { brand } from "@/lib/brand";
 import { isSchemaError } from "@/lib/schema-check";
 import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
-import { DEMO_COOKIE, demoEmail, PERSONAS, personaLabel, type Persona } from "@/lib/demo";
+import { DEMO_COOKIE, PERSONAS, type Persona } from "@/lib/demo";
+import { demoAccount } from "@/lib/demo-accounts";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -116,43 +117,6 @@ async function fillWithSamples(admin: Admin, ownerId: string, eventId: string) {
   const director = await demoAccount(admin, ownerId, "director");
   const { error } = await admin.rpc("demo_seed", { p_owner: ownerId, p_event: eventId, p_director: director?.id ?? null });
   if (error && !isSchemaError(error)) console.error("demo_seed failed", error);
-}
-
-/** The admin's demo account for a role, created the first time. */
-async function demoAccount(admin: Admin, ownerId: string, persona: Persona): Promise<{ id: string; email: string } | null> {
-  const { data: existing } = await admin
-    .from("demo_accounts")
-    .select("user_id, profiles!demo_accounts_user_id_fkey(email)")
-    .eq("owner_id", ownerId)
-    .eq("persona", persona)
-    .maybeSingle();
-  if (existing) {
-    const email = (existing.profiles as unknown as { email: string } | null)?.email;
-    return email ? { id: existing.user_id, email } : null;
-  }
-
-  const email = demoEmail(ownerId, persona);
-  const created = await admin.auth.admin.createUser({
-    email,
-    email_confirm: true,
-    user_metadata: { full_name: `Demo ${personaLabel(persona)}` },
-  });
-  let id = created.data.user?.id;
-  if (!id) {
-    // Made before but not recorded (e.g. an interrupted first try).
-    const { data: profile } = await admin.from("profiles").select("id").eq("email", email).maybeSingle();
-    id = profile?.id;
-  }
-  if (!id) {
-    console.error("Creating demo account failed", created.error);
-    return null;
-  }
-  const { error } = await admin.from("demo_accounts").upsert({ user_id: id, owner_id: ownerId, persona });
-  if (error) {
-    console.error("Recording demo account failed", error);
-    return null;
-  }
-  return { id, email };
 }
 
 const DEMO_DAYS = 7;
