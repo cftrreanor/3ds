@@ -2,14 +2,14 @@
 export const SUPPORT_POINTS = [
   {
     title: "Guidance built in",
-    body: "Each kind of event walks you through setup one step at a time, and event-day screens show who's here and what's next.",
+    body: "Setup is built around your kind of event, and event-day screens show who's here and what's next.",
   },
   {
     title: "Quick answers",
-    body: "Our pages for each kind of event answer the questions organizers ask most, in plain words.",
+    body: "The page for your kind of event answers common questions in plain words.",
   },
   {
     title: "Real people when you need them",
-    body: "Email us and a person on our team writes back. No bots.",
+    body: "Email us, and a person on our team writes back within a day.",
   },
 ];
