@@ -107,6 +107,14 @@ const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "sh
 
 type Draft = { anchor: Anchor; x: number; y: number };
 
+/** Shift+Enter (or Cmd/Ctrl+Enter) sends the box's form; plain Enter is a new line. */
+const sendOnShortcut = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.key === "Enter" && (e.shiftKey || e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
+    e.preventDefault();
+    e.currentTarget.form?.requestSubmit();
+  }
+};
+
 /** Typing in a field, where a plain key press is text, not a shortcut. */
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
@@ -394,6 +402,7 @@ function Composer({
           maxLength={4000}
           value={body}
           onChange={(e) => setBody(e.target.value)}
+          onKeyDown={sendOnShortcut}
           aria-label="Your comment"
           placeholder="What should change here?"
         />
@@ -406,7 +415,7 @@ function Composer({
             Cancel
           </Button>
         </div>
-        <p className="text-xs text-muted">A screenshot of your screen is saved with it.</p>
+        <p className="text-xs text-muted">Shift+Enter posts it. A screenshot of your screen is saved with it.</p>
       </form>
     </div>
   );
@@ -526,12 +535,9 @@ function ReplyForm({
         maxLength={4000}
         value={reply}
         onChange={(e) => setReply(e.target.value)}
-        onKeyDown={(e) => {
-          // Cmd or Ctrl + Enter sends.
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
-        }}
+        onKeyDown={sendOnShortcut}
         aria-label="Your reply"
-        placeholder="Reply"
+        placeholder="Reply (Shift+Enter to send)"
       />
       <div className="flex flex-wrap gap-2">
         <Button type="submit">Reply</Button>
