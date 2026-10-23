@@ -143,7 +143,8 @@ open or resolved.
 ### Connect comments to GitHub (one time)
 Each comment then also becomes a GitHub issue, labeled `qa-comment` and
 `from: <name>`, where Claude can pick it up. Replies go both ways, and resolving
-a comment closes its issue (closing the issue resolves the comment).
+a comment closes its issue, and closing the issue (say, with a PR that says
+"Fixes #12") resolves the comment: its pin drops off the next time the page loads.
 
 1. On GitHub, click your photo (top right) → **Settings** → **Developer settings**
    (bottom of the left side) → **Personal access tokens** → **Fine-grained tokens**

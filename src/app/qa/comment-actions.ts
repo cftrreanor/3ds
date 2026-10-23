@@ -10,6 +10,7 @@ import {
   addIssueComment,
   createIssue,
   githubConfigured,
+  issueIsOpen,
   issueUrl,
   qaMarker,
   readIssue,
@@ -71,6 +72,36 @@ export async function pinsFor(path: string): Promise<Pin[]> {
     .eq("path", pathOnly(path))
     .order("created_at");
   return (data ?? []).map((c) => ({ id: c.id, author: c.author, body: c.body, anchor: c.anchor as Anchor, status: c.status, createdAt: c.created_at }));
+}
+
+/**
+ * The page's open comments whose GitHub issue has been closed (say, by a merged fix):
+ * resolved here too, so their pins go. Returns their ids.
+ */
+export async function closedOnGithub(path: string): Promise<string[]> {
+  if (typeof (await reviewer()) !== "string" || !githubConfigured()) return [];
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("qa_comments")
+    .select("id, github_issue")
+    .eq("path", pathOnly(path))
+    .eq("status", "open")
+    .not("github_issue", "is", null)
+    .limit(50);
+  const checked = await Promise.all(
+    (data ?? []).map(async (c) => {
+      try {
+        return (await issueIsOpen(c.github_issue as number)) ? null : c.id;
+      } catch {
+        return null; // GitHub didn't answer: leave the pin.
+      }
+    }),
+  );
+  const closed = checked.filter((id): id is string => Boolean(id));
+  if (closed.length) {
+    await admin.from("qa_comments").update({ status: "resolved", resolved_by: "GitHub", resolved_at: new Date().toISOString() }).in("id", closed);
+  }
+  return closed;
 }
 
 /** Leave a comment on a spot on a page; its GitHub issue opens after the reply is sent. */

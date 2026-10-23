@@ -72,6 +72,12 @@ export async function setIssueOpen(issue: number, open: boolean) {
   await call("PATCH", `/issues/${issue}`, { state: open ? "open" : "closed" });
 }
 
+/** Whether the issue is still open on GitHub. */
+export async function issueIsOpen(issue: number): Promise<boolean> {
+  const state = await call<{ state: string }>("GET", `/issues/${issue}`);
+  return state.state === "open";
+}
+
 export type GithubReply = { id: number; author: string; body: string; createdAt: string };
 
 /** The issue's state and the replies left on GitHub itself (not the ones copied from the QA site). */
