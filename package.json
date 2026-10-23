@@ -14,6 +14,7 @@
     "@sentry/nextjs": "^11.8.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
+    "modern-screenshot": "4.7.0",
     "next": "16.3.8",
     "nodemailer": "^10.0.14",
     "pdfjs-dist": "^6.4.299",

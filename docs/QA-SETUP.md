@@ -119,3 +119,43 @@ Every QA page has a **QA tools** button in the bottom-right corner. It opens:
 To see a different day (an event tomorrow, or happening right now), make the
 ready-made event that's dated that way, or change an event's date on its
 **Edit details** page.
+
+---
+
+## Comments
+On any QA page, tap **Comment** (bottom right), tap the spot you mean, type, and
+**Post comment**. It's saved with:
+- who wrote it (from your passcode), the page, and the spot on it
+- who you were viewing as, and your screen size
+- a screenshot of your screen, with the spot circled
+
+Open comments show as numbered red pins on their page; tap one to read it, reply,
+or **Resolve** it. **Comments** in the blue bar lists every comment, by person and
+open or resolved.
+
+### Connect comments to GitHub (one time)
+Each comment then also becomes a GitHub issue, labeled `qa-comment` and
+`from: <name>`, where Claude can pick it up. Replies go both ways, and resolving
+a comment closes its issue (closing the issue resolves the comment).
+
+1. On GitHub, click your photo (top right) → **Settings** → **Developer settings**
+   (bottom of the left side) → **Personal access tokens** → **Fine-grained tokens**
+   → **Generate new token**.
+2. Fill in:
+   - Token name: `QA comments`
+   - Expiration: **Custom**, a year from today
+   - Repository access: **Only select repositories** → `3ds`
+   - Permissions → Repository permissions → **Issues**: **Read and write**
+3. Click **Generate token** and copy it right away (GitHub shows it only once).
+4. In Vercel, open **fieldcommand-qa → Settings → Environment Variables** and add:
+
+   | Name | Value |
+   |---|---|
+   | `QA_GITHUB_TOKEN` | The token from step 3 ⚠️ (turn on **Sensitive**) |
+   | `QA_GITHUB_REPO` | `cftrreanor/3ds` |
+
+5. **Deployments → ⋯ → Redeploy**.
+
+Comments left before this stay on the QA site; open one and tap **Send to GitHub**
+to add it. When the token expires, make a new one the same way and replace
+`QA_GITHUB_TOKEN`.
