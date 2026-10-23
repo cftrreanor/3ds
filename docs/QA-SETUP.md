@@ -123,14 +123,20 @@ ready-made event that's dated that way, or change an event's date on its
 ---
 
 ## Comments
-On any QA page, tap **Comment** (bottom right), tap the spot you mean, type, and
-**Post comment**. It's saved with:
+On any QA page, tap **Comment** (bottom right) to turn on comment mode. Tap the
+spot you mean, type, and **Post comment**. Comment mode stays on, so you can go
+straight to the next spot; tap **Done commenting** (or press Esc) when you're
+finished. The **C** key turns comment mode on and off too.
+
+Each comment is saved with:
 - who wrote it (from your passcode), the page, and the spot on it
 - who you were viewing as, and your screen size
 - a screenshot of your screen, with the spot circled
 
-Open comments show as numbered red pins on their page; tap one to read it, reply,
-or **Resolve** it. **Comments** in the blue bar lists every comment, by person and
+Open comments show as numbered red pins on their page. Tap a pin to read it,
+reply, or **Resolve** it right there. **Details and screenshot** opens the side
+panel, where the page, screen size, screenshot, and GitHub link sit under
+**Details**. **Comments** in the blue bar lists every comment, by person and
 open or resolved.
 
 ### Connect comments to GitHub (one time)
