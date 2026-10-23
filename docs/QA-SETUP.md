@@ -43,10 +43,20 @@ You don't need to run any database updates by hand here. Step 4 does that for yo
 | `SUPABASE_SECRET_KEY` | QA Supabase project → **API Keys → Secret key** ⚠️ |
 | `CRON_SECRET` | A new long random password, different from the live one ⚠️ |
 
-About passcodes:
-- Make up one per person, at least 6 characters. Three random words and a number
-  are easy to type and hard to guess, like `sunflower-river-42`.
-- Separate people with a comma, and each name from its passcode with a colon.
+How to fill in `QA_REVIEWERS` (one line, no spaces needed):
+
+```
+Name:passcode,Name:passcode
+```
+
+- **Colon** `:` between a person's name and their passcode.
+- **Comma** `,` between one person and the next.
+- So for two people it looks like `Becca:sunflower-river-42,Cleave:maple-cloud-77`,
+  with your own made-up passcodes in place of those examples.
+- For one person, just `Becca:sunflower-river-42` (no comma).
+- Make up a passcode for each person, at least 6 characters. Three random words
+  and a number are easy to type and hard to guess.
+- The name is what the QA bar shows ("Reviewing as Becca").
 - Send Becca her passcode yourself, by text or in person.
 - To let someone new in, add them to `QA_REVIEWERS`. To lock someone out, take
   them off. Then **Deployments → ⋯ → Redeploy**.
