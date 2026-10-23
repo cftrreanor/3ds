@@ -1,0 +1,30 @@
+name: QA database
+
+# Keeps the QA site's database up to date (docs/QA-SETUP.md): each time
+# database updates reach main, the new ones are applied to it. Skips quietly
+# until the QA_DATABASE_URL secret is set.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "scripts/qa-migrate.sh"
+      - ".github/workflows/qa-database.yml"
+  workflow_dispatch:
+
+concurrency: qa-database
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply new database updates to the QA database
+        env:
+          QA_DATABASE_URL: ${{ secrets.QA_DATABASE_URL }}
+        run: |
+          if [ -z "$QA_DATABASE_URL" ]; then
+            echo "No QA_DATABASE_URL secret yet, so nothing to do (see docs/QA-SETUP.md)."
+            exit 0
+          fi
+          bash scripts/qa-migrate.sh

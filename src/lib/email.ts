@@ -4,6 +4,7 @@ import { brand } from "@/lib/brand";
 import { isDemoEmail } from "@/lib/demo-email";
 import { emailButton, emailShell } from "@/lib/email-format";
 import { eventSender } from "@/lib/event-sender";
+import { isQa } from "@/lib/qa";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
@@ -131,6 +132,15 @@ async function sendInvite(message: Parameters<typeof inviteMessage>[0]): Promise
   }
 }
 
+/** The QA site (src/lib/qa.ts) keeps every email in its outbox instead of sending it. */
+async function toOutbox(m: { from: string; replyTo?: string | null; to: string[]; subject: string; html: string; text: string; invite?: string }) {
+  const { error } = await createAdminClient()
+    .from("qa_outbox")
+    .insert({ sender: m.from, reply_to: m.replyTo ?? null, recipients: m.to, subject: m.subject, html: m.html, text_body: m.text, invite: m.invite ?? null });
+  if (error) console.error("Saving to the QA outbox failed", error.message);
+  return !error;
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -153,9 +163,15 @@ export async function sendEmail({
   /** An event's email: from its organizer's name, replies per its Replies setting. */
   eventId?: string;
 }): Promise<boolean> {
-  // Demo people (src/lib/demo.ts) have made-up addresses: never email them.
-  if (isDemoEmail(to)) return true;
+  // Demo people (src/lib/demo.ts) have made-up addresses: never email them
+  // (on the QA site everything goes to the outbox, theirs included).
+  if (isDemoEmail(to) && !isQa()) return true;
   const sender = await senderFor(eventId, replyTo);
+  if (isQa()) {
+    const saved = await toOutbox({ ...sender, to: [to], subject, html, text, invite: invite?.method });
+    await logEmail(to, subject, saved ? "sent" : "failed", saved ? undefined : "QA outbox", author);
+    return saved;
+  }
   if (invite) return sendInvite({ to, subject, html, text, invite, ...sender });
   const key = process.env.RESEND_API_KEY;
   if (!key) {
@@ -227,7 +243,7 @@ export async function sendEmailToMany({
   replyTo?: string;
   eventId?: string;
 }): Promise<number> {
-  const recipients = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && !isDemoEmail(t));
+  const recipients = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && (isQa() || !isDemoEmail(t)));
   if (recipients.length === 0) return 0;
   const log = async (emails: string[], status: "sent" | "failed" | "skipped", error?: string) => {
     const { error: dbError } = await createAdminClient()
@@ -235,6 +251,11 @@ export async function sendEmailToMany({
       .insert(emails.map((e) => ({ to_email: e, subject: subject.slice(0, 300), status, error: error ? error.slice(0, 500) : null })));
     if (dbError) console.error("email_log insert failed", dbError.message);
   };
+  if (isQa()) {
+    const saved = await toOutbox({ ...(await senderFor(eventId, replyTo)), to: recipients, subject, html, text });
+    await log(recipients, saved ? "sent" : "failed", saved ? undefined : "QA outbox");
+    return saved ? recipients.length : 0;
+  }
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.warn("RESEND_API_KEY not set; skipped email:", subject);
