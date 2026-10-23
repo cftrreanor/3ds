@@ -5201,4 +5201,22 @@ begin
          'reply settings stay limited to their own columns';
 end $$;
 
+-- The QA outbox: only the server (its own key) reads or writes it.
+do $$ begin
+  assert not has_table_privilege('anon', 'public.qa_outbox', 'select'), 'visitors can''t read the QA outbox';
+  assert not has_table_privilege('authenticated', 'public.qa_outbox', 'select'), 'signed-in people can''t read the QA outbox';
+  assert not has_table_privilege('authenticated', 'public.qa_outbox', 'insert'), 'signed-in people can''t write to the QA outbox';
+  assert has_table_privilege('service_role', 'public.qa_outbox', 'insert'), 'the server saves QA emails';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  begin
+    perform 1 from public.qa_outbox;
+    raise exception 'FAIL: a signed-in person read the QA outbox';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
 \echo 'All database security tests passed.'

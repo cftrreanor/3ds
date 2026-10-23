@@ -153,6 +153,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261212000000_event_email_settings.sql` | **Emails from the organizer**: event emails show the organizer's name, and each event's Edit details page has an Email replies step (replies go to the organizer's email to start, for conferences the teacher's, or another email, or nowhere). The reply email is only visible to Hosts. | ✅ run |
 | `20261213000000_conference_meeting_modes.sql` | **Several ways to meet**: teachers tick any mix of in person, video, and phone calls, and each family picks one when they book. Families can switch to a phone call when they change their meeting. | ✅ run |
 | `20261214000000_explicit_table_grants.sql` | **Table access written down**: Supabase stops giving new tables access automatically on October 30, 2026. This spells out the access every table already has, so rebuilding the database from these files still works. Nothing changes on the live site. | ✅ run |
+| `20261215000000_qa_outbox.sql` | **QA outbox**: a place for the QA site to keep the emails it would have sent (docs/QA-SETUP.md). The live site never writes to it, and only the server can read it. | ⬜ not yet |
 
 ## Pilot requests
 
@@ -316,6 +317,11 @@ If Cloudflare is ever unreachable, the forms keep working (and Sentry sends an a
 families are never locked out on event day. To turn it off, delete either key and redeploy.
 
 ---
+
+## QA site (for reviewing pages and copy)
+A private copy of the platform with its own test data, for Becca and you to click
+through and review. Every email it would send goes to its Outbox instead. Setup
+steps: [docs/QA-SETUP.md](QA-SETUP.md).
 
 ## Later: set up when we reach that phase
 
