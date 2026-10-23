@@ -7,7 +7,7 @@ import { Button, FormMessage } from "@/components/ui";
 type Persona = { value: string; label: string };
 
 /** Role buttons: tapping one signs this browser in as that demo person. */
-function RoleButtons({
+export function RoleButtons({
   eventId,
   personas,
   current,
