@@ -387,7 +387,7 @@ function Composer({
   const below = draft.y + 24 + 220 < window.innerHeight;
   const top = below ? draft.y + 24 : Math.max(12, draft.y - 24 - 220);
   return (
-    <div className="fixed inset-0 z-[60]" onClick={onCancel}>
+    <div className="fixed inset-0 z-[64]" onClick={onCancel}>
       {highlight && (
         <div
           className="pointer-events-none fixed rounded-sm outline outline-2 outline-offset-2 outline-danger"
