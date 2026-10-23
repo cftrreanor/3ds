@@ -11,6 +11,7 @@ import {
   setResolved,
   type Anchor,
   type Pin,
+  type Reply,
   type Thread,
 } from "@/app/qa/comment-actions";
 import { Button, FormMessage, Textarea } from "@/components/ui";
@@ -106,6 +107,9 @@ const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "sh
 
 type Draft = { anchor: Anchor; x: number; y: number };
 
+/** Typing in a field, where a plain key press is text, not a shortcut. */
+const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
 export function QaComments() {
   const pathname = usePathname();
   const router = useRouter();
@@ -114,9 +118,11 @@ export function QaComments() {
   const linked = useSyncExternalStore(onLocation, () => new URLSearchParams(window.location.search).get("qaComment"), () => null);
 
   const [pins, setPins] = useState<Pin[]>([]);
+  // "pick" is comment mode: it stays on after each comment until Done commenting or Esc.
   const [mode, setMode] = useState<"idle" | "pick" | "compose" | "capture">("idle");
   const [hover, setHover] = useState<DOMRect | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [cardId, setCardId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [, setTick] = useState(0);
@@ -139,23 +145,32 @@ export function QaComments() {
     };
   }, []);
 
+  // Esc steps back (a draft to comment mode, comment mode to off); C turns comment mode on and off.
   useEffect(() => {
-    if (mode !== "pick" && mode !== "compose") return;
+    if (shown || cardId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMode("idle");
+      if (e.key === "Escape" && mode === "compose") {
+        setMode("pick");
         setDraft(null);
+        setHover(null);
+      } else if (e.key === "Escape" && mode === "pick") {
+        setMode("idle");
+        setHover(null);
+      } else if (e.key.toLowerCase() === "c" && !e.metaKey && !e.ctrlKey && !e.altKey && !typing(e.target) && (mode === "idle" || mode === "pick")) {
+        setMode(mode === "idle" ? "pick" : "idle");
         setHover(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode]);
+  }, [mode, shown, cardId]);
 
   if (framed) return null;
 
   const under = (x: number, y: number) => document.elementsFromPoint(x, y).find((el) => !isQaUi(el) && el !== document.documentElement && el !== document.body) ?? null;
   const open = pins.filter((p) => p.status === "open");
+  const card = open.find((p) => p.id === cardId);
+  const picking = mode === "pick" || mode === "compose";
 
   return (
     <>
@@ -167,23 +182,32 @@ export function QaComments() {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setOpenId(p.id)}
+                onClick={() => setCardId(cardId === p.id ? null : p.id)}
                 aria-label={`Comment ${i + 1} from ${p.author}: ${p.body.slice(0, 60)}`}
+                aria-expanded={cardId === p.id}
                 style={{ position: "absolute", left: at.x - 14, top: at.y - 14 }}
-                className="z-30 flex h-7 w-7 items-center justify-center rounded-full rounded-bl-none bg-danger text-xs font-bold text-danger-foreground shadow-md ring-2 ring-white"
+                className={`${picking || card ? "z-[61]" : "z-30"} flex h-7 w-7 items-center justify-center rounded-full rounded-bl-none bg-danger text-xs font-bold text-danger-foreground shadow-md ring-2 ring-white`}
               >
                 {i + 1}
               </button>
             );
           })}
 
-          {mode === "idle" && (
+          {(mode === "idle" || mode === "pick") && (
             <button
               type="button"
-              onClick={() => setMode("pick")}
-              className="fixed bottom-4 right-32 z-40 min-h-11 rounded-full bg-header px-4 text-sm font-semibold text-white shadow-lg ring-1 ring-white/50 hover:opacity-90"
+              onClick={() => {
+                setMode(mode === "idle" ? "pick" : "idle");
+                setHover(null);
+                setCardId(null);
+              }}
+              aria-pressed={mode === "pick"}
+              title="Shortcut: C"
+              className={`fixed bottom-4 right-32 min-h-11 rounded-full px-4 text-sm font-semibold shadow-lg hover:opacity-90 ${
+                mode === "pick" ? "z-[70] bg-danger text-danger-foreground ring-2 ring-white" : "z-40 bg-header text-white ring-1 ring-white/50"
+              }`}
             >
-              Comment
+              {mode === "pick" ? "Done commenting" : "Comment"}
             </button>
           )}
 
@@ -191,16 +215,18 @@ export function QaComments() {
             <div
               className="fixed inset-0 z-[60] cursor-crosshair"
               onPointerMove={(e) => setHover(under(e.clientX, e.clientY)?.getBoundingClientRect() ?? null)}
+              onPointerLeave={() => setHover(null)}
               onClick={(e) => {
                 const el = under(e.clientX, e.clientY);
                 if (!el) return;
+                setCardId(null);
                 setDraft({ anchor: anchorAt(el, e.clientX, e.clientY), x: e.clientX, y: e.clientY });
                 setHover(el.getBoundingClientRect());
                 setMode("compose");
               }}
             >
-              <p className="pointer-events-none fixed left-1/2 top-3 -translate-x-1/2 rounded-full bg-header px-4 py-2 text-sm font-semibold text-white shadow-lg">
-                Tap the spot you want to comment on. Esc to cancel.
+              <p className="pointer-events-none fixed left-1/2 top-3 w-max max-w-[calc(100vw-24px)] -translate-x-1/2 rounded-full bg-header px-4 py-2 text-center text-sm font-semibold text-white shadow-lg">
+                Comment mode: tap any spot to comment. Esc or Done commenting to stop.
               </p>
               {hover && (
                 <div
@@ -216,7 +242,7 @@ export function QaComments() {
               draft={draft}
               highlight={hover}
               onCancel={() => {
-                setMode("idle");
+                setMode("pick");
                 setDraft(null);
                 setHover(null);
               }}
@@ -236,12 +262,29 @@ export function QaComments() {
                   setMode("compose");
                   return r.error;
                 }
-                setMode("idle");
+                // Straight back to comment mode for the next spot.
+                setMode("pick");
                 setDraft(null);
                 setHover(null);
                 refresh();
-                setOpenId(r.id);
                 return null;
+              }}
+            />
+          )}
+
+          {card && (
+            <PinCard
+              key={card.id}
+              pin={card}
+              number={open.indexOf(card) + 1}
+              onClose={() => setCardId(null)}
+              onResolved={() => {
+                setCardId(null);
+                refresh();
+              }}
+              onDetails={() => {
+                setCardId(null);
+                setOpenId(card.id);
               }}
             />
           )}
@@ -328,12 +371,11 @@ function Composer({
   );
 }
 
-function ThreadPanel({ id, pathname, onClose, onGo }: { id: string; pathname: string; onClose: () => void; onGo: (path: string) => void }) {
+/** A comment with its replies, kept fresh after each reply or resolve. */
+function useThread(id: string) {
   const [thread, setThread] = useState<Thread | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [reply, setReply] = useState("");
   const [pending, start] = useTransition();
-  const panel = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
     loadThread(id).then((r) => {
@@ -342,22 +384,174 @@ function ThreadPanel({ id, pathname, onClose, onGo }: { id: string; pathname: st
     });
   }, [id]);
   useEffect(load, [load]);
-  useEffect(() => {
-    panel.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
-  const act = (fn: () => Promise<{ error: string } | { ok: true }>) =>
+  const act = (fn: () => Promise<{ error: string } | { ok: true }>, then?: () => void) =>
     start(async () => {
       const r = await fn();
       if ("error" in r) setError(r.error);
       else {
         setError(null);
         load();
+        then?.();
       }
     });
+
+  return { thread, error, setError, pending, act };
+}
+
+function Replies({ replies }: { replies: Reply[] }) {
+  if (!replies.length) return null;
+  return (
+    <ul className="space-y-2">
+      {replies.map((r) => (
+        <li key={r.id} className="rounded-lg border border-border p-3">
+          <p className="text-sm">
+            <span className="font-semibold">{r.author}</span> <span className="text-muted">{when(r.createdAt)}</span>
+            {r.onGithub && <span className="ml-2 text-muted">on GitHub</span>}
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{r.body}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The reply box with Reply and Resolve (or Reopen). */
+function ReplyForm({
+  thread,
+  pending,
+  act,
+  setError,
+  rows,
+  autoFocus,
+  onResolved,
+}: {
+  thread: Thread;
+  pending: boolean;
+  act: ReturnType<typeof useThread>["act"];
+  setError: (e: string | null) => void;
+  rows: number;
+  autoFocus?: boolean;
+  onResolved?: () => void;
+}) {
+  const [reply, setReply] = useState("");
+  const resolving = thread.status !== "resolved";
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!reply.trim()) return setError("Type your reply first.");
+        act(async () => {
+          const r = await replyTo(thread.id, reply);
+          if ("ok" in r) setReply("");
+          return r;
+        });
+      }}
+    >
+      <Textarea
+        autoFocus={autoFocus}
+        rows={rows}
+        maxLength={4000}
+        value={reply}
+        onChange={(e) => setReply(e.target.value)}
+        onKeyDown={(e) => {
+          // Cmd or Ctrl + Enter sends.
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
+        }}
+        aria-label="Your reply"
+        placeholder="Reply"
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={pending}>
+          Reply
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={pending}
+          onClick={() => act(() => setResolved(thread.id, resolving), resolving ? onResolved : undefined)}
+        >
+          {resolving ? "Resolve" : "Reopen"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Tap a pin: the comment, its replies, and a reply box, right there on the page. */
+function PinCard({
+  pin,
+  number,
+  onClose,
+  onResolved,
+  onDetails,
+}: {
+  pin: Pin;
+  number: number;
+  onClose: () => void;
+  onResolved: () => void;
+  onDetails: () => void;
+}) {
+  const { thread, error, setError, pending, act } = useThread(pin.id);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const at = placeOf(pin.anchor);
+  const page = document.documentElement;
+  const width = Math.min(340, page.clientWidth - 24);
+  const left = Math.min(Math.max(window.scrollX + 12, at.x - 20), window.scrollX + page.clientWidth - width - 12);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[62]" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-label={`Comment ${number}`}
+        style={{ position: "absolute", left, top: at.y + 20, width }}
+        className="z-[63] space-y-3 rounded-lg border border-border bg-background p-3 shadow-xl"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm">
+            <span className="font-semibold">{pin.author}</span> <span className="text-muted">{when(pin.createdAt)}</span>
+          </p>
+          <button type="button" onClick={onClose} aria-label="Close" className="-m-1 rounded px-2 text-lg leading-none text-muted hover:text-foreground">
+            ×
+          </button>
+        </div>
+        <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-sm leading-6">{pin.body}</p>
+        {!thread ? (
+          error ? <FormMessage error={error} /> : <p className="text-sm text-muted">Loading replies…</p>
+        ) : (
+          <>
+            <div className="max-h-56 overflow-y-auto">
+              <Replies replies={thread.replies} />
+            </div>
+            <ReplyForm thread={thread} pending={pending} act={act} setError={setError} rows={2} autoFocus onResolved={onResolved} />
+            <FormMessage error={error ?? undefined} />
+          </>
+        )}
+        <button type="button" onClick={onDetails} className="text-sm font-medium text-brand underline underline-offset-2">
+          Details and screenshot
+        </button>
+      </div>
+    </>
+  );
+}
+
+function ThreadPanel({ id, pathname, onClose, onGo }: { id: string; pathname: string; onClose: () => void; onGo: (path: string) => void }) {
+  const { thread, error, setError, pending, act } = useThread(id);
+  const panel = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    panel.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
@@ -389,99 +583,75 @@ function ThreadPanel({ id, pathname, onClose, onGo }: { id: string; pathname: st
                   {thread.status === "resolved" && <span className="ml-2 font-semibold text-success">Resolved{thread.resolvedBy ? ` by ${thread.resolvedBy}` : ""}</span>}
                 </p>
                 <p className="mt-2 whitespace-pre-wrap leading-7">{thread.body}</p>
-                <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-muted">
-                  <dt className="font-semibold">Page</dt>
-                  <dd className="break-all">{thread.path}</dd>
-                  {thread.viewingAs && (
-                    <>
-                      <dt className="font-semibold">Viewing as</dt>
-                      <dd>{thread.viewingAs}</dd>
-                    </>
-                  )}
-                  {thread.screen && (
-                    <>
-                      <dt className="font-semibold">Screen</dt>
-                      <dd>{thread.screen}</dd>
-                    </>
-                  )}
-                  {thread.anchor.text && (
-                    <>
-                      <dt className="font-semibold">Near</dt>
-                      <dd>“{thread.anchor.text}”</dd>
-                    </>
-                  )}
-                </dl>
-                {thread.path.split("?")[0] !== pathname && (
-                  <Button variant="secondary" className="mt-3" onClick={() => onGo(thread.path)}>
-                    Go to the page
-                  </Button>
-                )}
               </div>
 
-              {thread.hasScreenshot && (
-                <a href={`/qa/comments/${thread.id}/screenshot`} target="_blank" rel="noreferrer" className="block">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
-                  <img src={`/qa/comments/${thread.id}/screenshot`} alt="What the screen looked like, with the spot circled" className="w-full rounded-lg border border-border" />
-                  <span className="mt-1 block text-sm text-brand underline underline-offset-2">Open the screenshot</span>
-                </a>
-              )}
-
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                {thread.issue ? (
-                  <a href={thread.issue.url} target="_blank" rel="noreferrer" className="font-medium text-brand underline underline-offset-2">
-                    GitHub issue #{thread.issue.number}
-                  </a>
-                ) : thread.githubReady ? (
-                  <Button variant="secondary" disabled={pending} onClick={() => act(() => sendToGithub(thread.id))}>
-                    Send to GitHub
-                  </Button>
-                ) : (
-                  <span className="text-muted">Not on GitHub yet (it isn&apos;t connected).</span>
-                )}
-              </div>
-
-              <section>
+              <section className="space-y-3">
                 <h3 className="font-semibold">{thread.replies.length ? "Replies" : "No replies yet"}</h3>
-                <ul className="mt-2 space-y-3">
-                  {thread.replies.map((r) => (
-                    <li key={r.id} className="rounded-lg border border-border p-3">
-                      <p className="text-sm">
-                        <span className="font-semibold">{r.author}</span> <span className="text-muted">{when(r.createdAt)}</span>
-                        {r.onGithub && <span className="ml-2 text-muted">on GitHub</span>}
-                      </p>
-                      <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{r.body}</p>
-                    </li>
-                  ))}
-                </ul>
-                <form
-                  className="mt-3 space-y-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!reply.trim()) return setError("Type your reply first.");
-                    act(async () => {
-                      const r = await replyTo(thread.id, reply);
-                      if ("ok" in r) setReply("");
-                      return r;
-                    });
-                  }}
-                >
-                  <Textarea rows={2} maxLength={4000} value={reply} onChange={(e) => setReply(e.target.value)} aria-label="Your reply" placeholder="Reply" />
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="submit" disabled={pending}>
-                      Reply
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={pending}
-                      onClick={() => act(() => setResolved(thread.id, thread.status !== "resolved"))}
-                    >
-                      {thread.status === "resolved" ? "Reopen" : "Resolve"}
-                    </Button>
-                  </div>
-                </form>
+                <Replies replies={thread.replies} />
+                <ReplyForm thread={thread} pending={pending} act={act} setError={setError} rows={2} />
                 <FormMessage error={error ?? undefined} />
               </section>
+
+              {/* The technical side, out of the way until it's wanted. */}
+              <details className="group rounded-lg border border-border">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 font-semibold [&::-webkit-details-marker]:hidden">
+                  Details
+                  <span aria-hidden className="text-muted transition-transform group-open:rotate-180">
+                    ▾
+                  </span>
+                </summary>
+                <div className="space-y-4 border-t border-border px-4 py-4">
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-muted">
+                    <dt className="font-semibold">Page</dt>
+                    <dd className="break-all">{thread.path}</dd>
+                    {thread.viewingAs && (
+                      <>
+                        <dt className="font-semibold">Viewing as</dt>
+                        <dd>{thread.viewingAs}</dd>
+                      </>
+                    )}
+                    {thread.screen && (
+                      <>
+                        <dt className="font-semibold">Screen</dt>
+                        <dd>{thread.screen}</dd>
+                      </>
+                    )}
+                    {thread.anchor.text && (
+                      <>
+                        <dt className="font-semibold">Near</dt>
+                        <dd>“{thread.anchor.text}”</dd>
+                      </>
+                    )}
+                  </dl>
+                  {thread.path.split("?")[0] !== pathname && (
+                    <Button variant="secondary" onClick={() => onGo(thread.path)}>
+                      Go to the page
+                    </Button>
+                  )}
+
+                  {thread.hasScreenshot && (
+                    <a href={`/qa/comments/${thread.id}/screenshot`} target="_blank" rel="noreferrer" className="block">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image */}
+                      <img src={`/qa/comments/${thread.id}/screenshot`} alt="What the screen looked like, with the spot circled" className="w-full rounded-lg border border-border" />
+                      <span className="mt-1 block text-sm text-brand underline underline-offset-2">Open the screenshot</span>
+                    </a>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    {thread.issue ? (
+                      <a href={thread.issue.url} target="_blank" rel="noreferrer" className="font-medium text-brand underline underline-offset-2">
+                        GitHub issue #{thread.issue.number}
+                      </a>
+                    ) : thread.githubReady ? (
+                      <Button variant="secondary" disabled={pending} onClick={() => act(() => sendToGithub(thread.id))}>
+                        Send to GitHub
+                      </Button>
+                    ) : (
+                      <span className="text-muted">Not on GitHub yet (it isn&apos;t connected).</span>
+                    )}
+                  </div>
+                </div>
+              </details>
             </>
           )}
         </div>
