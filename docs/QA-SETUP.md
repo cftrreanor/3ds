@@ -124,7 +124,8 @@ ready-made event that's dated that way, or change an event's date on its
 
 ## Comments
 On any QA page, tap **Comment** (bottom right) to turn on comment mode. Tap the
-spot you mean, type, and **Post comment**. Comment mode stays on, so you can go
+spot you mean, type, and **Post comment** (or press Shift+Enter; replies work
+the same way). Comment mode stays on, so you can go
 straight to the next spot; tap **Done commenting** (or press Esc) when you're
 finished. The **C** key turns comment mode on and off too.
 
