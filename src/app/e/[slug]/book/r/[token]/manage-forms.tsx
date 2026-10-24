@@ -82,11 +82,11 @@ export function ChangeBookingForm({
 }
 
 /** Cancel the meeting: red, and the confirmation says what happens. */
-export function CancelBookingButton({ action, child }: { action: () => Promise<ActionState>; child: string }) {
+export function CancelBookingButton({ action, child }: { action: () => Promise<ActionState>; /** Null when the teacher doesn't ask for it. */ child: string | null }) {
   return (
     <ActionForm
       action={async () => action()}
-      confirmMessage={`Cancel the conference for ${child}? The time opens up for another family, and everyone on this booking is emailed.`}
+      confirmMessage={`Cancel the conference${child ? ` for ${child}` : ""}? The time opens up for another family, and everyone on this booking is emailed.`}
     >
       <SubmitButton variant="danger" pendingText="Canceling…">
         Cancel Conference

@@ -31,7 +31,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
     if (data) redirect(`/e/${slug}`);
     missing();
   }
-  const { event, settings, teacher } = conf;
+  const { event, settings, teacher, askChild } = conf;
   const published = event.status === "published";
   const supabase = await createClient();
   // A draft is only previewed by the teacher (who can read it), like any event page.
@@ -103,9 +103,10 @@ export default async function BookConferencePage({ params, searchParams }: Param
                 teacher={teacher.name}
                 place={place}
                 zone={zoneName(event.timezone)}
+                askChild={askChild}
               />
               <div className="mt-6">
-                <PrivacyNote teacher={teacher.name} weekly={weekly} />
+                <PrivacyNote teacher={teacher.name} weekly={weekly} askChild={askChild} />
               </div>
             </>
           ) : (

@@ -60,6 +60,8 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
     // Weekly hours run over many days, so each meeting says its day.
     return weekly ? `${formatDate(utcToZonedDate(iso, tz), { year: undefined })} · ${range}` : range;
   };
+  // No Student column when the teacher doesn't ask for children's names.
+  const students = bookings.some((b) => b.child_name);
   const met = bookings.filter((b) => b.outcome === "met").length;
   const noShows = bookings.filter((b) => b.outcome === "no_show").length;
   const unmarked = bookings.length - met - noShows;
@@ -105,9 +107,11 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
               <th scope="col" className="py-2 pr-3 font-semibold">
                 Time
               </th>
-              <th scope="col" className="py-2 pr-3 font-semibold">
-                Student
-              </th>
+              {students && (
+                <th scope="col" className="py-2 pr-3 font-semibold">
+                  Student
+                </th>
+              )}
               <th scope="col" className="py-2 pr-3 font-semibold">
                 Parents
               </th>
@@ -122,7 +126,7 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
             {bookings.map((b) => (
               <tr key={b.id} className="break-inside-avoid border-b border-border align-top">
                 <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{time(b.starts_at)}</td>
-                <td className="py-2 pr-3 font-medium">{b.child_name}</td>
+                {students && <td className="py-2 pr-3 font-medium">{b.child_name}</td>}
                 <td className="py-2 pr-3">{b.parents.map((p) => p.name).join(", ")}</td>
                 {outcomesReady && <td className="whitespace-nowrap py-2">{b.outcome ? OUTCOME_LABEL[b.outcome] : "Not marked"}</td>}
               </tr>

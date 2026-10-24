@@ -1,6 +1,6 @@
 import "server-only";
 import { bookingEmail, withCallPhone, bookingLink, emailTeacher, type Booking, type BookingEvent, type Teacher } from "@/lib/conference-bookings";
-import { loadConferenceSettings } from "@/lib/conference-settings";
+import { asksChildName, loadConferenceSettings } from "@/lib/conference-settings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -30,14 +30,15 @@ export async function loadConference(by: { slug: string } | { id: string }) {
   const q = admin.from("events").select(EVENT_COLUMNS);
   const { data: event } = await ("slug" in by ? q.eq("slug", by.slug) : q.eq("id", by.id)).maybeSingle();
   if (!event || event.event_type !== "conference") return null;
-  const [{ settings: s }, { data: teacher }] = await Promise.all([
+  const [{ settings: s }, { data: teacher }, askChild] = await Promise.all([
     loadConferenceSettings(admin, event.id),
     event.created_by
       ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle()
       : Promise.resolve({ data: null }),
+    asksChildName(admin, event.id),
   ]);
   const t: Teacher = { name: teacher?.full_name?.trim() || "Your teacher", email: teacher?.email ?? null };
-  return { event: event as ConferenceEvent, settings: s, teacher: t };
+  return { event: event as ConferenceEvent, settings: s, teacher: t, askChild };
 }
 
 /** A family's booking from their link. */

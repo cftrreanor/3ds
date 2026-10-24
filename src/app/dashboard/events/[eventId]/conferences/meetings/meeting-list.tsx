@@ -32,7 +32,8 @@ export type MeetingRow =
       status: "now" | "next" | "past" | null;
       booking: {
         id: string;
-        child: string;
+        /** Null when the teacher doesn't ask for the child's name. */
+        child: string | null;
         parents: MeetingParent[];
         mode: string | null;
         /** Phone calls: the number to call. */
@@ -76,6 +77,8 @@ export function MeetingList({
   /** The one-page summary to print or save as a PDF. */
   summaryHref: string;
 }) {
+  // Who each booking is: the child, or with no child's name, the first parent.
+  const nameOf = (b: { child: string | null; parents: MeetingParent[] }) => b.child ?? b.parents[0]?.name ?? "";
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Taps show at once, like parent check-in; the page catches up when the save lands.
@@ -112,7 +115,7 @@ export function MeetingList({
         if (!r.booking) return !q && openTimes;
         return (
           !q ||
-          [r.booking.child, ...r.booking.parents.flatMap((p) => [p.name, p.email, p.phone ?? ""])].some((x) => x.toLowerCase().includes(q))
+          [r.booking.child ?? "", ...r.booking.parents.flatMap((p) => [p.name, p.email, p.phone ?? ""])].some((x) => x.toLowerCase().includes(q))
         );
       }),
     [rows, q, openTimes],
@@ -164,7 +167,7 @@ export function MeetingList({
                 <span className="hidden font-semibold print:inline">· {outcomes[r.key] === "met" ? "Met" : "No-show"}</span>
               )}
             </p>
-            <p className="text-lg font-semibold">{r.booking.child}</p>
+            <p className="text-lg font-semibold">{nameOf(r.booking)}</p>
             {r.booking.call && (
               <a
                 href={`tel:${r.booking.call.tel}`}
@@ -199,7 +202,7 @@ export function MeetingList({
             <div
               className="flex shrink-0 gap-2 print:hidden"
               role="group"
-              aria-label={`How the meeting with ${r.booking.child}'s family went`}
+              aria-label={`How the meeting with ${nameOf(r.booking)}'s family went`}
             >
               {OUTCOMES.map((o) => {
                 const on = outcomes[r.key] === o.value;
@@ -225,7 +228,7 @@ export function MeetingList({
               <ActionForm
                 action={r.booking.cancel}
                 resetOnSuccess={false}
-                confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
+                confirmMessage={`Cancel the meeting with ${nameOf(r.booking)}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
                 className="shrink-0 print:hidden"
               >
                 <SubmitButton variant="ghost" pendingText="Canceling…" className="-ml-4 font-medium underline hover:text-danger">
