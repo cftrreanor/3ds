@@ -5380,6 +5380,20 @@ end $$;
 update public.organizations o set subscription_status = m.subscription_status, free_until = m.free_until
   from meet_plan m where o.id = :'org_id';
 drop table meet_plan;
+-- Demo mode: sample people book meetings, with no child.
+delete from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001';
+insert into public.demo_events (owner_id, event_id) values ('00000000-0000-0000-0000-000000000001', '1e000000-0000-0000-0000-000000000001');
+set role service_role;
+do $$
+begin
+  perform public.demo_seed('00000000-0000-0000-0000-000000000001', '1e000000-0000-0000-0000-000000000001', null);
+  assert (select count(*) from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001') > 0, 'sample meetings are booked';
+  assert not exists (select 1 from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001' and child_name is not null),
+         'sample meetings have no child';
+  assert not exists (select 1 from public.volunteers where event_id = '1e000000-0000-0000-0000-000000000001'), 'meetings get no volunteers';
+  perform public.demo_leave('00000000-0000-0000-0000-000000000001', '1e000000-0000-0000-0000-000000000001');
+end $$;
+reset role;
 delete from public.events where id = '1e000000-0000-0000-0000-000000000001';
 
 \echo 'All database security tests passed.'

@@ -53,7 +53,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
     conferenceBookedCount(supabase, eventId),
     supabase.rpc("org_has_active_plan", { org: event.organization_id }),
   ]);
-  const placeTodo = placeMissing(saved, event.venue_address);
+  const placeTodo = placeMissing(saved, event.venue_address, event.event_type);
   const published = event.status === "published";
 
   return (
@@ -74,7 +74,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
         <ConferencePublishBar
           published={published}
           missing={
-            notReady(saved, event.venue_address) ??
+            notReady(saved, event.venue_address, event.event_type) ??
             (weekly && premium !== true ? "Weekly hours are a premium feature. Write to us to add them to your account." : null)
           }
         >

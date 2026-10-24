@@ -35,7 +35,7 @@ import { liveEventBanners } from "@/lib/event-banners";
 import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
 import { personasFor } from "@/lib/demo";
-import { eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
+import { bookingWords, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
 import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, weeklySummary } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
@@ -87,6 +87,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const groupsHere = hasEnsembles(event.event_type);
   const roomsHere = hasRooms(event.event_type);
   const conferenceHere = hasConferences(event.event_type);
+  const booking = bookingWords(event.event_type);
   const words = groupWords(event.event_type);
 
   const access = await getEventAccess(eventId);
@@ -510,7 +511,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const conferenceReady = !!conference?.times_saved_at && (published || conferenceBooked > 0);
   const signups = conferenceHere ? (
     access.isHost ? (
-      <PageSection id="signups" title="Conference setup" saved={<SavedBy eventId={eventId} area="conference" />}>
+      <PageSection id="signups" title={booking.child ? "Conference setup" : "Meeting setup"} saved={<SavedBy eventId={eventId} area="conference" />}>
         <Card className={isEventDay ? "border-brand" : ""}>
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <div className="space-y-1 text-sm leading-6">
@@ -530,7 +531,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 <p className="font-medium">Set your meeting length, breaks, and your room or video link.</p>
               )}
               <p className="text-muted">
-                {notReady(conference, event.venue_address) ?? (published ? "Families book from your public page link." : "Ready to publish.")}
+                {notReady(conference, event.venue_address, event.event_type) ?? (published ? `${booking.Bookers} book from your public page link.` : "Ready to publish.")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -541,9 +542,9 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               )}
               <Link
                 href={`/dashboard/events/${eventId}/conferences`}
-                className={!conferenceReady && notReady(conference, event.venue_address) ? BTN : BTN_OUTLINE}
+                className={!conferenceReady && notReady(conference, event.venue_address, event.event_type) ? BTN : BTN_OUTLINE}
               >
-                {notReady(conference, event.venue_address) ? "Set up conferences" : "Manage conferences"}
+                {notReady(conference, event.venue_address, event.event_type) ? `Set up ${booking.event}` : `Manage ${booking.event}`}
               </Link>
             </div>
           </div>
@@ -622,7 +623,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       <BoothsCard eventId={eventId} isDay={isEventDay} />
     </PageSection>
   ) : null;
-  const signupsLabel = conferenceHere ? "Conference" : parentsHere ? "Parents" : groupsHere ? words.Many : "Booths";
+  const signupsLabel = conferenceHere ? (booking.child ? "Conference" : "Meetings") : parentsHere ? "Parents" : groupsHere ? words.Many : "Booths";
 
   const schedule =
     groupsHere && access.isHost ? (
@@ -868,7 +869,9 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             <Card className="space-y-3">
               <p className="text-sm leading-6 text-muted">
                 {conferenceHere
-                  ? "Show a teacher how conferences work, as the teacher or as a parent booking a time."
+                  ? booking.child
+                    ? "Show a teacher how conferences work, as the teacher or as a parent booking a time."
+                    : "Show how meetings work, as the host or as someone booking a time."
                   : "See this event the way each person on it does, without switching emails."}
               </p>
               <details className="text-sm leading-6 text-muted">

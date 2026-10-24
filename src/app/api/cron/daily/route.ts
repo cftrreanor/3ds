@@ -118,7 +118,7 @@ async function runDailyJob() {
   const { data: confEvents } = await admin
     .from("events")
     .select("id, slug, name, starts_on, ends_on, timezone, venue_name, venue_address, created_by")
-    .eq("event_type", "conference")
+    .in("event_type", ["conference", "meeting"])
     .eq("status", "published")
     .lte("starts_on", shift(2))
     .gte("ends_on", shift(0));

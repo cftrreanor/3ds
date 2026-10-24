@@ -41,11 +41,13 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
         ← All events
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
-        {type === "conference" ? "New parent-teacher conference" : `New ${eventTypeLabel(type).toLowerCase()}`}
+        {type === "conference" ? "New parent-teacher conference" : type === "meeting" ? "New meetings" : `New ${eventTypeLabel(type).toLowerCase()}`}
       </h1>
       <p className="mt-2 leading-7 text-muted">
         {type === "conference"
           ? "Free during the pilot. Just the day and your hours for now. You'll set meeting times and where you'll meet next."
+          : type === "meeting"
+          ? "Just the day and your hours for now. You'll set meeting times and where you'll meet next."
           : "Just the basics for now. You'll add stations and volunteer shifts next."}{" "}
         {!teacherOnly && (
           <Link href="/dashboard/events/new" className="font-medium text-brand underline-offset-4 hover:underline">

@@ -15,7 +15,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { DayStatusPill } from "@/components/day-status";
 import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { bandSteps, dayStatus, groupSteps, type DayStatus, type ProgressRow } from "@/lib/director-day";
-import { eventTypeLabel, groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
+import { eventTypeLabel, groupWords, hasConferences, hasEnsembles, hasRooms } from "@/lib/event-types";
 import type { createClient as CreateClient } from "@/lib/supabase/server";
 import { RequestAccess } from "@/components/request-access";
 import { OnboardingForm } from "./onboarding-form";
@@ -95,7 +95,7 @@ async function signupCounts(supabase: Awaited<ReturnType<typeof CreateClient>>, 
       tally("parent_registrations", ids((t) => t === "school_visit")),
       // Bookings are the teacher's alone; other hosts on the account get the count.
       Promise.all(
-        ids((t) => t === "conference").map(async (id) => Array.from({ length: await conferenceBookedCount(supabase, id) }, () => ({ event_id: id }))),
+        ids(hasConferences).map(async (id) => Array.from({ length: await conferenceBookedCount(supabase, id) }, () => ({ event_id: id }))),
       ).then((r) => r.flat()),
       tally("fair_booths", ids((t) => t === "fair")),
       tally("volunteers", ids((t) => t === "volunteer")),
@@ -113,7 +113,7 @@ function signupLine(type: string | null, n: number) {
     return n ? `${n} ${plural(w.one, w.many)} registered` : `No ${w.many} registered yet`;
   }
   if (type === "school_visit") return n ? `${n} ${plural("family", "families")} registered` : "No families registered yet";
-  if (type === "conference") return n ? `${n} ${plural("meeting", "meetings")} booked` : "No meetings booked yet";
+  if (hasConferences(type)) return n ? `${n} ${plural("meeting", "meetings")} booked` : "No meetings booked yet";
   if (type === "fair") return n ? `${n} ${plural("booth", "booths")} added` : "No booths added yet";
   return n ? `${n} ${plural("volunteer", "volunteers")} signed up` : "No volunteers signed up yet";
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSchemaError } from "@/lib/schema-check";
+import { hasConferences } from "@/lib/event-types";
 
 /**
  * Who an event's emails are from, as people see it: the organizer's name
@@ -48,7 +49,7 @@ async function loadSender(eventId: string): Promise<EventSender | null> {
   const creator = event.creator as unknown as { full_name: string; email: string } | null;
   const type = String(event.event_type);
   // A conference is the teacher's own; everything else is the organization's.
-  const name = (type === "conference" ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
+  const name = (hasConferences(type) ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
 
   // No setting yet (or before the database update): replies go to the event's creator.
   const { data: row, error } = await admin.from("event_email_settings").select("replies, reply_to").eq("event_id", eventId).maybeSingle();

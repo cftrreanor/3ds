@@ -1,4 +1,4 @@
-import { groupWords, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
+import { groupWords, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, isMeeting } from "@/lib/event-types";
 
 /**
  * The host's setup checklist for one event: what to do before publishing,
@@ -167,7 +167,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       required: false,
     });
   }
-  // A teacher's conference is just them: no volunteers, team or documents.
+  // A teacher's conference (or someone's meetings) is just them: no volunteers, team or documents.
   if (!hasConferences(f.eventType)) {
     before.push(
       {
@@ -297,6 +297,13 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
 export function publishEffects(f: SetupFacts): string[] {
   const words = groupWords(f.eventType);
   const lines = ["Your public page goes online, so anyone with the link can see it."];
+  if (isMeeting(f.eventType)) {
+    return [
+      ...lines,
+      "Nobody is emailed or notified. People only find out when you share your link.",
+      "You can keep editing everything, and unpublish at any time.",
+    ];
+  }
   if (hasConferences(f.eventType)) {
     return [
       ...lines,

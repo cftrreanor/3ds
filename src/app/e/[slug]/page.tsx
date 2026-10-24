@@ -13,7 +13,7 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, formatTimeRange, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
 import { readPass } from "@/lib/volunteer-pass";
-import { groupWords, hasBands, hasBooths, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
+import { groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms } from "@/lib/event-types";
 import { RoomSchedule, type ScheduleRoom, type ScheduleSlot } from "@/components/room-schedule";
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
@@ -92,7 +92,7 @@ export default async function EventPublicPage({ params }: Params) {
   const event = await loadEvent(slug);
   if (!event) missing();
   // A parent-teacher conference's page is its booking page.
-  if (event.event_type === "conference") redirect(`/e/${slug}/book`);
+  if (hasConferences(event.event_type)) redirect(`/e/${slug}/book`);
 
   // Volunteering isn't advertised to the public: hosts share the volunteer link
   // directly. People who already signed up (on this device, or with the

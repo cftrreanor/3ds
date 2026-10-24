@@ -7,6 +7,7 @@ import { Field, Input, Select } from "@/components/ui";
 import { VenuePicker, type VenueValue } from "@/components/venue-picker";
 import type { ActionState } from "@/lib/action-state";
 import { US_TIMEZONES } from "@/lib/time";
+import { hasConferences, isMeeting } from "@/lib/event-types";
 
 export type EventFormValues = {
   name?: string;
@@ -39,15 +40,16 @@ export function EventForm({
 }) {
   // Venue search favors the part of the country in the event's time zone.
   const [timezone, setTimezone] = useState(initial.timezone);
-  // Conferences are one day: the end date follows the start date.
-  const conference = eventType === "conference";
+  // Conferences and meetings are one day: the end date follows the start date.
+  const conference = hasConferences(eventType);
+  const meeting = isMeeting(eventType);
   const [day, setDay] = useState(initial.startsOn ?? "");
   return (
     <ActionForm action={action} className="space-y-6" resetOnSuccess={false}>
       <input type="hidden" name="organizationId" value={organizationId} />
       {eventType && <input type="hidden" name="eventType" value={eventType} />}
       <Field label="Event name">
-        <Input name="name" required defaultValue={initial.name} placeholder={conference ? "e.g. Fall Parent-Teacher Conferences" : eventType === "volunteer" ? "e.g. Fall Festival Concessions" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "group_event" ? "e.g. Spring Arts Festival" : "e.g. Cedar Ridge Marching Invitational"} />
+        <Input name="name" required defaultValue={initial.name} placeholder={meeting ? "e.g. Fall Advising Meetings" : conference ? "e.g. Fall Parent-Teacher Conferences" : eventType === "volunteer" ? "e.g. Fall Festival Concessions" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "group_event" ? "e.g. Spring Arts Festival" : "e.g. Cedar Ridge Marching Invitational"} />
       </Field>
 
       <fieldset className="grid gap-4 sm:grid-cols-2">
@@ -59,7 +61,7 @@ export function EventForm({
         )}
         {conference ? (
           <>
-            <Field label="Conference day" className="sm:col-span-2">
+            <Field label={meeting ? "Meeting day" : "Conference day"} className="sm:col-span-2">
               <Input name="startsOn" type="date" required value={day} onChange={(e) => setDay(e.target.value)} />
             </Field>
             <input type="hidden" name="endsOn" value={day} />
@@ -90,7 +92,7 @@ export function EventForm({
           label="Event time zone"
           hint={
             conference
-              ? "Where you'll meet. Every time families see, in emails, and in calendar invites uses this zone, whatever someone's phone is set to."
+              ? `Where you'll meet. Every time ${meeting ? "people" : "families"} see, in emails, and in calendar invites uses this zone, whatever someone's phone is set to.`
               : "Where the event happens. Every time on volunteer pages, emails, and calendar invites uses this zone, whatever someone's phone is set to."
           }
           className="sm:col-span-2"
@@ -121,7 +123,14 @@ export function EventForm({
         </p>
       )}
 
-      {conference && (
+      {meeting && (
+        <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
+          🔒 <strong>Privacy:</strong> people see only the open times, never who else booked. Names, contact details, and
+          notes are seen only by you and are permanently deleted 30 days after each meeting.
+        </p>
+      )}
+
+      {conference && !meeting && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
           🔒 <strong>Family privacy:</strong> families see only the open times, never who else booked. Children&apos;s
           names and parents&apos; notes are seen only by you and are permanently deleted 30 days after the conference.
