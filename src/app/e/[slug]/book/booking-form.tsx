@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input, Textarea } from "@/components/ui";
 import type { Mode } from "@/lib/conferences";
 import type { BookingState } from "./actions";
+import { DayCalendar, longDay } from "./day-calendar";
 
 /** How a family can meet, as they see it. */
 export const FAMILY_MODES: { value: Mode; label: string; hint: string }[] = [
@@ -35,6 +36,7 @@ export function BookingForm({
   place,
   zone,
   askChild = true,
+  calendar = false,
 }: {
   action: (prev: BookingState, formData: FormData) => Promise<BookingState>;
   times: OpenTime[];
@@ -48,6 +50,8 @@ export function BookingForm({
   zone: string;
   /** The teacher asks for the child's name (Edit event details). */
   askChild?: boolean;
+  /** Weekly hours: a month calendar of open days, with that day's times beside it. */
+  calendar?: boolean;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, {});
@@ -72,14 +76,44 @@ export function BookingForm({
   // Weekly hours: pick a day, then a time.
   const days = [...new Map(times.map((t) => [t.day, t.dayLabel]))];
   const [day, setDay] = useState(() => times.find((t) => t.value === state.values?.startsAt)?.day ?? days[0]?.[0] ?? "");
-  const shown = days.length > 1 ? times.filter((t) => t.day === day) : times;
+  const shown = calendar || days.length > 1 ? times.filter((t) => t.day === day) : times;
   const openOn = (d: string) => times.filter((t) => t.day === d).length;
+  const openDays = new Map(days.map(([d]) => [d, openOn(d)]));
   const pickedTime = times.find((t) => t.value === picked);
   // Pressing Book with no time picked: the form's required check focuses the
   // first time (components/required-fields.tsx); this says what's missing there.
   const [noTime, setNoTime] = useState(false);
   const hint = (m: Mode) =>
     m === "in_person" && place ? `Come to ${place}.` : m === "phone" ? `${teacher} calls you.` : FAMILY_MODES.find((x) => x.value === m)!.hint;
+
+  // Who each person on the booking is: parents at a conference that asks for the child, otherwise "You" and the others.
+  const personLabel = (i: number) => (askChild ? `Parent or guardian ${i + 1}` : i === 0 ? "You" : `Person ${i + 1}`);
+
+  // One open time: a radio styled as a button.
+  const timeChoice = (t: OpenTime) => (
+    <label
+      key={t.value}
+      className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border text-sm font-semibold tabular-nums has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)] ${
+        picked === t.value
+          ? "border-brand bg-brand text-brand-foreground"
+          : noTime && !picked
+            ? "border-danger hover:border-brand"
+            : "border-field-border hover:border-brand"
+      }`}
+    >
+      <input
+        type="radio"
+        name="time"
+        value={t.value}
+        checked={picked === t.value}
+        onChange={() => setTime(t.value)}
+        onInvalid={() => setNoTime(true)}
+        required
+        className="sr-only"
+      />
+      {t.label}
+    </label>
+  );
 
   if (state.booked) {
     const b = state.booked;
@@ -126,63 +160,71 @@ export function BookingForm({
           Your meeting
         </h2>
 
-        {days.length > 1 && (
-          <fieldset>
-            <legend className="font-semibold">Pick a day</legend>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {days.map(([value, label]) => (
-                <label
-                  key={value}
-                  className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-2 text-center text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)] ${
-                    day === value ? "border-brand bg-brand text-brand-foreground" : "border-field-border hover:border-brand"
-                  }`}
-                >
-                  <input type="radio" name="day" value={value} checked={day === value} onChange={() => setDay(value)} className="sr-only" />
-                  <span className="flex flex-col items-center py-1 leading-tight">
-                    {label}
-                    <span className={`text-xs font-normal ${day === value ? "" : "text-muted"}`}>{openOn(value)} open</span>
-                  </span>
-                </label>
-              ))}
+        {calendar ? (
+          <div className="grid gap-6 sm:grid-cols-[auto_1fr] sm:gap-8">
+            <fieldset>
+              <legend className="font-semibold">Pick a day</legend>
+              <p className="text-sm text-muted">Circled days have open times.</p>
+              <div className="mt-3">
+                <DayCalendar
+                  open={openDays}
+                  selected={day}
+                  onSelect={(d) => {
+                    setDay(d);
+                    setTime("");
+                  }}
+                />
+              </div>
+            </fieldset>
+            <fieldset aria-describedby={noTime && !picked ? "time-error" : undefined} className="min-w-0">
+              <legend className="font-semibold">{day ? longDay(day) : "Pick a time"}</legend>
+              <p className="text-sm text-muted">All times are {zone}.</p>
+              {noTime && !picked && (
+                <p id="time-error" role="alert" className="mt-2 text-sm font-semibold text-danger">
+                  Choose a time to book.
+                </p>
+              )}
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:max-h-[22rem] sm:grid-cols-1 sm:overflow-y-auto sm:pr-1">{shown.map(timeChoice)}</div>
+            </fieldset>
+          </div>
+        ) : (
+          <>
+          {days.length > 1 && (
+            <fieldset>
+              <legend className="font-semibold">Pick a day</legend>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {days.map(([value, label]) => (
+                  <label
+                    key={value}
+                    className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-2 text-center text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)] ${
+                      day === value ? "border-brand bg-brand text-brand-foreground" : "border-field-border hover:border-brand"
+                    }`}
+                  >
+                    <input type="radio" name="day" value={value} checked={day === value} onChange={() => setDay(value)} className="sr-only" />
+                    <span className="flex flex-col items-center py-1 leading-tight">
+                      {label}
+                      <span className={`text-xs font-normal ${day === value ? "" : "text-muted"}`}>{openOn(value)} open</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          <fieldset aria-describedby={noTime && !picked ? "time-error" : undefined}>
+            <legend className="font-semibold">Pick a time</legend>
+            <p className="text-sm text-muted">Only open times are shown. All times are {zone}.</p>
+            {noTime && !picked && (
+              <p id="time-error" role="alert" className="mt-2 text-sm font-semibold text-danger">
+                Choose a time to book.
+              </p>
+            )}
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {shown.map(timeChoice)}
             </div>
           </fieldset>
+          </>
         )}
-
-        <fieldset aria-describedby={noTime && !picked ? "time-error" : undefined}>
-          <legend className="font-semibold">Pick a time</legend>
-          <p className="text-sm text-muted">Only open times are shown. All times are {zone}.</p>
-          {noTime && !picked && (
-            <p id="time-error" role="alert" className="mt-2 text-sm font-semibold text-danger">
-              Choose a time to book.
-            </p>
-          )}
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {shown.map((t) => (
-              <label
-                key={t.value}
-                className={`flex min-h-11 cursor-pointer items-center justify-center rounded-md border text-sm font-semibold tabular-nums has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)] ${
-                  picked === t.value
-                    ? "border-brand bg-brand text-brand-foreground"
-                    : noTime && !picked
-                      ? "border-danger hover:border-brand"
-                      : "border-field-border hover:border-brand"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="time"
-                  value={t.value}
-                  checked={picked === t.value}
-                  onChange={() => setTime(t.value)}
-                  onInvalid={() => setNoTime(true)}
-                  required
-                  className="sr-only"
-                />
-                {t.label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
 
         {askMode && (
           <fieldset>
@@ -218,7 +260,7 @@ export function BookingForm({
 
       <section aria-labelledby="family-heading" className="space-y-6">
         <h2 id="family-heading" className="text-2xl font-semibold">
-          Your family
+          {askChild ? "Your family" : "Who's coming"}
         </h2>
 
         {askChild && (
@@ -228,12 +270,20 @@ export function BookingForm({
         )}
 
         <fieldset className="space-y-4">
-          <legend className="font-semibold">{askPhone ? "Parents or guardians on the call" : "Parents or guardians coming"}</legend>
+          <legend className="font-semibold">
+            {askChild
+              ? askPhone
+                ? "Parents or guardians on the call"
+                : "Parents or guardians coming"
+              : askPhone
+                ? "You, and anyone else on the call"
+                : "You, and anyone else coming"}
+          </legend>
           <p className="-mt-3 text-sm text-muted">Each person gets the confirmation, calendar invite, and reminder.</p>
           {parents.map((p, i) => (
             <fieldset key={i} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
-              {/* Says which parent each "Name" and "Email" belongs to; shown once there's more than one. */}
-              <legend className={parents.length > 1 ? "px-1 text-sm font-semibold text-muted" : "sr-only"}>Parent or guardian {i + 1}</legend>
+              {/* Says whose "Name" and "Email" these are; shown once there's more than one. */}
+              <legend className={parents.length > 1 ? "px-1 text-sm font-semibold text-muted" : "sr-only"}>{personLabel(i)}</legend>
               <Field label="Name">
                 <Input required maxLength={120} value={p.name} onChange={(e) => set(i, { name: e.target.value })} autoComplete={i ? "off" : "name"} />
               </Field>
@@ -258,7 +308,7 @@ export function BookingForm({
                   <Button
                     type="button"
                     variant="danger"
-                    aria-label={`Remove parent or guardian ${i + 1}`}
+                    aria-label={`Remove ${askChild ? `parent or guardian ${i + 1}` : `person ${i + 1}`}`}
                     onClick={() => setParents((list) => list.filter((_, j) => j !== i))}
                   >
                     Remove
@@ -269,7 +319,7 @@ export function BookingForm({
           ))}
           {parents.length < 4 && (
             <Button type="button" variant="secondary" onClick={() => setParents((list) => [...list, blankParent()])}>
-              + Add another parent or guardian
+              {askChild ? "+ Add another parent or guardian" : "+ Add someone else"}
             </Button>
           )}
         </fieldset>
