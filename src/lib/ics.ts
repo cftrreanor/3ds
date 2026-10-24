@@ -161,6 +161,17 @@ export function buildIcs(method: IcsMethod, event: IcsEvent, organizerName = bra
 }
 
 /** "Add to Google Calendar" link for one event, pinned to the event's time zone. */
+/**
+ * The invite with replies going to `email` instead of our no-reply address.
+ * Calendar apps show Yes / No buttons whatever RSVP says, and those answers go
+ * to the ORGANIZER: to no-reply they bounce back as an error.
+ */
+export function withOrganizerEmail(content: string, email: string) {
+  if (!/^[^\s@:;,]+@[^\s@:;,]+\.[^\s@:;,]+$/.test(email)) return content;
+  const lines = content.replace(/\r\n[ \t]/g, "").split("\r\n");
+  return lines.map((l) => (l.startsWith("ORGANIZER") ? fold(l.replace(/mailto:.*$/, `mailto:${email}`)) : fold(l))).join("\r\n");
+}
+
 export function googleCalendarUrl(
   event: Pick<IcsEvent, "start" | "end" | "summary" | "location" | "description" | "timezone">,
 ) {
