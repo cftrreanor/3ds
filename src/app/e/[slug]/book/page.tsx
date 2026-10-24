@@ -104,6 +104,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
                 place={place}
                 zone={zoneName(event.timezone)}
                 askChild={askChild}
+                calendar={weekly}
               />
               <div className="mt-6">
                 <PrivacyNote teacher={teacher.name} weekly={weekly} askChild={askChild} />

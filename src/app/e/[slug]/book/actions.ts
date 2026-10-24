@@ -49,10 +49,12 @@ function readForm(formData: FormData, askChild: boolean): { values: BookingValue
   };
   if (!values.startsAt || Number.isNaN(Date.parse(values.startsAt))) return { values, error: "Pick a time." };
   if (askChild && values.child.length < 2) return { values, error: "Please enter your child's first and last name." };
-  if (!values.parents.length) return { values, error: "Add at least one parent or guardian." };
+  // Without the child's name, the people booking are just people, not parents.
+  const each = askChild ? "parent" : "person";
+  if (!values.parents.length) return { values, error: askChild ? "Add at least one parent or guardian." : "Please enter your name and email address." };
   for (const p of values.parents) {
-    if (String(p.name ?? "").trim().length < 2) return { values, error: "Please enter each parent's first and last name." };
-    if (!EMAIL.test(String(p.email ?? "").trim())) return { values, error: "Please enter a valid email address for each parent." };
+    if (String(p.name ?? "").trim().length < 2) return { values, error: `Please enter each ${each}'s first and last name.` };
+    if (!EMAIL.test(String(p.email ?? "").trim())) return { values, error: `Please enter a valid email address for each ${each}.` };
     if (String(p.phone ?? "").trim() && !normalizePhone(String(p.phone))) {
       return { values, error: "Please enter a 10-digit phone number, or leave it blank." };
     }
