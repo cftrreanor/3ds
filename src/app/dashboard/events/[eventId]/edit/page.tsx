@@ -14,7 +14,7 @@ import { saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, utcToZonedTime } from "@/lib/time";
-import { setEventType, updateEvent } from "../../../actions";
+import { setEventShowBrand, setEventType, updateEvent } from "../../../actions";
 import { deleteFile, prepareUpload, saveFile } from "../../../file-actions";
 import { FilesManager } from "./files-manager";
 import { asksChildName } from "@/lib/conference-settings";
@@ -61,7 +61,32 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   // The account's logo for volunteer badges lives with the other uploads, here.
   const badgesHere = !hasConferences(event.event_type);
   const askChildName = hasConferences(event.event_type) ? await asksChildName(supabase, eventId) : true;
-  const brand = badgesHere ? await loadBrand(event.organization_id) : { logo: null, color: null };
+  // One logo and color per account; each event can switch them off (true until the 20261220000000 update).
+  const [brand, showBrand] = await Promise.all([
+    loadBrand(event.organization_id),
+    supabase
+      .from("events")
+      .select("show_brand")
+      .eq("id", eventId)
+      .maybeSingle()
+      .then((r) => (r.data as { show_brand?: boolean } | null)?.show_brand !== false),
+  ]);
+  const hasBrand = Boolean(brand.logo || brand.color);
+  const brandSwitch = hasBrand ? (
+    <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm">
+        <span className="font-semibold">{showBrand ? "Shown on this event" : "Off for this event"}</span>
+        <span className="block text-muted">
+          {showBrand
+            ? "This event's public pages show your logo and color."
+            : "This event's public pages use the standard look, without your logo or color."}
+        </span>
+      </p>
+      <ActionButton action={setEventShowBrand.bind(null, eventId, !showBrand)} variant="secondary">
+        {showBrand ? "Hide on this event" : "Show on this event"}
+      </ActionButton>
+    </div>
+  ) : null;
   const [{ count }, { data: fileData }, { count: bandCount }, { count: parentCount }, { count: boothCount }] = await Promise.all([
     supabase.from("shifts").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase
@@ -175,6 +200,15 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
               <div className="mt-3">
                 <LogoForm eventId={eventId} logo={brand.logo} color={brand.color} />
               </div>
+              {brandSwitch}
+            </div>
+          )}
+          {/* Conferences don't set the logo here, but can switch off the one the account has. */}
+          {!badgesHere && hasBrand && (
+            <div id="logo" className="mt-6 scroll-mt-6 border-t border-border pt-5">
+              <p className="font-semibold">Your account&apos;s logo and color</p>
+              <p className="mt-1 text-sm text-muted">Set on your account&apos;s other events. You can leave them off this one.</p>
+              {brandSwitch}
             </div>
           )}
         </SetupStep>
