@@ -5216,18 +5216,21 @@ do $$ begin
   assert not has_table_privilege('anon', 'public.site_metrics', 'select'), 'visitors can''t read site visit counts';
   assert not has_table_privilege('anon', 'public.site_metrics', 'insert'), 'visitors can''t write site visit counts';
   assert not has_table_privilege('authenticated', 'public.site_metrics', 'select'), 'signed-in people can''t read site visit counts';
-  assert not has_function_privilege('anon', 'public.bump_site_metric(date, text, text, text)', 'execute'), 'visitors can''t add to the counts directly';
-  assert not has_function_privilege('authenticated', 'public.bump_site_metric(date, text, text, text)', 'execute'), 'signed-in people can''t add to the counts directly';
-  assert has_function_privilege('service_role', 'public.bump_site_metric(date, text, text, text)', 'execute'), 'the server adds to the counts';
+  assert not has_function_privilege('anon', 'public.bump_site_metric(date, text, text, text, text)', 'execute'), 'visitors can''t add to the counts directly';
+  assert not has_function_privilege('authenticated', 'public.bump_site_metric(date, text, text, text, text)', 'execute'), 'signed-in people can''t add to the counts directly';
+  assert has_function_privilege('service_role', 'public.bump_site_metric(date, text, text, text, text)', 'execute'), 'the server adds to the counts';
 end $$;
--- Counting twice adds up, in one row.
+-- Counting twice adds up, in one row; a click's label keeps it apart.
 select public.bump_site_metric('2026-10-24', '/', 'Google', 'view');
 select public.bump_site_metric('2026-10-24', '/', 'Google', 'view');
+select public.bump_site_metric('2026-10-24', '/', 'Google', 'click', 'Header: FAQ');
 do $$ begin
   assert (select count from public.site_metrics where day = '2026-10-24' and path = '/' and source = 'Google' and event = 'view') = 2,
          'two visits make a count of two';
+  assert (select count from public.site_metrics where day = '2026-10-24' and event = 'click' and label = 'Header: FAQ') = 1,
+         'a click is counted under its label';
   begin
-    perform public.bump_site_metric('2026-10-24', '/', 'Google', 'clicked');
+    perform public.bump_site_metric('2026-10-24', '/', 'Google', 'hovered');
     raise exception 'FAIL: an unknown kind of count was saved';
   exception when check_violation then null;
   end;

@@ -3,14 +3,14 @@ import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/admin";
 import { ADMIN_TZ } from "@/lib/admin-crm";
 import { isSchemaError, missing } from "@/lib/schema-check";
-import { MARKETING_PAGES, pageLabel } from "@/lib/site-metrics";
+import { MARKETING_PAGES, pageLabel, type SiteEvent } from "@/lib/site-metrics";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/time";
 import { EmptyRow, PageHeader, Panel, Table, Td, Th, Tr } from "../kit";
 
 export const metadata: Metadata = { title: "Site visits" };
 
-type Row = { day: string; path: string; source: string; event: "view" | "pilot_open" | "pilot_sent"; count: number };
+type Row = { day: string; path: string; source: string; event: SiteEvent; label: string; count: number };
 type Tally = { views: number; opens: number; sent: number };
 
 const RANGES = [7, 30, 90] as const;
@@ -29,7 +29,8 @@ function tallyBy(rows: Row[], key: (r: Row) => string) {
     const t = out.get(key(r)) ?? { views: 0, opens: 0, sent: 0 };
     if (r.event === "view") t.views += r.count;
     else if (r.event === "pilot_open") t.opens += r.count;
-    else t.sent += r.count;
+    else if (r.event === "pilot_sent") t.sent += r.count;
+    else continue;
     out.set(key(r), t);
   }
   return out;
@@ -38,14 +39,14 @@ function tallyBy(rows: Row[], key: (r: Row) => string) {
 /** Visits to the marketing pages and the pilot form, counted by us (src/lib/site-metrics.ts). */
 export default async function AdminSitePage({ searchParams }: PageProps<"/admin/site">) {
   await requirePlatformAdmin();
-  const { days: daysParam } = await searchParams;
+  const { days: daysParam, page: pageParam } = await searchParams;
   const days = RANGES.find((r) => String(r) === daysParam) ?? 30;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: ADMIN_TZ }).format(new Date());
   const start = addDays(today, -(days - 1));
 
   const { data, error } = await createAdminClient()
     .from("site_metrics")
-    .select("day, path, source, event, count")
+    .select("day, path, source, event, label, count")
     .gte("day", start)
     .order("day")
     .limit(20000);
@@ -61,6 +62,24 @@ export default async function AdminSitePage({ searchParams }: PageProps<"/admin/
   const peak = Math.max(1, ...series.map((s) => s.views));
   const byPage = [...tallyBy(rows, (r) => r.path)].sort((a, b) => b[1].views - a[1].views || b[1].sent - a[1].sent);
   const bySource = [...tallyBy(rows, (r) => r.source)].sort((a, b) => b[1].views - a[1].views || b[1].sent - a[1].sent);
+  // One page up close: how far down people get, and what they click.
+  const page = MARKETING_PAGES.find((p) => p.path === pageParam)?.path ?? "/";
+  const onPage = rows.filter((r) => r.path === page);
+  const sum = (event: SiteEvent) => {
+    const out = new Map<string, number>();
+    for (const r of onPage) if (r.event === event) out.set(r.label, (out.get(r.label) ?? 0) + r.count);
+    return [...out].sort((a, b) => b[1] - a[1]);
+  };
+  const pageVisits = sum("view").reduce((n, [, c]) => n + c, 0);
+  const steps = [
+    { label: "Visited the page", count: pageVisits },
+    ...sum("section").map(([label, count]) => ({ label: `Reached “${label}”`, count })),
+    { label: "Started the pilot form", count: sum("pilot_open").reduce((n, [, c]) => n + c, 0) },
+    { label: "Sent a pilot request", count: sum("pilot_sent").reduce((n, [, c]) => n + c, 0) },
+  ];
+  const clicks = sum("click");
+  const stepTop = Math.max(1, ...steps.map((s) => s.count));
+  const qs = (p: Record<string, string | number>) => `?${new URLSearchParams({ days: String(days), page, ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])) })}`;
   const short = (day: string) => formatDate(day, { weekday: undefined, year: undefined });
 
   return (
@@ -73,7 +92,7 @@ export default async function AdminSitePage({ searchParams }: PageProps<"/admin/
             {RANGES.map((r) => (
               <Link
                 key={r}
-                href={`?days=${r}`}
+                href={qs({ days: r })}
                 aria-current={r === days ? "page" : undefined}
                 className={`rounded-md border px-2.5 py-1 text-sm ${r === days ? "border-brand bg-brand text-brand-foreground" : "border-border bg-surface hover:bg-background"}`}
               >
@@ -198,6 +217,67 @@ export default async function AdminSitePage({ searchParams }: PageProps<"/admin/
           </Table>
         </Panel>
       </div>
+
+      <Panel title="One page up close">
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Page">
+          {MARKETING_PAGES.map((p) => (
+            <Link
+              key={p.path}
+              href={qs({ page: p.path })}
+              aria-current={p.path === page ? "page" : undefined}
+              className={`rounded-md border px-2.5 py-1 text-sm ${p.path === page ? "border-brand bg-brand text-brand-foreground" : "border-border bg-surface hover:bg-background"}`}
+            >
+              {p.label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-6 lg:grid-cols-2">
+          <section>
+            <h3 className="text-sm font-semibold">How far people get</h3>
+            <p className="text-sm text-muted">A section counts once someone stays on it for a second, so scrolling or jumping past doesn&apos;t count. Most reached first.</p>
+            <ul className="mt-3 space-y-2">
+              {steps.map((s) => (
+                <li key={s.label} className="text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="min-w-0 truncate">{s.label}</span>
+                    <span className="shrink-0 tabular-nums text-muted">
+                      <span className="font-semibold text-foreground">{s.count}</span> · {pct(s.count, pageVisits)}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-background" aria-hidden>
+                    <div className="h-2 rounded-full bg-brand" style={{ width: `${(s.count / stepTop) * 100}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold">What people click</h3>
+            <p className="text-sm text-muted">Each person counts once per button or link, named by where it is and what it says.</p>
+            <Table className="mt-3">
+              <thead>
+                <tr>
+                  <Th>Button or link</Th>
+                  <Th className="text-right">People</Th>
+                  <Th className="text-right">Of visits</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {clicks.map(([label, count]) => (
+                  <Tr key={label}>
+                    <Td>{label}</Td>
+                    <Td className="text-right">{count}</Td>
+                    <Td className="text-right text-muted">{pct(count, pageVisits)}</Td>
+                  </Tr>
+                ))}
+                {clicks.length === 0 && <EmptyRow cols={3}>No clicks counted yet.</EmptyRow>}
+              </tbody>
+            </Table>
+          </section>
+        </div>
+      </Panel>
 
       <p className="text-sm text-muted">
         Counted pages: {MARKETING_PAGES.map((p) => p.label).join(", ")}. A visit counts once per page per browser tab, so reloading doesn&apos;t add more. Campaign

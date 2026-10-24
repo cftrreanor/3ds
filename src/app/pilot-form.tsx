@@ -2,8 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
-import { countPilotOpen } from "@/app/site-metrics-actions";
-import { visitSource } from "@/components/visit-counter";
+import { countSiteEvent, pilotSource } from "@/components/site-metrics";
 import { ActionForm, useFieldErrors } from "@/components/action-form";
 import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
@@ -36,9 +35,8 @@ export function PilotForm({
   const markOpened = () => {
     if (opened.current) return;
     opened.current = true;
-    const from = visitSource();
-    setSource(from);
-    countPilotOpen(pathname, from).catch(() => {});
+    setSource(pilotSource());
+    countSiteEvent("pilot_open");
   };
   // A real tap, click or key press in the form. Browsers mark these as coming
   // from a person (isTrusted); events faked by a script aren't.

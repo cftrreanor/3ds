@@ -198,8 +198,7 @@ export default function StudentDataPrivacyPage() {
           <h2 className={h2}>Where it&apos;s stored, and who helps us run the service</h2>
           <p className="mt-3 leading-7 text-muted">
             Data is stored in the United States. These providers handle it only to run the service. We don&apos;t use advertising, analytics,
-            or tracking services. On our own marketing pages, we count visits ourselves (which page, and whether the visit came from a search
-            engine or another site), with no cookies and nothing that identifies the visitor. Event, student, and family pages aren&apos;t counted.
+            or tracking services.
           </p>
           <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
             {providers.map((p) => (

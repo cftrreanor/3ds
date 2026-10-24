@@ -15,7 +15,10 @@ export const MARKETING_PAGES = [
   { path: "/student-data-privacy", label: "Student data privacy" },
 ] as const;
 
-export type SiteEvent = "view" | "pilot_open" | "pilot_sent";
+export type SiteEvent = "view" | "section" | "click" | "pilot_open" | "pilot_sent";
+
+/** What the browser may report (the server counts pilot_sent itself, when a request is saved). */
+export const BROWSER_EVENTS: readonly SiteEvent[] = ["view", "section", "click", "pilot_open"];
 
 export const isMarketingPath = (path: string) => MARKETING_PAGES.some((p) => p.path === path);
 
@@ -27,6 +30,14 @@ export const cleanSource = (s: string) =>
     .replace(/[^\w .:-]/g, "")
     .trim()
     .slice(0, 60) || "Unknown";
+
+/** A section heading or button text, safe to store: one line, 100 characters at most. */
+export const cleanLabel = (s: string) =>
+  s
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
 
 const SOCIAL: [RegExp, string][] = [
   [/(^|\.)facebook\.com$|(^|\.)fb\.com$/, "Facebook"],

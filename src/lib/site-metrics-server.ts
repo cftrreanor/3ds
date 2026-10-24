@@ -3,7 +3,7 @@ import { ADMIN_TZ } from "@/lib/admin-crm";
 import { getUser } from "@/lib/auth";
 import { isQa } from "@/lib/qa";
 import { isSchemaError } from "@/lib/schema-check";
-import { cleanSource, isMarketingPath, type SiteEvent } from "@/lib/site-metrics";
+import { cleanLabel, cleanSource, isMarketingPath, type SiteEvent } from "@/lib/site-metrics";
 import { createAdminClient } from "@/lib/supabase/server";
 
 /**
@@ -12,7 +12,7 @@ import { createAdminClient } from "@/lib/supabase/server";
  * where reviewers are always signed in. Never throws: counting never gets in
  * the way of the page or the pilot form.
  */
-export async function recordSiteMetric(event: SiteEvent, path: string, source: string) {
+export async function recordSiteMetric(event: SiteEvent, path: string, source: string, label = "") {
   if (!isMarketingPath(path)) return;
   try {
     if (!isQa() && (await getUser())) return;
@@ -22,6 +22,7 @@ export async function recordSiteMetric(event: SiteEvent, path: string, source: s
       p_path: path,
       p_source: cleanSource(source),
       p_event: event,
+      p_label: event === "section" || event === "click" ? cleanLabel(label) : "",
     });
     // Before the database update (20261217000000_site_metrics.sql) there's nowhere to count yet.
     if (error && !isSchemaError(error)) console.error("Counting a site visit failed", error);
