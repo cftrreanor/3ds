@@ -5367,4 +5367,115 @@ begin
 end $$;
 delete from public.events where id = '1b000000-0000-0000-0000-000000000001';
 
+-- ---------------------------------------------------------------------------
+-- Volunteer history: shifts signed up and checked in per adult, per account;
+-- hosts and Volunteer Leads read it; kept when volunteers are deleted;
+-- hosts remove people; forgotten 2 years after their last event
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address)
+values
+  ('1d000000-0000-0000-0000-000000000001', :'org_id', 'Spring Car Wash', 'vh-past', 'published', 'volunteer', 'America/Chicago',
+   current_date - 20, current_date - 20, now() - interval '20 days', now() - interval '20 days' + interval '4 hours', '1 Main St'),
+  ('1d000000-0000-0000-0000-000000000002', :'org_id', 'Fall Fair', 'vh-next', 'published', 'volunteer', 'America/Chicago',
+   current_date + 20, current_date + 20, now() + interval '20 days', now() + interval '20 days 4 hours', '1 Main St');
+insert into public.stations (id, event_id, name, station_type) values
+  ('1d000000-0000-0000-0000-0000000000a1', '1d000000-0000-0000-0000-000000000001', 'Wash', 'passive'),
+  ('1d000000-0000-0000-0000-0000000000a2', '1d000000-0000-0000-0000-000000000002', 'Tickets', 'passive');
+insert into public.shifts (id, station_id, event_id, title, starts_at, ends_at, max_capacity) values
+  ('1d000000-0000-0000-0000-0000000000b1', '1d000000-0000-0000-0000-0000000000a1', '1d000000-0000-0000-0000-000000000001', 'Morning',
+   now() - interval '20 days', now() - interval '20 days' + interval '2 hours', 10),
+  ('1d000000-0000-0000-0000-0000000000b2', '1d000000-0000-0000-0000-0000000000a1', '1d000000-0000-0000-0000-000000000001', 'Afternoon',
+   now() - interval '20 days' + interval '2 hours', now() - interval '20 days' + interval '4 hours', 10),
+  ('1d000000-0000-0000-0000-0000000000b3', '1d000000-0000-0000-0000-0000000000a2', '1d000000-0000-0000-0000-000000000002', 'Evening',
+   now() + interval '20 days', now() + interval '20 days 2 hours', 10);
+insert into public.volunteers (id, event_id, full_name, email, phone, minor) values
+  ('1d000000-0000-0000-0000-0000000000c1', '1d000000-0000-0000-0000-000000000001', 'Ann Able', 'ann@example.com', '+15125550001', false),
+  ('1d000000-0000-0000-0000-0000000000c2', '1d000000-0000-0000-0000-000000000001', 'Bob Bell', 'bob@example.com', '+15125550002', false),
+  ('1d000000-0000-0000-0000-0000000000c3', '1d000000-0000-0000-0000-000000000001', 'Kid A.', 'kid@example.com', '+15125550003', true),
+  ('1d000000-0000-0000-0000-0000000000c4', '1d000000-0000-0000-0000-000000000002', 'Ann Able', 'ann@example.com', '+15125550001', false);
+insert into public.volunteer_assignments (shift_id, volunteer_id, checked_in_at) values
+  ('1d000000-0000-0000-0000-0000000000b1', '1d000000-0000-0000-0000-0000000000c1', now() - interval '20 days'),
+  ('1d000000-0000-0000-0000-0000000000b2', '1d000000-0000-0000-0000-0000000000c1', null),
+  ('1d000000-0000-0000-0000-0000000000b1', '1d000000-0000-0000-0000-0000000000c2', now() - interval '20 days'),
+  ('1d000000-0000-0000-0000-0000000000b1', '1d000000-0000-0000-0000-0000000000c3', now() - interval '20 days'),
+  ('1d000000-0000-0000-0000-0000000000b3', '1d000000-0000-0000-0000-0000000000c4', null);
+insert into public.event_staff (event_id, user_id, role) values
+  ('1d000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'volunteer_director');
+-- An old volunteer, last seen over 2 years ago.
+insert into public.volunteer_history (organization_id, email, event_id, event_name, event_on, full_name, signed_up, checked_in)
+values (:'org_id', 'vh-old@example.com', gen_random_uuid(), 'Old Fair', current_date - interval '3 years', 'Old Timer', 2, 2);
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare org uuid := (select organization_id from public.events where id = '1d000000-0000-0000-0000-000000000001');
+begin
+  assert (select signed_up = 2 and checked_in = 1 and events = 1 from public.volunteer_report(org) where email = 'ann@example.com'),
+         'a host sees Ann: 2 ended shifts signed up, 1 checked in (her upcoming shift doesn''t count yet)';
+  assert (select signed_up = 1 and checked_in = 1 from public.volunteer_report(org) where email = 'bob@example.com'), 'and Bob';
+  assert not exists (select 1 from public.volunteer_report(org) where email = 'kid@example.com'), 'under-18 helpers are left out';
+end $$;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform 1 from public.volunteer_history;
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'hosts can''t read the history table directly';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$
+declare org uuid := (select organization_id from public.events where id = '1d000000-0000-0000-0000-000000000002');
+        ok boolean := false;
+begin
+  assert (select count(*) from public.volunteer_report(org)) >= 2, 'a Volunteer Lead on one of the account''s events sees the history';
+  begin
+    perform public.remove_volunteer_history(org, 'ann@example.com');
+  exception when sqlstate '42501' then ok := true;
+  end;
+  assert ok, 'but only hosts remove people';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform 1 from public.volunteer_report((select organization_id from public.organization_members where user_id = '00000000-0000-0000-0000-000000000001' limit 1));
+  exception when sqlstate '42501' then ok := true;
+  end;
+  assert ok, 'strangers can''t see an account''s volunteer history';
+end $$;
+
+-- The daily clean-up keeps the counts, deletes the volunteers, and forgets old history.
+reset role;
+select public.purge_volunteers();
+do $$
+begin
+  assert not exists (select 1 from public.volunteers where event_id = '1d000000-0000-0000-0000-000000000001'), 'volunteers are still deleted';
+  assert (select signed_up = 2 and checked_in = 1 and event_name = 'Spring Car Wash'
+            from public.volunteer_history where email = 'ann@example.com'), 'Ann''s counts are kept';
+  assert not exists (select 1 from public.volunteer_history where email = 'kid@example.com'), 'under-18 helpers aren''t kept';
+  assert not exists (select 1 from public.volunteer_history where email = 'vh-old@example.com'), 'history over 2 years old is forgotten';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare org uuid := (select organization_id from public.events where id = '1d000000-0000-0000-0000-000000000001');
+begin
+  assert (select signed_up = 2 and checked_in = 1 from public.volunteer_report(org) where email = 'ann@example.com'),
+         'the report reads the same after the clean-up';
+  perform public.remove_volunteer_history(org, 'Ann@Example.com');
+  assert not exists (select 1 from public.volunteer_report(org) where email = 'ann@example.com'), 'a host removes Ann';
+end $$;
+reset role;
+do $$
+begin
+  assert not exists (select 1 from public.volunteer_history where email = 'ann@example.com'), 'her history is deleted';
+end $$;
+delete from public.events where id in ('1d000000-0000-0000-0000-000000000001', '1d000000-0000-0000-0000-000000000002');
+delete from public.volunteer_history where email = 'bob@example.com';
+delete from public.volunteer_history_removed where email = 'ann@example.com';
+
 \echo 'All database security tests passed.'

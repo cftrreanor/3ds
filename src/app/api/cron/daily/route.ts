@@ -48,7 +48,8 @@ async function runDailyJob() {
   // Conference bookings (children's names, parents' notes) 30 days after the conference.
   const { data: bookingsPurged, error: bookingPurgeError } = await admin.rpc("purge_conference_bookings");
   if (bookingPurgeError && !isSchemaError(bookingPurgeError)) console.error("purge_conference_bookings failed", bookingPurgeError);
-  // Volunteers' details (and under-18 helpers) are deleted 10 days after the event.
+  // Volunteers' details (and under-18 helpers) are deleted 10 days after the event,
+  // after each adult's shift counts go into the account's volunteer history.
   const { data: volunteersPurged, error: volunteerPurgeError } = await admin.rpc("purge_volunteers");
   if (volunteerPurgeError) console.error("purge_volunteers failed", volunteerPurgeError);
   // The admin email log: 14 days for people without an account, 180 for everyone.

@@ -64,7 +64,11 @@ const collected = [
 const deleted = [
   { what: "Children's details from family visitor days", when: "30 days after the event" },
   { what: "Parent-teacher conference bookings", when: "30 days after the conference, or for weekly hours, 30 days after each meeting" },
-  { what: "Volunteers, including under-18 helpers", when: "10 days after the event" },
+  { what: "Volunteers' phone numbers and check-in times, and under-18 helpers", when: "10 days after the event" },
+  {
+    what: "Adult volunteers' names, email addresses, and how many shifts they signed up for and checked in to (the organizer's volunteer history)",
+    when: "2 years after their last event, or right away when the organizer removes them",
+  },
   { what: "Files shared with an event", when: "30 days after the event" },
   { what: "Booth partners' contact details", when: "15 months after the event" },
   { what: "Band and group directors' contact details", when: "2 years after the event, so a contest can invite them back" },
@@ -161,6 +165,10 @@ export default function StudentDataPrivacyPage() {
             </li>
             <li>Conference bookings, parents&apos; notes, and the number to call for phone calls: only the teacher who set up the conference. Other hosts on the account see how many times are booked, not who booked.</li>
             <li>Volunteers&apos; phone numbers: Hosts, Co-hosts, and Volunteer Leads, and Section Leads on event day only</li>
+            <li>
+              An organizer&apos;s volunteer history (who volunteered and how many shifts they kept): that organizer&apos;s Hosts, Co-hosts, and
+              Volunteer Leads only, never other organizers
+            </li>
             <li>Visiting directors see their own registration, never other schools&apos; contact details</li>
             <li>Families never see who else registered or booked</li>
             <li>These rules are enforced inside the database, with an automated test for each one</li>

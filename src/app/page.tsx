@@ -144,7 +144,7 @@ const privacy = [
   },
   {
     title: "Gone when it's over",
-    body: "Volunteers' details are deleted 10 days after the event, and children's details from school visits and conferences after 30 days.",
+    body: "Volunteers' phone numbers are deleted 10 days after the event, and children's details from school visits and conferences after 30 days.",
   },
   {
     title: "No ads, no spam",
@@ -177,7 +177,7 @@ const faqs = [
   },
   {
     q: "How is student and family information handled?",
-    a: "Band contests collect headcounts, not student names. Children's names at school visitor events and conferences are deleted 30 days after the event, and volunteers' details 10 days after. Conference bookings are seen only by the teacher, and Section Leads see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event. Our Student data privacy page has the full details.",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events and conferences are deleted 30 days after the event, and volunteers' phone numbers 10 days after. Conference bookings are seen only by the teacher, and Section Leads see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event. Our Student data privacy page has the full details.",
   },
   {
     q: "Who is it for?",

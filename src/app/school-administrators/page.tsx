@@ -122,7 +122,7 @@ const sections: Audience["sections"] = [
 
 const privacy = [
   "We ask for only what each event needs: headcounts instead of student names for contests, and no accounts for families or spectators.",
-  "Children's details from school visitor events and conferences are deleted 30 days after the event, volunteers' details 10 days after, fair partners' contact details 15 months after, and visiting directors' personal details 2 years after.",
+  "Children's details from school visitor events and conferences are deleted 30 days after the event, volunteers' phone numbers 10 days after (organizers keep a 2-year count of each adult's shifts), fair partners' contact details 15 months after, and visiting directors' personal details 2 years after.",
   "Information families and volunteers give is your school's or organization's. We store it for you, and copies your staff print or download are your records.",
   "No ads, no spam, and emails used only for your event.",
 ];
