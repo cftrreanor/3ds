@@ -12,7 +12,7 @@ Last updated October 2026.
 
 **Accounts and teams**
 - Sign in with an emailed link (or a password)
-- Organizations by invitation; free self-serve teacher accounts for conferences
+- Every account by invitation (pilot form, then an admin approves); free teacher accounts for conferences
 - Teams per event: Hosts and Co-hosts, Volunteer Leads, Section Leads, Station Coordinators
 - Demo mode for showing any event type as any role
 

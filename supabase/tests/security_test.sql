@@ -60,6 +60,10 @@ do $$ begin
   end;
 end $$;
 
+-- A new account starts on the pilot; take it to "No plan" to check publishing needs one.
+reset role;
+update public.organizations set subscription_status = 'none', free_until = null;
+set role authenticated;
 do $$ declare new_event_id uuid; begin
   -- Drafts are free, and the host can read the new row back (the app uses
   -- INSERT ... RETURNING, which also has to pass the SELECT policies).
@@ -2804,6 +2808,9 @@ do $$ begin
   assert (select status = 'set_up' and organization_id = (select id from public.organizations where slug = 'pipeline-boosters')
             from public.pilot_requests where id = '60000000-0000-0000-0000-0000000000c1'),
          'setting up the organization moves the request to "set up" and links it';
+  assert (select subscription_status = 'comped' and free_until = date '2027-01-01'
+            from public.organizations where slug = 'pipeline-boosters'),
+         'an invited host''s new account starts on the free pilot, through the pilot''s end';
 end $$;
 insert into public.events (id, organization_id, name, slug, starts_on, ends_on, window_start, window_end, venue_address)
 values ('10000000-0000-0000-0000-0000000000c1', (select id from public.organizations where slug = 'pipeline-boosters'),
@@ -3285,6 +3292,10 @@ do $$ begin
   insert into public.pilot_requests (name, email, organization, event_types)
   values ('Fair Host', 'fairhost@example.com', 'Oak PTO', array['fair', 'volunteer']);
   delete from public.pilot_requests where email = 'fairhost@example.com';
+  -- Teachers ask for parent-teacher conferences through the same form.
+  insert into public.pilot_requests (name, email, organization, event_types)
+  values ('Tess Teacher', 'tess@example.com', 'Oak Elementary', array['conference']);
+  delete from public.pilot_requests where email = 'tess@example.com';
 end $$;
 
 -- Volunteer reminders: only the server marks a shift as reminded.
@@ -3365,6 +3376,16 @@ select public.admin_close_account('60000000-0000-0000-0000-000000000001', 'Movin
 reset role;
 do $$ begin
   assert (select closed_at is not null from public.organizations where id = '60000000-0000-0000-0000-000000000001'), 'an admin closes the account';
+  assert (select status from public.events where id = '10000000-0000-0000-0000-0000000000a9') = 'draft',
+         'closing an account takes its published events offline';
+  assert (select (details->>'unpublished')::int from public.admin_log
+           where organization_id = '60000000-0000-0000-0000-000000000001' and action = 'account_closed') = 1,
+         'the log says how many events went offline';
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000a9';
+    raise exception 'FAIL: a closed account published an event';
+  exception when insufficient_privilege then null;
+  end;
 end $$;
 set role authenticated;
 do $$ begin
@@ -4098,10 +4119,31 @@ end $$;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
 
 -- ---------------------------------------------------------------------------
--- Free teacher accounts: self-serve, conferences only
+-- Free teacher accounts: by invitation, conferences only
 -- ---------------------------------------------------------------------------
 insert into auth.users (id, email, raw_user_meta_data) values
-  ('0000000a-0000-0000-0000-000000000001', 'teacher@example.com', '{}');
+  ('0000000a-0000-0000-0000-000000000001', 'teacher@example.com', '{}'),
+  ('0000000a-0000-0000-0000-000000000002', 'uninvited@example.com', '{}');
+set role authenticated;
+-- Without an invitation, nobody makes a teacher account (or an organization).
+set request.jwt.claims = '{"sub":"0000000a-0000-0000-0000-000000000002","email":"uninvited@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.create_teacher_account('Una Uninvited', 'Oak Elementary', 'America/Chicago');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a teacher account needs an invitation';
+  ok := false;
+  begin
+    perform public.create_organization('Una Boosters', 'una-boosters');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'so does an organization';
+end $$;
+reset role;
+insert into public.host_invitations (email) values ('teacher@example.com');
 set role authenticated;
 set request.jwt.claims = '{"sub":"0000000a-0000-0000-0000-000000000001","email":"teacher@example.com"}';
 do $$
@@ -4122,7 +4164,8 @@ begin
   assert ok, 'a teacher account needs a real time zone';
 
   org := public.create_teacher_account('Tia Teacher', 'Oak Elementary', 'America/Chicago');
-  assert org.account_kind = 'teacher' and org.school = 'Oak Elementary', 'a teacher signs up without an invitation';
+  assert org.account_kind = 'teacher' and org.school = 'Oak Elementary', 'an invited teacher sets up their account';
+  assert org.subscription_status = 'none', 'with no plan: one free conference, weekly hours stay premium';
   assert (select full_name from public.profiles where id = auth.uid()) = 'Tia Teacher', 'their name is saved';
   ok := false;
   begin
@@ -4150,6 +4193,11 @@ begin
   end;
   assert ok, 'a teacher can''t upgrade their own account';
 end $$;
+reset role;
+do $$ begin
+  assert (select used_at is not null from public.host_invitations where email = 'teacher@example.com'), 'the teacher''s invitation is used';
+end $$;
+set role authenticated;
 -- A host with an organization can't also make a teacher account.
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 do $$

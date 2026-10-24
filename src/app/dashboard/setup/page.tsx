@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
-import { HostingByInvitation } from "@/components/hosting-by-invitation";
+import { RequestAccess } from "@/components/request-access";
 import { requireUser } from "@/lib/auth";
 import { getMyOrganization } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
@@ -19,8 +19,8 @@ export default async function SetupPage() {
   ]);
   if (!isAdmin && !invited) {
     return (
-      <div className="mx-auto max-w-lg">
-        <HostingByInvitation email={user.email} />
+      <div className="mx-auto max-w-2xl">
+        <RequestAccess email={user.email} />
       </div>
     );
   }

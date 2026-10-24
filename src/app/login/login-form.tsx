@@ -119,7 +119,7 @@ export function LoginForm({
               : "Sign in"}
         </SubmitButton>
         {mode === "link" && (
-          <p className="text-sm text-muted">No password needed. First time here? We&apos;ll set up your account automatically.</p>
+          <p className="text-sm text-muted">No password needed. First time here? We&apos;ll get a few details from you to set up your account.</p>
         )}
       </form>
 
