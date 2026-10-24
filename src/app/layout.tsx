@@ -6,6 +6,7 @@ import "./globals.css";
 import { Toaster } from "@/components/toaster";
 import { RequiredFields } from "@/components/required-fields";
 import { QaBar } from "@/components/qa-bar";
+import { SiteMetrics } from "@/components/site-metrics";
 
 // The design system's faces: Inter (variable, so the in-between 460/540 weights
 // render) for everything, JetBrains Mono for codes.
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col font-sans">
         <QaBar />
+        <SiteMetrics />
         {children}
         <Toaster />
         <RequiredFields />

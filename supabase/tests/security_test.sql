@@ -5212,7 +5212,30 @@ do $$ begin
   assert not has_table_privilege('authenticated', 'public.qa_comments', 'select'), 'signed-in people can''t read QA comments';
   assert not has_table_privilege('authenticated', 'public.qa_comment_replies', 'insert'), 'signed-in people can''t write QA replies';
   assert has_table_privilege('service_role', 'public.qa_comment_replies', 'insert'), 'the server saves QA replies';
+  -- Site visit counts: the same, and only the server can add to them.
+  assert not has_table_privilege('anon', 'public.site_metrics', 'select'), 'visitors can''t read site visit counts';
+  assert not has_table_privilege('anon', 'public.site_metrics', 'insert'), 'visitors can''t write site visit counts';
+  assert not has_table_privilege('authenticated', 'public.site_metrics', 'select'), 'signed-in people can''t read site visit counts';
+  assert not has_function_privilege('anon', 'public.bump_site_metric(date, text, text, text, text)', 'execute'), 'visitors can''t add to the counts directly';
+  assert not has_function_privilege('authenticated', 'public.bump_site_metric(date, text, text, text, text)', 'execute'), 'signed-in people can''t add to the counts directly';
+  assert has_function_privilege('service_role', 'public.bump_site_metric(date, text, text, text, text)', 'execute'), 'the server adds to the counts';
 end $$;
+-- Counting twice adds up, in one row; a click's label keeps it apart.
+select public.bump_site_metric('2026-10-24', '/', 'Google', 'view');
+select public.bump_site_metric('2026-10-24', '/', 'Google', 'view');
+select public.bump_site_metric('2026-10-24', '/', 'Google', 'click', 'Header: FAQ');
+do $$ begin
+  assert (select count from public.site_metrics where day = '2026-10-24' and path = '/' and source = 'Google' and event = 'view') = 2,
+         'two visits make a count of two';
+  assert (select count from public.site_metrics where day = '2026-10-24' and event = 'click' and label = 'Header: FAQ') = 1,
+         'a click is counted under its label';
+  begin
+    perform public.bump_site_metric('2026-10-24', '/', 'Google', 'hovered');
+    raise exception 'FAIL: an unknown kind of count was saved';
+  exception when check_violation then null;
+  end;
+end $$;
+delete from public.site_metrics where day = '2026-10-24';
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 do $$ begin
@@ -5224,6 +5247,11 @@ do $$ begin
   begin
     perform 1 from public.qa_comments;
     raise exception 'FAIL: a signed-in person read QA comments';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.bump_site_metric('2026-10-24', '/', 'Google', 'view');
+    raise exception 'FAIL: a signed-in person added to the site visit counts';
   exception when insufficient_privilege then null;
   end;
 end $$;

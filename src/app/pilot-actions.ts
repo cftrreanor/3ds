@@ -5,6 +5,7 @@ import { fieldErrorState, type ActionState } from "@/lib/action-state";
 import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
 import { notifyAdmins } from "@/lib/admin-alerts";
+import { recordSiteMetric } from "@/lib/site-metrics-server";
 import { emailLayout } from "@/lib/email";
 import { checkPilotRequest, pilotEventTypeLabels } from "@/lib/pilot";
 import { isSchemaError } from "@/lib/schema-check";
@@ -71,6 +72,7 @@ export async function requestPilot(_prev: ActionState, formData: FormData): Prom
     button: { label: "Open the pilot pipeline", url: `${origin}/admin/pipeline` },
   });
   await notifyAdmins({ subject: `Pilot request: ${d.organization}`, html, text, replyTo: d.email });
+  await recordSiteMetric("pilot_sent", String(formData.get("page") ?? ""), String(formData.get("source") ?? ""));
 
   // The form shows its own "Request sent" panel, so no toast message here.
   return { ok: true };
