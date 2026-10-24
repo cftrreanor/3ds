@@ -34,6 +34,7 @@ export function BookingForm({
   teacher,
   place,
   zone,
+  askChild = true,
 }: {
   action: (prev: BookingState, formData: FormData) => Promise<BookingState>;
   times: OpenTime[];
@@ -45,6 +46,8 @@ export function BookingForm({
   place: string;
   /** The conference's time zone by name, e.g. "Central Time". */
   zone: string;
+  /** The teacher asks for the child's name (Edit event details). */
+  askChild?: boolean;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, {});
@@ -84,7 +87,7 @@ export function BookingForm({
       <Card className="space-y-3 border-success/30 bg-success-soft" role="status">
         <h2 className="text-2xl font-semibold">You&apos;re booked</h2>
         <p className="text-lg font-medium">{b.when}</p>
-        <p>Conference for {b.child}.</p>
+        <p>{b.child ? `Conference for ${b.child}.` : `Conference with ${teacher}.`}</p>
         <p className="text-sm text-muted">
           {b.emailSent
             ? `We emailed a calendar invite to ${b.emails.join(" and ")}, with the details and a link to change or cancel. We'll remind you the day before.`
@@ -218,9 +221,11 @@ export function BookingForm({
           Your family
         </h2>
 
-        <Field label="Your child's first and last name">
-          <Input name="child" required maxLength={120} defaultValue={state.values?.child} autoComplete="off" />
-        </Field>
+        {askChild && (
+          <Field label="Your child's first and last name">
+            <Input name="child" required maxLength={120} defaultValue={state.values?.child} autoComplete="off" />
+          </Field>
+        )}
 
         <fieldset className="space-y-4">
           <legend className="font-semibold">{askPhone ? "Parents or guardians on the call" : "Parents or guardians coming"}</legend>

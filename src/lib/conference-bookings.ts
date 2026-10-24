@@ -16,7 +16,8 @@ export type BookingParent = { name: string; email: string; phone: string | null 
 export type Booking = {
   id: string;
   starts_at: string;
-  child_name: string;
+  /** Null when the teacher doesn't ask for the child's name (20261219000000). */
+  child_name: string | null;
   parents: BookingParent[];
   meeting_mode: "in_person" | "video" | "phone";
   note: string | null;
@@ -48,8 +49,8 @@ export async function withCallPhone<T extends { error: { code?: string } | null 
 }
 
 /** The privacy promise, in one line (emails). The pages show it in full (book/privacy-note). */
-export const privacyLine = (teacher: Teacher, weekly = false) =>
-  `Only ${teacher.name} sees your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`;
+export const privacyLine = (teacher: Teacher, weekly = false, child = true) =>
+  `Only ${teacher.name} sees ${child ? "your child's name, " : ""}your details, and your note. Other families never see who booked. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`;
 
 /** A family's link to see, change or cancel their meeting. */
 export const bookingLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/book/r/${token}`;
@@ -61,11 +62,11 @@ export function meetingWhen(startsAt: string, minutes: number, tz: string) {
   return `${formatDate(utcToZonedDate(startsAt, tz), { year: undefined })} · ${formatTimeRange(startsAt, meetingEnd(startsAt, minutes), tz)}`;
 }
 
-/** What the family is called in the waiting room, so the teacher knows who's there. */
-export const familyName = (child: string) => `${child}'s family`;
+/** What the family is called (in the waiting room, and to the teacher): by the child, or with no child's name, the first parent. */
+export const familyName = (b: Pick<Booking, "child_name" | "parents">) => `${b.child_name ?? b.parents[0]?.name ?? "Your"}'s family`;
 
 /** Where they'll meet and how they'll be let in, as short lines for emails and the family's page. */
-export function meetingPlace(b: Pick<Booking, "meeting_mode" | "child_name" | "call_phone">, event: BookingEvent, s: ConferenceSettings, teacher: Teacher) {
+export function meetingPlace(b: Pick<Booking, "meeting_mode" | "child_name" | "parents" | "call_phone">, event: BookingEvent, s: ConferenceSettings, teacher: Teacher) {
   if (b.meeting_mode === "phone") {
     return {
       title: "Phone call",
@@ -97,7 +98,7 @@ export function meetingPlace(b: Pick<Booking, "meeting_mode" | "child_name" | "c
   return {
     title: "Video",
     lines: [
-      `Join a minute or two early, using “${familyName(b.child_name)}” as your name so ${teacher.name} knows who you are.`,
+      `Join a minute or two early, using “${familyName(b)}” as your name so ${teacher.name} knows who you are.`,
       "You'll wait in a waiting room until you're let in. If the meeting before yours runs over, please stay put: you'll be brought in as soon as they're ready.",
     ],
     link: s.video_link,
@@ -112,12 +113,12 @@ function toIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teac
     sequence: b.calendar_sequence,
     start: new Date(b.starts_at),
     end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
-    summary: `Conference with ${teacher.name}: ${b.child_name}`,
+    summary: b.child_name ? `Conference with ${teacher.name}: ${b.child_name}` : `Conference with ${teacher.name}`,
     location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : b.meeting_mode === "phone" ? `${teacher.name} calls you` : "Video"),
     description: [...place.lines, ...(place.link ? [`Join: ${place.link}`] : []), `Change or cancel: ${link}`].join("\n"),
     url: link,
     attendee: { name: to.name, email: to.email },
-    alarm: place.link ? `Join as ${familyName(b.child_name)}` : `Conference with ${teacher.name}`,
+    alarm: place.link ? `Join as ${familyName(b)}` : `Conference with ${teacher.name}`,
   };
 }
 
@@ -146,6 +147,9 @@ export function bookingEmail(
   const place = meetingPlace(b, event, s, teacher);
   const first = to.name.split(" ")[0];
   const footer = `Sent by ${brand.name} for ${teacher.name}.`;
+  const about = b.child_name ? ` about ${b.child_name}` : "";
+  const forChild = b.child_name ? ` for ${b.child_name}` : "";
+  const details = b.child_name ? "your child's name, your contact details, and your note" : "your contact details and your note";
   // Subjects never name the child: our sent-email log keeps subjects (lib/email), and the child's name is only kept 30 days.
 
   if (kind === "canceled") {
@@ -155,8 +159,8 @@ export function bookingEmail(
         heading: byTeacher ? `${teacher.name} canceled your conference` : "Your conference was canceled",
         paragraphs: [
           byTeacher
-            ? `Hi ${first}, ${teacher.name} had to cancel the conference for ${b.child_name} (${when}). Your booking details (your child's name, your contact details, and your note) have been deleted. You're welcome to book another open time.`
-            : `Hi ${first}, the conference for ${b.child_name} with ${teacher.name} (${when}) is canceled, and your booking details (your child's name, your contact details, and your note) have been deleted.`,
+            ? `Hi ${first}, ${teacher.name} had to cancel the conference${forChild} (${when}). Your booking details (${details}) have been deleted. You're welcome to book another open time.`
+            : `Hi ${first}, the conference${forChild} with ${teacher.name} (${when}) is canceled, and your booking details (${details}) have been deleted.`,
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
         button: { label: "Book another time", url: link },
@@ -187,10 +191,10 @@ export function bookingEmail(
       heading,
       paragraphs: [
         kind === "reminder"
-          ? `Hi ${first}, a reminder that you're meeting ${teacher.name} about ${b.child_name} tomorrow (${event.name}).`
+          ? `Hi ${first}, a reminder that you're meeting ${teacher.name}${about} tomorrow (${event.name}).`
           : moved
-            ? `Hi ${first}, ${teacher.name} moved ${event.name} to a new day. Your meeting about ${b.child_name} is at the same time of day, on the day below.`
-            : `Hi ${first}, you're booked to meet ${teacher.name} about ${b.child_name} (${event.name}).`,
+            ? `Hi ${first}, ${teacher.name} moved ${event.name} to a new day. Your meeting${about} is at the same time of day, on the day below.`
+            : `Hi ${first}, you're booked to meet ${teacher.name}${about} (${event.name}).`,
         ...(moved ? ["If the new day doesn't work for you, use the button below to pick another time or cancel."] : []),
         ...(kind !== "reminder" ? [moved ? "An updated calendar invite is attached, so your calendar shows the new day." : "A calendar invite is attached, so it's on your calendar with the details."] : []),
       ],
@@ -198,7 +202,7 @@ export function bookingEmail(
         { title: "When", detail: when, strong: true },
         { title: place.title, detail: place.lines.join(" ") },
         ...(b.parents.length > 1 ? [{ title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
-        { title: "Your child's privacy", detail: privacyLine(teacher, s.schedule === "weekly") },
+        { title: b.child_name ? "Your child's privacy" : "Your privacy", detail: privacyLine(teacher, s.schedule === "weekly", Boolean(b.child_name)) },
       ],
       // On video, joining is what they'll need most, so it gets the button.
       ...(place.link
@@ -215,8 +219,8 @@ export function bookingEmail(
 export const meetingAnchor = (meetings: string, bookingId: string) => `${meetings}#meeting-${bookingId}`;
 
 /** "Liam Patel" → "Liam P.": enough for the teacher's calendar, which others may be able to see. */
-export const shortName = (child: string) => {
-  const [first, ...rest] = child.trim().split(/\s+/);
+export const shortName = (name: string) => {
+  const [first, ...rest] = name.trim().split(/\s+/);
   const last = rest.at(-1);
   return last ? `${first} ${last[0].toUpperCase()}.` : first;
 };
@@ -227,7 +231,7 @@ const callLine = (b: Pick<Booking, "call_phone">) => (b.call_phone ? `Call ${for
 /** The meeting on the teacher's own calendar. Its own UID, so it never collides with a parent's copy. */
 function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teacher: Teacher, meetings: string): IcsEvent {
   const place = meetingPlace(b, event, s, teacher);
-  const who = `${shortName(b.child_name)}'s family`;
+  const who = `${shortName(b.child_name ?? b.parents[0]?.name ?? "A")}'s family`;
   const mark = meetingAnchor(meetings, b.id);
   return {
     uid: `conference-${b.id}-teacher@fieldcommandevents.com`,
@@ -265,7 +269,7 @@ export function teacherBookingEmail(
 ) {
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
   const place = meetingPlace(b, event, s, teacher);
-  const family = `${b.child_name}'s family`;
+  const family = familyName(b);
   const footer = `Sent by ${brand.name}. Every booking is also on your Meetings page.`;
   // Subjects never name the child (see bookingEmail).
   const subject =

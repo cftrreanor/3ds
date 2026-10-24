@@ -17,6 +17,7 @@ import { formatDate, utcToZonedTime } from "@/lib/time";
 import { setEventType, updateEvent } from "../../../actions";
 import { deleteFile, prepareUpload, saveFile } from "../../../file-actions";
 import { FilesManager } from "./files-manager";
+import { asksChildName } from "@/lib/conference-settings";
 import { EventForm } from "../../_components/event-form";
 import { SavedBy } from "@/components/saved-by";
 import { LogoForm } from "@/components/logo-form";
@@ -59,6 +60,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   if (!event) missing();
   // The account's logo for volunteer badges lives with the other uploads, here.
   const badgesHere = !hasConferences(event.event_type);
+  const askChildName = hasConferences(event.event_type) ? await asksChildName(supabase, eventId) : true;
   const brand = badgesHere ? await loadBrand(event.organization_id) : { logo: null, color: null };
   const [{ count }, { data: fileData }, { count: bandCount }, { count: parentCount }, { count: boothCount }] = await Promise.all([
     supabase.from("shifts").select("id", { count: "exact", head: true }).eq("event_id", eventId),
@@ -131,6 +133,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 lat: event.venue_lat,
                 lng: event.venue_lng,
               },
+              askChildName,
             }}
             venueSearchEnabled={isPlacesConfigured}
             submitLabel="Save changes"

@@ -8,6 +8,7 @@ import { bookingEmail, bookingLink, emailTeacher, meetingWhen, type Booking } fr
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { normalizePhone } from "@/lib/phone";
+import { asksChildName } from "@/lib/conference-settings";
 import { createAdminClient } from "@/lib/supabase/server";
 import { loadBooking, loadConference } from "./data";
 
@@ -25,12 +26,13 @@ export type BookingState = ActionState & {
   values?: BookingValues;
   /** The time was taken while they were filling in the form: pick another. */
   taken?: boolean;
-  booked?: { when: string; child: string; emails: string[]; emailSent: boolean; link: string };
+  /** child is null when the teacher doesn't ask for it. */
+  booked?: { when: string; child: string | null; emails: string[]; emailSent: boolean; link: string };
 };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function readForm(formData: FormData): { values: BookingValues; error?: string } {
+function readForm(formData: FormData, askChild: boolean): { values: BookingValues; error?: string } {
   let parents: BookingValues["parents"] = [];
   try {
     parents = JSON.parse(String(formData.get("parents") ?? "[]"));
@@ -46,7 +48,7 @@ function readForm(formData: FormData): { values: BookingValues; error?: string }
     callPhone: String(formData.get("callPhone") ?? "").trim(),
   };
   if (!values.startsAt || Number.isNaN(Date.parse(values.startsAt))) return { values, error: "Pick a time." };
-  if (values.child.length < 2) return { values, error: "Please enter your child's first and last name." };
+  if (askChild && values.child.length < 2) return { values, error: "Please enter your child's first and last name." };
   if (!values.parents.length) return { values, error: "Add at least one parent or guardian." };
   for (const p of values.parents) {
     if (String(p.name ?? "").trim().length < 2) return { values, error: "Please enter each parent's first and last name." };
@@ -80,7 +82,8 @@ async function emailParents(kind: Parameters<typeof bookingEmail>[0], booking: B
  * in); book_conference() checks the time is real, open and in the future.
  */
 export async function bookConference(eventId: string, _prev: BookingState, formData: FormData): Promise<BookingState> {
-  const { values, error: invalid } = readForm(formData);
+  const askChild = await asksChildName(createAdminClient(), eventId);
+  const { values, error: invalid } = readForm(formData, askChild);
   // Bots fill the hidden field or submit instantly.
   const startedAt = Number(formData.get("startedAt"));
   if (String(formData.get("website") ?? "") || !startedAt || Date.now() - startedAt < 2500) {
@@ -93,7 +96,7 @@ export async function bookConference(eventId: string, _prev: BookingState, formD
   const { data: token, error } = await admin.rpc("book_conference", {
     p_event: eventId,
     p_starts_at: values.startsAt,
-    p_child: values.child,
+    p_child: askChild ? values.child : null,
     // Phone calls: the number to call is also the first parent's phone.
     p_parents: values.parents.map((p, i) => ({
       name: p.name.trim(),

@@ -5305,4 +5305,45 @@ do $$ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Conferences that don't ask for the child's name: none is kept, and a family
+-- books one meeting per first parent's email
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address, ask_child_name)
+values ('1c000000-0000-0000-0000-000000000001', :'org_id', 'No-Name Conferences', 'conf-no-child', 'published', 'conference', 'America/Chicago',
+        current_date + 3, current_date + 3,
+        ((current_date + 3) + time '09:00') at time zone 'America/Chicago',
+        ((current_date + 3) + time '10:00') at time zone 'America/Chicago', '1 School Rd', false);
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room)
+values ('1c000000-0000-0000-0000-000000000001', 20, 0, '[]', now(), 'in_person', 'Room 5');
+do $$
+declare
+  d  date := current_date + 3;
+  s1 timestamptz := (d + time '09:00') at time zone 'America/Chicago';
+  s2 timestamptz := (d + time '09:20') at time zone 'America/Chicago';
+  t1 uuid;
+  ok boolean := false;
+begin
+  t1 := public.book_conference('1c000000-0000-0000-0000-000000000001', s1, 'Should Not Keep',
+          '[{"name": "Dana Reyes", "email": "Dana@Example.com"}]', null, null);
+  assert (select child_name is null from public.conference_bookings where access_token = t1),
+         'no child''s name is kept when the teacher doesn''t ask for it';
+  begin
+    perform public.book_conference('1c000000-0000-0000-0000-000000000001', s2, null, '[{"name": "Dana R", "email": "dana@example.com"}]', null, null);
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%already have a meeting%';
+  end;
+  assert ok, 'one meeting per first parent''s email';
+  perform public.book_conference('1c000000-0000-0000-0000-000000000001', s2, null, '[{"name": "Lee Park", "email": "lee@example.com"}]', null, null);
+  -- Asking again: the child's name is required.
+  update public.events set ask_child_name = true where id = '1c000000-0000-0000-0000-000000000001';
+  ok := false;
+  begin
+    perform public.book_conference('1c000000-0000-0000-0000-000000000001', s1 + interval '40 minutes', null, '[{"name": "Mo Li", "email": "mo@example.com"}]', null, null);
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%child%';
+  end;
+  assert ok, 'with the question on, the child''s name is required';
+end $$;
+delete from public.events where id = '1c000000-0000-0000-0000-000000000001';
+
 \echo 'All database security tests passed.'

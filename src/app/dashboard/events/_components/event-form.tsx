@@ -16,6 +16,8 @@ export type EventFormValues = {
   endTime?: string;
   timezone: string;
   venue?: VenueValue;
+  /** Conferences: whether families give their child's name when they book. */
+  askChildName?: boolean;
 };
 
 /** Used for both creating and editing an event. */
@@ -119,6 +121,28 @@ export function EventForm({
           event team can see them, and they&apos;re permanently deleted 30 days after the event ends. Parents are told
           this when they register.
         </p>
+      )}
+
+      {conference && (
+        <fieldset className="space-y-2">
+          <legend className="mb-3 w-full border-b border-border pt-2 pb-1 font-semibold">Booking</legend>
+          <input type="hidden" name="askChildNameField" value="1" />
+          <label className="flex gap-3 rounded-lg border border-field-border p-3 text-sm leading-6">
+            <input
+              type="checkbox"
+              name="askChildName"
+              defaultChecked={initial.askChildName ?? true}
+              className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+            />
+            <span>
+              <span className="block font-semibold">Ask parents for their child&apos;s name</span>
+              <span className="block text-muted">
+                Turn this off and the booking page doesn&apos;t ask for it. Each family books one meeting, by the first
+                parent&apos;s email.
+              </span>
+            </span>
+          </label>
+        </fieldset>
       )}
 
       {conference && (

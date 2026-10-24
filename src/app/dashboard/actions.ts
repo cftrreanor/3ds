@@ -13,6 +13,7 @@ import { getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
 import { slugify } from "@/lib/slug";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { asksChildName } from "@/lib/conference-settings";
 import { FILES_BUCKET } from "@/lib/event-files";
 import { eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
 import { loadCalendarEntries, sendShiftUpdates } from "@/lib/volunteer-emails";
@@ -133,6 +134,9 @@ const eventSchema = z
     venuePlaceId: optionalText(300).optional(),
     venueLat: coordinate(90),
     venueLng: coordinate(180),
+    // Conferences: "on" when families are asked for their child's name (the field is there when askChildNameField is).
+    askChildName: z.string().optional(),
+    askChildNameField: z.string().optional(),
   })
   .refine((v) => v.eventType === "conference" || Boolean(v.venueAddress), { message: "Required", path: ["venueAddress"] })
   .refine((v) => v.endsOn >= v.startsOn, { message: "End date can't be before the start date", path: ["endsOn"] })
@@ -167,6 +171,8 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
       venue_lat: v.venuePlaceId ? (v.venueLat ?? null) : null,
       venue_lng: v.venuePlaceId ? (v.venueLng ?? null) : null,
       created_by: user.id,
+      // Only when off, so new conferences still save before the 20261219000000 update.
+      ...(v.askChildNameField && v.askChildName !== "on" ? { ask_child_name: false } : {}),
     })
     .select("id")
     .single();
@@ -196,7 +202,10 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
     .update({
       name: v.name,
       ...(conference
-        ? {}
+        ? // Only when it changed, so details still save before the 20261219000000 update.
+          v.askChildNameField && (v.askChildName === "on") !== (await asksChildName(supabase, eventId))
+          ? { ask_child_name: v.askChildName === "on" }
+          : {}
         : {
             venue_name: v.venueName ?? null,
             venue_address: v.venueAddress,
