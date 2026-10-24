@@ -32,7 +32,8 @@ export type MeetingRow =
       status: "now" | "next" | "past" | null;
       booking: {
         id: string;
-        child: string;
+        /** Null for meetings (no child). */
+        child: string | null;
         parents: MeetingParent[];
         mode: string | null;
         /** Phone calls: the number to call. */
@@ -66,6 +67,7 @@ export function MeetingList({
   total,
   summaryHref,
   today,
+  meeting = false,
 }: {
   /** Weekly hours: today's date, to list Today, Needs marking, and Upcoming by day. */
   today?: string;
@@ -75,7 +77,12 @@ export function MeetingList({
   total: number | null;
   /** The one-page summary to print or save as a PDF. */
   summaryHref: string;
+  /** Meetings: people, not families, and no child. */
+  meeting?: boolean;
 }) {
+  // Who each booking is: the child at a conference, the person who booked a meeting.
+  const nameOf = (b: { child: string | null; parents: MeetingParent[] }) => b.child ?? b.parents[0]?.name ?? "";
+  const whoOf = (b: { child: string | null; parents: MeetingParent[] }) => (b.child ? `${b.child}'s family` : (b.parents[0]?.name ?? "them"));
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Taps show at once, like parent check-in; the page catches up when the save lands.
@@ -112,7 +119,7 @@ export function MeetingList({
         if (!r.booking) return !q && openTimes;
         return (
           !q ||
-          [r.booking.child, ...r.booking.parents.flatMap((p) => [p.name, p.email, p.phone ?? ""])].some((x) => x.toLowerCase().includes(q))
+          [r.booking.child ?? "", ...r.booking.parents.flatMap((p) => [p.name, p.email, p.phone ?? ""])].some((x) => x.toLowerCase().includes(q))
         );
       }),
     [rows, q, openTimes],
@@ -164,7 +171,7 @@ export function MeetingList({
                 <span className="hidden font-semibold print:inline">· {outcomes[r.key] === "met" ? "Met" : "No-show"}</span>
               )}
             </p>
-            <p className="text-lg font-semibold">{r.booking.child}</p>
+            <p className="text-lg font-semibold">{nameOf(r.booking)}</p>
             {r.booking.call && (
               <a
                 href={`tel:${r.booking.call.tel}`}
@@ -199,7 +206,7 @@ export function MeetingList({
             <div
               className="flex shrink-0 gap-2 print:hidden"
               role="group"
-              aria-label={`How the meeting with ${r.booking.child}'s family went`}
+              aria-label={`How the meeting with ${whoOf(r.booking)} went`}
             >
               {OUTCOMES.map((o) => {
                 const on = outcomes[r.key] === o.value;
@@ -225,7 +232,7 @@ export function MeetingList({
               <ActionForm
                 action={r.booking.cancel}
                 resetOnSuccess={false}
-                confirmMessage={`Cancel the meeting with ${r.booking.child}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
+                confirmMessage={`Cancel the meeting with ${whoOf(r.booking)}? We'll email them that you canceled, delete their details, and open the time up again.`}
                 className="shrink-0 print:hidden"
               >
                 <SubmitButton variant="ghost" pendingText="Canceling…" className="-ml-4 font-medium underline hover:text-danger">
@@ -257,11 +264,11 @@ export function MeetingList({
           </p>
           <Input
             type="search"
-            placeholder="Child, parent, or email"
+            placeholder={meeting ? "Name or email" : "Child, parent, or email"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="sm:max-w-xs print:hidden"
-            aria-label="Find a family"
+            aria-label={meeting ? "Find someone" : "Find a family"}
           />
         </div>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-5 text-sm print:hidden">
@@ -306,13 +313,13 @@ export function MeetingList({
                         const list = emails.join(", ");
                         try {
                           await navigator.clipboard.writeText(list);
-                          toast(`Copied ${emails.length} parent ${emails.length === 1 ? "email" : "emails"}`);
+                          toast(`Copied ${emails.length} ${meeting ? "" : "parent "}${emails.length === 1 ? "email" : "emails"}`);
                         } catch {
                           window.prompt("Copy these emails:", list);
                         }
                       }}
                     >
-                      Copy all parent emails
+                      {meeting ? "Copy all emails" : "Copy all parent emails"}
                     </button>
                   </li>
                 )}
@@ -329,7 +336,7 @@ export function MeetingList({
       </div>
 
       {shown.length === 0 ? (
-        <p className="mt-6 text-muted">{q ? "No family matches that." : "No meetings booked yet."}</p>
+        <p className="mt-6 text-muted">{q ? (meeting ? "No one matches that." : "No family matches that.") : "No meetings booked yet."}</p>
       ) : (
         <>
           {today ? (
@@ -341,7 +348,7 @@ export function MeetingList({
                 {todays.length > 0 ? (
                   <ol className="mt-3 space-y-3">{todays.map(row)}</ol>
                 ) : (
-                  <p className="mt-1 text-muted">{q ? "No family matches that today." : "No meetings today."}</p>
+                  <p className="mt-1 text-muted">{q ? (meeting ? "No one matches that today." : "No family matches that today.") : "No meetings today."}</p>
                 )}
               </section>
               {toMark.length > 0 && (

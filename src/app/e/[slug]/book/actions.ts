@@ -8,6 +8,7 @@ import { bookingEmail, bookingLink, emailTeacher, meetingWhen, type Booking } fr
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { normalizePhone } from "@/lib/phone";
+import { isMeeting } from "@/lib/event-types";
 import { createAdminClient } from "@/lib/supabase/server";
 import { loadBooking, loadConference } from "./data";
 
@@ -25,12 +26,14 @@ export type BookingState = ActionState & {
   values?: BookingValues;
   /** The time was taken while they were filling in the form: pick another. */
   taken?: boolean;
-  booked?: { when: string; child: string; emails: string[]; emailSent: boolean; link: string };
+  /** child is null for meetings. */
+  booked?: { when: string; child: string | null; emails: string[]; emailSent: boolean; link: string };
 };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function readForm(formData: FormData): { values: BookingValues; error?: string } {
+/** Meetings have no child, and anyone books: "each person", not "each parent". */
+function readForm(formData: FormData, meeting: boolean): { values: BookingValues; error?: string } {
   let parents: BookingValues["parents"] = [];
   try {
     parents = JSON.parse(String(formData.get("parents") ?? "[]"));
@@ -46,18 +49,19 @@ function readForm(formData: FormData): { values: BookingValues; error?: string }
     callPhone: String(formData.get("callPhone") ?? "").trim(),
   };
   if (!values.startsAt || Number.isNaN(Date.parse(values.startsAt))) return { values, error: "Pick a time." };
-  if (values.child.length < 2) return { values, error: "Please enter your child's first and last name." };
-  if (!values.parents.length) return { values, error: "Add at least one parent or guardian." };
+  if (!meeting && values.child.length < 2) return { values, error: "Please enter your child's first and last name." };
+  const each = meeting ? "person" : "parent";
+  if (!values.parents.length) return { values, error: meeting ? "Please enter your name and email address." : "Add at least one parent or guardian." };
   for (const p of values.parents) {
-    if (String(p.name ?? "").trim().length < 2) return { values, error: "Please enter each parent's first and last name." };
-    if (!EMAIL.test(String(p.email ?? "").trim())) return { values, error: "Please enter a valid email address for each parent." };
+    if (String(p.name ?? "").trim().length < 2) return { values, error: `Please enter each ${each}'s first and last name.` };
+    if (!EMAIL.test(String(p.email ?? "").trim())) return { values, error: `Please enter a valid email address for each ${each}.` };
     if (String(p.phone ?? "").trim() && !normalizePhone(String(p.phone))) {
       return { values, error: "Please enter a 10-digit phone number, or leave it blank." };
     }
   }
   if (values.note.length > 500) return { values, error: "Please keep your note under 500 characters." };
   if (values.callPhone && !normalizePhone(values.callPhone)) {
-    return { values, error: "Please enter a 10-digit phone number for your teacher to call." };
+    return { values, error: meeting ? "Please enter a 10-digit phone number to call." : "Please enter a 10-digit phone number for your teacher to call." };
   }
   return { values };
 }
@@ -76,11 +80,13 @@ async function emailParents(kind: Parameters<typeof bookingEmail>[0], booking: B
 }
 
 /**
- * A family books a meeting. Runs with the server's key (families aren't signed
- * in); book_conference() checks the time is real, open and in the future.
+ * A family books a conference, or someone books a meeting. Runs with the
+ * server's key (they aren't signed in); book_conference() checks the time is
+ * real, open and in the future.
  */
 export async function bookConference(eventId: string, _prev: BookingState, formData: FormData): Promise<BookingState> {
-  const { values, error: invalid } = readForm(formData);
+  const meeting = isMeeting((await loadConference({ id: eventId }))?.event.event_type);
+  const { values, error: invalid } = readForm(formData, meeting);
   // Bots fill the hidden field or submit instantly.
   const startedAt = Number(formData.get("startedAt"));
   if (String(formData.get("website") ?? "") || !startedAt || Date.now() - startedAt < 2500) {
@@ -93,7 +99,7 @@ export async function bookConference(eventId: string, _prev: BookingState, formD
   const { data: token, error } = await admin.rpc("book_conference", {
     p_event: eventId,
     p_starts_at: values.startsAt,
-    p_child: values.child,
+    p_child: meeting ? null : values.child,
     // Phone calls: the number to call is also the first parent's phone.
     p_parents: values.parents.map((p, i) => ({
       name: p.name.trim(),
@@ -140,7 +146,7 @@ export async function changeBooking(token: string, _prev: ActionState, formData:
   const mode = String(formData.get("mode") ?? "");
   const callPhone = String(formData.get("callPhone") ?? "").trim();
   if (!startsAt || Number.isNaN(Date.parse(startsAt))) return { error: "Pick a time." };
-  if (callPhone && !normalizePhone(callPhone)) return { error: "Please enter a 10-digit phone number for your teacher to call." };
+  if (callPhone && !normalizePhone(callPhone)) return { error: "Please enter a 10-digit phone number to call." };
   const admin = createAdminClient();
   const { data: eventId, error } = await admin.rpc("change_conference_booking", {
     p_token: token,

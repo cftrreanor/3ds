@@ -5,7 +5,7 @@ import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/server";
 import { utcToZonedDate } from "@/lib/time";
-import { hasConferences } from "@/lib/event-types";
+import { hasConferences, isMeeting } from "@/lib/event-types";
 
 export type ConferenceEvent = BookingEvent & {
   id: string;
@@ -37,7 +37,7 @@ export async function loadConference(by: { slug: string } | { id: string }) {
       ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const t: Teacher = { name: teacher?.full_name?.trim() || "Your teacher", email: teacher?.email ?? null };
+  const t: Teacher = { name: teacher?.full_name?.trim() || (isMeeting(event.event_type) ? "Your organizer" : "Your teacher"), email: teacher?.email ?? null };
   return { event: event as ConferenceEvent, settings: s, teacher: t };
 }
 

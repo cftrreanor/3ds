@@ -21,6 +21,7 @@ export function ChangeBookingForm({
   times,
   mode,
   modes,
+  caller,
 }: {
   action: Action;
   /** The booked time, kept as the first choice. */
@@ -29,6 +30,8 @@ export function ChangeBookingForm({
   mode: Mode;
   /** The ways the teacher offers now. */
   modes: Mode[];
+  /** Meetings: who calls (a conference says "Your child's teacher"). */
+  caller?: string;
 }) {
   const askMode = modes.length > 1;
   const [time, setTime] = useState(current.value);
@@ -63,7 +66,7 @@ export function ChangeBookingForm({
         )}
       </div>
       {askPhone && (
-        <Field label="Phone number for the call" hint="Your child's teacher calls you at this number. The call may come from a school or private number.">
+        <Field label="Phone number for the call" hint={`${caller ?? "Your child's teacher"} calls you at this number. The call may come from a school or private number.`}>
           <Input name="callPhone" type="tel" required maxLength={30} autoComplete="tel" />
         </Field>
       )}
@@ -82,14 +85,18 @@ export function ChangeBookingForm({
 }
 
 /** Cancel the meeting: red, and the confirmation says what happens. */
-export function CancelBookingButton({ action, child }: { action: () => Promise<ActionState>; child: string }) {
+export function CancelBookingButton({ action, child }: { action: () => Promise<ActionState>; /** Null for a meeting. */ child: string | null }) {
   return (
     <ActionForm
       action={async () => action()}
-      confirmMessage={`Cancel the conference for ${child}? The time opens up for another family, and everyone on this booking is emailed.`}
+      confirmMessage={
+        child
+          ? `Cancel the conference for ${child}? The time opens up for another family, and everyone on this booking is emailed.`
+          : "Cancel this meeting? The time opens up for someone else, and everyone on this booking is emailed."
+      }
     >
       <SubmitButton variant="danger" pendingText="Canceling…">
-        Cancel Conference
+        {child ? "Cancel Conference" : "Cancel Meeting"}
       </SubmitButton>
     </ActionForm>
   );

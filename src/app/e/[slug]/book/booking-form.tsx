@@ -25,7 +25,8 @@ export type OpenTime = { value: string; label: string; day: string; dayLabel: st
  * A family books a meeting: pick an open time, their child, the parents who'll
  * come (each is emailed), how they'll meet when the teacher offers more than
  * one way (and the number to call, for a phone call), and an optional note.
- * Booked times never show.
+ * Meetings are the same without a child: the person booking, and up to three
+ * others. Booked times never show.
  */
 export function BookingForm({
   action,
@@ -34,6 +35,7 @@ export function BookingForm({
   teacher,
   place,
   zone,
+  meeting = false,
 }: {
   action: (prev: BookingState, formData: FormData) => Promise<BookingState>;
   times: OpenTime[];
@@ -45,6 +47,8 @@ export function BookingForm({
   place: string;
   /** The conference's time zone by name, e.g. "Central Time". */
   zone: string;
+  /** Meetings: no child, and "you" plus up to three others instead of parents. */
+  meeting?: boolean;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, {});
@@ -76,7 +80,15 @@ export function BookingForm({
   // first time (components/required-fields.tsx); this says what's missing there.
   const [noTime, setNoTime] = useState(false);
   const hint = (m: Mode) =>
-    m === "in_person" && place ? `Come to ${place}.` : m === "phone" ? `${teacher} calls you.` : FAMILY_MODES.find((x) => x.value === m)!.hint;
+    m === "in_person" && place
+      ? `Come to ${place}.`
+      : m === "phone"
+        ? `${teacher} calls you.`
+        : meeting && m === "in_person"
+          ? "Meet in person."
+          : FAMILY_MODES.find((x) => x.value === m)!.hint;
+  // Who each person on the booking is, as the form names them.
+  const personLabel = (i: number) => (meeting ? (i === 0 ? "You" : `Person ${i + 1}`) : `Parent or guardian ${i + 1}`);
 
   if (state.booked) {
     const b = state.booked;
@@ -84,7 +96,7 @@ export function BookingForm({
       <Card className="space-y-3 border-success/30 bg-success-soft" role="status">
         <h2 className="text-2xl font-semibold">You&apos;re booked</h2>
         <p className="text-lg font-medium">{b.when}</p>
-        <p>Conference for {b.child}.</p>
+        <p>{b.child ? `Conference for ${b.child}.` : `Meeting with ${teacher}.`}</p>
         <p className="text-sm text-muted">
           {b.emailSent
             ? `We emailed a calendar invite to ${b.emails.join(" and ")}, with the details and a link to change or cancel. We'll remind you the day before.`
@@ -101,7 +113,9 @@ export function BookingForm({
     return (
       <Card>
         <p className="font-medium">Every time is booked.</p>
-        <p className="mt-1 text-sm text-muted">Please contact your child&apos;s teacher to find another time.</p>
+        <p className="mt-1 text-sm text-muted">
+          {meeting ? `Please contact ${teacher} to find another time.` : <>Please contact your child&apos;s teacher to find another time.</>}
+        </p>
       </Card>
     );
   }
@@ -215,20 +229,30 @@ export function BookingForm({
 
       <section aria-labelledby="family-heading" className="space-y-6">
         <h2 id="family-heading" className="text-2xl font-semibold">
-          Your family
+          {meeting ? "Who's coming" : "Your family"}
         </h2>
 
-        <Field label="Your child's first and last name">
-          <Input name="child" required maxLength={120} defaultValue={state.values?.child} autoComplete="off" />
-        </Field>
+        {!meeting && (
+          <Field label="Your child's first and last name">
+            <Input name="child" required maxLength={120} defaultValue={state.values?.child} autoComplete="off" />
+          </Field>
+        )}
 
         <fieldset className="space-y-4">
-          <legend className="font-semibold">{askPhone ? "Parents or guardians on the call" : "Parents or guardians coming"}</legend>
+          <legend className="font-semibold">
+            {meeting
+              ? askPhone
+                ? "You, and anyone else on the call"
+                : "You, and anyone else coming"
+              : askPhone
+                ? "Parents or guardians on the call"
+                : "Parents or guardians coming"}
+          </legend>
           <p className="-mt-3 text-sm text-muted">Each person gets the confirmation, calendar invite, and reminder.</p>
           {parents.map((p, i) => (
             <fieldset key={i} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
-              {/* Says which parent each "Name" and "Email" belongs to; shown once there's more than one. */}
-              <legend className={parents.length > 1 ? "px-1 text-sm font-semibold text-muted" : "sr-only"}>Parent or guardian {i + 1}</legend>
+              {/* Says whose "Name" and "Email" these are; shown once there's more than one. */}
+              <legend className={parents.length > 1 ? "px-1 text-sm font-semibold text-muted" : "sr-only"}>{personLabel(i)}</legend>
               <Field label="Name">
                 <Input required maxLength={120} value={p.name} onChange={(e) => set(i, { name: e.target.value })} autoComplete={i ? "off" : "name"} />
               </Field>
@@ -253,7 +277,7 @@ export function BookingForm({
                   <Button
                     type="button"
                     variant="danger"
-                    aria-label={`Remove parent or guardian ${i + 1}`}
+                    aria-label={`Remove ${meeting ? `person ${i + 1}` : `parent or guardian ${i + 1}`}`}
                     onClick={() => setParents((list) => list.filter((_, j) => j !== i))}
                   >
                     Remove
@@ -264,14 +288,18 @@ export function BookingForm({
           ))}
           {parents.length < 4 && (
             <Button type="button" variant="secondary" onClick={() => setParents((list) => [...list, blankParent()])}>
-              + Add another parent or guardian
+              {meeting ? "+ Add someone else" : "+ Add another parent or guardian"}
             </Button>
           )}
         </fieldset>
 
         <Field
           label="Anything you'd like to talk about? (optional)"
-          hint={`Only ${teacher} sees this. Please leave out health or medical details; share those with the school directly.`}
+          hint={
+            meeting
+              ? `Only ${teacher} sees this. Please leave out health or medical details.`
+              : `Only ${teacher} sees this. Please leave out health or medical details; share those with the school directly.`
+          }
         >
           <Textarea name="note" rows={3} maxLength={500} defaultValue={state.values?.note} />
         </Field>

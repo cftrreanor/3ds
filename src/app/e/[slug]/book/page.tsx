@@ -8,6 +8,7 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { modesLabel, modesOf, weeklySummary } from "@/lib/conferences";
 import { formatDate, formatTime, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
+import { bookingWords } from "@/lib/event-types";
 import { bookConference } from "./actions";
 import { BookingForm } from "./booking-form";
 import { loadConference } from "./data";
@@ -17,10 +18,10 @@ type Params = { params: Promise<{ slug: string }>; searchParams: Promise<Record<
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const conf = await loadConference({ slug: (await params).slug });
-  return { title: conf ? `Book a time: ${conf.event.name}` : "Book a conference" };
+  return { title: conf ? `Book a time: ${conf.event.name}` : "Book a time" };
 }
 
-/** Families book a parent-teacher conference: only open times are shown. */
+/** Families book a parent-teacher conference, or anyone books a meeting: only open times are shown. */
 export default async function BookConferencePage({ params, searchParams }: Params) {
   const { slug } = await params;
   const { canceled } = await searchParams;
@@ -33,6 +34,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
   }
   const { event, settings, teacher } = conf;
   const published = event.status === "published";
+  const words = bookingWords(event.event_type);
   const supabase = await createClient();
   // A draft is only previewed by the teacher (who can read it), like any event page.
   if (!published && !(await supabase.from("events").select("id").eq("id", event.id).maybeSingle()).data) missing();
@@ -73,7 +75,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
       <EventHeaderBar slug={slug} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
         <header>
-          <p className="text-sm font-medium text-muted">Parent-teacher conference</p>
+          <p className="text-sm font-medium text-muted">{words.child ? "Parent-teacher conference" : "Book a meeting"}</p>
           <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
           <p className="mt-2 text-xl font-medium">with {teacher.name}</p>
           <dl className="mt-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-border pt-4">
@@ -89,7 +91,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
 
         {canceled === "1" && (
           <Card className="mt-6 bg-brand-soft" role="status">
-            <p className="font-medium">Your conference was canceled. You can book another time below.</p>
+            <p className="font-medium">Your {words.child ? "conference" : "meeting"} was canceled. You can book another time below.</p>
           </Card>
         )}
 
@@ -103,14 +105,15 @@ export default async function BookConferencePage({ params, searchParams }: Param
                 teacher={teacher.name}
                 place={place}
                 zone={zoneName(event.timezone)}
+                meeting={!words.child}
               />
               <div className="mt-6">
-                <PrivacyNote teacher={teacher.name} weekly={weekly} />
+                <PrivacyNote teacher={teacher.name} weekly={weekly} meeting={!words.child} />
               </div>
             </>
           ) : (
             <Card>
-              <p className="font-medium">Preview: booking opens when {teacher.name} publishes these conferences.</p>
+              <p className="font-medium">Preview: booking opens when {teacher.name} publishes these {words.event}.</p>
             </Card>
           )}
         </div>

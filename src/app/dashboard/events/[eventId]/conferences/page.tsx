@@ -6,7 +6,7 @@ import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, placeMiss
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
-import { hasConferences } from "@/lib/event-types";
+import { hasConferences, isMeeting } from "@/lib/event-types";
 import { displayTime } from "@/lib/schedule";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
@@ -18,7 +18,7 @@ import { conferenceBookedCount } from "@/lib/conference-access";
 import { ConferencePublishBar, ConferenceSetup, MeetingPlaceForm, MeetingTimesForm } from "./conference-forms";
 import { SavedBy } from "@/components/saved-by";
 
-export const metadata: Metadata = { title: "Conference Setup" };
+export const metadata: Metadata = { title: "Setup" };
 
 /**
  * A teacher sets up their parent-teacher conferences in steps (see "Setup
@@ -37,6 +37,8 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
     .maybeSingle();
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
+  const meeting = isMeeting(event.event_type);
+  const who = meeting ? "people" : "families";
 
   const { saved, settings, error } = await loadConferenceSettings(supabase, eventId);
   if (error) missing();
@@ -61,7 +63,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Conference Setup</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{meeting ? "Meeting Setup" : "Conference Setup"}</h1>
       <SavedBy eventId={eventId} area="conference" className="mt-2" />
       <p className="mt-2 text-muted">
         {weekly
@@ -83,7 +85,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
               action={setEventPublished.bind(null, eventId, false)}
               variant="stop"
               pendingText="Unpublishing…"
-              confirmMessage="Unpublish your conference? Your public page will be hidden. You can publish again anytime."
+              confirmMessage={`Unpublish your ${meeting ? "meetings" : "conference"}? Your public page will be hidden. You can publish again anytime.`}
             >
               Unpublish
             </ActionButton>
@@ -104,7 +106,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
             />
           }
           open={!timesDone}
-          intro="One day or the same times every week, how long each meeting is, and any breaks. Your hours are cut into meetings families can book."
+          intro={`One day or the same times every week, how long each meeting is, and any breaks. Your hours are cut into meetings ${who} can book.`}
         >
           <MeetingTimesForm
             action={saveMeetingTimes.bind(null, eventId)}
@@ -123,7 +125,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
           title="2. Where you'll meet"
           status={<StepStatus done={!placeTodo} doneLabel={modesLabel(modesOf(settings)) ?? "Done"} />}
           open={timesDone && Boolean(placeTodo)}
-          intro="Your room, a video link, phone calls, or any mix. Families wait until you're ready for them, or you call them."
+          intro={`Your room, a video link, phone calls, or any mix. ${meeting ? "People" : "Families"} wait until you're ready for them, or you call them.`}
         >
           <MeetingPlaceForm
             action={saveMeetingPlace.bind(null, eventId)}

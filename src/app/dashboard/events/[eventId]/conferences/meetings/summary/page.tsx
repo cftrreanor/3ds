@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import type { Booking } from "@/lib/conference-bookings";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
-import { hasConferences } from "@/lib/event-types";
+import { hasConferences, isMeeting } from "@/lib/event-types";
 import { RECORDS_NOTE } from "@/lib/records";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 import { isSchemaError, missing } from "@/lib/schema-check";
@@ -31,7 +31,8 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
   const { data: event } = await supabase.from("events").select("id, name, event_type, timezone, starts_on, ends_on").eq("id", eventId).maybeSingle();
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
-  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} />;
+  const meeting = isMeeting(event.event_type);
+  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} meeting={isMeeting(event.event_type)} />;
 
   const columns = "id, starts_at, child_name, parents";
   const load = (extra: string) =>
@@ -105,11 +106,13 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
               <th scope="col" className="py-2 pr-3 font-semibold">
                 Time
               </th>
+              {!meeting && (
+                <th scope="col" className="py-2 pr-3 font-semibold">
+                  Student
+                </th>
+              )}
               <th scope="col" className="py-2 pr-3 font-semibold">
-                Student
-              </th>
-              <th scope="col" className="py-2 pr-3 font-semibold">
-                Parents
+                {meeting ? "Who" : "Parents"}
               </th>
               {outcomesReady && (
                 <th scope="col" className="py-2 font-semibold">
@@ -122,7 +125,7 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
             {bookings.map((b) => (
               <tr key={b.id} className="break-inside-avoid border-b border-border align-top">
                 <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{time(b.starts_at)}</td>
-                <td className="py-2 pr-3 font-medium">{b.child_name}</td>
+                {!meeting && <td className="py-2 pr-3 font-medium">{b.child_name}</td>}
                 <td className="py-2 pr-3">{b.parents.map((p) => p.name).join(", ")}</td>
                 {outcomesReady && <td className="whitespace-nowrap py-2">{b.outcome ? OUTCOME_LABEL[b.outcome] : "Not marked"}</td>}
               </tr>
