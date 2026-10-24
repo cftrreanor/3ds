@@ -5,6 +5,7 @@ import { isDemoEmail } from "@/lib/demo-email";
 import { emailButton, emailShell } from "@/lib/email-format";
 import { eventSender } from "@/lib/event-sender";
 import { isQa } from "@/lib/qa";
+import { withOrganizerEmail } from "@/lib/ics";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
@@ -102,7 +103,8 @@ export function inviteMessage({
     icalEvent: {
       method: invite.method,
       filename: invite.method === "CANCEL" ? "cancel.ics" : "invite.ics",
-      content: invite.content,
+      // Yes / No answers go where replies go (the organizer), not to no-reply.
+      content: replyTo ? withOrganizerEmail(invite.content, replyTo) : invite.content,
     },
   };
 }
