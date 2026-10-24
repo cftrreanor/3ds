@@ -303,7 +303,8 @@ export function BookingForm({
                   <Input type="tel" maxLength={30} value={p.phone} onChange={(e) => set(i, { phone: e.target.value })} autoComplete={i ? "off" : "tel"} />
                 </Field>
               )}
-              {parents.length > 1 && (
+              {/* Without the child, "You" stays; only the people added can be removed. */}
+              {parents.length > 1 && (askChild || i > 0) && (
                 <div className="flex items-end">
                   <Button
                     type="button"
