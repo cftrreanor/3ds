@@ -1,6 +1,9 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { countPilotOpen } from "@/app/site-metrics-actions";
+import { visitSource } from "@/components/visit-counter";
 import { ActionForm, useFieldErrors } from "@/components/action-form";
 import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
@@ -26,10 +29,22 @@ export function PilotForm({
   const [email, setEmail] = useState("");
   const [startedAt] = useState(() => Date.now());
   const touched = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const opened = useRef(false);
+  const [source, setSource] = useState("");
+  // Counted once, the first time someone starts filling it in (Admin → Site visits).
+  const markOpened = () => {
+    if (opened.current) return;
+    opened.current = true;
+    const from = visitSource();
+    setSource(from);
+    countPilotOpen(pathname, from).catch(() => {});
+  };
   // A real tap, click or key press in the form. Browsers mark these as coming
   // from a person (isTrusted); events faked by a script aren't.
   const markTouched = (e: SyntheticEvent) => {
     if (e.nativeEvent.isTrusted && touched.current) touched.current.value = "1";
+    if (e.nativeEvent.isTrusted) markOpened();
   };
   if (sentTo !== null) return <Sent email={sentTo} />;
   return (
@@ -39,6 +54,8 @@ export function PilotForm({
             time on the page, and proof a person actually touched the form. */}
         <input type="hidden" name="startedAt" value={startedAt} />
         <input type="hidden" name="touched" ref={touched} defaultValue="" />
+        <input type="hidden" name="page" value={pathname} />
+        <input type="hidden" name="source" value={source} />
         <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
           <label>
             Website
