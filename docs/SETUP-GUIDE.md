@@ -157,8 +157,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261216000000_qa_comments.sql` | **QA comments**: where the QA site keeps comments left on its pages, their replies, and screenshots (docs/QA-SETUP.md). The live site never uses it, and only the server can read it. | ✅ run |
 | `20261217000000_site_metrics.sql` | **Site visits**: daily counts of visits to the marketing pages, where visitors came from, which sections they reach, which buttons and links they click, and how many start and send the pilot form (Admin → Site visits). No cookies and nothing about who visited. Only the server can read it. | ✅ run |
 | `20261218000000_account_activation.sql` | **Accounts switched on by you**: a host who accepts your invitation starts on the free pilot plan right away (no need to set it by hand). Teacher accounts need your invitation too, and teachers ask through the pilot form. Closing an account takes its events offline at once. | ✅ run |
-| `20261219000000_conference_child_optional.sql` | **Child's name optional at conferences**: on Edit event details, a teacher can turn off "Ask parents for their child's name". The booking page then doesn't ask for it, and each family books one meeting by the first parent's email. | ⬜ not yet |
-| `20261220000000_event_show_brand.sql` | **Logo on or off per event**: on Edit event details (conferences too), a host can hide the account's logo and color on one event. They stay on every other event. | ⬜ not yet |
+| `20261219000000_conference_child_optional.sql` | **Child's name optional at conferences**: on Edit event details, a teacher can turn off "Ask parents for their child's name". The booking page then doesn't ask for it, and each family books one meeting by the first parent's email. | ✅ run |
+| `20261220000000_event_show_brand.sql` | **Logo on or off per event**: on Edit event details (conferences too), a host can hide the account's logo and color on one event. They stay on every other event. | ✅ run |
 
 ## Pilot requests
 
