@@ -79,6 +79,8 @@ export function MeetingList({
 }) {
   // Who each booking is: the child, or with no child's name, the first parent.
   const nameOf = (b: { child: string | null; parents: MeetingParent[] }) => b.child ?? b.parents[0]?.name ?? "";
+  // "Ava Lopez's family", or with no child's name, the parent themself.
+  const whoOf = (b: { child: string | null; parents: MeetingParent[] }) => (b.child ? `${b.child}'s family` : nameOf(b));
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Taps show at once, like parent check-in; the page catches up when the save lands.
@@ -202,7 +204,7 @@ export function MeetingList({
             <div
               className="flex shrink-0 gap-2 print:hidden"
               role="group"
-              aria-label={`How the meeting with ${nameOf(r.booking)}'s family went`}
+              aria-label={`How the meeting with ${whoOf(r.booking)} went`}
             >
               {OUTCOMES.map((o) => {
                 const on = outcomes[r.key] === o.value;
@@ -228,7 +230,7 @@ export function MeetingList({
               <ActionForm
                 action={r.booking.cancel}
                 resetOnSuccess={false}
-                confirmMessage={`Cancel the meeting with ${nameOf(r.booking)}'s family? We'll email them that you canceled, delete their details, and open the time up again.`}
+                confirmMessage={`Cancel the meeting with ${whoOf(r.booking)}? We'll email them that you canceled, delete their details, and open the time up again.`}
                 className="shrink-0 print:hidden"
               >
                 <SubmitButton variant="ghost" pendingText="Canceling…" className="-ml-4 font-medium underline hover:text-danger">

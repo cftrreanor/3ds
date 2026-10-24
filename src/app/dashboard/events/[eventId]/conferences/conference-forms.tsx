@@ -782,8 +782,9 @@ function WaitingRoomGuide({ hours }: { hours: string }) {
       <p className="font-semibold">Set up one meeting for the whole time</p>
       <p className="mt-1">
         Create a single meeting that runs {hours}, with a waiting room turned on. Every family gets the same link and
-        waits until you let them in, so meetings never overlap. Families are asked to join using their child&apos;s
-        name (&ldquo;Ava Lopez&apos;s family&rdquo;), so you can match the waiting room to your list.
+        waits until you let them in, so meetings never overlap. Families are asked to join using the name on their
+        booking (&ldquo;Ava Lopez&apos;s family,&rdquo; or a parent&apos;s own name when you don&apos;t ask for the child&apos;s), so
+        you can match the waiting room to your list.
       </p>
       <details className="mt-3 rounded-md border border-border bg-surface px-3 py-2">
         <summary className="cursor-pointer font-semibold">Zoom</summary>
