@@ -364,7 +364,9 @@ export function SignupForm({
         <FormMessage error={state.error} />
         <SubmitButtonWithCount count={chosen.size} people={groupSize} disabled={disabled} />
         <p className="text-center text-xs text-muted">
-          Your contact details are shared only with the event team, and deleted 10 days after the event.
+          Your contact details are shared only with the event team. Your phone number is deleted 10 days after the event; the
+          organizer keeps your name, email, and how many shifts you&apos;ve volunteered for 2 years, to thank and invite back
+          returning volunteers.
         </p>
       </div>
       </ActionPendingContext>

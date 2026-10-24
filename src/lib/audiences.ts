@@ -140,7 +140,7 @@ export const audiences = {
       "Only your organizers and each band's own director see that band's contact details.",
       "Section Leads see each band's name, school, and progress. Volunteer Leads also see headcounts and vehicles.",
       "Directors' personal details are removed 2 years after the contest. The band, school, and headcounts stay for your records.",
-      "Volunteers' details are deleted 10 days after the contest.",
+      "Volunteers' phone numbers are deleted 10 days after the contest.",
     ],
     faqs: [
       {
@@ -279,7 +279,7 @@ export const audiences = {
       "Only your organizers and each group's own director see that group's contact details.",
       "Families see room times, never contact details or headcounts.",
       "Directors' personal details are removed 2 years after the festival. The group, school, and headcounts stay for your records.",
-      "Volunteers' details are deleted 10 days after the festival.",
+      "Volunteers' phone numbers are deleted 10 days after the festival.",
     ],
     faqs: [
       {
@@ -406,7 +406,7 @@ export const audiences = {
     ],
     privacy: [
       "Partners' contact details never appear on the public page and are removed 15 months after the event.",
-      "Volunteers' details are deleted 10 days after the event.",
+      "Volunteers' phone numbers are deleted 10 days after the event.",
       "Student volunteers under 18 are stored by first name and last initial, with their parent's contact details.",
       "Station Coordinators see their volunteers' phone numbers only on event day.",
     ],
@@ -537,7 +537,7 @@ export const audiences = {
       },
     ],
     privacy: [
-      "Volunteers never make an account, and their details are deleted 10 days after the event.",
+      "Volunteers never make an account, and their phone numbers are deleted 10 days after the event.",
       "Under-18 helpers are stored by first name and last initial, with their parent's contact details.",
       "Section Leads see their volunteers' contact details only on event day.",
       "No ads, no spam, and emails used only for your event",
