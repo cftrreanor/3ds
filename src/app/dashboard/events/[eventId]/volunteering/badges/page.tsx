@@ -9,6 +9,7 @@ import { getEventAccess, getOrigin } from "@/lib/data";
 import { FILES_BUCKET } from "@/lib/event-files";
 import { RECORDS_NOTE } from "@/lib/records";
 import { missing } from "@/lib/schema-check";
+import { loadEventBrand } from "@/lib/event-brand";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { eachDate, formatDate, formatDateRange } from "@/lib/time";
 import { BadgeColorScope, PrintBadgesButton } from "./badge-controls";
@@ -54,7 +55,8 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
   const publicUrl = `${await getOrigin()}/e/${event.slug}`;
   const [badges, { logo, color: brandColor }, qr, { data: stationData }, { data: fileData }] = await Promise.all([
     loadBadges(eventId, event.timezone, days.length > 1, { station: station || undefined, day: day || undefined }),
-    loadBrand(event.organization_id),
+    // The event can switch the account's logo and color off (Edit event details).
+    loadEventBrand(event.slug).then((b) => (b.logoPath || b.color ? loadBrand(event.organization_id) : { logo: null, color: null })),
     QRCode.toString(publicUrl, { type: "svg", margin: 0 }),
     supabase.from("stations").select("id, name").eq("event_id", eventId).order("sort_order").order("created_at"),
     // Maps for the back: what the team can see (hosts see every file).

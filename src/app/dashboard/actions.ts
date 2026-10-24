@@ -723,6 +723,18 @@ export async function deleteShift(eventId: string, shiftId: string): Promise<Act
 }
 
 /** Change the kind of event (the database checks no bands, or parents, have registered). */
+/** Shows or hides the account's logo and color on this event's public pages (and its badges). */
+export async function setEventShowBrand(eventId: string, show: boolean): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("events").update({ show_brand: show }).eq("id", eventId).select("slug");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's host can change this." };
+  revalidatePath(`/e/${data[0].slug}`, "layout");
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: show ? "Your logo and color are back on this event." : "Your logo and color are off for this event." };
+}
+
 export async function setEventType(eventId: string, type: string): Promise<ActionState> {
   await requireUser();
   if (!isEventType(type)) return { error: "Pick a kind of event." };

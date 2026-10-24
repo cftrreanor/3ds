@@ -5346,4 +5346,25 @@ begin
 end $$;
 delete from public.events where id = '1c000000-0000-0000-0000-000000000001';
 
+-- ---------------------------------------------------------------------------
+-- Each event can switch the account's logo and color off (on by default)
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address)
+values ('1b000000-0000-0000-0000-000000000001', :'org_id', 'Brand Switch', 'brand-switch', 'draft', 'volunteer', 'America/Chicago',
+        current_date + 3, current_date + 3, now() + interval '3 days', now() + interval '3 days 2 hours', '1 Main St');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set show_brand = false where id = '1b000000-0000-0000-0000-000000000001';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+update public.events set show_brand = true where id = '1b000000-0000-0000-0000-000000000001';
+reset role;
+do $$
+begin
+  assert (select not show_brand from public.events where id = '1b000000-0000-0000-0000-000000000001'),
+         'a host switches the logo off for one event, and a stranger can''t switch it back';
+  assert (select show_brand from public.events where id = '10000000-0000-0000-0000-00000000000a'), 'events show it by default';
+end $$;
+delete from public.events where id = '1b000000-0000-0000-0000-000000000001';
+
 \echo 'All database security tests passed.'
