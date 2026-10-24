@@ -85,7 +85,7 @@ export function HistoryTable({ rows, remove }: { rows: HistoryRow[]; remove?: (e
   };
 
   const removeOne = (r: HistoryRow) => {
-    if (!remove || !confirm(`Remove ${r.full_name} from your volunteer history? Their counts are deleted and can't be brought back.`)) return;
+    if (!remove || !confirm(`Remove ${r.full_name} from your volunteer tracking? Their counts are deleted and can't be brought back.`)) return;
     startTransition(async () => {
       const result = await remove(r.email);
       if (result.error) toast(result.error);
@@ -99,7 +99,7 @@ export function HistoryTable({ rows, remove }: { rows: HistoryRow[]; remove?: (e
   if (!rows.length) {
     return (
       <p className="rounded-xl border border-border bg-surface p-4 text-muted">
-        No volunteer history yet. It fills in as volunteers check in to shifts at your events.
+        No volunteers to show yet. This fills in as volunteers check in to shifts at your events.
       </p>
     );
   }

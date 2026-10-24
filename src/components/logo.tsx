@@ -28,7 +28,7 @@ export function HeaderBar({
 }) {
   return (
     <header className="bg-header text-header-foreground">
-      <div className={`mx-auto flex ${maxWidth} items-center justify-between gap-3 px-4 py-2.5 sm:px-6`}>
+      <div className={`mx-auto flex ${maxWidth} flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2.5 sm:px-6`}>
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <Logo href={href} />
           {eventLogo && (
@@ -41,7 +41,8 @@ export function HeaderBar({
             </>
           )}
         </div>
-        {children && <div className="flex items-center gap-1 text-sm sm:gap-2">{children}</div>}
+        {/* On a narrow phone the links move under the logo rather than overlap it. */}
+        {children && <div className="ml-auto flex items-center gap-1 text-sm sm:gap-2">{children}</div>}
       </div>
     </header>
   );

@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
+import { trackingAccounts } from "@/lib/volunteer-tracking";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   if (!isSupabaseConfigured) {
@@ -21,11 +22,13 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   // account's email, or booked from this device (e.g. with another email).
   // The same two lookups as the My shifts page; past shifts don't count.
   const pass = await readPass();
-  const [fromAccount, fromPass] = await Promise.all([
+  const [fromAccount, fromPass, tracking] = await Promise.all([
     (await createClient()).rpc("my_agenda"),
     hasPass(pass)
       ? createAdminClient().rpc("pass_agenda", { p_volunteer_tokens: pass.v, p_assignment_tokens: pass.a })
       : Promise.resolve({ data: [] }),
+    // Hosts, Co-hosts, and Volunteer Leads.
+    trackingAccounts(user.id),
   ]);
   const volunteers = anyUpcoming([...((fromAccount.data ?? []) as { ends_at: string }[]), ...((fromPass.data ?? []) as { ends_at: string }[])]);
 
@@ -41,6 +44,12 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           {volunteers && (
             <Link href="/my" className={headerLinkClass}>
               My shifts
+            </Link>
+          )}
+          {tracking.length > 0 && (
+            <Link href="/dashboard/volunteer-tracking" className={headerLinkClass}>
+              <span className="hidden sm:inline">Volunteer tracking</span>
+              <span className="sm:hidden">Volunteers</span>
             </Link>
           )}
           <Link href="/dashboard/account" className={headerLinkClass}>
