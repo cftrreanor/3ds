@@ -25,7 +25,7 @@ export async function createTeacherAccount(_prev: ActionState, formData: FormDat
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("create_teacher_account", { p_full_name: fullName, p_school: school, p_tz: tz });
-  if (error?.code === "P0001") return { error: error.message };
+  if (error?.code === "P0001" || error?.code === "42501") return { error: error.message };
   if (error) return { error: friendlyDbError(error) };
 
   const origin = await getOrigin();

@@ -5,13 +5,13 @@ import { normalizePhone } from "@/lib/phone";
 export const PILOT_END = "2027-01-01";
 export const PILOT_END_LABEL = "January 1, 2027";
 
-// The order of the event-type cards on the home page, so the form matches them.
-const HOME_ORDER = ["band_contest", "group_event", "fair", "volunteer", "school_visit"];
+// The order of the event-type cards on the home page, so the form matches them; conferences last.
+const HOME_ORDER = ["band_contest", "group_event", "fair", "volunteer", "school_visit", "conference"];
 
-/** The event types a pilot request can ask about (the five kinds, plus "something else"). */
+/** The event types a pilot request can ask about (every kind, plus "something else"). */
 export const PILOT_EVENT_TYPES = [
-  // Conferences are free for teachers during the pilot, so there's no pilot to ask for.
-  ...EVENT_TYPES.filter((t) => t.value !== "conference").map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as string })).sort(
+  // Teachers ask for parent-teacher conferences here too: every account is set up by us.
+  ...EVENT_TYPES.map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as string })).sort(
     (a, b) => HOME_ORDER.indexOf(a.value) - HOME_ORDER.indexOf(b.value),
   ),
   { value: "other", label: "Something else", icon: "✨" },

@@ -19,13 +19,18 @@ function validate(data: FormData) {
 export function PilotForm({
   action,
   defaultEventTypes = [],
+  defaultEmail = "",
+  defaultName = "",
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   /** Event types ticked to start with (an event type's own page ticks its type). */
   defaultEventTypes?: readonly string[];
+  /** Filled in for someone already signed in (their sign-in email and name). */
+  defaultEmail?: string;
+  defaultName?: string;
 }) {
   const [sentTo, setSentTo] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
   const [startedAt] = useState(() => Date.now());
   const touched = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
@@ -60,7 +65,7 @@ export function PilotForm({
             <input type="text" name="website" tabIndex={-1} autoComplete="off" />
           </label>
         </div>
-        <Fields onEmail={setEmail} defaultEventTypes={defaultEventTypes} />
+        <Fields onEmail={setEmail} defaultEventTypes={defaultEventTypes} defaultEmail={defaultEmail} defaultName={defaultName} />
         <BotCheck />
         <SubmitButton pendingText="Sending…" className="w-full sm:w-auto">
           Join the pilot
@@ -71,7 +76,17 @@ export function PilotForm({
 }
 
 /** The answers, each with its own problem message (inside ActionForm, so it can read them). */
-function Fields({ onEmail, defaultEventTypes }: { onEmail: (email: string) => void; defaultEventTypes: readonly string[] }) {
+function Fields({
+  onEmail,
+  defaultEventTypes,
+  defaultEmail,
+  defaultName,
+}: {
+  onEmail: (email: string) => void;
+  defaultEventTypes: readonly string[];
+  defaultEmail: string;
+  defaultName: string;
+}) {
   const errors = useFieldErrors();
   // Marks a field with a problem and links it to its message for screen readers.
   const problem = (name: string) => ({
@@ -85,7 +100,7 @@ function Fields({ onEmail, defaultEventTypes }: { onEmail: (email: string) => vo
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" {...problem("name")}>
-          <Input name="name" required maxLength={200} autoComplete="name" {...describe("name")} />
+          <Input name="name" required maxLength={200} autoComplete="name" defaultValue={defaultName} {...describe("name")} />
         </Field>
         <Field label="Email" {...problem("email")}>
           <Input
@@ -94,6 +109,7 @@ function Fields({ onEmail, defaultEventTypes }: { onEmail: (email: string) => vo
             required
             maxLength={254}
             autoComplete="email"
+            defaultValue={defaultEmail}
             onChange={(e) => onEmail(e.target.value)}
             {...describe("email")}
           />

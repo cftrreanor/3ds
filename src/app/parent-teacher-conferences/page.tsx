@@ -4,9 +4,13 @@ import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { FeatureSections, infoBox, SupportSection } from "@/components/audience-page";
 import { FaqList } from "@/components/faq-list";
 import { HowItWorks, type HowStep } from "@/components/how-it-works";
+import { JumpLink } from "@/components/jump-link";
 import { SiteFooter } from "@/components/site-footer";
+import { PilotForm } from "@/app/pilot-form";
+import { requestPilot } from "@/app/pilot-actions";
 import { CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
+import { PILOT_END_LABEL } from "@/lib/pilot";
 
 export const metadata: Metadata = {
   title: "Parent-Teacher Conference Scheduling, Free During the Pilot",
@@ -15,8 +19,8 @@ export const metadata: Metadata = {
   alternates: { canonical: CONFERENCES_PAGE.path },
 };
 
-/** "Free during the pilot": signing in from here lands on the teacher setup page. */
-const START = "/login?next=/dashboard/teacher";
+/** "Free during the pilot": the pilot form at the bottom of this page (we set up each account). */
+const START = "#join" as const;
 
 const steps: HowStep[] = [
   {
@@ -104,7 +108,7 @@ const privacy = [
 const faqs = [
   {
     q: "Is it free for teachers?",
-    a: "Yes, during the pilot. A teacher account is free and runs parent-teacher conference days, one published at a time. You sign in with your email, and there's no credit card. Weekly hours are a premium feature.",
+    a: "Yes, during the pilot. Join the pilot, and we set up your free teacher account. It runs parent-teacher conference days, one published at a time, and there's no credit card. Weekly hours are a premium feature.",
   },
   {
     q: "Can families meet on video or by phone?",
@@ -155,12 +159,12 @@ export default function ConferencesPage() {
         <Link href="/login" className={headerLinkClass}>
           Sign in
         </Link>
-        <Link
+        <JumpLink
           href={START}
           className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-header transition hover:opacity-90 sm:px-5 sm:text-sm"
         >
           Free during the pilot
-        </Link>
+        </JumpLink>
       </HeaderBar>
 
       <main className="flex-1">
@@ -178,11 +182,11 @@ export default function ConferencesPage() {
               sheets, no reply-all emails, and no double bookings.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href={START} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
+              <JumpLink href={START} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
                 Free during the pilot
-              </Link>
+              </JumpLink>
             </div>
-            <p className="mt-4 text-sm text-on-dark-mute">Sign in with your email. No credit card.</p>
+            <p className="mt-4 text-sm text-on-dark-mute">Tell us about your school, and we&apos;ll set up your account. No credit card.</p>
           </div>
         </section>
 
@@ -217,21 +221,30 @@ export default function ConferencesPage() {
             <h2 className="text-2xl font-semibold">What&apos;s free</h2>
             <p className="mt-3 leading-7 text-muted">
               A free teacher account runs parent-teacher conferences, one published at a time while we&apos;re in the pilot. Planning a band contest,
-              school fair, volunteer event, or family visitor day?{" "}
-              <Link href="/#join" className="font-medium text-brand underline">
-                Join the pilot
-              </Link>{" "}
-              and we&apos;ll set up {brand.name} for your school.
+              school fair, volunteer event, or family visitor day too? Pick those on the form, and we&apos;ll set up {brand.name} for your school.
             </p>
+          </div>
+        </section>
+
+        <section id="join" tabIndex={-1} className="scroll-mt-20 border-t border-border bg-surface outline-none">
+          <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+            <p className="inline-flex rounded-full bg-accent-soft px-3 py-1 text-sm font-medium">Free during the pilot</p>
+            <h2 className="mt-4 text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Join the pilot</h2>
+            <p className="mt-3 leading-7 text-muted">
+              Tell us about your school, and we&apos;ll set up your account and email you when it&apos;s ready. The pilot ends {PILOT_END_LABEL}.
+            </p>
+            <div className="mt-8">
+              <PilotForm action={requestPilot} defaultEventTypes={["conference"]} />
+            </div>
           </div>
         </section>
 
         <section className="bg-teal-deep text-white">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
             <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Every detail organized. Every organizer supported.</h2>
-            <Link href={START} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
+            <JumpLink href={START} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
               Free during the pilot
-            </Link>
+            </JumpLink>
           </div>
         </section>
       </main>

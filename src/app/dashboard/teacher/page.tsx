@@ -8,11 +8,16 @@ import { TeacherForm } from "./teacher-form";
 
 export const metadata: Metadata = { title: "Your free teacher account" };
 
-/** After signing in from /teachers: a teacher sets up their free account. */
+/** A teacher we've invited sets up their free account. Everyone else asks first, on the dashboard. */
 export default async function TeacherSetupPage() {
   const user = await requireUser();
   if (await getMyOrganization()) redirect("/dashboard");
   const supabase = await createClient();
+  const [{ data: isAdmin }, { data: invited }] = await Promise.all([
+    supabase.rpc("is_platform_admin"),
+    supabase.rpc("has_host_invitation"),
+  ]);
+  if (!isAdmin && !invited) redirect("/dashboard");
   const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
 
   return (

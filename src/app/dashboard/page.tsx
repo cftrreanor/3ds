@@ -17,7 +17,7 @@ import { eventPhase, type BandDay } from "@/lib/contest-day";
 import { bandSteps, dayStatus, groupSteps, type DayStatus, type ProgressRow } from "@/lib/director-day";
 import { eventTypeLabel, groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
 import type { createClient as CreateClient } from "@/lib/supabase/server";
-import { HostingByInvitation } from "@/components/hosting-by-invitation";
+import { RequestAccess } from "@/components/request-access";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
 import { SuccessToast } from "@/components/toaster";
@@ -191,7 +191,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     const { count } = await supabase.from("volunteers").select("id", { count: "exact", head: true });
     if (count) redirect("/my");
     return (
-      <div className="mx-auto max-w-lg">
+      <div className={`mx-auto ${mayHost ? "max-w-lg" : "max-w-2xl"}`}>
         <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">
           {mayHost ? "Welcome. Let's set up your organization" : `Welcome to ${brand.name}`}
         </h1>
@@ -206,7 +206,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </>
         ) : (
           <div className="mt-8">
-            <HostingByInvitation email={user.email} />
+            <RequestAccess email={user.email} />
           </div>
         )}
         <p className="mt-6 text-sm text-muted">
@@ -588,14 +588,9 @@ function HostYourOwn({ invited }: { invited: boolean }) {
             Set up your organization
           </Link>
         ) : (
-          <>
-            <Link href="/#join" className={button}>
-              Join the pilot
-            </Link>
-            <Link href="/dashboard/teacher" className="text-sm font-semibold text-brand underline underline-offset-4">
-              Teacher? Parent-teacher conferences are free
-            </Link>
-          </>
+          <Link href="/#join" className={button}>
+            Join the pilot
+          </Link>
         )}
       </div>
     </section>

@@ -155,7 +155,8 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261214000000_explicit_table_grants.sql` | **Table access written down**: Supabase stops giving new tables access automatically on October 30, 2026. This spells out the access every table already has, so rebuilding the database from these files still works. Nothing changes on the live site. | ✅ run |
 | `20261215000000_qa_outbox.sql` | **QA outbox**: a place for the QA site to keep the emails it would have sent (docs/QA-SETUP.md). The live site never writes to it, and only the server can read it. | ✅ run |
 | `20261216000000_qa_comments.sql` | **QA comments**: where the QA site keeps comments left on its pages, their replies, and screenshots (docs/QA-SETUP.md). The live site never uses it, and only the server can read it. | ✅ run |
-| `20261217000000_site_metrics.sql` | **Site visits**: daily counts of visits to the marketing pages, where visitors came from, which sections they reach, which buttons and links they click, and how many start and send the pilot form (Admin → Site visits). No cookies and nothing about who visited. Only the server can read it. | ⬜ not yet |
+| `20261217000000_site_metrics.sql` | **Site visits**: daily counts of visits to the marketing pages, where visitors came from, which sections they reach, which buttons and links they click, and how many start and send the pilot form (Admin → Site visits). No cookies and nothing about who visited. Only the server can read it. | ✅ run |
+| `20261218000000_account_activation.sql` | **Accounts switched on by you**: a host who accepts your invitation starts on the free pilot plan right away (no need to set it by hand). Teacher accounts need your invitation too, and teachers ask through the pilot form. Closing an account takes its events offline at once. | ✅ run |
 
 ## Pilot requests
 

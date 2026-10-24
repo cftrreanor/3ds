@@ -37,7 +37,7 @@ export async function closeAccount(orgId: string, _prev: ActionState, formData: 
   const { error } = await supabase.rpc("admin_close_account", { p_org: orgId, p_note: note || null });
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/admin", "layout");
-  return { ok: true, message: "Account closed. It will be deleted in 90 days unless you reopen it." };
+  return { ok: true, message: "Account closed. Its events are offline, and it will be deleted in 90 days unless you reopen it." };
 }
 
 /** Reopen a closed account before it's deleted. */
