@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { pilotEventTypeLabels } from "@/lib/pilot";
 import Link from "next/link";
-import { ActionForm } from "@/components/action-form";
-import { SubmitButton } from "@/components/submit-button";
 import { DEFAULT_PILOT_END, requirePlatformAdmin } from "@/lib/admin";
 import { invitePackageLabel, inviteStatusLabel } from "@/lib/invitation-plan";
 import { ADMIN_TZ, byNewest, STAGES, stageLabel, type TimelineItem } from "@/lib/admin-crm";
@@ -10,15 +8,15 @@ import { formatPhone } from "@/lib/phone";
 import { isSchemaError, missing } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
-import { EMAIL_COLUMNS, NOTE_COLUMNS, type EmailRow, type NoteRow } from "../../data";
-import { Facts, PageHeader, Panel, RecordLink, Tag } from "../../kit";
+import { EMAIL_COLUMNS, loadTemplates, NOTE_COLUMNS, type EmailRow, type NoteRow } from "../../data";
+import { Facts, PageHeader, Panel, primarySmall, RecordLink, secondarySmall, Tag } from "../../kit";
 import { NoteComposer } from "../../note-composer";
 import { addNote, moveStage } from "../../notes-actions";
 import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
-import { inviteHost } from "../actions";
+import { sendHostInvitation } from "../actions";
+import { InviteHostPanel } from "../invite-host-panel";
 import { StageSelect } from "../stage-select";
-import { InvitationPlanForm } from "../invitation-plan-form";
 
 export const metadata: Metadata = { title: "Pilot request" };
 
@@ -48,12 +46,13 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
   if (!r) missing();
 
   const email = String(r.email).toLowerCase();
-  const [{ data: invite }, { data: noteData }, { data: emailData }, { data: person }, { data: account }] = await Promise.all([
+  const [{ data: invite }, { data: noteData }, { data: emailData }, { data: person }, { data: account }, templates] = await Promise.all([
     selectInvitation(admin, email),
     admin.from("admin_notes").select(NOTE_COLUMNS).eq("pilot_request_id", requestId).order("created_at", { ascending: false }),
     admin.from("email_log").select(EMAIL_COLUMNS).eq("to_email", email).order("created_at", { ascending: false }).limit(50),
     admin.from("profiles").select("id, full_name").eq("email", email).maybeSingle(),
     r.organization_id ? admin.from("organizations").select("id, name").eq("id", r.organization_id).maybeSingle() : Promise.resolve({ data: null }),
+    loadTemplates(),
   ]);
   const today = utcToZonedDate(new Date().toISOString(), ADMIN_TZ);
   const inv = invite;
@@ -135,25 +134,26 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
             )}
             {inv?.used_at ? (
               inv.package && <p className="mt-1 text-xs text-muted">Applied to their account when they set up. Change it on their account page.</p>
-            ) : "package" in (inv ?? { package: null }) ? (
-              <InvitationPlanForm
-                action={inviteHost.bind(null, r.id)}
-                email={r.email}
-                name={r.name}
-                invited={Boolean(inv)}
-                pkg={inv?.package ?? "event"}
-                status={inv?.plan_status ?? "comped"}
-                freeUntil={inv?.free_until ?? DEFAULT_PILOT_END}
-              />
             ) : (
-              // Before 20261224000000_invitation_plan.sql: invite without choices, as before.
-              <ActionForm action={inviteHost.bind(null, r.id)} resetOnSuccess={false} className="mt-2 space-y-2">
-                <input type="hidden" name="email" value={r.email} />
-                <input type="hidden" name="name" value={r.name} />
-                <SubmitButton variant={inv ? "secondary" : "primary"} className="h-8 min-h-8! w-full rounded-sm px-3" pendingText="Inviting…">
-                  {inv ? "Send the invitation again" : "Approve as host"}
-                </SubmitButton>
-              </ActionForm>
+              <div className="mt-2">
+                <InviteHostPanel
+                  action={sendHostInvitation.bind(null, r.id)}
+                  templates={templates.map((t) => ({ id: t.id, name: t.name }))}
+                  defaults={{
+                    email: r.email,
+                    name: r.name,
+                    // A card added from the panel without an organization shows the person's name.
+                    organization: r.organization === r.name ? "" : r.organization,
+                    phone: formatPhone(r.phone) ?? "",
+                    package: inv?.package ?? "event",
+                    status: inv?.plan_status ?? "comped",
+                    freeUntil: inv?.free_until ?? DEFAULT_PILOT_END,
+                  }}
+                  waiting={Boolean(inv)}
+                  label={inv ? "Change or send again" : "Invite as host"}
+                  buttonClassName={`${inv ? secondarySmall : primarySmall} w-full`}
+                />
+              </div>
             )}
           </Panel>
           <Panel title="Linked">

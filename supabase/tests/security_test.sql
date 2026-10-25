@@ -6016,6 +6016,70 @@ delete from public.organizations where slug in ('chosen-boosters', 'plain-booste
    or id in (select organization_id from public.organization_members where user_id = '0000000c-0000-0000-0000-000000000003');
 delete from public.host_invitations where email in ('chosen@example.com', 'plain@example.com', 'teachchoice@example.com');
 
+-- ---------------------------------------------------------------------------
+-- Invite a host from the panel (20261225000000_invite_host_panel.sql)
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('0000000d-0000-0000-0000-000000000001', 'panelhost@example.com', '{"full_name":"Nia Panel"}'),
+  ('0000000d-0000-0000-0000-000000000002', 'noorg@example.com', '{"full_name":"Noel Noorg"}');
+insert into public.pilot_requests (id, name, email, organization, status)
+values ('0000000d-0000-0000-0000-0000000000a1', 'Asa Asked', 'asked@example.com', 'Asked PTA', 'new');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000d-0000-0000-0000-000000000001","email":"panelhost@example.com"}';
+do $$ begin
+  perform public.admin_send_host_invitation('panelhost@example.com', 'Nia Panel', null, null, 'event', 'comped', date '2027-02-01');
+  raise exception 'FAIL: a non-admin sent a host invitation';
+exception when insufficient_privilege then null;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare
+  first uuid;
+  again uuid;
+  asked uuid;
+begin
+  first := public.admin_send_host_invitation(' PanelHost@Example.com ', 'Nia Panel', null, '+15125550100', 'volunteer', 'comped', date '2027-02-01');
+  assert (select status = 'invited' and organization = 'Nia Panel' and phone = '+15125550100' and email = 'panelhost@example.com'
+            from public.pilot_requests where id = first), 'the panel adds a card under Invited';
+  assert (select package = 'volunteer' and plan_status = 'comped' and free_until = date '2027-02-01' and pilot_request_id = first
+            from public.host_invitations where email = 'panelhost@example.com'), 'with the package and free period on the invitation';
+  again := public.admin_send_host_invitation('panelhost@example.com', 'Nia Panel', 'Panel PTA', null, 'schedule', 'trialing', date '2027-03-01');
+  assert again = first, 'inviting again uses the same card';
+  assert (select organization = 'Panel PTA' and phone = '+15125550100' from public.pilot_requests where id = first),
+         'and updates it, keeping what wasn''t changed';
+  asked := public.admin_send_host_invitation('asked@example.com', 'Asa Asked', null, null, 'event', 'comped', date '2027-01-15');
+  assert asked = '0000000d-0000-0000-0000-0000000000a1', 'someone who asked to join keeps their card';
+  assert (select status = 'invited' and organization = 'Asked PTA' from public.pilot_requests where id = asked), 'and it moves to Invited';
+  perform public.admin_send_host_invitation('noorg@example.com', 'Noel Noorg', '', '', 'event', 'comped', date '2027-01-15');
+  begin
+    perform public.admin_send_host_invitation('nopkg@example.com', 'No Package', null, null, null, null, null);
+    raise exception 'FAIL: invited without a package';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.admin_send_host_invitation('noname@example.com', ' ', null, null, 'event', 'comped', date '2027-01-15');
+    raise exception 'FAIL: invited without a name';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+-- Setting up moves the card on, and a card with only their name gets the organization's.
+set request.jwt.claims = '{"sub":"0000000d-0000-0000-0000-000000000001","email":"panelhost@example.com"}';
+select 1 from public.create_organization('Panel Boosters', 'panel-boosters');
+set request.jwt.claims = '{"sub":"0000000d-0000-0000-0000-000000000002","email":"noorg@example.com"}';
+select 1 from public.create_organization('Noorg Boosters', 'noorg-boosters');
+reset role;
+do $$ begin
+  assert (select status = 'set_up' and organization = 'Panel PTA' and organization_id is not null
+            from public.pilot_requests where email = 'panelhost@example.com'), 'the card moves to Set up and keeps the name given';
+  assert (select organization = 'Noorg Boosters' from public.pilot_requests where email = 'noorg@example.com'),
+         'a card without an organization shows the one they set up';
+  assert (select package = 'schedule' and subscription_status = 'trialing' from public.organizations where slug = 'panel-boosters'),
+         'and they start on the package and plan from the panel';
+end $$;
+delete from public.organizations where slug in ('panel-boosters', 'noorg-boosters');
+delete from public.host_invitations where email in ('panelhost@example.com', 'noorg@example.com', 'asked@example.com');
+delete from public.pilot_requests where email in ('panelhost@example.com', 'noorg@example.com', 'asked@example.com');
+
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'
