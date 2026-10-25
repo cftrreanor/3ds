@@ -15,6 +15,8 @@ export type InviteDefaults = {
   package: string;
   status: string;
   freeUntil: string;
+  /** The welcome email template's id ("" is the standard invitation). */
+  template: string;
 };
 
 /**
@@ -77,9 +79,13 @@ export function InviteHostPanel({
               <SubmitButton name="intent" value="send" className="w-full" pendingText="Sending…">
                 {waiting ? "Send the invitation again" : "Send invitation"}
               </SubmitButton>
-              {waiting && (
+              {waiting ? (
                 <SubmitButton name="intent" value="save" variant="secondary" className="w-full" pendingText="Saving…">
                   Save without sending
+                </SubmitButton>
+              ) : (
+                <SubmitButton name="intent" value="later" variant="secondary" className="w-full" pendingText="Saving…">
+                  Save and invite later
                 </SubmitButton>
               )}
             </div>
@@ -130,7 +136,7 @@ function InviteFields({ templates, defaults }: { templates: { id: string; name: 
         </Field>
       </div>
       <Field label="Welcome email" hint="Make more on the Email templates page. Use {{login_url}} for their sign-in link.">
-        <Select name="template" defaultValue="">
+        <Select name="template" defaultValue={templates.some((t) => t.id === defaults.template) ? defaults.template : ""}>
           <option value="">Standard host invitation</option>
           {templates.map((t) => (
             <option key={t.id} value={t.id}>

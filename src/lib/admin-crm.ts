@@ -9,7 +9,7 @@ export const ADMIN_TZ = "America/Chicago";
 
 /** Pilot pipeline stages, in order. Declined sits outside the flow. */
 export const STAGES = [
-  { value: "new", label: "New", hint: "Just asked to join" },
+  { value: "new", label: "Lead", hint: "Asked to join, or saved to invite later" },
   { value: "contacted", label: "Contacted", hint: "We've been in touch" },
   { value: "invited", label: "Invited", hint: "Host invitation sent" },
   { value: "set_up", label: "Set up", hint: "Organization created" },
