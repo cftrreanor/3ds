@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDate, formatTimeRange, utcToZonedDate, zonedToUtc } from "@/lib/time";
 
 export type RoomInput = { id?: string; name: string; note: string; onPath: boolean; minutes: number };
@@ -194,11 +195,15 @@ async function emailItineraries(eventId: string, bandIds: string[] | null, kind:
   const targets = (bands ?? []).filter((b) => (bandIds ? bandIds.includes(b.id) : true) && (slots ?? []).some((s) => s.band_id === b.id));
   const origin = await getOrigin();
   after(async () => {
+    // An admin's wording (/admin/emails), if they saved one.
+    const key = kind === "changed" ? "director_rooms_changed" : "director_rooms_posted";
+    const saved = await loadSystemEmail(key);
     for (const b of targets) {
       const mine = (slots ?? []).filter((s) => s.band_id === b.id);
+      const custom = customWords(key, saved, { band_name: b.band_name, school: b.school_name, event_name: event.name });
       const { html, text } = emailLayout({
-        heading: kind === "changed" ? `Updated times for ${b.band_name}` : `${b.band_name}'s schedule at ${event.name}`,
-        paragraphs: [
+        heading: custom?.heading || (kind === "changed" ? `Updated times for ${b.band_name}` : `${b.band_name}'s schedule at ${event.name}`),
+        paragraphs: custom?.paragraphs ?? [
           kind === "changed"
             ? `The host changed the schedule for ${event.name}. Here are ${b.school_name}'s new times.`
             : `The schedule for ${event.name} is posted. Here's where ${b.school_name} needs to be, and when.`,
@@ -213,9 +218,9 @@ async function emailItineraries(eventId: string, bandIds: string[] | null, kind:
           }),
           { title: "Venue", detail: [event.venue_name, event.venue_address].filter(Boolean).join(", ") },
         ],
-        button: { label: "See the full schedule", url: `${origin}/e/${event.slug}` },
+        button: { label: custom?.button || "See the full schedule", url: `${origin}/e/${event.slug}` },
       });
-      const subject = kind === "changed" ? `Time change: ${b.band_name} at ${event.name}` : `Your schedule: ${b.band_name} at ${event.name}`;
+      const subject = custom?.subject || (kind === "changed" ? `Time change: ${b.band_name} at ${event.name}` : `Your schedule: ${b.band_name} at ${event.name}`);
       for (const to of new Set([b.head_director_email, b.contact_email])) {
         await sendEmail({ to, subject, html, text, eventId });
         await pause();

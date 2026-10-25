@@ -13,6 +13,7 @@ import { groupWords } from "@/lib/event-types";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDate, formatDateRange } from "@/lib/time";
 
 const emailsSchema = z.array(z.string().trim().toLowerCase().email()).min(1, "Pick at least one director to invite.").max(500);
@@ -70,21 +71,33 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
   const origin = await getOrigin();
   const { data: host } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
   after(async () => {
+    const saved = await loadSystemEmail("director_invite");
     for (const row of rows) {
       const name = allowed.get(row.email)?.full_name;
+      const custom = customWords("director_invite", saved, {
+        first_name: name ? name.split(" ")[0] : "",
+        host: host?.full_name ?? "The host",
+        group: w.one,
+        event_name: event.name,
+        event_dates: formatDateRange(event.starts_on, event.ends_on),
+        at_venue: event.venue_name ? `at ${event.venue_name}` : "",
+      });
+      const deadline = event.band_registration_deadline ? [`Registration closes at the end of ${formatDate(event.band_registration_deadline)}.`] : [];
       const { html, text } = emailLayout({
-        heading: `You're invited: ${event.name}`,
-        paragraphs: [
-          `${name ? `Hi ${name.split(" ")[0]}. ` : ""}${host?.full_name ?? "The host"} would love to have your ${w.one} at ${event.name}, ${formatDateRange(event.starts_on, event.ends_on)}${event.venue_name ? ` at ${event.venue_name}` : ""}.`,
-          filledIn.has(row.email)
-            ? `Your ${w.one}'s details are already filled in from the host's records. Check them, change anything you need, and register.`
-            : `Your ${w.one}'s details from last time are saved. Check them and register in one tap, or change anything first.`,
-          ...(event.band_registration_deadline ? [`Registration closes at the end of ${formatDate(event.band_registration_deadline)}.`] : []),
-        ],
-        button: { label: "Review and register", url: `${origin}/e/${event.slug}/bands/invite/${row.token}` },
+        heading: custom?.heading || `You're invited: ${event.name}`,
+        paragraphs: custom
+          ? [...custom.paragraphs, ...deadline]
+          : [
+              `${name ? `Hi ${name.split(" ")[0]}. ` : ""}${host?.full_name ?? "The host"} would love to have your ${w.one} at ${event.name}, ${formatDateRange(event.starts_on, event.ends_on)}${event.venue_name ? ` at ${event.venue_name}` : ""}.`,
+              filledIn.has(row.email)
+                ? `Your ${w.one}'s details are already filled in from the host's records. Check them, change anything you need, and register.`
+                : `Your ${w.one}'s details from last time are saved. Check them and register in one tap, or change anything first.`,
+              ...deadline,
+            ],
+        button: { label: custom?.button || "Review and register", url: `${origin}/e/${event.slug}/bands/invite/${row.token}` },
         footer: `This button signs you in as ${row.email} once, within ${EMAIL_LINK_DAYS} days, so please don't forward this email.`,
       });
-      await sendEmail({ to: row.email, subject: `You're invited: ${event.name}`, html, text, eventId });
+      await sendEmail({ to: row.email, subject: custom?.subject || `You're invited: ${event.name}`, html, text, eventId });
       await pause();
     }
   });

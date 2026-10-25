@@ -9,6 +9,7 @@ import { getUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDateRange } from "@/lib/time";
 import { loadCalendarEntries, sendCancellation } from "@/lib/volunteer-emails";
 import { forgetPass, hasPass, readPass } from "@/lib/volunteer-pass";
@@ -101,11 +102,10 @@ export async function emailMyLink(_prev: ActionState, formData: FormData): Promi
     );
 
   const origin = await getOrigin();
+  const custom = customWords("volunteer_link", await loadSystemEmail("volunteer_link"), { first_name: records[0].full_name.split(" ")[0] });
   const { html, text } = emailLayout({
-    heading: "Your volunteer shifts",
-    paragraphs: [
-      `Hi ${records[0].full_name.split(" ")[0]}, here's your link to view or cancel your shifts. It's just for you.`,
-    ],
+    heading: custom?.heading || "Your volunteer shifts",
+    paragraphs: custom?.paragraphs ?? [`Hi ${records[0].full_name.split(" ")[0]}, here's your link to view or cancel your shifts. It's just for you.`],
     rows: records.map((r) => ({
       title: r.events.name,
       detail: formatDateRange(r.events.starts_on, r.events.ends_on),
@@ -113,6 +113,6 @@ export async function emailMyLink(_prev: ActionState, formData: FormData): Promi
     })),
     footer: "Didn't ask for this? You can ignore this email.",
   });
-  await sendEmail({ to: parsed.data, subject: "Your volunteer shifts", html, text });
+  await sendEmail({ to: parsed.data, subject: custom?.subject || "Your volunteer shifts", html, text });
   return generic;
 }
