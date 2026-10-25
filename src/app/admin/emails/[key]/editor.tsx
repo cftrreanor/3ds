@@ -140,7 +140,7 @@ export function SystemEmailEditor({
           </div>
         </div>
         <p className="text-xs text-muted">
-          Lines in gray are always added. The original wording changes a little in some cases (the kind of event, or no child's name);
+          Lines in gray are always added. The original wording changes a little in some cases (the kind of event, or no child’s name);
           your version is used for all of them.
         </p>
       </div>
