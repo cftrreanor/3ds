@@ -64,6 +64,8 @@ export type AccountPlan = {
   max_team: number | null;
   event_staff: boolean;
   volunteer_history: boolean;
+  /** The Volunteer tracking page shows: the package includes it, or it did before a downgrade and there's history. */
+  volunteer_tracking: boolean;
   team: number;
   published: Record<string, number>;
   passes_unused: Record<string, number>;

@@ -5,13 +5,24 @@ import { requireUser } from "@/lib/auth";
 import { isSchemaError, missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { trackingAccounts } from "@/lib/volunteer-tracking";
-import { Card } from "@/components/ui";
 import { brand } from "@/lib/brand";
 import { loadAccountPlan } from "@/lib/plan";
 import { removeFromVolunteerHistory } from "./actions";
 import { HistoryTable, type HistoryRow } from "./history-table";
 
 export const metadata: Metadata = { title: "Volunteer tracking" };
+
+/** Made-up volunteers for the blurred preview. */
+const SAMPLE_ROWS: HistoryRow[] = [
+  { email: "a@example.com", full_name: "Maria Lopez", events: 6, signed_up: 9, checked_in: 9, last_event_name: "Fall Festival", last_event_on: "2026-10-03" },
+  { email: "b@example.com", full_name: "James Carter", events: 4, signed_up: 6, checked_in: 5, last_event_name: "Book Fair", last_event_on: "2026-09-19" },
+  { email: "c@example.com", full_name: "Priya Shah", events: 3, signed_up: 4, checked_in: 4, last_event_name: "Fall Festival", last_event_on: "2026-10-03" },
+  { email: "d@example.com", full_name: "Tom Nguyen", events: 3, signed_up: 5, checked_in: 3, last_event_name: "Spring Carnival", last_event_on: "2026-04-25" },
+  { email: "e@example.com", full_name: "Alicia Brown", events: 2, signed_up: 3, checked_in: 2, last_event_name: "Book Fair", last_event_on: "2026-09-19" },
+  { email: "f@example.com", full_name: "Sam Patel", events: 2, signed_up: 2, checked_in: 1, last_event_name: "Field Day", last_event_on: "2026-05-15" },
+  { email: "g@example.com", full_name: "Grace Kim", events: 1, signed_up: 2, checked_in: 2, last_event_name: "Fall Festival", last_event_on: "2026-10-03" },
+  { email: "h@example.com", full_name: "David Ortiz", events: 1, signed_up: 1, checked_in: 0, last_event_name: "Field Day", last_event_on: "2026-05-15" },
+];
 
 /**
  * Every adult who has volunteered at the account's events: shifts signed up,
@@ -31,10 +42,12 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
     loadAccountPlan(supabase, account.id),
   ]);
   if (error && isSchemaError(error)) missing();
-  // Lower packages keep recording history (and can download it), but the tracking itself needs Volunteer Command or up.
-  const notIncluded = plan?.volunteer_history === false || (error?.code === "42501" && error.message.startsWith("Your "));
-  if (error && !notIncluded) console.error("volunteer_report failed", error);
+  // Tracking shows on Volunteer Command and up, or after a downgrade with history from before. Everyone
+  // else sees a blurred preview with how to upgrade (history keeps recording, and can be downloaded).
+  const preview = plan?.volunteer_tracking === false || (error?.code === "42501" && error.message.startsWith("Your "));
+  if (error && !preview) console.error("volunteer_report failed", error);
   const downloadHref = `/dashboard/volunteer-tracking/download?account=${account.id}`;
+  const recorded = preview ? ((await supabase.rpc("volunteer_history_export", { p_org: account.id })).data ?? []).length : 0;
   const rows = ((data ?? []) as HistoryRow[]).map((r) => ({ ...r, email: r.email.toLowerCase() }));
 
   return (
@@ -60,25 +73,44 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
           ))}
         </nav>
       )}
-      {notIncluded ? (
-        <Card className="mt-6">
-          <h2 className="text-lg font-semibold">Volunteer tracking isn&apos;t included in your {plan?.package_name ?? ""} plan</h2>
-          <p className="mt-2 leading-7 text-muted">
-            We still record who volunteers at your events and which shifts they check in to. Upgrade to Volunteer Command to rank your
-            volunteers by how often they show up and search your history here. To upgrade, write to us at{" "}
-            <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline underline-offset-4">
-              {brand.supportEmail}
-            </a>
-            .
-          </p>
-          <p className="mt-2 leading-7 text-muted">You can download your history as a spreadsheet anytime.</p>
-          <a
-            href={downloadHref}
-            className="mt-4 inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
-          >
-            Download spreadsheet
-          </a>
-        </Card>
+      {preview ? (
+        <div className="relative mt-6">
+          {/* Made-up rows, blurred, to show what the page looks like. */}
+          <div inert aria-hidden className="pointer-events-none select-none blur-[3px]">
+            <HistoryTable rows={SAMPLE_ROWS} />
+          </div>
+          <div className="absolute inset-0 flex items-start justify-center px-4 pt-10 sm:pt-16">
+            <section
+              aria-labelledby="upgrade-title"
+              className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-elevated"
+            >
+              <h2 id="upgrade-title" className="text-xl font-semibold">
+                Volunteer tracking comes with Volunteer Command
+              </h2>
+              <p className="mt-2 leading-7 text-muted">
+                See everyone who has volunteered at your events, how often they show up for their shifts, and who to ask first.
+                {plan ? ` You're on ${plan.package_name} now.` : ""}
+              </p>
+              <p className="mt-2 leading-7 text-muted">
+                We keep a record of your volunteers either way, so it&apos;s all here when you upgrade.
+              </p>
+              <a
+                href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent("Upgrade to Volunteer Command")}`}
+                className="mt-5 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-hover"
+              >
+                Write to us to upgrade
+              </a>
+              {recorded > 0 && (
+                <p className="mt-4 text-sm leading-6 text-muted">
+                  <a href={downloadHref} className="font-medium text-brand underline underline-offset-4">
+                    Download your volunteer history
+                  </a>{" "}
+                  as a spreadsheet ({recorded} {recorded === 1 ? "person" : "people"} so far)
+                </p>
+              )}
+            </section>
+          </div>
+        </div>
       ) : error ? (
         <p className="mt-6 text-danger">We couldn&apos;t load your volunteer tracking. Please try again.</p>
       ) : (

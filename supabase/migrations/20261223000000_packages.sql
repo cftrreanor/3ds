@@ -75,10 +75,13 @@ insert into public.plan_tiers (code, kind, name, event_types, one_at_a_time, wee
 alter table public.organizations
   add column package text not null default 'event' references public.plan_tiers (code),
   add column rate text not null default 'standard' check (rate in ('teacher', 'standard')),
-  add column pass_total_cents integer not null default 0 check (pass_total_cents >= 0);
+  add column pass_total_cents integer not null default 0 check (pass_total_cents >= 0),
+  -- Set once the account has been on a package with volunteer tracking. After a
+  -- downgrade, it keeps seeing the tracking it built up (volunteer_tracking_open).
+  add column had_volunteer_tracking boolean not null default true;
 
 -- Today's accounts: free teacher accounts are Free, everything else Event Command.
-update public.organizations set package = 'free', rate = 'teacher' where account_kind = 'teacher';
+update public.organizations set package = 'free', rate = 'teacher', had_volunteer_tracking = false where account_kind = 'teacher';
 
 -- A new free teacher account starts on Free.
 create function public.teacher_accounts_start_free()
@@ -90,6 +93,7 @@ begin
     new.package := 'free';
     new.rate := 'teacher';
   end if;
+  new.had_volunteer_tracking := coalesce((select volunteer_history from plan_tiers where code = new.package), false);
   return new;
 end;
 $$;
@@ -105,7 +109,8 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if (new.package, new.rate, new.pass_total_cents) is distinct from (old.package, old.rate, old.pass_total_cents)
+  if (new.package, new.rate, new.pass_total_cents, new.had_volunteer_tracking)
+     is distinct from (old.package, old.rate, old.pass_total_cents, old.had_volunteer_tracking)
      and current_setting('app.package_change', true) is distinct from 'on' then
     raise exception 'Packages change only through set_account_package() or add_event_pass().' using errcode = '42501';
   end if;
@@ -117,7 +122,7 @@ begin
 end;
 $$;
 create trigger package_changes_go_through_admin
-  before update of package, rate, pass_total_cents on public.organizations
+  before update of package, rate, pass_total_cents, had_volunteer_tracking on public.organizations
   for each row execute function public.package_changes_go_through_admin();
 revoke execute on function public.package_changes_go_through_admin() from public, anon, authenticated;
 
@@ -531,6 +536,19 @@ $$;
 revoke execute on function public.volunteer_history_export(uuid) from public, anon;
 grant execute on function public.volunteer_history_export(uuid) to authenticated;
 
+-- Volunteer tracking shows when the package includes it, or when the account had
+-- it before a downgrade and has history to show. Otherwise the page is a preview.
+create function public.volunteer_tracking_open(p_org uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select coalesce((select t.volunteer_history from organizations o join plan_tiers t on t.code = o.package where o.id = p_org), false)
+      or (coalesce((select had_volunteer_tracking from organizations where id = p_org), false)
+          and (exists (select 1 from volunteer_history where organization_id = p_org)
+               or exists (select 1 from public.volunteer_event_counts(p_org, now()) where signed_up > 0)));
+$$;
+revoke execute on function public.volunteer_tracking_open(uuid) from public, anon, authenticated;
+
 create or replace function public.volunteer_report(p_org uuid)
 returns table (email text, full_name text, events int, signed_up int, checked_in int, last_event_name text, last_event_on date)
 language plpgsql stable security definer set search_path = public
@@ -541,7 +559,7 @@ begin
   if not public.can_see_volunteer_history(p_org) then
     raise exception 'Only the account''s hosts and Volunteer Leads can see volunteer history.' using errcode = '42501';
   end if;
-  if not tier.volunteer_history then
+  if not public.volunteer_tracking_open(p_org) then
     raise exception 'Your % plan doesn''t include volunteer tracking. Upgrade to % to see it. You can still download your history.',
       tier.name, public.upgrade_for(null, 'volunteer_history') using errcode = '42501';
   end if;
@@ -581,6 +599,8 @@ begin
     'max_team', own.max_team,
     'event_staff', own.event_staff,
     'volunteer_history', own.volunteer_history,
+    -- Whether the Volunteer tracking page shows (also after a downgrade, with history).
+    'volunteer_tracking', public.volunteer_tracking_open(p_org),
     'team', (select count(*) from public.org_team(p_org)),
     'published', coalesce((select jsonb_object_agg(t, n) from (
                    select event_type::text t, count(*) n from events
@@ -634,7 +654,10 @@ begin
     return;
   end if;
   perform set_config('app.package_change', 'on', true);
-  update organizations set package = p_package, rate = p_rate where id = p_org;
+  update organizations
+     set package = p_package, rate = p_rate,
+         had_volunteer_tracking = had_volunteer_tracking or (select volunteer_history from plan_tiers where code = p_package)
+   where id = p_org;
   perform set_config('app.package_change', 'off', true);
   insert into admin_log (admin_id, action, organization_id, details)
   values (auth.uid(), 'package_changed', p_org, jsonb_build_object(

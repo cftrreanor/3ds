@@ -5816,10 +5816,51 @@ begin
     perform public.volunteer_report('70000000-0000-0000-0000-000000000001');
   exception when insufficient_privilege then ok := true;
   end;
-  assert ok, 'volunteer tracking needs Volunteer Command';
+  assert ok, 'with no history from before, a downgraded account sees the preview, not volunteer tracking';
+  assert not (public.account_plan('70000000-0000-0000-0000-000000000001') ->> 'volunteer_tracking')::boolean, 'the plan says it''s a preview';
   perform public.volunteer_history_export('70000000-0000-0000-0000-000000000001');
 end $$;
 reset role;
+-- With history it built up on Volunteer Command, a downgraded account keeps seeing its tracking.
+insert into public.volunteer_history (organization_id, email, event_id, event_name, event_on, full_name, signed_up, checked_in)
+values ('70000000-0000-0000-0000-000000000001', 'pkvol@example.com', gen_random_uuid(), 'Spring Fair', date '2026-04-01', 'Pat Vol', 2, 2);
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$ begin
+  assert (select count(*) from public.volunteer_report('70000000-0000-0000-0000-000000000001')) = 1, 'a downgraded account with history keeps its tracking';
+  assert (public.account_plan('70000000-0000-0000-0000-000000000001') ->> 'volunteer_tracking')::boolean, 'and the plan says so';
+end $$;
+-- Hosts can't mark an account as having had tracking.
+do $$
+declare ok boolean := false;
+begin
+  begin
+    update public.organizations set had_volunteer_tracking = true where id = '70000000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'had_volunteer_tracking changes only with the package';
+end $$;
+reset role;
+-- An account that never had tracking sees the preview, even with history recorded.
+insert into public.organizations (id, name, slug, account_kind) values ('70000000-0000-0000-0000-000000000002', 'Pkg Teacher', 'pkg-teacher', 'teacher');
+insert into public.organization_members (organization_id, user_id, role)
+values ('70000000-0000-0000-0000-000000000002', '0000000b-0000-0000-0000-000000000002', 'owner');
+insert into public.volunteer_history (organization_id, email, event_id, event_name, event_on, full_name, signed_up, checked_in)
+values ('70000000-0000-0000-0000-000000000002', 'pkvol@example.com', gen_random_uuid(), 'Book Fair', date '2026-04-01', 'Pat Vol', 1, 1);
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000002","email":"pkco@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.volunteer_report('70000000-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'an account that never had volunteer tracking sees the preview';
+  assert (select count(*) from public.volunteer_history_export('70000000-0000-0000-0000-000000000002')) = 1, 'but can still download its history';
+end $$;
+reset role;
+delete from public.organizations where id = '70000000-0000-0000-0000-000000000002';
 do $$ begin
   assert (select count(*) from public.org_team('70000000-0000-0000-0000-000000000001')) = 3, 'nobody is removed on a downgrade';
 end $$;
