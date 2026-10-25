@@ -77,7 +77,7 @@ export default async function PipelinePage() {
           <InviteHostPanel
             action={sendHostInvitation.bind(null, null)}
             templates={templates.map((t) => ({ id: t.id, name: t.name }))}
-            defaults={{ email: "", name: "", organization: "", phone: "", package: "event", status: "comped", freeUntil: DEFAULT_PILOT_END }}
+            defaults={{ email: "", name: "", organization: "", phone: "", package: "event", status: "comped", freeUntil: DEFAULT_PILOT_END, template: "" }}
             label="Invite a host"
             buttonClassName={primarySmall}
           />

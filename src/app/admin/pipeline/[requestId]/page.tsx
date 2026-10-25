@@ -145,9 +145,11 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
                     // A card added from the panel without an organization shows the person's name.
                     organization: r.organization === r.name ? "" : r.organization,
                     phone: formatPhone(r.phone) ?? "",
-                    package: inv?.package ?? "event",
-                    status: inv?.plan_status ?? "comped",
-                    freeUntil: inv?.free_until ?? DEFAULT_PILOT_END,
+                    // The invitation's choices, or what was saved with "Save and invite later".
+                    package: inv?.package ?? r.planned_package ?? "event",
+                    status: inv?.plan_status ?? r.planned_status ?? "comped",
+                    freeUntil: inv?.free_until ?? r.planned_free_until ?? DEFAULT_PILOT_END,
+                    template: r.planned_template ?? "",
                   }}
                   waiting={Boolean(inv)}
                   label={inv ? "Change or send again" : "Invite as host"}

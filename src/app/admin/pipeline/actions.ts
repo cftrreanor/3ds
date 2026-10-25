@@ -16,7 +16,8 @@ import { myName } from "../data";
 
 /**
  * The "Invite a host" panel: who they are, the package and free period they'll
- * start on, and the welcome email. admin_send_host_invitation() saves them on a
+ * start on, and the welcome email. "Save and invite later" keeps it all on a
+ * card under Lead without inviting them (admin_save_host_lead). admin_send_host_invitation() saves them on a
  * pilot request card (the one the panel was opened from, their open card, or a
  * new one under Invited) and invites them; then the welcome email goes out.
  * "Save without sending" (an invitation already waiting) skips the email.
@@ -33,7 +34,8 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
   const status = get("status");
   const freeUntil = get("freeUntil");
   const templateId = get("template");
-  const sendNow = formData.get("intent") !== "save";
+  const intent = formData.get("intent");
+  const sendNow = intent !== "save" && intent !== "later";
 
   const fieldErrors: Record<string, string> = {};
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fieldErrors.email = "Enter their email address.";
@@ -46,6 +48,23 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
   if (Object.keys(fieldErrors).length) return fieldErrorState(fieldErrors);
 
   const supabase = await createClient();
+  if (intent === "later") {
+    // Save and invite later: a card under Lead with these choices, and no invitation or email yet.
+    const { error } = await supabase.rpc("admin_save_host_lead", {
+      p_email: email,
+      p_name: name,
+      p_organization: organization || null,
+      p_phone: phone,
+      p_package: pkg,
+      p_plan_status: status,
+      p_free_until: freeUntil,
+      p_template: /^[0-9a-f-]{36}$/i.test(templateId) ? templateId : null,
+      p_request: pilotRequestId,
+    });
+    if (error) return { error: error.code === "P0001" || error.code === "42501" ? error.message : friendlyDbError(error) };
+    revalidatePath("/admin", "layout");
+    return { ok: true, message: `Saved ${name} as a lead. No email was sent. Invite them from their card when you're ready.` };
+  }
   const { error } = await supabase.rpc("admin_send_host_invitation", {
     p_email: email,
     p_name: name,

@@ -22,7 +22,7 @@ export const signIns = cache(async () => {
   return new Map(((data ?? []) as (SignIn & { user_id: string })[]).map((r) => [r.user_id, r]));
 });
 
-export type AccountEvent = { id: string; name: string; status: string; event_type: string; starts_on: string; ends_on: string; created_at: string };
+export type AccountEvent = { id: string; name: string; slug: string; status: string; event_type: string; starts_on: string; ends_on: string; created_at: string };
 export type AccountMember = { user_id: string; role: string; profiles: { full_name: string; email: string } | null };
 export type Account = {
   id: string;
@@ -49,7 +49,7 @@ export type Account = {
 };
 
 const BASE_COLUMNS =
-  "id, name, slug, subscription_status, free_until, default_timezone, created_at, organization_members(user_id, role, profiles(full_name, email)), events(id, name, status, event_type, starts_on, ends_on, created_at)";
+  "id, name, slug, subscription_status, free_until, default_timezone, created_at, organization_members(user_id, role, profiles(full_name, email)), events(id, name, slug, status, event_type, starts_on, ends_on, created_at)";
 // Newest first; each fallback is for a database update that hasn't been run yet.
 const ACCOUNT_COLUMNS = [
   `${BASE_COLUMNS}, account_kind, school, suspended_at, package, rate, pass_total_cents`,
@@ -133,7 +133,7 @@ export type EmailTarget = { organizationId?: string; profileId?: string; pilotRe
  */
 export async function emailRecipients(target: EmailTarget): Promise<Recipient[]> {
   const origin = await siteOrigin();
-  return (await recipientsWithoutLinks(target)).map((r) => ({ ...r, vars: { ...r.vars, ...siteLinks(origin, r.email) } }));
+  return (await recipientsWithoutLinks(target, origin)).map((r) => ({ ...r, vars: { ...siteLinks(origin, r.email), ...r.vars } }));
 }
 
 /**
@@ -145,7 +145,7 @@ export async function siteOrigin() {
   return production ? `https://${production}` : await getOrigin();
 }
 
-async function recipientsWithoutLinks(target: EmailTarget): Promise<Recipient[]> {
+async function recipientsWithoutLinks(target: EmailTarget, origin: string): Promise<Recipient[]> {
   const admin = createAdminClient();
   if (target.organizationId) {
     const account = await loadAccount(target.organizationId);
@@ -158,6 +158,13 @@ async function recipientsWithoutLinks(target: EmailTarget): Promise<Recipient[]>
       free_until: account.free_until ? formatDate(account.free_until, { weekday: undefined }) : "",
       next_event: next ? `${next.name} (${formatDate(next.starts_on, { weekday: undefined })})` : "",
     };
+    // Its public page once it's published; until then, the event in their dashboard (after signing in).
+    const eventUrl = (email: string) =>
+      !next
+        ? ""
+        : next.status === "published"
+          ? `${origin}/e/${next.slug}`
+          : `${origin}/login?${new URLSearchParams({ next: `/dashboard/events/${next.id}`, email })}`;
     return account.organization_members
       .filter((m) => m.profiles?.email)
       .sort((a, b) => (a.role === "owner" ? -1 : b.role === "owner" ? 1 : 0))
@@ -167,7 +174,7 @@ async function recipientsWithoutLinks(target: EmailTarget): Promise<Recipient[]>
           email: m.profiles!.email,
           name,
           label: `${name || m.profiles!.email} (${m.role === "owner" ? "owner" : "co-host"})`,
-          vars: { ...shared, name, first_name: firstName(name) },
+          vars: { ...shared, name, first_name: firstName(name), next_event_url: eventUrl(m.profiles!.email) },
         };
       });
   }

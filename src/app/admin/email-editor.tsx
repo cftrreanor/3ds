@@ -16,6 +16,7 @@ export const SAMPLE_VARS: MergeVars = {
   plan: "Pilot (free)",
   free_until: "Jan 1, 2027",
   next_event: "Lakeside Marching Classic (Oct 24, 2026)",
+  next_event_url: "https://www.fieldcommandevents.com/e/lakeside-marching-classic",
 };
 
 const tool = "h-7 min-w-7 rounded-sm border border-border bg-surface px-2 text-xs font-semibold hover:border-brand";

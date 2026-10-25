@@ -6080,6 +6080,57 @@ delete from public.organizations where slug in ('panel-boosters', 'noorg-booster
 delete from public.host_invitations where email in ('panelhost@example.com', 'noorg@example.com', 'asked@example.com');
 delete from public.pilot_requests where email in ('panelhost@example.com', 'noorg@example.com', 'asked@example.com');
 
+-- ---------------------------------------------------------------------------
+-- Save and invite later (20261226000000_host_leads.sql)
+-- ---------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('0000000e-0000-0000-0000-000000000001', 'savedlead@example.com', '{"full_name":"Lee Lead"}');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000e-0000-0000-0000-000000000001","email":"savedlead@example.com"}';
+do $$ begin
+  perform public.admin_save_host_lead('savedlead@example.com', 'Lee Lead', null, null, 'event', 'comped', date '2027-01-15', null);
+  raise exception 'FAIL: a non-admin saved a lead';
+exception when insufficient_privilege then null;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare
+  first uuid;
+  again uuid;
+begin
+  first := public.admin_save_host_lead('SavedLead@Example.com', 'Lee Lead', null, '+15125550123', 'volunteer', 'trialing', date '2027-02-01', null);
+  assert (select status = 'new' and organization = 'Lee Lead' and planned_package = 'volunteer' and planned_status = 'trialing'
+            and planned_free_until = date '2027-02-01' from public.pilot_requests where id = first), 'a lead lands under Lead with the choices saved';
+  assert not exists (select 1 from public.host_invitations where email = 'savedlead@example.com'), 'and nobody is invited';
+  again := public.admin_save_host_lead('savedlead@example.com', 'Lee Lead', 'Lead PTA', null, 'schedule', 'comped', date '2027-03-01', null);
+  assert again = first, 'saving again updates the same card';
+  assert (select organization = 'Lead PTA' and planned_package = 'schedule' and phone = '+15125550123' from public.pilot_requests where id = first),
+         'with the new choices';
+  begin
+    perform public.admin_save_host_lead('savedlead@example.com', 'Lee Lead', null, null, 'pass_fair', null, null, null);
+    raise exception 'FAIL: saved a pass as a package';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+-- Until they're invited, a lead can't set up an account.
+set request.jwt.claims = '{"sub":"0000000e-0000-0000-0000-000000000001","email":"savedlead@example.com"}';
+do $$ begin
+  perform public.create_organization('Lead Boosters', 'lead-boosters');
+  raise exception 'FAIL: a lead set up an account without an invitation';
+exception when insufficient_privilege then null;
+end $$;
+-- Inviting them later moves the same card to Invited.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert public.admin_send_host_invitation('savedlead@example.com', 'Lee Lead', null, null, 'schedule', 'comped', date '2027-03-01')
+         = (select id from public.pilot_requests where email = 'savedlead@example.com'), 'inviting a lead uses their card';
+  assert (select status = 'invited' from public.pilot_requests where email = 'savedlead@example.com'), 'and moves it to Invited';
+end $$;
+reset role;
+delete from public.host_invitations where email = 'savedlead@example.com';
+delete from public.pilot_requests where email = 'savedlead@example.com';
+
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'

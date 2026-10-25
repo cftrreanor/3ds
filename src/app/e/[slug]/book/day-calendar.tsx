@@ -60,7 +60,7 @@ export function DayCalendar({
           ›
         </button>
       </div>
-      <div className="mt-2 grid grid-cols-7 gap-y-1.5 text-center" role="group" aria-label={title}>
+      <div className="mt-2 grid grid-cols-7 gap-x-1.5 gap-y-1.5 text-center" role="group" aria-label={title}>
         {WEEKDAYS.map((d) => (
           <span key={d} aria-hidden className="pb-1 text-xs font-semibold uppercase text-muted">
             {d}
@@ -79,7 +79,7 @@ export function DayCalendar({
                 aria-pressed={count ? on : undefined}
                 aria-label={count ? `${longDay(day)}, ${count} ${count === 1 ? "time" : "times"} open` : `${longDay(day)}, not available`}
                 onClick={() => onSelect(day)}
-                className={`flex h-10 w-10 items-center justify-center rounded-full text-sm tabular-nums transition ${
+                className={`flex aspect-square w-full max-w-10 items-center justify-center rounded-full text-sm tabular-nums transition ${
                   on
                     ? "bg-brand font-semibold text-brand-foreground"
                     : count
