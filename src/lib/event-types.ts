@@ -38,6 +38,12 @@ export const EVENT_TYPES = [
     icon: "🍎",
     blurb: "Free during the pilot. Set aside a day, and families book a meeting time, in person, on video, or by phone, with reminders and a link to change or cancel.",
   },
+  {
+    value: "meeting",
+    label: "Meetings",
+    icon: "🤝",
+    blurb: "Set your hours, and people book a time with you, in person, on video, or by phone. They can bring up to three others, and get reminders and a link to change or cancel.",
+  },
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number]["value"];
 
@@ -63,8 +69,46 @@ export function groupWords(type: string | null | undefined) {
 /** Parent registration and door check-in: school visitor events. */
 export const hasParents = (type: string | null | undefined) => type === "school_visit";
 
-/** Meeting times families book: parent-teacher conferences (free; one published at a time per account). */
-export const hasConferences = (type: string | null | undefined) => type === "conference";
+/**
+ * Meeting times people book: parent-teacher conferences (free; one published at a
+ * time per account) and meetings (anyone booking time; no child). Both use the
+ * conference setup, booking page, and Meetings list.
+ */
+export const hasConferences = (type: string | null | undefined) => type === "conference" || type === "meeting";
+
+/** Meetings: booked like conferences, without a child, by anyone. */
+export const isMeeting = (type: string | null | undefined) => type === "meeting";
+
+/** The words for who books and what, on conference and meeting pages. */
+export function bookingWords(type: string | null | undefined) {
+  return isMeeting(type)
+    ? {
+        child: false,
+        // What the event is called in a sentence: "your meetings".
+        event: "meetings",
+        Event: "Meetings",
+        // Who books.
+        booker: "person",
+        bookers: "people",
+        Bookers: "People",
+        // The people named on a booking.
+        person: "person",
+        people: "people",
+        // Who they meet.
+        host: "you",
+      }
+    : {
+        child: true,
+        event: "conferences",
+        Event: "Conferences",
+        booker: "family",
+        bookers: "families",
+        Bookers: "Families",
+        person: "parent or guardian",
+        people: "parents and guardians",
+        host: "the teacher",
+      };
+}
 
 /** Booths, partners and vendors, by zone: school fairs. */
 export const hasBooths = (type: string | null | undefined) => type === "fair";

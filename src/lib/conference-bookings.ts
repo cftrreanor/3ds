@@ -28,10 +28,16 @@ export type Booking = {
 
 export type BookingEvent = {
   name: string;
+  /** "meeting" (meetings say "meeting" where conferences say "conference"); conferences otherwise. */
+  event_type?: string | null;
   timezone: string;
   venue_name: string | null;
   venue_address: string;
 };
+
+/** What the booking is called in a sentence: "conference", or "meeting" for a meeting. */
+const kindWord = (event: Pick<BookingEvent, "event_type">) => (event.event_type === "meeting" ? "meeting" : "conference");
+const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
 
 /** The teacher, as families see them: their name, and an email to reply to. */
 export type Teacher = { name: string; email: string | null };
@@ -117,12 +123,12 @@ function toIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teac
     sequence: b.calendar_sequence,
     start: new Date(b.starts_at),
     end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
-    summary: b.child_name ? `Conference with ${teacher.name}: ${b.child_name}` : `Conference with ${teacher.name}`,
+    summary: b.child_name ? `Conference with ${teacher.name}: ${b.child_name}` : `${cap(kindWord(event))} with ${teacher.name}`,
     location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : b.meeting_mode === "phone" ? `${teacher.name} calls you` : "Video"),
     description: [...place.lines, ...(place.link ? [`Join: ${place.link}`] : []), `Change or cancel: ${link}`].join("\n"),
     url: link,
     attendee: { name: to.name, email: to.email },
-    alarm: place.link ? `Join as ${familyName(b)}` : `Conference with ${teacher.name}`,
+    alarm: place.link ? `Join as ${familyName(b)}` : `${cap(kindWord(event))} with ${teacher.name}`,
   };
 }
 
@@ -154,17 +160,18 @@ export function bookingEmail(
   const about = b.child_name ? ` about ${b.child_name}` : "";
   const forChild = b.child_name ? ` for ${b.child_name}` : "";
   const details = b.child_name ? "your child's name, your contact details, and your note" : "your contact details and your note";
+  const word = kindWord(event);
   // Subjects never name the child: our sent-email log keeps subjects (lib/email), and the child's name is only kept 30 days.
 
   if (kind === "canceled") {
     return {
-      subject: `Canceled: your conference with ${teacher.name}`,
+      subject: `Canceled: your ${word} with ${teacher.name}`,
       ...emailLayout({
-        heading: byTeacher ? `${teacher.name} canceled your conference` : "Your conference was canceled",
+        heading: byTeacher ? `${teacher.name} canceled your ${word}` : `Your ${word} was canceled`,
         paragraphs: [
           byTeacher
-            ? `Hi ${first}, ${teacher.name} had to cancel the conference${forChild} (${when}). Your booking details (${details}) have been deleted. You're welcome to book another open time.`
-            : `Hi ${first}, the conference${forChild} with ${teacher.name} (${when}) is canceled, and your booking details (${details}) have been deleted.`,
+            ? `Hi ${first}, ${teacher.name} had to cancel the ${word}${forChild} (${when}). Your booking details (${details}) have been deleted. You're welcome to book another open time.`
+            : `Hi ${first}, the ${word}${forChild} with ${teacher.name} (${when}) is canceled, and your booking details (${details}) have been deleted.`,
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
         button: { label: "Book another time", url: link },
@@ -177,18 +184,18 @@ export function bookingEmail(
   const moved = kind === "changed" && byTeacher;
   const heading =
     kind === "confirmation"
-      ? "Your conference is booked"
+      ? `Your ${word} is booked`
       : moved
-        ? `${teacher.name} moved your conference to a new day`
+        ? `${teacher.name} moved your ${word} to a new day`
         : kind === "changed"
-          ? "Your conference was changed"
-          : "Your conference is tomorrow";
+          ? `Your ${word} was changed`
+          : `Your ${word} is tomorrow`;
   const subject =
     kind === "confirmation"
-      ? `Booked: your conference with ${teacher.name}, ${when}`
+      ? `Booked: your ${word} with ${teacher.name}, ${when}`
       : kind === "changed"
-        ? `${moved ? "New day" : "New time"}: your conference with ${teacher.name}, ${when}`
-        : `Tomorrow: your conference with ${teacher.name}, ${when}`;
+        ? `${moved ? "New day" : "New time"}: your ${word} with ${teacher.name}, ${when}`
+        : `Tomorrow: your ${word} with ${teacher.name}, ${when}`;
   return {
     subject,
     ...emailLayout({
@@ -206,7 +213,7 @@ export function bookingEmail(
         { title: "When", detail: when, strong: true },
         { title: place.title, detail: place.lines.join(" ") },
         ...(b.parents.length > 1 ? [{ title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
-        { title: b.child_name ? "Your child's privacy" : "Your privacy", detail: privacyLine(teacher, s.schedule === "weekly", Boolean(b.child_name)) },
+        { title: b.child_name ? "Your child's privacy" : "Your privacy", detail: privacyLine(teacher, s.schedule === "weekly" || word === "meeting", Boolean(b.child_name)) },
       ],
       // On video, joining is what they'll need most, so it gets the button.
       ...(place.link
@@ -243,7 +250,7 @@ function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings,
     sequence: b.calendar_sequence,
     start: new Date(b.starts_at),
     end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
-    summary: `Conference: ${who}`,
+    summary: `${cap(kindWord(event))}: ${who}`,
     location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : b.meeting_mode === "phone" ? callLine(b) : "Video"),
     description: [
       `${who} · ${b.meeting_mode === "phone" ? callLine(b) : place.title}`,
@@ -277,15 +284,17 @@ export function teacherBookingEmail(
   // With no child's name, the booking is one person (and anyone they bring), not "the family".
   const them = b.child_name ? "the family" : "them";
   const footer = `Sent by ${brand.name}. Every booking is also on your Meetings page.`;
+  const word = kindWord(event);
+  const Word = cap(word);
   // Subjects never name the child (see bookingEmail).
   const subject =
     kind === "booked"
-      ? `New conference booked: ${when}`
+      ? `New ${word} booked: ${when}`
       : kind === "changed"
-        ? `${byTeacher ? "Conference moved" : "Conference changed"}: ${when}`
+        ? `${byTeacher ? `${Word} moved` : `${Word} changed`}: ${when}`
         : byTeacher
-          ? `You canceled a conference: ${when}`
-          : `Canceled conference: ${when}`;
+          ? `You canceled a ${word}: ${when}`
+          : `Canceled ${word}: ${when}`;
   const ics = (method: "REQUEST" | "CANCEL", seq: number): CalendarInvite => ({
     method,
     content: buildIcs(method, teacherIcsEvent({ ...b, calendar_sequence: seq }, event, s, teacher, meetings), brand.name),
@@ -295,11 +304,11 @@ export function teacherBookingEmail(
     return {
       subject,
       ...emailLayout({
-        heading: byTeacher ? "You canceled a conference" : b.child_name ? "A family canceled their conference" : "A conference was canceled",
+        heading: byTeacher ? `You canceled a ${word}` : b.child_name ? `A family canceled their ${word}` : `A ${word} was canceled`,
         paragraphs: [
           byTeacher
-            ? `You canceled the conference with ${family} (${when}). We emailed ${them}, and the time is open again.`
-            : `${family} canceled their conference (${when}). The time is open again.`,
+            ? `You canceled the ${word} with ${family} (${when}). We emailed ${them}, and the time is open again.`
+            : `${family} canceled their ${word} (${when}). The time is open again.`,
           "This email takes it off your calendar (in Gmail, you may need to open it first).",
         ],
         button: { label: "Open your Meetings page", url: meetings },
@@ -314,16 +323,16 @@ export function teacherBookingEmail(
     ...emailLayout({
       heading:
         kind === "booked"
-          ? b.child_name ? "A family booked a conference" : "A conference was booked"
+          ? b.child_name ? `A family booked a ${word}` : `A ${word} was booked`
           : byTeacher
-            ? "A conference moved to your new day"
-            : b.child_name ? "A family changed their conference" : "A conference was changed",
+            ? `A ${word} moved to your new day`
+            : b.child_name ? `A family changed their ${word}` : `A ${word} was changed`,
       paragraphs: [
         kind === "booked"
-          ? `${family} booked a conference with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
+          ? `${family} booked a ${word} with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
           : byTeacher
             ? `You moved ${event.name} to a new day, so ${family}'s meeting moved with it, at the same time of day. We emailed ${them}, and your calendar invite is updated.`
-            : `${family} changed their conference. The details below are current, and your calendar invite is updated.`,
+            : `${family} changed their ${word}. The details below are current, and your calendar invite is updated.`,
         "After the meeting, mark it Met or No-show on your Meetings page, so your records are complete.",
       ],
       rows: [

@@ -205,10 +205,10 @@ export function meetingSummary(starts: string[], meetingMinutes: number) {
  * link pasted here with the waiting room ticked, unless the teacher sends
  * their own.
  */
-export function placeMissing(s: ConferenceSettings | null, venueAddress: string | null): string | null {
+export function placeMissing(s: ConferenceSettings | null, venueAddress: string | null, eventType?: string | null): string | null {
   const modes = modesOf(s);
   if (!s || !modes.length) return "Choose where you'll meet (step 2).";
-  if (modes.includes("in_person") && !venueAddress?.trim()) return "Add your school's address (step 2).";
+  if (modes.includes("in_person") && !venueAddress?.trim()) return eventType === "meeting" ? "Add the address (step 2)." : "Add your school's address (step 2).";
   if (modes.includes("in_person") && !s.room?.trim()) return "Add your room and directions (step 2).";
   if (modes.includes("video") && !s.own_link && !s.video_link) return "Add your meeting link (step 2).";
   if (modes.includes("video") && !s.own_link && !s.waiting_room_confirmed)
@@ -217,9 +217,9 @@ export function placeMissing(s: ConferenceSettings | null, venueAddress: string 
 }
 
 /** What's still needed before publishing, matching the database's check (null when ready). */
-export function notReady(s: ConferenceSettings | null, venueAddress: string | null): string | null {
+export function notReady(s: ConferenceSettings | null, venueAddress: string | null, eventType?: string | null): string | null {
   if (!s?.times_saved_at) return "Save your meeting times (step 1).";
   if (s.schedule === "weekly" && !s.weekly_hours.length) return "Add your weekly hours (step 1).";
-  return placeMissing(s, venueAddress);
+  return placeMissing(s, venueAddress, eventType);
 }
 

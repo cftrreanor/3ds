@@ -6,7 +6,7 @@ import { withCallPhone, type Booking } from "@/lib/conference-bookings";
 import { meetingStarts, modesOf } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
-import { hasConferences } from "@/lib/event-types";
+import { hasConferences, isMeeting } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 import { isSchemaError, missing } from "@/lib/schema-check";
@@ -37,7 +37,9 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
     .maybeSingle();
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
-  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} />;
+  const meeting = isMeeting(event.event_type);
+  const setupName = meeting ? "Meeting Setup" : "Conference Setup";
+  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} meeting={isMeeting(event.event_type)} />;
 
   const loadBookings = (extra: string) =>
     withCallPhone((columns) =>
@@ -152,16 +154,16 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
         <p className="mt-6">
           Set your meeting times first.{" "}
           <Link href={`/dashboard/events/${eventId}/conferences`} className="font-medium text-brand underline">
-            Conference Setup
+            {setupName}
           </Link>
         </p>
       ) : (
         <div className="mt-6 space-y-4">
           {event.status !== "published" && bookings.length === 0 && (
             <p className="rounded-md border border-border bg-surface px-3 py-2 text-sm">
-              Families can book once you publish your conference.{" "}
+              {meeting ? "People can book once you publish your meetings." : "Families can book once you publish your conference."}{" "}
               <Link href={`/dashboard/events/${eventId}/conferences`} className="font-medium text-brand underline">
-                Conference Setup
+                {setupName}
               </Link>
             </p>
           )}
@@ -171,13 +173,14 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
             total={weekly ? null : starts.length}
             today={weekly ? today : undefined}
             summaryHref={`/dashboard/events/${eventId}/conferences/meetings/summary`}
+            meeting={meeting}
           />
         </div>
       )}
 
       <p className="mt-8 text-sm text-muted print:hidden">
-        Only you can see these families and their notes. Everything is deleted 30 days after{" "}
-        {weekly ? "each meeting" : "your conference"}.
+        Only you can see {meeting ? "who booked" : "these families"} and their notes. Everything is deleted 30 days after{" "}
+        {weekly || meeting ? "each meeting" : "your conference"}.
       </p>
     </div>
   );

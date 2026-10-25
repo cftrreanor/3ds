@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getUser } from "@/lib/auth";
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo-email";
 import { createAdminClient } from "@/lib/supabase/server";
+import { hasConferences } from "@/lib/event-types";
 
 // Demo mode: a FieldCommand admin tries an event as each role. Each admin has
 // one demo account per role ("persona"); switching signs this browser in as
@@ -27,7 +28,9 @@ export const personaLabel = (p: Persona) => PERSONAS.find((x) => x.value === p)!
  * and group events.
  */
 export function personasFor(eventType: string | null | undefined) {
-  if (eventType === "conference") return PERSONAS.filter((p) => p.value === "host" || p.value === "parent");
+  // Meetings: the person booking isn't a parent.
+  if (eventType === "meeting") return PERSONAS.filter((p) => p.value === "host" || p.value === "parent").map((p) => (p.value === "parent" ? { ...p, label: "Guest" } : p));
+  if (hasConferences(eventType)) return PERSONAS.filter((p) => p.value === "host" || p.value === "parent");
   if (eventType === "band_contest" || eventType === "group_event" || !eventType) return PERSONAS;
   return PERSONAS.filter((p) => p.value !== "director");
 }

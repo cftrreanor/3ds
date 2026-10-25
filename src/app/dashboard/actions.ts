@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { brand } from "@/lib/brand";
-import { eventTypeLabel, isEventType } from "@/lib/event-types";
+import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
@@ -138,7 +138,7 @@ const eventSchema = z
     askChildName: z.string().optional(),
     askChildNameField: z.string().optional(),
   })
-  .refine((v) => v.eventType === "conference" || Boolean(v.venueAddress), { message: "Required", path: ["venueAddress"] })
+  .refine((v) => hasConferences(v.eventType) || Boolean(v.venueAddress), { message: "Required", path: ["venueAddress"] })
   .refine((v) => v.endsOn >= v.startsOn, { message: "End date can't be before the start date", path: ["endsOn"] })
   .refine((v) => v.endsOn > v.startsOn || v.endTime > v.startTime, {
     message: "End time must be after the start time",
@@ -195,7 +195,7 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
     .eq("id", eventId)
     .maybeSingle();
   // A conference's school is set in Conference Setup, not here.
-  const conference = before?.event_type === "conference";
+  const conference = hasConferences(before?.event_type);
   if (!conference && !v.venueAddress) return { error: "Venue: Required" };
   const details = await supabase
     .from("events")

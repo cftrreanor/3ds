@@ -49,7 +49,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   ]);
   // Conferences: whether it's a free teacher account, and any other conference already published (one at a time in the pilot).
   // With a plan, conferences aren't limited to one at a time, and weekly hours (premium) can be published.
-  const [org, other, plan] = conferenceHere
+  // Meetings need a plan like any event, so none of this applies to them.
+  const [org, other, plan] = type === "conference"
     ? await Promise.all([
         supabase.from("organizations").select("account_kind").eq("id", event.organization_id).maybeSingle(),
         supabase
@@ -89,7 +90,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     booths,
     parentRegistrationOpen: event.parent_registration_open,
     parentClosesAt: Boolean(event.parent_registration_closes_at),
-    conferenceMissing: conferenceHere ? notReady(conference, event.venue_address) : null,
+    conferenceMissing: conferenceHere ? notReady(conference, event.venue_address, event.event_type) : null,
     teacherAccount: org?.data?.account_kind === "teacher",
     otherConference: other?.data && !hasPlan ? { id: other.data.id, name: other.data.name } : null,
     conferencePlan: hasPlan,

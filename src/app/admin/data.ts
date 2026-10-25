@@ -7,6 +7,7 @@ import { isSchemaError } from "@/lib/schema-check";
 import { firstName, siteLinks, type MergeVars } from "@/lib/merge-fields";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
+import { hasConferences } from "@/lib/event-types";
 
 // Loaders shared by the admin pages. Callers check requirePlatformAdmin()
 // first (the layout does too); reads use the server key, except the sign-in
@@ -204,7 +205,7 @@ export async function bookingsByAccount(accounts: Account[]) {
   const admin = createAdminClient();
   const entries = await Promise.all(
     accounts.map(async (a) => {
-      const ids = a.events.filter((e) => e.event_type === "conference").map((e) => e.id);
+      const ids = a.events.filter((e) => hasConferences(e.event_type)).map((e) => e.id);
       if (!ids.length) return [a.id, 0] as const;
       const { count } = await admin.from("conference_bookings").select("id", { count: "exact", head: true }).in("event_id", ids);
       return [a.id, count ?? 0] as const;

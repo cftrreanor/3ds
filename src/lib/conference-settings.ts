@@ -26,10 +26,11 @@ export async function loadConferenceSettings(client: Client, eventId: string) {
 
 /**
  * Whether the conference asks families for their child's name (Edit event
- * details). True until the 20261219000000 update adds the setting.
+ * details). Meetings never do. True until the 20261219000000 update adds the setting.
  */
 export async function asksChildName(supabase: Client, eventId: string) {
-  const { data, error } = await supabase.from("events").select("ask_child_name").eq("id", eventId).maybeSingle();
+  const { data, error } = await supabase.from("events").select("event_type, ask_child_name").eq("id", eventId).maybeSingle();
   if (error) return true;
-  return (data as { ask_child_name?: boolean } | null)?.ask_child_name !== false;
+  const event = data as { event_type?: string; ask_child_name?: boolean } | null;
+  return event?.event_type !== "meeting" && event?.ask_child_name !== false;
 }

@@ -5478,4 +5478,99 @@ delete from public.events where id in ('1d000000-0000-0000-0000-000000000001', '
 delete from public.volunteer_history where email = 'bob@example.com';
 delete from public.volunteer_history_removed where email = 'ann@example.com';
 
+-- ---------------------------------------------------------------------------
+-- Meetings: booked like conferences, with no child; one per main contact
+-- ---------------------------------------------------------------------------
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address)
+values ('1e000000-0000-0000-0000-000000000001', :'org_id', 'Advising Meetings', 'meet-1e', 'published', 'meeting', 'America/Chicago',
+        current_date + 3, current_date + 3,
+        ((current_date + 3) + time '09:00') at time zone 'America/Chicago',
+        ((current_date + 3) + time '10:00') at time zone 'America/Chicago', '1 Office Rd');
+insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room)
+values ('1e000000-0000-0000-0000-000000000001', 20, 0, '[]', now(), 'in_person', 'Suite 2');
+do $$
+declare
+  d  date := current_date + 3;
+  s1 timestamptz := (d + time '09:00') at time zone 'America/Chicago';
+  s2 timestamptz := (d + time '09:20') at time zone 'America/Chicago';
+  t1 uuid;
+  ok boolean := false;
+begin
+  t1 := public.book_conference('1e000000-0000-0000-0000-000000000001', s1, null,
+          '[{"name": "Dana Reyes", "email": "Dana@Example.com"}, {"name": "Lee Reyes", "email": "lee@example.com"}]', null, 'Planning');
+  assert (select child_name is null and parents -> 0 ->> 'email' = 'dana@example.com' from public.conference_bookings where access_token = t1),
+         'a meeting is booked with no child, the main contact first';
+  begin
+    perform public.book_conference('1e000000-0000-0000-0000-000000000001', s2, null, '[{"name": "Dana R", "email": "dana@example.com"}]', null, null);
+  exception when sqlstate 'P0001' then ok := sqlerrm like '%already have a meeting%';
+  end;
+  assert ok, 'one meeting per main contact';
+  perform public.book_conference('1e000000-0000-0000-0000-000000000001', s2, null, '[{"name": "Lee Reyes", "email": "lee@example.com"}]', null, null);
+  assert (select count(*) from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001') = 2,
+         'someone else can book their own meeting';
+  assert not exists (select 1 from public.conference_open_times('meet-1e') t where t in (s1, s2)), 'booked times aren''t offered';
+  -- A meeting never keeps a child's name, even if one is sent.
+  delete from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001' and parents -> 0 ->> 'email' = 'lee@example.com';
+  t1 := public.book_conference('1e000000-0000-0000-0000-000000000001', s2, 'Some Kid', '[{"name": "Lee Reyes", "email": "lee@example.com"}]', null, null);
+  assert (select child_name is null from public.conference_bookings where access_token = t1), 'a meeting never keeps a child''s name';
+  ok := false;
+  begin
+    perform public.book_conference('1e000000-0000-0000-0000-000000000001', s1 + interval '40 minutes', null, '[]', null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a meeting needs someone to book it';
+  ok := false;
+  begin
+    update public.events set event_type = 'conference' where id = '1e000000-0000-0000-0000-000000000001';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a meeting can''t become a conference';
+  insert into public.pilot_requests (name, email, organization, event_types)
+  values ('Mo Meet', 'mo@example.com', 'Mo Advising', array['meeting']);
+  delete from public.pilot_requests where email = 'mo@example.com';
+end $$;
+-- Meetings need a plan to publish (no free one like a teacher's conference).
+update public.events set status = 'draft' where id = '1e000000-0000-0000-0000-000000000001';
+create temp table meet_plan as select subscription_status, free_until from public.organizations where id = :'org_id';
+update public.organizations set subscription_status = 'none', free_until = null where id = :'org_id';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    update public.events set status = 'published' where id = '1e000000-0000-0000-0000-000000000001';
+  exception when sqlstate '42501' then ok := sqlerrm like '%active%plan%';
+  end;
+  assert ok, 'publishing meetings needs a plan';
+end $$;
+reset role;
+update public.organizations set subscription_status = 'comped', free_until = date '2099-01-01' where id = :'org_id';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set status = 'published' where id = '1e000000-0000-0000-0000-000000000001';
+reset role;
+do $$ begin
+  assert (select status = 'published' from public.events where id = '1e000000-0000-0000-0000-000000000001'), 'with a plan, meetings publish';
+end $$;
+update public.organizations o set subscription_status = m.subscription_status, free_until = m.free_until
+  from meet_plan m where o.id = :'org_id';
+drop table meet_plan;
+-- Demo mode: sample people book meetings, with no child.
+delete from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001';
+insert into public.demo_events (owner_id, event_id) values ('00000000-0000-0000-0000-000000000001', '1e000000-0000-0000-0000-000000000001');
+set role service_role;
+do $$
+begin
+  perform public.demo_seed('00000000-0000-0000-0000-000000000001', '1e000000-0000-0000-0000-000000000001', null);
+  assert (select count(*) from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001') > 0, 'sample meetings are booked';
+  assert not exists (select 1 from public.conference_bookings where event_id = '1e000000-0000-0000-0000-000000000001' and child_name is not null),
+         'sample meetings have no child';
+  assert not exists (select 1 from public.volunteers where event_id = '1e000000-0000-0000-0000-000000000001'), 'meetings get no volunteers';
+  perform public.demo_leave('00000000-0000-0000-0000-000000000001', '1e000000-0000-0000-0000-000000000001');
+end $$;
+reset role;
+delete from public.events where id = '1e000000-0000-0000-0000-000000000001';
+
 \echo 'All database security tests passed.'

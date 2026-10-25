@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import type { Booking } from "@/lib/conference-bookings";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
-import { hasConferences } from "@/lib/event-types";
+import { hasConferences, isMeeting } from "@/lib/event-types";
 import { RECORDS_NOTE } from "@/lib/records";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 import { isSchemaError, missing } from "@/lib/schema-check";
@@ -31,7 +31,7 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
   const { data: event } = await supabase.from("events").select("id, name, event_type, timezone, starts_on, ends_on").eq("id", eventId).maybeSingle();
   if (!event) missing();
   if (!hasConferences(event.event_type)) redirect(`/dashboard/events/${eventId}`);
-  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} />;
+  if (!(await isConferenceTeacher(supabase, eventId))) return <NotTheTeacher eventId={eventId} booked={await conferenceBookedCount(supabase, eventId)} meeting={isMeeting(event.event_type)} />;
 
   const columns = "id, starts_at, child_name, parents";
   const load = (extra: string) =>
@@ -113,7 +113,7 @@ export default async function MeetingSummaryPage({ params }: PageProps<"/dashboa
                 </th>
               )}
               <th scope="col" className="py-2 pr-3 font-semibold">
-                Parents
+                {students ? "Parents" : "Who"}
               </th>
               {outcomesReady && (
                 <th scope="col" className="py-2 font-semibold">
