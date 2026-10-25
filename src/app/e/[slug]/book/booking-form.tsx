@@ -37,6 +37,7 @@ export function BookingForm({
   zone,
   askChild = true,
   calendar = false,
+  meeting = false,
 }: {
   action: (prev: BookingState, formData: FormData) => Promise<BookingState>;
   times: OpenTime[];
@@ -52,6 +53,8 @@ export function BookingForm({
   askChild?: boolean;
   /** Weekly hours: a month calendar of open days, with that day's times beside it. */
   calendar?: boolean;
+  /** Meetings: "meeting" where conferences say "conference", and no school wording. */
+  meeting?: boolean;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, {});
@@ -84,7 +87,13 @@ export function BookingForm({
   // first time (components/required-fields.tsx); this says what's missing there.
   const [noTime, setNoTime] = useState(false);
   const hint = (m: Mode) =>
-    m === "in_person" && place ? `Come to ${place}.` : m === "phone" ? `${teacher} calls you.` : FAMILY_MODES.find((x) => x.value === m)!.hint;
+    m === "in_person" && place
+      ? `Come to ${place}.`
+      : m === "phone"
+        ? `${teacher} calls you.`
+        : meeting && m === "in_person"
+          ? "Meet in person."
+          : FAMILY_MODES.find((x) => x.value === m)!.hint;
 
   // Who each person on the booking is: parents at a conference that asks for the child, otherwise "You" and the others.
   const personLabel = (i: number) => (askChild ? `Parent or guardian ${i + 1}` : i === 0 ? "You" : `Person ${i + 1}`);
@@ -121,7 +130,7 @@ export function BookingForm({
       <Card className="space-y-3 border-success/30 bg-success-soft" role="status">
         <h2 className="text-2xl font-semibold">You&apos;re booked</h2>
         <p className="text-lg font-medium">{b.when}</p>
-        <p>{b.child ? `Conference for ${b.child}.` : `Conference with ${teacher}.`}</p>
+        <p>{b.child ? `Conference for ${b.child}.` : `${meeting ? "Meeting" : "Conference"} with ${teacher}.`}</p>
         <p className="text-sm text-muted">
           {b.emailSent
             ? `We emailed a calendar invite to ${b.emails.join(" and ")}, with the details and a link to change or cancel. We'll remind you the day before.`
@@ -138,7 +147,7 @@ export function BookingForm({
     return (
       <Card>
         <p className="font-medium">Every time is booked.</p>
-        <p className="mt-1 text-sm text-muted">Please contact your child&apos;s teacher to find another time.</p>
+        <p className="mt-1 text-sm text-muted">{meeting ? `Please contact ${teacher} to find another time.` : <>Please contact your child&apos;s teacher to find another time.</>}</p>
       </Card>
     );
   }

@@ -118,8 +118,8 @@ async function runDailyJob() {
   let conferencesUnsent = 0;
   const { data: confEvents } = await admin
     .from("events")
-    .select("id, slug, name, starts_on, ends_on, timezone, venue_name, venue_address, created_by")
-    .eq("event_type", "conference")
+    .select("id, slug, name, event_type, starts_on, ends_on, timezone, venue_name, venue_address, created_by")
+    .in("event_type", ["conference", "meeting"])
     .eq("status", "published")
     .lte("starts_on", shift(2))
     .gte("ends_on", shift(0));
@@ -145,7 +145,7 @@ async function runDailyJob() {
       loadConferenceSettings(admin, event.id),
       event.created_by ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle() : Promise.resolve({ data: null }),
     ]);
-    const teacher = { name: teacherRow?.full_name?.trim() || "Your teacher", email: teacherRow?.email ?? null };
+    const teacher = { name: teacherRow?.full_name?.trim() || (event.event_type === "meeting" ? "Your organizer" : "Your teacher"), email: teacherRow?.email ?? null };
     for (const b of bookings) {
       if (Date.now() - started > 270_000) {
         conferencesUnsent++;

@@ -160,6 +160,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261219000000_conference_child_optional.sql` | **Child's name optional at conferences**: on Edit event details, a teacher can turn off "Ask parents for their child's name". The booking page then doesn't ask for it, and each family books one meeting by the first parent's email. | ✅ run |
 | `20261220000000_event_show_brand.sql` | **Logo on or off per event**: on Edit event details (conferences too), a host can hide the account's logo and color on one event. They stay on every other event. | ✅ run |
 | `20261221000000_volunteer_history.sql` | **Volunteer history**: before an event's volunteers are deleted (10 days after), each adult's name, email, and shifts signed up and checked in are kept for the account, for 2 years after their last event. Hosts and Volunteer Leads see it from Volunteer tracking at the top of the dashboard. Phone numbers and under-18 helpers are still deleted. | ✅ run |
+| `20261222000000_meetings.sql` | **Meetings**: a new kind of event in the New event picker. It works like parent-teacher conferences (one day or weekly hours; in person, video, or phone; reminders and a link to change or cancel), but anyone can book and there's never a child's name. Each person brings up to three others. Publishing needs an active plan. | ⬜ not yet |
 
 ## Pilot requests
 

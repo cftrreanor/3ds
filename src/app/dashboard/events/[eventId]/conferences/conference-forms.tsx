@@ -60,9 +60,11 @@ function useEditing(id: string) {
 export function ConferencePublishBar({
   published,
   missing,
+  meeting = false,
   children,
 }: {
   published: boolean;
+  meeting?: boolean;
   /** What's still needed before publishing, or null when ready. */
   missing: string | null;
   /** The Publish / Unpublish button. */
@@ -73,7 +75,7 @@ export function ConferencePublishBar({
   return (
     <PublishBar>
       <PublishLine
-        label="Conference"
+        label={meeting ? "Meetings" : "Conference"}
         on={published}
         status={published ? "Published: your public page is online" : missing ? `Not published. ${missing}` : "Not published"}
       >
@@ -102,6 +104,12 @@ type BreakDraft = { key: number; start: string; minutes: string; label: string }
 type GroupDraft = { key: number; days: number[]; start: string; end: string };
 type DaysOffDraft = { key: number; from: string; to: string };
 
+/** Who books, in this setup's words: families for conferences, people for meetings. */
+const whoBooks = (meeting?: boolean) =>
+  meeting
+    ? { Families: "People", families: "people", family: "person", Family: "Person", school: "work" }
+    : { Families: "Families", families: "families", family: "family", Family: "Family", school: "school" };
+
 /** Days of the week, Sunday first (0), as short tap targets. */
 const DAY_LETTERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -119,6 +127,8 @@ type TimesProps = {
   booked: number;
   /** The account has a plan, so weekly hours can be published. */
   premium: boolean;
+  /** Meetings: "people" where conferences say "families". */
+  meeting?: boolean;
 };
 
 /** Step 1: one day or weekly hours, how long each meeting is, a gap between them, and breaks, with the meetings they make. */
@@ -153,10 +163,12 @@ function TimesForm({
   end,
   booked,
   premium,
+  meeting: forMeetings,
   editing,
   setEditing,
   onCancel,
 }: TimesProps & { editing: boolean; setEditing: (on: boolean) => void; onCancel: () => void }) {
+  const w = whoBooks(forMeetings);
   const [schedule, setSchedule] = useState<Schedule>(initial.schedule);
   const weekly = schedule === "weekly";
   const [meeting, setMeeting] = useState(initial.meeting_minutes);
@@ -202,7 +214,7 @@ function TimesForm({
       }}
     >
       <fieldset>
-        <legend className="text-sm font-semibold">When can families meet with you?</legend>
+        <legend className="text-sm font-semibold">When can {w.families} meet with you?</legend>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {SCHEDULES.map((o) => {
             // Booked meetings stay as booked: switching waits until they're canceled.
@@ -230,7 +242,7 @@ function TimesForm({
                   {o.value === "weekly" && <span className="rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-brand-foreground">Premium</span>}
                 </span>
                 <span className="block text-sm text-muted">
-                  {locked ? "Families have booked. Cancel their meetings on your Meetings page to switch." : o.hint}
+                  {locked ? `${w.Families} have booked. Cancel their meetings on your Meetings page to switch.` : forMeetings && o.value === "one_day" ? "A single day of meetings." : o.hint}
                 </span>
               </span>
             </label>
@@ -394,7 +406,7 @@ function TimesForm({
           </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Families book at least" hint="So no one books a meeting that starts in a few minutes.">
+            <Field label={`${w.Families} book at least`} hint="So no one books a meeting that starts in a few minutes.">
               <Select name="minNotice" defaultValue={initial.min_notice_hours}>
                 {NOTICE_HOURS.map((h) => (
                   <option key={h} value={h}>
@@ -403,7 +415,7 @@ function TimesForm({
                 ))}
               </Select>
             </Field>
-            <Field label="Families can book up to" hint="So your calendar doesn't fill up for the whole semester on day one.">
+            <Field label={`${w.Families} can book up to`} hint="So your calendar doesn't fill up for the whole semester on day one.">
               <Select name="maxAhead" defaultValue={initial.max_days_ahead}>
                 {AHEAD_DAYS.map((d) => (
                   <option key={d} value={d}>
@@ -428,7 +440,7 @@ function TimesForm({
           {booked > 0 && day !== date && initial.schedule === "one_day" && (
             <p className="text-sm text-muted sm:col-span-3">
               {booked === 1 ? "The booked meeting moves" : `All ${booked} booked meetings move`} to this day at the same time, and we email
-              each family an updated calendar invite with a link to pick another time or cancel.
+              each {w.family} an updated calendar invite with a link to pick another time or cancel.
             </p>
           )}
         </div>
@@ -460,7 +472,7 @@ function TimesForm({
             ))}
           </Select>
         </Field>
-        <Field label="Time between meetings" hint="A moment to write notes or let the next family in.">
+        <Field label="Time between meetings" hint={`A moment to write notes or let the next ${w.family} in.`}>
           <Select name="gapMinutes" value={gap} onChange={(e) => setGap(Number(e.target.value))}>
             {GAP_LENGTHS.map((m) => (
               <option key={m} value={m}>
@@ -578,6 +590,8 @@ type PlaceProps = {
   venue: VenueValue;
   venueSearchEnabled: boolean;
   timezone: string;
+  /** Meetings: "people" where conferences say "families", and a place rather than a school. */
+  meeting?: boolean;
 };
 
 /** Step 2: in person, video (one meeting with a waiting room for the whole time), or the family's choice. */
@@ -605,10 +619,12 @@ function PlaceForm({
   venue,
   venueSearchEnabled,
   timezone,
+  meeting,
   editing,
   setEditing,
   onCancel,
 }: PlaceProps & { editing: boolean; setEditing: (on: boolean) => void; onCancel: () => void }) {
+  const w = whoBooks(meeting);
   const [modes, setModes] = useState<Mode[]>(modesOf(initial));
   const [link, setLink] = useState(initial.video_link ?? "");
   const [ownLink, setOwnLink] = useState(initial.own_link);
@@ -627,7 +643,7 @@ function PlaceForm({
     >
       <fieldset>
         <legend className="text-sm font-semibold">How will you meet?</legend>
-        <p className="mt-1 text-sm text-muted">Choose all that work for you. With more than one, each family picks when they book.</p>
+        <p className="mt-1 text-sm text-muted">Choose all that work for you. With more than one, each {w.family} picks when they book.</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-3">
           {MODES.map((m) => (
             <label
@@ -644,7 +660,7 @@ function PlaceForm({
               />
               <span>
                 <span className="block font-semibold">{m.label}</span>
-                <span className="block text-sm text-muted">{m.hint}</span>
+                <span className="block text-sm text-muted">{meeting ? m.hint.replace("Families", "People").replace("each family", "each person") : m.hint}</span>
               </span>
             </label>
           ))}
@@ -653,14 +669,14 @@ function PlaceForm({
 
       {inPerson && (
         <fieldset className="grid gap-4">
-          <legend className="mb-1 text-sm font-semibold">Your school</legend>
-          <p className="-mt-2 text-sm text-muted">Shown on your public page and in families&apos; calendar invites.</p>
-          <VenuePicker searchEnabled={venueSearchEnabled} initial={venue} timezone={timezone} kind="School" example="e.g. Cedar Ridge Elementary" />
+          <legend className="mb-1 text-sm font-semibold">{meeting ? "Where you meet" : "Your school"}</legend>
+          <p className="-mt-2 text-sm text-muted">Shown on your public page and in {meeting ? "people's" : "families'"} calendar invites.</p>
+          <VenuePicker searchEnabled={venueSearchEnabled} initial={venue} timezone={timezone} kind={meeting ? "Place" : "School"} example={meeting ? "e.g. Main Street Office" : "e.g. Cedar Ridge Elementary"} />
         </fieldset>
       )}
 
       {inPerson && (
-        <Field label="Room and directions" hint="Families get this in their confirmation and reminder.">
+        <Field label="Room and directions" hint={`${w.Families} get this in their confirmation and reminder.`}>
           <Textarea
             name="room"
             required
@@ -674,12 +690,12 @@ function PlaceForm({
 
       {video && (
         <div className="space-y-4">
-          <WaitingRoomGuide hours={hours} />
+          <WaitingRoomGuide hours={hours} meeting={meeting} />
           <fieldset>
-            <legend className="text-sm font-semibold">How do families get the link?</legend>
+            <legend className="text-sm font-semibold">How do {w.families} get the link?</legend>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {[
-                { own: false, label: "Paste it here", hint: "We send it to each family in their confirmation and reminder." },
+                { own: false, label: "Paste it here", hint: `We send it to each ${w.family} in their confirmation and reminder.` },
                 { own: true, label: "I'll add it to each invite", hint: "You add a video link to each meeting's calendar invite yourself." },
               ].map((o) => (
                 <label
@@ -705,12 +721,12 @@ function PlaceForm({
           {ownLink ? (
             <p className="rounded-md bg-background px-3 py-2 text-sm">
               <strong>You&apos;ll need to add a video link to the calendar invite for each meeting.</strong> We won&apos;t
-              send families a link; they&apos;re told it will come in your invite before their meeting. Each family&apos;s
+              send {w.families} a link; they&apos;re told it will come in your invite before their meeting. Each {w.family}&apos;s
               email is on your list once they book.
             </p>
           ) : (
             <>
-              <Field label="Meeting link" hint="Only families who book get it, in their confirmation and reminder. It's never on your public page.">
+              <Field label="Meeting link" hint={`Only ${w.families} who book get it, in their confirmation and reminder. It's never on your public page.`}>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     name="videoLink"
@@ -742,7 +758,7 @@ function PlaceForm({
                 />
                 <span>
                   <span className="font-semibold">My meeting has a waiting room, and it runs the whole time ({hours}).</span>{" "}
-                  <span className="text-muted">Families wait there until you let them in, so meetings never overlap.</span>
+                  <span className="text-muted">{w.Families} wait there until you let them in, so meetings never overlap.</span>
                 </span>
               </label>
             </>
@@ -752,20 +768,20 @@ function PlaceForm({
 
       {inPerson && (
         <p className="text-sm text-muted">
-          In-person families are asked to wait outside your room. You invite them in when you&apos;re ready.
+          {meeting ? "People meeting in person are" : "In-person families are"} asked to wait outside your room. You invite them in when you&apos;re ready.
         </p>
       )}
 
       {modes.includes("phone") && (
         <div className="rounded-lg border border-border bg-brand-soft p-4 text-sm leading-6">
-          <p className="font-semibold">You call each family</p>
+          <p className="font-semibold">You call each {w.family}</p>
           <p className="mt-1">
-            Families give the number to call when they book, and it&apos;s on your Meetings page and in your calendar invite.
+            {w.Families} give the number to call when they book, and it&apos;s on your Meetings page and in your calendar invite.
             We never ask for your number or share it.
           </p>
           <p className="mt-2">
             Calling from your own phone? In the US, dial <strong>*67</strong> before the number to hide yours. Some
-            families don&apos;t answer hidden numbers, so a school phone or calling app works best.
+            {w.families} don&apos;t answer hidden numbers, so a {w.school} phone or calling app works best.
           </p>
         </div>
       )}
@@ -776,22 +792,23 @@ function PlaceForm({
 }
 
 /** How to set up one meeting with a waiting room, for Zoom and Google Meet. */
-function WaitingRoomGuide({ hours }: { hours: string }) {
+function WaitingRoomGuide({ hours, meeting }: { hours: string; meeting?: boolean }) {
+  const w = whoBooks(meeting);
   return (
     <div className="rounded-lg border border-border bg-brand-soft p-4 text-sm leading-6">
       <p className="font-semibold">Set up one meeting for the whole time</p>
       <p className="mt-1">
-        Create a single meeting that runs {hours}, with a waiting room turned on. Every family gets the same link and
-        waits until you let them in, so meetings never overlap. Families are asked to join using the name on their
-        booking (&ldquo;Ava Lopez&apos;s family,&rdquo; or a parent&apos;s own name when you don&apos;t ask for the child&apos;s), so
+        Create a single meeting that runs {hours}, with a waiting room turned on. Every {w.family} gets the same link and
+        waits until you let them in, so meetings never overlap. {w.Families} are asked to join using the name on their
+        booking {meeting ? <>(their own name)</> : <>(&ldquo;Ava Lopez&apos;s family,&rdquo; or a parent&apos;s own name when you don&apos;t ask for the child&apos;s)</>}, so
         you can match the waiting room to your list.
       </p>
       <details className="mt-3 rounded-md border border-border bg-surface px-3 py-2">
         <summary className="cursor-pointer font-semibold">Zoom</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
           <li>
-            Sign in with your <strong>school</strong> Zoom account. Free personal accounts end every meeting after 40
-            minutes, and families in the waiting room count toward that time.
+            Sign in with your <strong>{w.school}</strong> Zoom account. Free personal accounts end every meeting after 40
+            minutes, and {w.families} in the waiting room count toward that time.
           </li>
           <li>Schedule a meeting from your first conference to your last.</li>
           <li>
@@ -805,15 +822,15 @@ function WaitingRoomGuide({ hours }: { hours: string }) {
         <summary className="cursor-pointer font-semibold">Google Meet</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
           <li>
-            Sign in with your <strong>school</strong> Google account.
+            Sign in with your <strong>{w.school}</strong> Google account.
           </li>
           <li>In Google Calendar, create an event that covers your whole time, and add Google Meet video conferencing.</li>
           <li>
-            Don&apos;t invite parents to the calendar event. That way each family has to <strong>ask to join</strong>,
+            Don&apos;t invite {meeting ? "anyone" : "parents"} to the calendar event. That way each {w.family} has to <strong>ask to join</strong>,
             and you choose when to let them in.
           </li>
           <li>
-            In the meeting&apos;s host controls, set access to <strong>Restricted</strong> if your school allows it.
+            In the meeting&apos;s host controls, set access to <strong>Restricted</strong> if your {meeting ? "organization" : "school"} allows it.
           </li>
           <li>Copy the Meet link and paste it below.</li>
         </ol>

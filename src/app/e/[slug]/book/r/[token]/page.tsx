@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { EventHeaderBar } from "@/components/event-brand";
 import { Card } from "@/components/ui";
 import { meetingPlace, meetingWhen } from "@/lib/conference-bookings";
+import { isMeeting } from "@/lib/event-types";
 import { modesOf } from "@/lib/conferences";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
@@ -10,11 +11,11 @@ import { loadBooking, loadConference } from "../../data";
 import { PrivacyNote } from "../../privacy-note";
 import { CancelBookingButton, ChangeBookingForm } from "./manage-forms";
 
-export const metadata: Metadata = { title: "Your conference" };
+export const metadata: Metadata = { title: "Your booking" };
 
 type Params = { params: Promise<{ slug: string; token: string }> };
 
-/** A family's own page, from the link in their emails: see, change or cancel their conference. */
+/** A family's own page, from the link in their emails: see, change or cancel their conference (or meeting). */
 export default async function ManageBookingPage({ params }: Params) {
   const { slug, token } = await params;
   const booking = await loadBooking(token);
@@ -38,6 +39,7 @@ export default async function ManageBookingPage({ params }: Params) {
 
   const { event, settings, teacher } = conf;
   const tz = event.timezone;
+  const meeting = isMeeting(event.event_type);
   const place = meetingPlace(booking, event, settings, teacher);
   const started = new Date(booking.starts_at) <= new Date();
   const { data: open } = started ? { data: [] } : await (await createClient()).rpc("conference_open_times", { p_slug: event.slug });
@@ -50,8 +52,10 @@ export default async function ManageBookingPage({ params }: Params) {
     <>
       <EventHeaderBar slug={event.slug} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
-        <p className="text-sm font-medium text-muted">Parent-teacher conference with {teacher.name}</p>
-        <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{booking.child_name ?? "Your conference"}</h1>
+        <p className="text-sm font-medium text-muted">
+          {meeting ? "Meeting" : "Parent-teacher conference"} with {teacher.name}
+        </p>
+        <h1 className="mt-1 text-4xl font-medium tracking-tight sm:text-5xl">{booking.child_name ?? (meeting ? "Your meeting" : "Your conference")}</h1>
 
         <Card className="mt-6 space-y-4">
           <div>
@@ -106,6 +110,7 @@ export default async function ManageBookingPage({ params }: Params) {
                   times={times}
                   mode={booking.meeting_mode}
                   modes={modesOf(settings)}
+                  teacher={meeting ? teacher.name : undefined}
                 />
               </div>
             </section>
@@ -113,13 +118,13 @@ export default async function ManageBookingPage({ params }: Params) {
               <h2 id="cancel-heading" className="text-xl font-semibold">
                 Can&apos;t make it?
               </h2>
-              <p className="mb-4 mt-1 text-sm text-muted">Canceling frees your time for another family.</p>
-              <CancelBookingButton action={cancelBooking.bind(null, token)} child={booking.child_name} />
+              <p className="mb-4 mt-1 text-sm text-muted">Canceling frees your time for {meeting ? "someone else" : "another family"}.</p>
+              <CancelBookingButton action={cancelBooking.bind(null, token)} child={booking.child_name} meeting={meeting} />
             </section>
           </>
         )}
         <div className="mt-8">
-          <PrivacyNote teacher={teacher.name} weekly={settings.schedule === "weekly"} askChild={Boolean(booking.child_name)} />
+          <PrivacyNote teacher={teacher.name} weekly={settings.schedule === "weekly" || meeting} askChild={Boolean(booking.child_name)} />
         </div>
       </main>
     </>

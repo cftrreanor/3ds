@@ -32,7 +32,7 @@ export type MeetingRow =
       status: "now" | "next" | "past" | null;
       booking: {
         id: string;
-        /** Null when the teacher doesn't ask for the child's name. */
+        /** Null when there's no child's name (a meeting, or a conference that doesn't ask). */
         child: string | null;
         parents: MeetingParent[];
         mode: string | null;
@@ -67,6 +67,7 @@ export function MeetingList({
   total,
   summaryHref,
   today,
+  meeting = false,
 }: {
   /** Weekly hours: today's date, to list Today, Needs marking, and Upcoming by day. */
   today?: string;
@@ -76,6 +77,8 @@ export function MeetingList({
   total: number | null;
   /** The one-page summary to print or save as a PDF. */
   summaryHref: string;
+  /** Meetings: people, not families, and no child. */
+  meeting?: boolean;
 }) {
   // Who each booking is: the child, or with no child's name, the first parent.
   const nameOf = (b: { child: string | null; parents: MeetingParent[] }) => b.child ?? b.parents[0]?.name ?? "";
@@ -262,11 +265,11 @@ export function MeetingList({
           </p>
           <Input
             type="search"
-            placeholder="Child, parent, or email"
+            placeholder={meeting ? "Name or email" : "Child, parent, or email"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="sm:max-w-xs print:hidden"
-            aria-label="Find a family"
+            aria-label={meeting ? "Find someone" : "Find a family"}
           />
         </div>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-5 text-sm print:hidden">
@@ -311,13 +314,13 @@ export function MeetingList({
                         const list = emails.join(", ");
                         try {
                           await navigator.clipboard.writeText(list);
-                          toast(`Copied ${emails.length} parent ${emails.length === 1 ? "email" : "emails"}`);
+                          toast(`Copied ${emails.length} ${meeting ? "" : "parent "}${emails.length === 1 ? "email" : "emails"}`);
                         } catch {
                           window.prompt("Copy these emails:", list);
                         }
                       }}
                     >
-                      Copy all parent emails
+                      {meeting ? "Copy all emails" : "Copy all parent emails"}
                     </button>
                   </li>
                 )}
@@ -334,7 +337,7 @@ export function MeetingList({
       </div>
 
       {shown.length === 0 ? (
-        <p className="mt-6 text-muted">{q ? "No family matches that." : "No meetings booked yet."}</p>
+        <p className="mt-6 text-muted">{q ? (meeting ? "No one matches that." : "No family matches that.") : "No meetings booked yet."}</p>
       ) : (
         <>
           {today ? (
@@ -346,7 +349,7 @@ export function MeetingList({
                 {todays.length > 0 ? (
                   <ol className="mt-3 space-y-3">{todays.map(row)}</ol>
                 ) : (
-                  <p className="mt-1 text-muted">{q ? "No family matches that today." : "No meetings today."}</p>
+                  <p className="mt-1 text-muted">{q ? (meeting ? "No one matches that today." : "No family matches that today.") : "No meetings today."}</p>
                 )}
               </section>
               {toMark.length > 0 && (

@@ -6,7 +6,7 @@ export type Scenario = {
   id: string;
   label: string;
   hint: string;
-  type: "band_contest" | "group_event" | "volunteer" | "school_visit" | "fair" | "conference";
+  type: "band_contest" | "group_event" | "volunteer" | "school_visit" | "fair" | "conference" | "meeting";
   name: string;
   /** Days from today: 0 is today. */
   inDays: number;
@@ -106,6 +106,18 @@ export const SCENARIOS: Scenario[] = [
     venueName: "Cedar Ridge Elementary",
     venueAddress: "400 Oak St, Austin, TX 78702",
   },
+  {
+    id: "meeting",
+    label: "Meetings",
+    hint: "In a week, with people already booked.",
+    type: "meeting",
+    name: "Fall Advising Meetings",
+    inDays: 7,
+    start: "09:00",
+    end: "12:00",
+    venueName: "Cedar Ridge Booster Office",
+    venueAddress: "100 Panther Way, Austin, TX 78701",
+  },
 ];
 
 /** The pages a reviewer can jump to, for every event of a kind (paths after /e/{slug}). */
@@ -133,6 +145,7 @@ export const PUBLIC_PAGES: Record<Scenario["type"], { label: string; path: strin
     { label: "Family registration", path: "/parents" },
   ],
   conference: [{ label: "Booking page", path: "/book" }],
+  meeting: [{ label: "Booking page", path: "/book" }],
 };
 
 /** The site's own pages, as the control center lists them. */
@@ -147,6 +160,7 @@ export const SITE_PAGES: { group: string; pages: { label: string; href: string }
       { label: "School volunteers", href: "/school-volunteers" },
       { label: "Parent check-in", href: "/parent-check-in" },
       { label: "Parent-teacher conferences", href: "/parent-teacher-conferences" },
+      { label: "Meetings", href: "/meetings" },
       { label: "For administrators", href: "/school-administrators" },
       { label: "Student data privacy", href: "/student-data-privacy" },
     ],
