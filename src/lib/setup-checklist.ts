@@ -51,14 +51,11 @@ export type SetupFacts = {
   parentClosesAt: boolean;
   /** Conferences: what's still needed before publishing (null when ready). */
   conferenceMissing?: string | null;
-  /** A free teacher account (the conference limit is worded for teachers). */
-  teacherAccount?: boolean;
-  /** Conferences: the account's other published conference, which has to come down first during the pilot. */
-  otherConference?: { id: string; name: string } | null;
-  /** The account has a plan: no one-at-a-time limit, and weekly hours can be published. */
-  conferencePlan?: boolean;
-  /** The conference runs on weekly hours (premium). */
-  conferenceWeekly?: boolean;
+  /**
+   * Why the account's plan won't let it publish (20261223000000_packages.sql), and for
+   * "one at a time", the event already published. Null when the plan allows it.
+   */
+  planBlock?: { reason: string; other: { id: string; name: string } | null } | null;
 };
 
 export type SetupChecklist = {
@@ -307,17 +304,6 @@ export function publishEffects(f: SetupFacts): string[] {
   if (hasConferences(f.eventType)) {
     return [
       ...lines,
-      // When another conference is already up, the note under this list says it (and what to do) instead.
-      ...(f.conferenceWeekly && !f.conferencePlan
-        ? ["Weekly hours are a premium feature, so publishing them needs a plan. Write to us to add them to your account."]
-        : []),
-      ...(f.otherConference || f.conferencePlan
-        ? []
-        : [
-            f.teacherAccount
-              ? "During the pilot, a free teacher account can have one published conference at a time."
-              : "During the pilot, each account can have one published conference at a time.",
-          ]),
       "Nobody is emailed or notified. Families only find out when you share your link.",
       "You can keep editing everything, and unpublish at any time.",
     ];

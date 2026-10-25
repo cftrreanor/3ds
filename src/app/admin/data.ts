@@ -37,6 +37,10 @@ export type Account = {
   school?: string | null;
   /** Missing before 20261128000000_teacher_admin.sql. */
   suspended_at?: string | null;
+  /** Missing before 20261223000000_packages.sql. */
+  package?: string;
+  rate?: string;
+  pass_total_cents?: number;
   organization_members: AccountMember[];
   events: AccountEvent[];
   owner: { full_name: string; email: string } | null;
@@ -47,7 +51,12 @@ export type Account = {
 const BASE_COLUMNS =
   "id, name, slug, subscription_status, free_until, default_timezone, created_at, organization_members(user_id, role, profiles(full_name, email)), events(id, name, status, event_type, starts_on, ends_on, created_at)";
 // Newest first; each fallback is for a database update that hasn't been run yet.
-const ACCOUNT_COLUMNS = [`${BASE_COLUMNS}, account_kind, school, suspended_at`, `${BASE_COLUMNS}, account_kind, school`, BASE_COLUMNS];
+const ACCOUNT_COLUMNS = [
+  `${BASE_COLUMNS}, account_kind, school, suspended_at, package, rate, pass_total_cents`,
+  `${BASE_COLUMNS}, account_kind, school, suspended_at`,
+  `${BASE_COLUMNS}, account_kind, school`,
+  BASE_COLUMNS,
+];
 
 /** organizations rows, with the newest columns the database has. */
 async function selectAccounts(id?: string) {

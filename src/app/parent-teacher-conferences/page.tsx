@@ -15,7 +15,7 @@ import { PILOT_END_LABEL } from "@/lib/pilot";
 export const metadata: Metadata = {
   title: "Parent-Teacher Conference Scheduling, Free During the Pilot",
   description:
-    "Free for teachers during the pilot: set aside a day and families book their own conference time, in person, on video, or by phone, with calendar invites, reminders, and a link to change or cancel. Weekly hours for calls with premium.",
+    "Free for teachers during the pilot: set aside a day and families book their own conference time, in person, on video, or by phone, with calendar invites, reminders, and a link to change or cancel. Weekly hours for calls with Schedule Command.",
   alternates: { canonical: CONFERENCES_PAGE.path },
 };
 
@@ -25,7 +25,7 @@ const START = "#join" as const;
 const steps: HowStep[] = [
   {
     title: "Set your day and hours",
-    body: "Pick the meeting length and a few minutes between meetings. Add breaks if you need them. With premium, set the same hours every week instead.",
+    body: "Pick the meeting length and a few minutes between meetings. Add breaks if you need them. With Schedule Command, set the same hours every week instead.",
     screen: "/screens/conference-meeting-times.webp",
     alt: "Conference Setup: the day and hours, 15-minute meetings with 5 minutes between them, and breaks.",
   },
@@ -70,7 +70,7 @@ const sections: Audience["sections"] = [
   },
   {
     title: "Weekly hours and phone calls",
-    body: "With premium, offer the same times every week, like calls on Tuesday afternoons. Families pick a day, then a time, and you call them.",
+    body: "With Schedule Command, offer the same times every week, like calls on Tuesday afternoons. Families pick a day, then a time, and you call them.",
     points: [
       "Weekly hours on any days, with days off for holidays and field trips",
       "You choose how much notice families give and how far ahead they can book",
@@ -108,7 +108,7 @@ const privacy = [
 const faqs = [
   {
     q: "Is it free for teachers?",
-    a: "Yes, during the pilot. Join the pilot, and we set up your free teacher account. It runs parent-teacher conference days, one published at a time, and there's no credit card. Weekly hours are a premium feature.",
+    a: "Yes, during the pilot. Join the pilot, and we set up your free teacher account. It runs parent-teacher conference days, one published at a time, and there's no credit card. Weekly hours come with Schedule Command.",
   },
   {
     q: "Can families meet on video or by phone?",
@@ -120,7 +120,7 @@ const faqs = [
   },
   {
     q: "Can I offer the same times every week?",
-    a: `Yes, with premium. Set weekly hours, like Tuesday and Thursday afternoons, add days off, and choose how much notice families give and how far ahead they can book. Write to us at ${brand.supportEmail} to add premium to your account.`,
+    a: `Yes, with Schedule Command. Set weekly hours, like Tuesday and Thursday afternoons, add days off, and choose how much notice families give and how far ahead they can book. Write to us at ${brand.supportEmail} to move your account to Schedule Command.`,
   },
   {
     q: "Do families need to make an account?",

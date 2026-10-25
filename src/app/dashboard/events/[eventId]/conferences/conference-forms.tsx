@@ -126,7 +126,9 @@ type TimesProps = {
   /** How many meeting times families have booked. */
   booked: number;
   /** The account has a plan, so weekly hours can be published. */
-  premium: boolean;
+  /** The account's plan includes weekly hours (20261223000000_packages.sql). */
+  weeklyIncluded: boolean;
+  planName: string | null;
   /** Meetings: "people" where conferences say "families". */
   meeting?: boolean;
 };
@@ -162,7 +164,8 @@ function TimesForm({
   start,
   end,
   booked,
-  premium,
+  weeklyIncluded,
+  planName,
   meeting: forMeetings,
   editing,
   setEditing,
@@ -253,13 +256,13 @@ function TimesForm({
         </div>
       </fieldset>
 
-      {weekly && !premium && (
+      {weekly && !weeklyIncluded && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
-          <strong>Weekly hours are a premium feature.</strong> You can set them up now. To publish them, write to us at{" "}
+          <strong>Your {planName ? `${planName} ` : ""}plan doesn&apos;t include weekly hours.</strong> You can set them up now. To publish them, write to us at{" "}
           <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline underline-offset-4">
             {brand.supportEmail}
           </a>{" "}
-          and we&apos;ll add them to your account.
+          about an upgrade.
         </p>
       )}
 

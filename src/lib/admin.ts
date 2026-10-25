@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
+import { dollars, packageLabel, passFor, rateLabel } from "@/lib/plan";
 
 /**
  * For every admin page and action: a FieldCommand admin (platform_admins), or
@@ -53,8 +54,13 @@ export type AdminLogRow = {
   id: string;
   action: string;
   details: {
-    from?: { status: string; free_until: string | null };
-    to?: { status: string; free_until: string | null };
+    // plan_changed: status and free_until; package_changed: package and rate.
+    from?: { status?: string; free_until?: string | null; package?: string; rate?: string };
+    to?: { status?: string; free_until?: string | null; package?: string; rate?: string };
+    package?: string;
+    event_type?: string;
+    price_cents?: number;
+    source?: string;
     note?: string | null;
     email?: string;
     unpublished?: number;
@@ -67,8 +73,8 @@ export type AdminLogRow = {
 export const ADMIN_LOG_COLUMNS =
   "id, action, details, created_at, admin:profiles!admin_log_admin_id_fkey(full_name, email), organization:organizations!admin_log_organization_id_fkey(name)";
 
-const planWithEnd = (p?: { status: string; free_until: string | null }) =>
-  p ? `${planLabel(p.status)}${p.free_until ? ` through ${formatDate(p.free_until, { weekday: undefined })}` : ""}` : "?";
+const planWithEnd = (p?: { status?: string; free_until?: string | null }) =>
+  p ? `${planLabel(p.status ?? "?")}${p.free_until ? ` through ${formatDate(p.free_until, { weekday: undefined })}` : ""}` : "?";
 
 /** "Pilot (free) through Jan 1, 2027 → Paid" */
 export function describeAdminLog(r: AdminLogRow) {
@@ -76,7 +82,14 @@ export function describeAdminLog(r: AdminLogRow) {
   if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host`;
   if (r.action === "account_closed") return "Closed the account (deleted 90 days later)";
   if (r.action === "account_reopened") return "Reopened the account";
-  if (r.action === "teacher_upgraded") return "Upgraded from a free teacher account to a full account";
+  if (r.action === "teacher_upgraded")
+    return `Upgraded from a free teacher account to a full account${r.details.package ? ` on ${packageLabel(r.details.package)}` : ""}`;
+  if (r.action === "package_changed") {
+    const words = (p?: { package?: string; rate?: string }) => (p ? `${packageLabel(p.package ?? "?")}, ${rateLabel(p.rate ?? "?").toLowerCase()}` : "?");
+    return `Package: ${words(r.details.from)} → ${words(r.details.to)}${r.details.source === "payment" ? " (by payment)" : ""}`;
+  }
+  if (r.action === "pass_added")
+    return `Added a ${passFor(r.details.event_type ?? "")?.label.toLowerCase() ?? "event"} pass (${dollars(r.details.price_cents ?? 0)})${r.details.source === "payment" ? " by payment" : ""}`;
   if (r.action === "account_suspended")
     return `Suspended the account${r.details.unpublished ? ` (${r.details.unpublished} event${r.details.unpublished === 1 ? "" : "s"} taken offline)` : ""}`;
   if (r.action === "account_unsuspended") return "Lifted the suspension";

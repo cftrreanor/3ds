@@ -281,21 +281,9 @@ export async function setEventPublished(eventId: string, publish: boolean): Prom
     .eq("id", eventId)
     .select("id");
   if (error) {
-    if (error.code === "42501" && error.message.startsWith("Weekly hours are a premium feature")) {
-      return { error: `Weekly hours are a premium feature. Write to us at ${brand.supportEmail} to add them to your account.` };
-    }
-    if (error.code === "42501") {
-      return {
-        error:
-          `Publishing needs an active ${brand.name} plan for your organization. During the pilot, ask us to activate it.`,
-      };
-    }
-    // Another conference went live in the meantime (the event page usually says so before the click).
-    const other = error.message.match(/already have a published conference: (.+)\. Unpublish/)?.[1];
-    if (other) {
-      return {
-        error: `While we're in the pilot, a free teacher account can have one published conference at a time, and ${other} is published now. Unpublish it first, or write to us at ${brand.supportEmail} if you need more than one at a time.`,
-      };
+    // Plan limits say what's included and how to get more (friendlyDbError passes them through).
+    if (error.code === "42501" && !error.message.startsWith("Your ")) {
+      return { error: `Publishing needs an active ${brand.name} plan for your organization. Write to us at ${brand.supportEmail}.` };
     }
     return { error: friendlyDbError(error) };
   }

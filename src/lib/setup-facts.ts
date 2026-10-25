@@ -47,25 +47,9 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
         ? count(supabase.from("performance_slots").select("band_id", head).eq("event_id", eventId))
         : 0,
   ]);
-  // Conferences: whether it's a free teacher account, and any other conference already published (one at a time in the pilot).
-  // With a plan, conferences aren't limited to one at a time, and weekly hours (premium) can be published.
-  // Meetings need a plan like any event, so none of this applies to them.
-  const [org, other, plan] = type === "conference"
-    ? await Promise.all([
-        supabase.from("organizations").select("account_kind").eq("id", event.organization_id).maybeSingle(),
-        supabase
-          .from("events")
-          .select("id, name")
-          .eq("organization_id", event.organization_id)
-          .eq("event_type", "conference")
-          .eq("status", "published")
-          .neq("id", eventId)
-          .limit(1)
-          .maybeSingle(),
-        supabase.rpc("org_has_active_plan", { org: event.organization_id }),
-      ])
-    : [null, null, null];
-  const hasPlan = plan?.data === true;
+  // Why the account's plan won't let this publish (packages: what's included, one at a time), or null.
+  // For "one at a time", the event that's already published, to link to.
+  const planBlock = event.status === "published" ? null : await publishBlock(supabase, eventId, type, event.organization_id);
   return {
     eventId,
     eventType: type,
@@ -91,9 +75,26 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     parentRegistrationOpen: event.parent_registration_open,
     parentClosesAt: Boolean(event.parent_registration_closes_at),
     conferenceMissing: conferenceHere ? notReady(conference, event.venue_address, event.event_type) : null,
-    teacherAccount: org?.data?.account_kind === "teacher",
-    otherConference: other?.data && !hasPlan ? { id: other.data.id, name: other.data.name } : null,
-    conferencePlan: hasPlan,
-    conferenceWeekly: conference?.schedule === "weekly",
+    planBlock,
   };
+}
+
+async function publishBlock(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string, type: string, orgId: string): Promise<SetupFacts["planBlock"]> {
+  const { data: reason, error } = await supabase.rpc("org_can_publish", { p_event: eventId });
+  // Before 20261223000000_packages.sql: the database still checks when they publish.
+  if (error || typeof reason !== "string") return null;
+  const other = reason.includes("at a time")
+    ? (
+        await supabase
+          .from("events")
+          .select("id, name")
+          .eq("organization_id", orgId)
+          .eq("event_type", type)
+          .eq("status", "published")
+          .neq("id", eventId)
+          .limit(1)
+          .maybeSingle()
+      ).data
+    : null;
+  return { reason, other: other ? { id: other.id, name: other.name } : null };
 }

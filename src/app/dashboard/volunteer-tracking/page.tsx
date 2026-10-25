@@ -5,6 +5,9 @@ import { requireUser } from "@/lib/auth";
 import { isSchemaError, missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { trackingAccounts } from "@/lib/volunteer-tracking";
+import { Card } from "@/components/ui";
+import { brand } from "@/lib/brand";
+import { loadAccountPlan } from "@/lib/plan";
 import { removeFromVolunteerHistory } from "./actions";
 import { HistoryTable, type HistoryRow } from "./history-table";
 
@@ -23,9 +26,15 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
   const account = accounts.find((a) => a.id === picked) ?? accounts[0];
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("volunteer_report", { p_org: account.id });
+  const [{ data, error }, plan] = await Promise.all([
+    supabase.rpc("volunteer_report", { p_org: account.id }),
+    loadAccountPlan(supabase, account.id),
+  ]);
   if (error && isSchemaError(error)) missing();
-  if (error) console.error("volunteer_report failed", error);
+  // Lower packages keep recording history (and can download it), but the tracking itself needs Volunteer Command or up.
+  const notIncluded = plan?.volunteer_history === false || (error?.code === "42501" && error.message.startsWith("Your "));
+  if (error && !notIncluded) console.error("volunteer_report failed", error);
+  const downloadHref = `/dashboard/volunteer-tracking/download?account=${account.id}`;
   const rows = ((data ?? []) as HistoryRow[]).map((r) => ({ ...r, email: r.email.toLowerCase() }));
 
   return (
@@ -51,7 +60,26 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
           ))}
         </nav>
       )}
-      {error ? (
+      {notIncluded ? (
+        <Card className="mt-6">
+          <h2 className="text-lg font-semibold">Volunteer tracking isn&apos;t included in your {plan?.package_name ?? ""} plan</h2>
+          <p className="mt-2 leading-7 text-muted">
+            We still record who volunteers at your events and which shifts they check in to. Upgrade to Volunteer Command to rank your
+            volunteers by how often they show up and search your history here. To upgrade, write to us at{" "}
+            <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline underline-offset-4">
+              {brand.supportEmail}
+            </a>
+            .
+          </p>
+          <p className="mt-2 leading-7 text-muted">You can download your history as a spreadsheet anytime.</p>
+          <a
+            href={downloadHref}
+            className="mt-4 inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
+          >
+            Download spreadsheet
+          </a>
+        </Card>
+      ) : error ? (
         <p className="mt-6 text-danger">We couldn&apos;t load your volunteer tracking. Please try again.</p>
       ) : (
         <div className="mt-6">

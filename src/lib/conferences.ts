@@ -1,5 +1,5 @@
 // Parent-teacher conferences: one day's block cut into meetings, or the same
-// hours every week (a premium feature). Times are "HH:MM" in the event's time
+// hours every week (in Schedule Command and up). Times are "HH:MM" in the event's time
 // zone (see lib/schedule).
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 
@@ -18,7 +18,7 @@ export const isMode = (m: unknown): m is Mode => MODES.some((x) => x.value === m
 /** The old single setting, before several ways to meet (20261213000000): "either" was in person or video. */
 export type MeetingMode = Mode | "either";
 
-/** A conference day, or the same hours every week (premium). */
+/** A conference day, or the same hours every week (Schedule Command and up). */
 export type Schedule = "one_day" | "weekly";
 
 /** One block of weekly hours: day 0 is Sunday, as JavaScript's getDay() and Postgres's dow count them. */
