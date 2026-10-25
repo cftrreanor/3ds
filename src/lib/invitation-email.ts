@@ -2,6 +2,8 @@ import "server-only";
 import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 import { brand } from "@/lib/brand";
 import { emailLayout } from "@/lib/email";
+import { customWords } from "@/lib/system-email-overrides";
+import type { SystemEmailText } from "@/lib/system-emails";
 import { formatDate, formatDateRange } from "@/lib/time";
 
 /** What prepare_invitation_email() returns. */
@@ -23,7 +25,8 @@ export type InvitationDetails = {
 /** A different email for co-hosts, Volunteer Leads and Section Leads, with a one-tap accept link. */
 /** `bands`: the event is a band contest (a volunteer event has no bands). */
 /** `leadTitle`: what Section Leads are called at this event ("Station Coordinator" at fairs). */
-export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true, leadTitle = "Section Lead") {
+/** `saved`: an admin's wording for this kind of invitation (invitationEmailKey), if any. */
+export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true, leadTitle = "Section Lead", saved: SystemEmailText | null = null) {
   const who = inv.inviter_name ? `${inv.inviter_name} from ${inv.organization}` : inv.organization;
   const when = `${formatDateRange(inv.starts_on, inv.ends_on)}${inv.venue_name ? ` at ${inv.venue_name}` : ""}`;
   const station = inv.station_name ?? "a station";
@@ -58,17 +61,33 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
               : "You'll see who's on your station's shifts, and their phone numbers unlock on the day of the event.",
           ],
         };
+  const custom = customWords(invitationEmailKey(inv), saved, {
+    inviter: who,
+    organization: inv.organization,
+    event_name: inv.event_name,
+    event_when: when,
+    event_day: bands ? "contest day" : "the event day",
+    access: bands
+      ? "bands, the schedule, volunteers, the team, and contest day"
+      : "stations, shifts, volunteers, the team, and the event day",
+    station,
+    lead_title: leadTitle,
+  });
 
   return {
-    subject,
+    subject: custom?.subject || subject,
     ...emailLayout({
-      heading,
+      heading: custom?.heading || heading,
       paragraphs: [
-        ...paragraphs,
+        ...(custom?.paragraphs ?? paragraphs),
         `Tap the button to accept. There's no password: it signs you in as ${inv.email}, and sets up your account if you don't have one yet.`,
       ],
-      button: { label: "Accept invitation", url: acceptUrl },
+      button: { label: custom?.button || "Accept invitation", url: acceptUrl },
       footer: `This invitation is for ${inv.email} and works until ${formatDate(inv.expires_at.slice(0, 10))}. The button signs you in for the first ${EMAIL_LINK_DAYS} days; after that, sign in with this email to accept. Please don't forward it. If you weren't expecting it, you can ignore this email.`,
     }),
   };
 }
+
+/** Which system email (src/lib/system-emails.ts) an invitation is. */
+export const invitationEmailKey = (inv: Pick<InvitationDetails, "as_host" | "role">) =>
+  inv.as_host ? "team_invite_cohost" : inv.role === "volunteer_director" ? "team_invite_volunteer_lead" : "team_invite_section_lead";

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 import { dollars, packageLabel, passFor, rateLabel } from "@/lib/plan";
 import { invitePackageLabel, inviteStatusLabel } from "@/lib/invitation-plan";
+import { systemEmail } from "@/lib/system-emails";
 
 /**
  * For every admin page and action: a FieldCommand admin (platform_admins), or
@@ -67,6 +68,7 @@ export type AdminLogRow = {
     note?: string | null;
     email?: string;
     unpublished?: number;
+    key?: string;
   };
   created_at: string;
   admin: { full_name: string; email: string } | null;
@@ -107,5 +109,7 @@ export function describeAdminLog(r: AdminLogRow) {
   if (r.action === "account_suspended")
     return `Suspended the account${r.details.unpublished ? ` (${r.details.unpublished} event${r.details.unpublished === 1 ? "" : "s"} taken offline)` : ""}`;
   if (r.action === "account_unsuspended") return "Lifted the suspension";
+  if (r.action === "system_email_changed") return `Changed the wording of the “${systemEmail(r.details.key ?? "")?.name ?? r.details.key}” email`;
+  if (r.action === "system_email_reset") return `Reset the “${systemEmail(r.details.key ?? "")?.name ?? r.details.key}” email to its original wording`;
   return r.action.replaceAll("_", " ");
 }

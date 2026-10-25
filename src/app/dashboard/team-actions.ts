@@ -8,7 +8,8 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { sendEmail } from "@/lib/email";
-import { invitationEmail, type InvitationDetails } from "@/lib/invitation-email";
+import { invitationEmail, invitationEmailKey, type InvitationDetails } from "@/lib/invitation-email";
+import { loadSystemEmail } from "@/lib/system-email-overrides";
 import { hasBands, leadWords } from "@/lib/event-types";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
@@ -94,7 +95,8 @@ async function sendInvitation(invitationId: string): Promise<boolean | string> {
   if (!key) return false;
   const url = `${await getOrigin()}/invite/${details.token}?k=${key.email_token}`;
   const eventType = (key.events as unknown as { event_type: string } | null)?.event_type;
-  const { subject, html, text } = invitationEmail(details, url, hasBands(eventType), leadWords(eventType).one);
+  const saved = await loadSystemEmail(invitationEmailKey(details));
+  const { subject, html, text } = invitationEmail(details, url, hasBands(eventType), leadWords(eventType).one, saved);
   return sendEmail({ to: details.email, subject, html, text });
 }
 

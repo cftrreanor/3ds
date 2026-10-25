@@ -2,6 +2,8 @@ import "server-only";
 import { brand } from "@/lib/brand";
 import { emailLayout, sendEmail, type CalendarInvite } from "@/lib/email";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
+import type { SystemEmailText } from "@/lib/system-emails";
 import type { ConferenceSettings } from "@/lib/conferences";
 import { formatPhone } from "@/lib/phone";
 import { isSchemaError } from "@/lib/schema-check";
@@ -277,6 +279,8 @@ export function teacherBookingEmail(
   meetings: string,
   /** The teacher canceled it, or moved the conference to a new day, themselves. */
   byTeacher = false,
+  /** An admin's wording for this email (organizer_booking_<kind>); used when a family made the change. */
+  saved: SystemEmailText | null = null,
 ) {
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
   const place = meetingPlace(b, event, s, teacher);
@@ -295,23 +299,30 @@ export function teacherBookingEmail(
         : byTeacher
           ? `You canceled a ${word}: ${when}`
           : `Canceled ${word}: ${when}`;
+  const custom = byTeacher ? null : customWords(`organizer_booking_${kind}`, saved, { who: family, when, kind: word, event_name: event.name });
   const ics = (method: "REQUEST" | "CANCEL", seq: number): CalendarInvite => ({
     method,
     content: buildIcs(method, teacherIcsEvent({ ...b, calendar_sequence: seq }, event, s, teacher, meetings), brand.name),
   });
 
+  const button = custom?.button || "Open your Meetings page";
+
   if (kind === "canceled") {
     return {
-      subject,
+      subject: custom?.subject || subject,
       ...emailLayout({
-        heading: byTeacher ? `You canceled a ${word}` : b.child_name ? `A family canceled their ${word}` : `A ${word} was canceled`,
+        heading:
+          custom?.heading ||
+          (byTeacher ? `You canceled a ${word}` : b.child_name ? `A family canceled their ${word}` : `A ${word} was canceled`),
         paragraphs: [
-          byTeacher
-            ? `You canceled the ${word} with ${family} (${when}). We emailed ${them}, and the time is open again.`
-            : `${family} canceled their ${word} (${when}). The time is open again.`,
+          ...(custom?.paragraphs ?? [
+            byTeacher
+              ? `You canceled the ${word} with ${family} (${when}). We emailed ${them}, and the time is open again.`
+              : `${family} canceled their ${word} (${when}). The time is open again.`,
+          ]),
           "This email takes it off your calendar (in Gmail, you may need to open it first).",
         ],
-        button: { label: "Open your Meetings page", url: meetings },
+        button: { label: button, url: meetings },
         footer,
       }),
       invite: ics("CANCEL", b.calendar_sequence + 1),
@@ -319,15 +330,16 @@ export function teacherBookingEmail(
   }
 
   return {
-    subject,
+    subject: custom?.subject || subject,
     ...emailLayout({
       heading:
-        kind === "booked"
+        custom?.heading ||
+        (kind === "booked"
           ? b.child_name ? `A family booked a ${word}` : `A ${word} was booked`
           : byTeacher
             ? `A ${word} moved to your new day`
-            : b.child_name ? `A family changed their ${word}` : `A ${word} was changed`,
-      paragraphs: [
+            : b.child_name ? `A family changed their ${word}` : `A ${word} was changed`),
+      paragraphs: custom?.paragraphs ?? [
         kind === "booked"
           ? `${family} booked a ${word} with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
           : byTeacher
@@ -351,7 +363,7 @@ export function teacherBookingEmail(
         { title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") },
         ...(b.note ? [{ title: "Their note", detail: "They left you a note. It's on your Meetings page." }] : []),
       ],
-      button: { label: "Open your Meetings page", url: meetingAnchor(meetings, b.id) },
+      button: { label: button, url: meetingAnchor(meetings, b.id) },
       footer,
       preheader: `${when} · ${b.parents.map((p) => p.name).join(", ")}`,
     }),
@@ -369,5 +381,6 @@ export async function emailTeacher(
 ) {
   if (!conf.teacher.email) return false;
   const meetings = `${origin}/dashboard/events/${conf.event.id}/conferences/meetings`;
-  return sendEmail({ to: conf.teacher.email, ...teacherBookingEmail(kind, b, conf.event, conf.settings, conf.teacher, meetings, byTeacher) });
+  const saved = byTeacher ? null : await loadSystemEmail(`organizer_booking_${kind}`);
+  return sendEmail({ to: conf.teacher.email, ...teacherBookingEmail(kind, b, conf.event, conf.settings, conf.teacher, meetings, byTeacher, saved) });
 }

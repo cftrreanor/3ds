@@ -11,6 +11,7 @@ import { invitePackageLabel, inviteStatusLabel, isInvitePackage, isInviteStatus 
 import { fillTemplate, firstName, siteLinks } from "@/lib/merge-fields";
 import { normalizePhone } from "@/lib/phone";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDate } from "@/lib/time";
 import { myName } from "../data";
 
@@ -99,15 +100,23 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
     message = { subject: fillTemplate(template.subject, vars).text, body, ...renderEmail(body, { logoUrl: emailLogoUrl(origin) }) };
   } else {
     const url = `${origin}/login?${new URLSearchParams({ next: "/dashboard", email })}`;
+    const custom = customWords("host_invitation", await loadSystemEmail("host_invitation"), {
+      first_name: firstName(name),
+      name,
+      email,
+      organization,
+      plan: `${invitePackageLabel(pkg)} (${inviteStatusLabel(status).toLowerCase()})`,
+      free_until: formatDate(freeUntil, { weekday: undefined }),
+    });
     message = {
-      subject: `Your ${brand.name} host invitation`,
+      subject: custom?.subject || `Your ${brand.name} host invitation`,
       ...emailLayout({
-        heading: `You're invited to host on ${brand.name}`,
-        paragraphs: [
+        heading: custom?.heading || `You're invited to host on ${brand.name}`,
+        paragraphs: custom?.paragraphs ?? [
           `Hi ${firstName(name)}. Your pilot spot is ready. Sign in with this email address (${email}) to set up your organization and create your first event.`,
           "There's no password to remember: we'll email you a sign-in link. The invitation works for 30 days.",
         ],
-        button: { label: "Set up my organization", url },
+        button: { label: custom?.button || "Set up my organization", url },
         footer: `Questions? Reply to this email or write to ${brand.supportEmail}.`,
       }),
     };
