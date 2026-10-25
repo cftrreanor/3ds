@@ -38,10 +38,10 @@ export function HeaderMenu({ children }: { children: React.ReactNode }) {
         aria-expanded={open}
         aria-label="Menu"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-11 w-11 items-center justify-center rounded-md text-white/80 hover:text-white"
+        className={`flex h-11 w-11 items-center justify-center rounded-md hover:text-white ${open ? "bg-white/15 text-white" : "text-white/80"}`}
       >
         <svg aria-hidden viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          {open ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+          <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>
       </button>
       {open && (
