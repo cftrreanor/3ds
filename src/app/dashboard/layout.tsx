@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DemoBar } from "@/components/demo-bar";
+import { HeaderMenu } from "@/components/header-menu";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PrintRecordNote } from "@/components/print-record-note";
 import { UserBanners } from "@/components/user-banners";
@@ -8,6 +9,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
 import { trackingAccounts } from "@/lib/volunteer-tracking";
+
+const MENU_ITEM = "flex min-h-11 w-full items-center rounded-md px-3 text-left text-white/90 hover:bg-white/10 hover:text-white";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   if (!isSupabaseConfigured) {
@@ -52,12 +55,23 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
               <span className="sm:hidden">Volunteers</span>
             </Link>
           )}
-          <Link href="/dashboard/account" className={headerLinkClass}>
+          <Link href="/dashboard/account" className={`${headerLinkClass} hidden sm:block`}>
             Account
           </Link>
-          <form action="/auth/signout" method="post">
+          <form action="/auth/signout" method="post" className="hidden sm:block">
             <button className={headerLinkClass}>Sign out</button>
           </form>
+          {/* Phones: Account and Sign out tuck into a menu. */}
+          <div className="sm:hidden">
+            <HeaderMenu>
+              <Link href="/dashboard/account" className={MENU_ITEM}>
+                Account
+              </Link>
+              <form action="/auth/signout" method="post">
+                <button className={MENU_ITEM}>Sign out</button>
+              </form>
+            </HeaderMenu>
+          </div>
         </HeaderBar>
       </div>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
