@@ -24,6 +24,8 @@ export type SystemEmail = {
   fields: SystemEmailField[];
   /** Fields the email can't go out without (somewhere in the subject, heading or message). */
   required: string[];
+  /** Fields that can't go in the subject (a child's name: our sent-email log keeps subjects). */
+  private?: string[];
   /** The built-in wording, written with fields. */
   starting: SystemEmailText & { button_label: string | null };
   /** Lines the code always adds after the message (shown in the preview, not editable). */
@@ -47,6 +49,29 @@ const bookingFields: SystemEmailField[] = [
   { key: "kind", label: "conference or meeting", sample: "conference" },
   { key: "event_name", label: "Event name", sample: "Fall conferences" },
 ];
+
+const familyFields: SystemEmailField[] = [
+  { key: "first_name", label: "Their first name", sample: "Maria" },
+  { key: "teacher", label: "Teacher or organizer", sample: "Ms. Ruiz" },
+  { key: "kind", label: "conference or meeting", sample: "conference" },
+  { key: "when", label: "Meeting date and time", sample: "Tue, Nov 3 · 4:10–4:25 PM" },
+  { key: "event_name", label: "Event name", sample: "Fall conferences" },
+  { key: "child", label: "Child's name (blank when not asked)", sample: "Ava" },
+  { key: "about_child", label: "“about” and the child's name (blank when not asked)", sample: "about Ava" },
+  { key: "for_child", label: "“for” and the child's name (blank when not asked)", sample: "for Ava" },
+];
+const childFields = ["child", "about_child", "for_child"];
+const bookingRows = "Then: when, where, who's coming, and the privacy promise";
+const calendarRemoved = "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).";
+const bookingDeleted = "Your booking details (their contact details, note, and any child's name) have been deleted.";
+
+const visitFields: SystemEmailField[] = [
+  { key: "first_name", label: "Their first name", sample: "Maria" },
+  { key: "event_name", label: "Event name", sample: "Lakeside visitor day" },
+  { key: "when", label: "Date and time", sample: "Nov 12, 2026, 9:00–11:00 AM" },
+];
+/** The photo ID line (lib/parents ID_REMINDER): always in school visit emails. */
+const idReminder = "Bring a valid government-issued photo ID (driver's license, state ID, or passport). You won't be let in without it.";
 
 export const SYSTEM_EMAILS: SystemEmail[] = [
   {
@@ -187,6 +212,166 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
     },
     locked: ["Then what happened: their registration was removed, or they're marked withdrawn on your schedule"],
   },
+  {
+    key: "family_booking_confirmation",
+    group: "Families: conferences and meetings",
+    name: "Booking confirmed",
+    description: "Goes to each parent or guest on a booking when they book. A calendar invite is attached.",
+    fields: familyFields,
+    required: [],
+    private: childFields,
+    starting: {
+      subject: "Booked: your {{kind}} with {{teacher}}, {{when}}",
+      heading: "Your {{kind}} is booked",
+      body: "Hi {{first_name}}, you're booked to meet {{teacher}} {{about_child}} ({{event_name}}).",
+      button_label: "Change or cancel",
+    },
+    locked: ["A calendar invite is attached, so it's on your calendar with the details.", bookingRows],
+  },
+  {
+    key: "family_booking_changed",
+    group: "Families: conferences and meetings",
+    name: "Booking changed",
+    description: "Goes to each parent or guest when they change their time. The calendar invite is updated.",
+    fields: familyFields,
+    required: [],
+    private: childFields,
+    starting: {
+      subject: "New time: your {{kind}} with {{teacher}}, {{when}}",
+      heading: "Your {{kind}} was changed",
+      body: "Hi {{first_name}}, you're booked to meet {{teacher}} {{about_child}} ({{event_name}}).",
+      button_label: "Change or cancel",
+    },
+    locked: ["A calendar invite is attached, so it's on your calendar with the details.", bookingRows],
+  },
+  {
+    key: "family_booking_reminder",
+    group: "Families: conferences and meetings",
+    name: "Reminder the day before",
+    description: "Goes to each parent or guest the day before their meeting.",
+    fields: familyFields,
+    required: [],
+    private: childFields,
+    starting: {
+      subject: "Tomorrow: your {{kind}} with {{teacher}}, {{when}}",
+      heading: "Your {{kind}} is tomorrow",
+      body: "Hi {{first_name}}, a reminder that you're meeting {{teacher}} {{about_child}} tomorrow ({{event_name}}).",
+      button_label: "Change or cancel",
+    },
+    locked: [bookingRows],
+  },
+  {
+    key: "family_booking_canceled",
+    group: "Families: conferences and meetings",
+    name: "Booking canceled",
+    description: "Goes to each parent or guest when they cancel. It takes the meeting off their calendar.",
+    fields: familyFields,
+    required: [],
+    private: childFields,
+    starting: {
+      subject: "Canceled: your {{kind}} with {{teacher}}",
+      heading: "Your {{kind}} was canceled",
+      body: "Hi {{first_name}}, the {{kind}} {{for_child}} with {{teacher}} ({{when}}) is canceled.",
+      button_label: "Book another time",
+    },
+    locked: [bookingDeleted, calendarRemoved],
+  },
+  {
+    key: "family_booking_canceled_by_organizer",
+    group: "Families: conferences and meetings",
+    name: "Canceled by the teacher or organizer",
+    description: "Goes to each parent or guest when the teacher or organizer cancels their meeting.",
+    fields: familyFields,
+    required: [],
+    private: childFields,
+    starting: {
+      subject: "Canceled: your {{kind}} with {{teacher}}",
+      heading: "{{teacher}} canceled your {{kind}}",
+      body: "Hi {{first_name}}, {{teacher}} had to cancel the {{kind}} {{for_child}} ({{when}}). You're welcome to book another open time.",
+      button_label: "Book another time",
+    },
+    locked: [bookingDeleted, calendarRemoved],
+  },
+  {
+    key: "family_booking_moved",
+    group: "Families: conferences and meetings",
+    name: "Moved to a new day",
+    description: "Goes to each parent or guest when the organizer moves the whole event to a new day. The calendar invite is updated.",
+    fields: familyFields,
+    required: [],
+    private: childFields,
+    starting: {
+      subject: "New day: your {{kind}} with {{teacher}}, {{when}}",
+      heading: "{{teacher}} moved your {{kind}} to a new day",
+      body: "Hi {{first_name}}, {{teacher}} moved {{event_name}} to a new day. Your meeting {{about_child}} is at the same time of day, on the day below.\n\nIf the new day doesn't work for you, use the button below to pick another time or cancel.",
+      button_label: "Change or cancel",
+    },
+    locked: ["An updated calendar invite is attached, so your calendar shows the new day.", bookingRows],
+  },
+  {
+    key: "parent_visit_confirmation",
+    group: "Families: school visitor days",
+    name: "Registration confirmed",
+    description: "Goes to a parent when they register for a school visitor day. A calendar invite is attached.",
+    fields: visitFields,
+    required: [],
+    starting: {
+      subject: "You're registered: {{event_name}}",
+      heading: "You're registered",
+      body: "Hi {{first_name}}, you're registered for {{event_name}}.",
+      button_label: "View, change, or cancel my registration",
+    },
+    locked: [
+      idReminder,
+      "A calendar invite is attached, so you can add the visit to your calendar with a reminder to bring your photo ID.",
+      "Then: when, where, their children, and who else is coming",
+    ],
+  },
+  {
+    key: "parent_visit_reminder",
+    group: "Families: school visitor days",
+    name: "Reminder the day before",
+    description: "Goes to each registered parent the day before a school visitor day.",
+    fields: visitFields,
+    required: [],
+    starting: {
+      subject: "Tomorrow: {{event_name}}. Bring your photo ID",
+      heading: "See you tomorrow",
+      body: "Hi {{first_name}}, a reminder about {{event_name}}.",
+      button_label: "View, change, or cancel my registration",
+    },
+    locked: [idReminder, "Then: when, where, their children, and who else is coming"],
+  },
+  {
+    key: "parent_visit_canceled",
+    group: "Families: school visitor days",
+    name: "Registration canceled",
+    description: "Goes to a parent when they cancel their registration. It takes the visit off their calendar.",
+    fields: visitFields,
+    required: [],
+    starting: {
+      subject: "Canceled: {{event_name}}",
+      heading: "Your registration was canceled",
+      body: "Hi {{first_name}}, your registration for {{event_name}} ({{when}}) is canceled.",
+      button_label: "Register again",
+    },
+    locked: ["Your children's details have been deleted.", calendarRemoved],
+  },
+  {
+    key: "parent_visit_already",
+    group: "Families: school visitor days",
+    name: "Already registered",
+    description: "Goes to a parent when someone registers their email again. Nothing changes; it gives them their own link.",
+    fields: visitFields,
+    required: [],
+    starting: {
+      subject: "Your registration: {{event_name}}",
+      heading: "You're already registered",
+      body: "Hi {{first_name}}, someone (we hope it was you) tried to register this email again for {{event_name}} ({{when}}). Nothing was changed.\n\nTo see, change, or cancel your registration, use the button below. If this wasn't you, you can ignore this email.",
+      button_label: "View or change my registration",
+    },
+    locked: [],
+  },
 ];
 
 export const systemEmail = (key: string) => SYSTEM_EMAILS.find((e) => e.key === key);
@@ -223,6 +408,9 @@ export function checkSystemText(email: SystemEmail, t: SystemEmailText): string 
   const unknown = [...all.matchAll(FIELD)].map((m) => m[1]).filter((k) => !known(email, k));
   if (unknown.length) return `This email doesn't have ${[...new Set(unknown)].map((k) => `{{${k}}}`).join(", ")}. Use the fields listed under the editor.`;
   const used = new Set([...all.matchAll(FIELD)].map((m) => m[1].toLowerCase()));
+  const inSubject = [...t.subject.matchAll(FIELD)].map((m) => m[1].toLowerCase());
+  const hidden = (email.private ?? []).filter((k) => inSubject.includes(k));
+  if (hidden.length) return `Leave ${hidden.map((k) => `{{${k}}}`).join(", ")} out of the subject: children's names never go in subjects.`;
   const missing = email.required.filter((k) => !used.has(k));
   if (missing.length) return `Keep ${missing.map((k) => `{{${k}}}`).join(", ")} in the email: people need it.`;
   return null;
@@ -230,7 +418,13 @@ export function checkSystemText(email: SystemEmail, t: SystemEmailText): string 
 
 /** The finished words: the saved version filled in, as emailLayout takes them. */
 export function systemEmailWords(email: SystemEmail, t: SystemEmailText, vars: Record<string, string>) {
-  const fill = (s: string) => fillSystemText(email, s, vars).replace(/[ \t]+/g, " ").trim();
+  // A blank field (no child's name, say) can leave a double space or a space before a comma: tidy both.
+  const fill = (s: string) =>
+    fillSystemText(email, s, vars)
+      .replace(/[ \t]+/g, " ")
+      .replace(/ ([.,;:)])/g, "$1")
+      .replace(/\( /g, "(")
+      .trim();
   return {
     subject: fill(t.subject),
     heading: fill(t.heading),

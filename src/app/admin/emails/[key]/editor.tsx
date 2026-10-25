@@ -72,6 +72,7 @@ export function SystemEmailEditor({
               <li key={f.key}>
                 <code className="text-foreground">{`{{${f.key}}}`}</code> <span className="text-muted">{f.label}</span>
                 {email.required.includes(f.key) && <span className="text-muted"> (required)</span>}
+                {email.private?.includes(f.key) && <span className="text-muted"> (not in the subject)</span>}
               </li>
             ))}
           </ul>
@@ -139,8 +140,8 @@ export function SystemEmailEditor({
           </div>
         </div>
         <p className="text-xs text-muted">
-          Lines in gray are always added. The original wording changes a little by event type (band contests or other events); your
-          version is used for all of them.
+          Lines in gray are always added. The original wording changes a little in some cases (the kind of event, or no child's name);
+          your version is used for all of them.
         </p>
       </div>
     </div>
