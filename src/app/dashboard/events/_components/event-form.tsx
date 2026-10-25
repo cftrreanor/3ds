@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Select } from "@/components/ui";
 import { VenuePicker, type VenueValue } from "@/components/venue-picker";
 import type { ActionState } from "@/lib/action-state";
+import Link from "next/link";
 import { US_TIMEZONES } from "@/lib/time";
 import { hasConferences, isMeeting } from "@/lib/event-types";
 
@@ -30,6 +31,7 @@ export function EventForm({
   submitLabel,
   hasShifts = false,
   eventType,
+  when,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -39,13 +41,18 @@ export function EventForm({
   hasShifts?: boolean;
   /** For a new event: what kind it is (chosen before the form). */
   eventType?: string;
+  /**
+   * Conferences and meetings, once created: the day or weekly hours as set in
+   * their setup page, the one place they're changed.
+   */
+  when?: { summary: string; href: string; setupName: string };
 }) {
   // Venue search favors the part of the country in the event's time zone.
   const [timezone, setTimezone] = useState(initial.timezone);
-  // Conferences and meetings are one day: the end date follows the start date.
   const conference = hasConferences(eventType);
   const meeting = isMeeting(eventType);
-  const [day, setDay] = useState(initial.startsOn ?? "");
+  // A new conference or meeting starts a week out, 3–7 PM, until the first setup step sets the real day or weekly hours.
+  const [placeholderDay] = useState(() => new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10));
   return (
     <ActionForm action={action} className="space-y-6" resetOnSuccess={false}>
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -63,16 +70,28 @@ export function EventForm({
         )}
         {conference ? (
           <>
-            <Field label={meeting ? "Meeting day" : "Conference day"} className="sm:col-span-2">
-              <Input name="startsOn" type="date" required value={day} onChange={(e) => setDay(e.target.value)} />
-            </Field>
-            <input type="hidden" name="endsOn" value={day} />
-            <Field label="First meeting starts">
-              <Input name="startTime" type="time" defaultValue={initial.startTime ?? "15:00"} required />
-            </Field>
-            <Field label="Last meeting ends by">
-              <Input name="endTime" type="time" defaultValue={initial.endTime ?? "19:00"} required />
-            </Field>
+            {/* The day or weekly hours are set in Conference (or Meeting) Setup only; these carry what's there now. */}
+            <input type="hidden" name="startsOn" value={initial.startsOn ?? placeholderDay} />
+            <input type="hidden" name="endsOn" value={initial.endsOn ?? placeholderDay} />
+            <input type="hidden" name="startTime" value={initial.startTime ?? "15:00"} />
+            <input type="hidden" name="endTime" value={initial.endTime ?? "19:00"} />
+            {when ? (
+              <div className="rounded-lg border border-border p-3 text-sm sm:col-span-2">
+                <p className="font-medium">{when.summary}</p>
+                <p className="mt-1 text-muted">
+                  Change the day or hours, or switch between one day and every week, in{" "}
+                  <Link href={when.href} className="font-medium text-brand underline underline-offset-4">
+                    {when.setupName}
+                  </Link>
+                  .
+                </p>
+              </div>
+            ) : (
+              <p className="rounded-lg border border-border p-3 text-sm text-muted sm:col-span-2">
+                Next, you&apos;ll set your {meeting ? "meeting" : "conference"} day, or the same hours every week, in{" "}
+                {meeting ? "Meeting Setup" : "Conference Setup"}.
+              </p>
+            )}
           </>
         ) : (
           <>

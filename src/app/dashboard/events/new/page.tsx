@@ -45,9 +45,9 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
       </h1>
       <p className="mt-2 leading-7 text-muted">
         {type === "conference"
-          ? "Free during the pilot. Just the day and your hours for now. You'll set meeting times and where you'll meet next."
+          ? "Free during the pilot. Just a name for now. Next, you'll set your day or weekly hours and where you'll meet."
           : type === "meeting"
-          ? "Just the day and your hours for now. You'll set meeting times and where you'll meet next."
+          ? "Just a name for now. Next, you'll set your day or weekly hours and where you'll meet."
           : "Just the basics for now. You'll add stations and volunteer shifts next."}{" "}
         {!teacherOnly && (
           <Link href="/dashboard/events/new" className="font-medium text-brand underline-offset-4 hover:underline">

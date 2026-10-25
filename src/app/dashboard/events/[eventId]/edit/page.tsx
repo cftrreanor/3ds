@@ -13,11 +13,13 @@ import { isSchemaError } from "@/lib/schema-check";
 import { saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
-import { formatDate, utcToZonedTime } from "@/lib/time";
+import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
 import { setEventShowBrand, setEventType, updateEvent } from "../../../actions";
 import { deleteFile, prepareUpload, saveFile } from "../../../file-actions";
 import { FilesManager } from "./files-manager";
-import { asksChildName } from "@/lib/conference-settings";
+import { asksChildName, loadConferenceSettings } from "@/lib/conference-settings";
+import { weeklySummary } from "@/lib/conferences";
+import { displayTime } from "@/lib/schedule";
 import { EventForm } from "../../_components/event-form";
 import { SavedBy } from "@/components/saved-by";
 import { LogoForm } from "@/components/logo-form";
@@ -62,6 +64,19 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   // The account's logo for volunteer badges lives with the other uploads, here.
   const badgesHere = !hasConferences(event.event_type);
   const askChildName = hasConferences(event.event_type) ? await asksChildName(supabase, eventId) : true;
+  // Conferences and meetings: the day or weekly hours, as set in their setup page.
+  const setup = hasConferences(event.event_type) ? (await loadConferenceSettings(supabase, eventId)).settings : null;
+  const when = setup
+    ? {
+        summary: `${
+          setup.schedule === "weekly"
+            ? `Every week: ${weeklySummary(setup.weekly_hours)} · ${formatDateRange(event.starts_on, event.ends_on)}`
+            : `${formatDate(event.starts_on)} · ${displayTime(utcToZonedTime(event.window_start, event.timezone))} – ${displayTime(utcToZonedTime(event.window_end, event.timezone))}`
+        } · ${zoneName(event.timezone)}`,
+        href: `/dashboard/events/${eventId}/conferences#times`,
+        setupName: isMeeting(event.event_type) ? "Meeting Setup" : "Conference Setup",
+      }
+    : undefined;
   // One logo and color per account; each event can switch them off (true until the 20261220000000 update).
   const [brand, showBrand] = await Promise.all([
     loadBrand(event.organization_id),
@@ -140,7 +155,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           title="1. Event details"
           status={<StepStatus done doneLabel="Saved" />}
           open={step !== "files" && step !== "kind" && step !== "replies"}
-          intro="The name, dates, times, and venue everyone sees."
+          intro={when ? `The name and time zone everyone sees. The day or weekly hours are set in ${when.setupName}.` : "The name, dates, times, and venue everyone sees."}
         >
           <EventForm
             action={updateEvent.bind(null, eventId)}
@@ -165,6 +180,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
             submitLabel="Save changes"
             hasShifts={(count ?? 0) > 0}
             eventType={event.event_type}
+            when={when}
           />
         </SetupStep>
 
