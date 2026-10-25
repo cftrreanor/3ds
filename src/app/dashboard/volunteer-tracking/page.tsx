@@ -43,11 +43,9 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
   ]);
   if (error && isSchemaError(error)) missing();
   // Tracking shows on Volunteer Command and up, or after a downgrade with history from before. Everyone
-  // else sees a blurred preview with how to upgrade (history keeps recording, and can be downloaded).
+  // else sees a blurred preview with how to upgrade (history keeps recording for when they do).
   const preview = plan?.volunteer_tracking === false || (error?.code === "42501" && error.message.startsWith("Your "));
   if (error && !preview) console.error("volunteer_report failed", error);
-  const downloadHref = `/dashboard/volunteer-tracking/download?account=${account.id}`;
-  const recorded = preview ? ((await supabase.rpc("volunteer_history_export", { p_org: account.id })).data ?? []).length : 0;
   const rows = ((data ?? []) as HistoryRow[]).map((r) => ({ ...r, email: r.email.toLowerCase() }));
 
   return (
@@ -100,14 +98,6 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
               >
                 Write to us to upgrade
               </a>
-              {recorded > 0 && (
-                <p className="mt-4 text-sm leading-6 text-muted">
-                  <a href={downloadHref} className="font-medium text-brand underline underline-offset-4">
-                    Download your volunteer history
-                  </a>{" "}
-                  as a spreadsheet ({recorded} {recorded === 1 ? "person" : "people"} so far)
-                </p>
-              )}
             </section>
           </div>
         </div>

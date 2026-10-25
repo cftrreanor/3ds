@@ -5818,7 +5818,6 @@ begin
   end;
   assert ok, 'with no history from before, a downgraded account sees the preview, not volunteer tracking';
   assert not (public.account_plan('70000000-0000-0000-0000-000000000001') ->> 'volunteer_tracking')::boolean, 'the plan says it''s a preview';
-  perform public.volunteer_history_export('70000000-0000-0000-0000-000000000001');
 end $$;
 reset role;
 -- With history it built up on Volunteer Command, a downgraded account keeps seeing its tracking.
@@ -5857,7 +5856,12 @@ begin
   exception when insufficient_privilege then ok := true;
   end;
   assert ok, 'an account that never had volunteer tracking sees the preview';
-  assert (select count(*) from public.volunteer_history_export('70000000-0000-0000-0000-000000000002')) = 1, 'but can still download its history';
+  ok := false;
+  begin
+    perform public.volunteer_history_export('70000000-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'and can''t download its history either';
 end $$;
 reset role;
 delete from public.organizations where id = '70000000-0000-0000-0000-000000000002';

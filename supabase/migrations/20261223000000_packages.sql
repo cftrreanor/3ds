@@ -17,7 +17,7 @@
 --       - Team limits when someone is invited or added. Nobody is removed on
 --         a downgrade; adding more is blocked, with the reason.
 --       - Volunteer history needs Volunteer Command or higher to view; it's
---         still recorded on every package, and hosts can always download it.
+--         still recorded on every package, so it's there after an upgrade.
 --   * set_account_package() and add_event_pass() are the only ways a package
 --     changes or a pass is added, by an admin, or by a payment (the service
 --     role, for a future Stripe webhook). Each is written to admin_log.
@@ -498,9 +498,10 @@ create trigger team_limits
 revoke execute on function public.team_limits_on_invitations() from public, anon, authenticated;
 
 -- 7. Volunteer history -----------------------------------------------------------
--- Still recorded on every package (purge_volunteers is unchanged). Viewing it
--- needs a package with volunteer_history; the download stays open to the
--- account's hosts and Volunteer Leads on any package.
+-- Still recorded on every package (purge_volunteers is unchanged). Viewing or
+-- downloading it needs a package with volunteer_history, or one the account had
+-- before a downgrade (volunteer_tracking_open). This builds the rows; only
+-- volunteer_report, which checks that, calls it.
 create function public.volunteer_history_export(p_org uuid)
 returns table (email text, full_name text, events int, signed_up int, checked_in int, last_event_name text, last_event_on date)
 language plpgsql stable security definer set search_path = public
@@ -533,8 +534,7 @@ begin
      group by r.email, l.full_name, l.event_name, l.event_on;
 end;
 $$;
-revoke execute on function public.volunteer_history_export(uuid) from public, anon;
-grant execute on function public.volunteer_history_export(uuid) to authenticated;
+revoke execute on function public.volunteer_history_export(uuid) from public, anon, authenticated;
 
 -- Volunteer tracking shows when the package includes it, or when the account had
 -- it before a downgrade and has history to show. Otherwise the page is a preview.
@@ -560,7 +560,7 @@ begin
     raise exception 'Only the account''s hosts and Volunteer Leads can see volunteer history.' using errcode = '42501';
   end if;
   if not public.volunteer_tracking_open(p_org) then
-    raise exception 'Your % plan doesn''t include volunteer tracking. Upgrade to % to see it. You can still download your history.',
+    raise exception 'Your % plan doesn''t include volunteer tracking. Upgrade to % to see it.',
       tier.name, public.upgrade_for(null, 'volunteer_history') using errcode = '42501';
   end if;
   return query select * from public.volunteer_history_export(p_org);

@@ -108,7 +108,7 @@ export function includedLines(plan: AccountPlan): string[] {
     plan.max_team === null
       ? "A team of any size, including Volunteer Leads and Section Leads"
       : `A team of up to ${plan.max_team} people${plan.max_team === 2 ? " (a host and a co-host)" : ""}${plan.event_staff ? ", including Volunteer Leads and Section Leads" : ""}`,
-    plan.volunteer_history ? "Volunteer tracking across your events" : "Volunteer history download (volunteer tracking isn't included)",
+    plan.volunteer_history ? "Volunteer tracking across your events" : "Volunteer tracking isn't included",
   ];
   return lines;
 }

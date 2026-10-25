@@ -5,11 +5,21 @@ import { toast } from "@/components/toaster";
 import { Button, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { formatDate } from "@/lib/time";
-import { showedUp, toCsv, type HistoryRow } from "@/lib/volunteer-history-csv";
 
-export type { HistoryRow };
+export type HistoryRow = {
+  email: string;
+  full_name: string;
+  events: number;
+  signed_up: number;
+  checked_in: number;
+  last_event_name: string;
+  last_event_on: string;
+};
 
 type SortKey = "showed" | "checked" | "signed" | "events" | "name" | "last";
+
+/** The share of their shifts someone checked in for, 0–100. */
+const showedUp = (r: HistoryRow) => (r.signed_up ? Math.round((r.checked_in / r.signed_up) * 100) : 0);
 
 const COMPARE: Record<SortKey, (a: HistoryRow, b: HistoryRow) => number> = {
   // Highest share first, then the most check-ins: 10 of 10 ranks above 1 of 1.
@@ -29,6 +39,13 @@ const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: "events", label: "Events", numeric: true },
   { key: "last", label: "Last event" },
 ];
+
+function toCsv(rows: HistoryRow[]) {
+  const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const head = ["Name", "Email", "Showed up (%)", "Checked in", "Signed up", "Events", "Last event", "Last event date"];
+  const body = rows.map((r) => [r.full_name, r.email, showedUp(r), r.checked_in, r.signed_up, r.events, r.last_event_name, r.last_event_on]);
+  return [head, ...body].map((line) => line.map(cell).join(",")).join("\r\n");
+}
 
 /**
  * The account's volunteers, ranked by how often they showed up for the shifts
