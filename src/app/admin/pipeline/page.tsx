@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { requirePlatformAdmin } from "@/lib/admin";
+import { DEFAULT_PILOT_END, requirePlatformAdmin } from "@/lib/admin";
 import { ADMIN_TZ, ago, STAGES } from "@/lib/admin-crm";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
-import { PageHeader } from "../kit";
+import { loadTemplates } from "../data";
+import { PageHeader, primarySmall } from "../kit";
 import { moveStage } from "../notes-actions";
-import { InviteBox } from "./invite-box";
+import { sendHostInvitation } from "./actions";
+import { InviteHostPanel } from "./invite-host-panel";
 import { PipelineBoard, type BoardCard } from "./board";
 
 export const metadata: Metadata = { title: "Pipeline" };
@@ -34,12 +36,13 @@ function inStage(iso: string) {
 export default async function PipelinePage() {
   await requirePlatformAdmin();
   const admin = createAdminClient();
-  const [{ data }, { data: noteData }] = await Promise.all([
+  const [{ data }, { data: noteData }, templates] = await Promise.all([
     admin
       .from("pilot_requests")
       .select("id, name, organization, status, contest_when, bands, volunteers, stage_changed_at, organization_id")
       .order("created_at", { ascending: false }),
     admin.from("admin_notes").select("pilot_request_id, follow_up_on").not("pilot_request_id", "is", null).not("follow_up_on", "is", null).is("done_at", null),
+    loadTemplates(),
   ]);
   const requests = (data ?? []) as Request[];
   const today = utcToZonedDate(new Date().toISOString(), ADMIN_TZ);
@@ -70,7 +73,15 @@ export default async function PipelinePage() {
       <PageHeader
         title="Pipeline"
         sub={`${requests.length} pilot request${requests.length === 1 ? "" : "s"} · ${open} in progress. Inviting a host, their setting up, and their first published event move cards along on their own.`}
-        actions={<InviteBox />}
+        actions={
+          <InviteHostPanel
+            action={sendHostInvitation.bind(null, null)}
+            templates={templates.map((t) => ({ id: t.id, name: t.name }))}
+            defaults={{ email: "", name: "", organization: "", phone: "", package: "event", status: "comped", freeUntil: DEFAULT_PILOT_END }}
+            label="Invite a host"
+            buttonClassName={primarySmall}
+          />
+        }
       />
       <PipelineBoard stages={STAGES} cards={cards} move={moveStage} />
     </div>
