@@ -18,7 +18,7 @@ export const MERGE_FIELDS = [
 ] as const;
 
 /** Where "Book a call with us" goes: a Meetings booking page on our own account. */
-export const BOOK_CALL_URL = "https://www.fieldcommandevents.com/e/user-testing-of-field-command-events-q5f0/book";
+export const BOOK_CALL_URL = "https://www.fieldcommandevents.com/e/meet-with-field-command-events-69co";
 
 /**
  * Ready-made buttons (the toolbar's "Quick button" menu), in groups. Pages
