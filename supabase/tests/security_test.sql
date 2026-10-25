@@ -5883,6 +5883,139 @@ begin
   assert ok, 'an account''s plan is private';
 end $$;
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- Package and pilot length chosen on a host invitation (20261224000000_invitation_plan.sql)
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('0000000c-0000-0000-0000-000000000001', 'chosen@example.com', '{"full_name":"Cho Chosen"}'),
+  ('0000000c-0000-0000-0000-000000000002', 'plain@example.com', '{"full_name":"Pla Plain"}'),
+  ('0000000c-0000-0000-0000-000000000003', 'teachchoice@example.com', '{"full_name":"Tea Choice"}');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  perform public.admin_invite_host('chosen@example.com', null, 'volunteer', 'trialing', date '2027-03-01');
+  -- Inviting again with nothing chosen keeps the earlier choices.
+  perform public.admin_invite_host('chosen@example.com');
+  assert (select package = 'volunteer' and plan_status = 'trialing' and free_until = date '2027-03-01'
+            from public.host_invitations where email = 'chosen@example.com'), 're-inviting keeps earlier choices';
+  -- Changed before it's used.
+  perform public.admin_set_invitation_plan('chosen@example.com', 'schedule', 'comped', date '2027-02-01');
+  perform public.admin_invite_host('plain@example.com');
+  perform public.admin_invite_host('teachchoice@example.com', null, 'free', 'comped', date '2027-02-15');
+  begin
+    perform public.admin_invite_host('nope@example.com', null, 'pass_fair', null, null);
+    raise exception 'FAIL: an invitation took a pass as its package';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    perform public.admin_invite_host('nope@example.com', null, 'event', 'active', date '2027-01-01');
+    raise exception 'FAIL: an invitation took a paid plan';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+
+-- The chosen package and plan carry over when they set up.
+set request.jwt.claims = '{"sub":"0000000c-0000-0000-0000-000000000001","email":"chosen@example.com"}';
+do $$
+declare
+  org public.organizations;
+begin
+  begin
+    perform public.admin_set_invitation_plan('chosen@example.com', 'district', 'comped', date '2099-01-01');
+    raise exception 'FAIL: an invited person changed their own invitation';
+  exception when insufficient_privilege then null;
+  end;
+  org := public.create_organization('Chosen Boosters', 'chosen-boosters');
+  assert org.package = 'schedule' and org.subscription_status = 'comped' and org.free_until = date '2027-02-01',
+         'the invitation''s package and plan carry over to the organization';
+end $$;
+-- A host can't set their own package, plan, or free-through date.
+do $$
+declare ok boolean;
+begin
+  ok := false;
+  begin
+    update public.organizations set package = 'event' where slug = 'chosen-boosters';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t change their own package';
+  ok := false;
+  begin
+    update public.organizations set subscription_status = 'active', free_until = date '2099-01-01' where slug = 'chosen-boosters';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t change their own plan or free-through date';
+  ok := false;
+  begin
+    perform public.set_account_package((select id from public.organizations where slug = 'chosen-boosters'), 'event', 'standard', null, 'admin');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t call set_account_package';
+  ok := false;
+  begin
+    perform public.admin_set_plan((select id from public.organizations where slug = 'chosen-boosters'), 'comped', date '2099-01-01', null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t call admin_set_plan';
+  ok := false;
+  begin
+    perform public.apply_package((select id from public.organizations where slug = 'chosen-boosters'), 'event', 'standard', null, 'admin', null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t call the shared package steps directly';
+end $$;
+
+-- No choices: exactly as before (Event Command, free pilot through Jan 1, 2027).
+set request.jwt.claims = '{"sub":"0000000c-0000-0000-0000-000000000002","email":"plain@example.com"}';
+do $$
+declare
+  org public.organizations;
+begin
+  org := public.create_organization('Plain Boosters', 'plain-boosters');
+  assert org.package = 'event' and org.subscription_status = 'comped' and org.free_until = date '2027-01-01',
+         'an invitation with no package behaves as before';
+end $$;
+
+-- A free teacher account picks up its invitation's plan too.
+set request.jwt.claims = '{"sub":"0000000c-0000-0000-0000-000000000003","email":"teachchoice@example.com"}';
+do $$
+declare
+  org public.organizations;
+begin
+  org := public.create_teacher_account('Tea Choice', 'Choice Elementary', 'America/Chicago');
+  assert org.package = 'free' and org.subscription_status = 'comped' and org.free_until = date '2027-02-15',
+         'a teacher account gets its invitation''s plan';
+end $$;
+
+-- Logged as the admin who invited them, and the used invitation can't be changed.
+reset role;
+do $$ begin
+  assert exists (select 1 from public.admin_log l join public.organizations o on o.id = l.organization_id
+                  where o.slug = 'chosen-boosters' and l.action = 'plan_changed'
+                    and l.details ->> 'note' = 'Set from host invitation'
+                    and l.admin_id = '00000000-0000-0000-0000-000000000006'), 'the plan from the invitation is logged';
+  assert exists (select 1 from public.admin_log l join public.organizations o on o.id = l.organization_id
+                  where o.slug = 'chosen-boosters' and l.action = 'package_changed'
+                    and l.details ->> 'note' = 'Set from host invitation'), 'and the package';
+  assert not exists (select 1 from public.admin_log l join public.organizations o on o.id = l.organization_id
+                      where o.slug = 'plain-boosters' and l.details ->> 'note' = 'Set from host invitation'),
+         'nothing is logged when nothing was chosen';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    perform public.admin_set_invitation_plan('chosen@example.com', 'event', 'comped', date '2027-01-01');
+    raise exception 'FAIL: changed a used invitation';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+reset role;
+delete from public.organizations where slug in ('chosen-boosters', 'plain-boosters')
+   or id in (select organization_id from public.organization_members where user_id = '0000000c-0000-0000-0000-000000000003');
+delete from public.host_invitations where email in ('chosen@example.com', 'plain@example.com', 'teachchoice@example.com');
+
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'
