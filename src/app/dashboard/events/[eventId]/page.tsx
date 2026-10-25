@@ -1054,28 +1054,30 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
           </li>
         ))}
       </ul>
-      {facts.otherConference ? (
+      {facts.planBlock ? (
         // Say why before they try, and what they can do: not an error after the click.
         <div className="mt-5 rounded-md border border-brand/25 bg-brand-soft p-4 text-sm leading-6">
-          <p className="font-semibold">One published conference at a time during the pilot</p>
-          <p className="mt-1">
-            {facts.teacherAccount ? "While we're in the pilot, a free teacher account can have one published conference at a time." : "While we're in the pilot, each account can have one published conference at a time."}{" "}
-            <strong>{facts.otherConference.name}</strong> is published now. To publish this one, unpublish{" "}
-            {facts.otherConference.name} first.
-          </p>
+          <p className="font-semibold">Your plan doesn&apos;t allow publishing this yet</p>
+          <p className="mt-1">{facts.planBlock.reason}</p>
           <p className="mt-1 text-muted">
-            Need more than one at a time? Write to us at{" "}
+            To upgrade or add a one-time event pass, write to us at{" "}
             <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline underline-offset-4">
               {brand.supportEmail}
-            </a>{" "}
-            and we&apos;ll work it out with you.
+            </a>
+            . See what&apos;s included on your{" "}
+            <Link href="/dashboard/account" className="font-medium text-brand underline underline-offset-4">
+              Account
+            </Link>{" "}
+            page.
           </p>
-          <Link
-            href={`/dashboard/events/${facts.otherConference.id}#publish`}
-            className="mt-3 inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
-          >
-            Open {facts.otherConference.name}
-          </Link>
+          {facts.planBlock.other && (
+            <Link
+              href={`/dashboard/events/${facts.planBlock.other.id}#publish`}
+              className="mt-3 inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
+            >
+              Open {facts.planBlock.other.name}
+            </Link>
+          )}
         </div>
       ) : (
         <div className="mt-5">

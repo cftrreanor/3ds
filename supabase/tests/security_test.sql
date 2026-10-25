@@ -4250,7 +4250,7 @@ declare
   ok boolean := false;
 begin
   begin
-    perform public.admin_upgrade_teacher(org, null);
+    perform public.admin_upgrade_teacher(org, 'event', null);
   exception when insufficient_privilege then ok := true;
   end;
   assert ok, 'a teacher can''t upgrade their own account';
@@ -4293,7 +4293,7 @@ declare
   org uuid := current_setting('test.tia_org')::uuid;
 begin
   perform public.admin_unsuspend_account(org, null);
-  perform public.admin_upgrade_teacher(org, 'Joined the pilot');
+  perform public.admin_upgrade_teacher(org, 'event', 'Joined the pilot');
 end $$;
 reset role;
 do $$
@@ -5541,7 +5541,7 @@ declare ok boolean := false;
 begin
   begin
     update public.events set status = 'published' where id = '1e000000-0000-0000-0000-000000000001';
-  exception when sqlstate '42501' then ok := sqlerrm like '%active%plan%';
+  exception when sqlstate '42501' then ok := sqlerrm like '%plan isn''t active%';
   end;
   assert ok, 'publishing meetings needs a plan';
 end $$;
@@ -5572,5 +5572,317 @@ begin
 end $$;
 reset role;
 delete from public.events where id = '1e000000-0000-0000-0000-000000000001';
+
+-- ---------------------------------------------------------------------------
+-- Packages and event passes (20261223000000_packages.sql)
+-- ---------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('0000000b-0000-0000-0000-000000000001', 'pkhost@example.com', '{"full_name":"Pat Package"}'),
+  ('0000000b-0000-0000-0000-000000000002', 'pkco@example.com', '{"full_name":"Cora Cohost"}'),
+  ('0000000b-0000-0000-0000-000000000003', 'pkthird@example.com', '{"full_name":"Theo Third"}');
+insert into public.organizations (id, name, slug, subscription_status, free_until)
+values ('70000000-0000-0000-0000-000000000001', 'Package PTA', 'package-pta', 'comped', date '2099-01-01');
+insert into public.organization_members (organization_id, user_id, role)
+values ('70000000-0000-0000-0000-000000000001', '0000000b-0000-0000-0000-000000000001', 'owner');
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+do $$ begin
+  assert (select package from public.organizations where id = '70000000-0000-0000-0000-000000000001') = 'event',
+         'accounts start on Event Command';
+  assert not exists (select 1 from public.organizations where account_kind = 'teacher' and package <> 'free'),
+         'free teacher accounts are on Free';
+  assert (select price_cents from public.plan_tiers where code = 'pass_band_contest') = 15000, 'pass prices are in plan_tiers';
+end $$;
+
+-- Only an admin, or a payment (the service role), changes a package.
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  assert (select count(*) from public.plan_tiers) >= 10, 'hosts can read the packages';
+  begin
+    perform public.set_account_package('70000000-0000-0000-0000-000000000001', 'district', 'standard', null, 'admin');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t change their own package';
+  ok := false;
+  begin
+    perform public.add_event_pass('70000000-0000-0000-0000-000000000001', 'fair', null, 'payment', 0);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t give themselves a pass';
+  ok := false;
+  begin
+    update public.plan_tiers set max_team = 99 where code = 'schedule';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'hosts can''t change package limits';
+  ok := false;
+  begin
+    insert into public.event_passes (organization_id, event_type, price_cents, source)
+    values ('70000000-0000-0000-0000-000000000001', 'fair', 0, 'admin');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'hosts can''t write passes directly';
+end $$;
+reset role;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    update public.organizations set package = 'district' where id = '70000000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'even the server changes packages only through set_account_package()';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.set_account_package('70000000-0000-0000-0000-000000000001', 'schedule', 'standard', null, 'payment');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'an admin can''t claim to be a payment';
+  perform public.set_account_package('70000000-0000-0000-0000-000000000001', 'schedule', 'standard', 'Chose Schedule Command', 'admin');
+end $$;
+reset role;
+do $$ begin
+  assert (select package from public.organizations where id = '70000000-0000-0000-0000-000000000001') = 'schedule', 'an admin sets the package';
+  assert exists (select 1 from public.admin_log where organization_id = '70000000-0000-0000-0000-000000000001'
+                   and action = 'package_changed' and details ->> 'source' = 'admin'
+                   and details -> 'to' ->> 'package' = 'schedule'), 'the change is logged as made by an admin';
+end $$;
+
+-- Schedule Command: one published volunteer event at a time, no band contests.
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare
+  ok boolean := false;
+  msg text;
+begin
+  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+  values ('70000000-0000-0000-0000-0000000000e1', '70000000-0000-0000-0000-000000000001', 'Fall Fun Run', 'pk-run', 'volunteer',
+          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Track Rd'),
+         ('70000000-0000-0000-0000-0000000000e2', '70000000-0000-0000-0000-000000000001', 'Book Fair', 'pk-books', 'volunteer',
+          current_date + 19, current_date + 19, now() + interval '19 days', now() + interval '19 days 3 hours', '1 Library Ln');
+  update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e1';
+  assert public.org_can_publish('70000000-0000-0000-0000-0000000000e2') like
+         'Your Schedule Command plan publishes one volunteer event at a time%Volunteer Command.',
+         'org_can_publish says why, in plain words';
+  begin
+    update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e2';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%Unpublish it or upgrade to Volunteer Command%', 'one published volunteer event at a time';
+  update public.events set name = 'Fall Fun Run 5K' where id = '70000000-0000-0000-0000-0000000000e1';
+  ok := false;
+  begin
+    insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+    values ('70000000-0000-0000-0000-000000000001', 'Marching Contest', 'pk-band', 'band_contest',
+            current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Field Rd');
+  exception when insufficient_privilege then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%doesn''t include band contests. Add a band contest pass or upgrade to Event Command.',
+         'Schedule Command can''t make band contests without a pass';
+end $$;
+
+-- A pass publishes one band contest, once.
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+select set_config('pk.pass', public.add_event_pass('70000000-0000-0000-0000-000000000001', 'band_contest', 'Spring contest', 'admin')::text, false);
+reset role;
+set role service_role;
+select public.add_event_pass('70000000-0000-0000-0000-000000000001', 'fair', null, 'payment') as pk_fair_pass \gset
+reset role;
+update public.event_passes set expires_at = now() - interval '1 day' where id = :'pk_fair_pass';
+do $$ begin
+  assert (select pass_total_cents from public.organizations where id = '70000000-0000-0000-0000-000000000001') = 25000,
+         'pass purchases add up toward Event Command';
+  assert exists (select 1 from public.admin_log where action = 'pass_added' and details ->> 'source' = 'payment'), 'a paid pass is logged as a payment';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  assert (select count(*) from public.event_passes where organization_id = '70000000-0000-0000-0000-000000000001') = 2,
+         'hosts see their own passes';
+  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+  values ('70000000-0000-0000-0000-0000000000e3', '70000000-0000-0000-0000-000000000001', 'Marching Contest', 'pk-band', 'band_contest',
+          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Field Rd');
+  update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e3';
+  assert (select event_id from public.event_passes where id = current_setting('pk.pass')::uuid) = '70000000-0000-0000-0000-0000000000e3',
+         'publishing uses the pass';
+  update public.events set status = 'draft' where id = '70000000-0000-0000-0000-0000000000e3';
+  update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e3';
+  begin
+    insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+    values ('70000000-0000-0000-0000-000000000001', 'Second Contest', 'pk-band2', 'band_contest',
+            current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Field Rd');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a pass is for one event';
+  ok := false;
+  begin
+    insert into public.events (organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+    values ('70000000-0000-0000-0000-000000000001', 'Fall Fair', 'pk-fair', 'fair',
+            current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Fair Rd');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'an expired pass can''t be used';
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.event_passes where event_id is not null and organization_id = '70000000-0000-0000-0000-000000000001') = 1,
+         'republishing the same event doesn''t use another pass';
+end $$;
+
+-- Team: Schedule Command is a host and a co-host, with no Volunteer Leads or Section Leads.
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare
+  ok boolean := false;
+  msg text;
+begin
+  insert into public.invitations (event_id, email, as_host, invited_by)
+  values ('70000000-0000-0000-0000-0000000000e1', 'pkco@example.com', true, '0000000b-0000-0000-0000-000000000001');
+  begin
+    insert into public.invitations (event_id, email, role, invited_by)
+    values ('70000000-0000-0000-0000-0000000000e1', 'pkthird@example.com', 'volunteer_director', '0000000b-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%doesn''t include Volunteer Leads or Section Leads%', 'Schedule Command has no Volunteer Leads';
+end $$;
+reset role;
+insert into public.organization_members (organization_id, user_id, role)
+values ('70000000-0000-0000-0000-000000000001', '0000000b-0000-0000-0000-000000000002', 'admin');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare
+  ok boolean := false;
+  msg text;
+begin
+  begin
+    insert into public.invitations (event_id, email, as_host, invited_by)
+    values ('70000000-0000-0000-0000-0000000000e1', 'pkthird@example.com', true, '0000000b-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%includes a team of 2 (a host and a co-host). Upgrade to Volunteer Command%', 'a full team can''t invite more';
+end $$;
+reset role;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    insert into public.organization_members (organization_id, user_id, role)
+    values ('70000000-0000-0000-0000-000000000001', '0000000b-0000-0000-0000-000000000003', 'admin');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'team limits hold however someone is added';
+end $$;
+
+-- Volunteer Command: a team of up to 5, Volunteer Leads, and volunteer history.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+select public.set_account_package('70000000-0000-0000-0000-000000000001', 'volunteer', 'standard', null, 'admin');
+reset role;
+insert into public.event_staff (event_id, user_id, role)
+values ('70000000-0000-0000-0000-0000000000e1', '0000000b-0000-0000-0000-000000000003', 'volunteer_director');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$ begin
+  update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e2';
+  assert (select (public.account_plan('70000000-0000-0000-0000-000000000001') ->> 'team')::int) = 3, 'the team counts each person once';
+  perform public.volunteer_report('70000000-0000-0000-0000-000000000001');
+end $$;
+-- Downgrading keeps everyone, and published events stay up and editable.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+select public.set_account_package('70000000-0000-0000-0000-000000000001', 'schedule', 'standard', 'Downgraded', 'admin');
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  assert (select count(*) from public.events where organization_id = '70000000-0000-0000-0000-000000000001' and status = 'published') = 3,
+         'a downgrade leaves published events up';
+  update public.events set name = 'Book Fair 2' where id = '70000000-0000-0000-0000-0000000000e2';
+  begin
+    perform public.volunteer_report('70000000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'with no history from before, a downgraded account sees the preview, not volunteer tracking';
+  assert not (public.account_plan('70000000-0000-0000-0000-000000000001') ->> 'volunteer_tracking')::boolean, 'the plan says it''s a preview';
+end $$;
+reset role;
+-- With history it built up on Volunteer Command, a downgraded account keeps seeing its tracking.
+insert into public.volunteer_history (organization_id, email, event_id, event_name, event_on, full_name, signed_up, checked_in)
+values ('70000000-0000-0000-0000-000000000001', 'pkvol@example.com', gen_random_uuid(), 'Spring Fair', date '2026-04-01', 'Pat Vol', 2, 2);
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$ begin
+  assert (select count(*) from public.volunteer_report('70000000-0000-0000-0000-000000000001')) = 1, 'a downgraded account with history keeps its tracking';
+  assert (public.account_plan('70000000-0000-0000-0000-000000000001') ->> 'volunteer_tracking')::boolean, 'and the plan says so';
+end $$;
+-- Hosts can't mark an account as having had tracking.
+do $$
+declare ok boolean := false;
+begin
+  begin
+    update public.organizations set had_volunteer_tracking = true where id = '70000000-0000-0000-0000-000000000001';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'had_volunteer_tracking changes only with the package';
+end $$;
+reset role;
+-- An account that never had tracking sees the preview, even with history recorded.
+insert into public.organizations (id, name, slug, account_kind) values ('70000000-0000-0000-0000-000000000002', 'Pkg Teacher', 'pkg-teacher', 'teacher');
+insert into public.organization_members (organization_id, user_id, role)
+values ('70000000-0000-0000-0000-000000000002', '0000000b-0000-0000-0000-000000000002', 'owner');
+insert into public.volunteer_history (organization_id, email, event_id, event_name, event_on, full_name, signed_up, checked_in)
+values ('70000000-0000-0000-0000-000000000002', 'pkvol@example.com', gen_random_uuid(), 'Book Fair', date '2026-04-01', 'Pat Vol', 1, 1);
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000002","email":"pkco@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.volunteer_report('70000000-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'an account that never had volunteer tracking sees the preview';
+  ok := false;
+  begin
+    perform public.volunteer_history_export('70000000-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'and can''t download its history either';
+end $$;
+reset role;
+delete from public.organizations where id = '70000000-0000-0000-0000-000000000002';
+do $$ begin
+  assert (select count(*) from public.org_team('70000000-0000-0000-0000-000000000001')) = 3, 'nobody is removed on a downgrade';
+end $$;
+-- Someone outside the account can't read its passes or plan.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  assert not exists (select 1 from public.event_passes where organization_id = '70000000-0000-0000-0000-000000000001'), 'passes are private';
+  assert public.org_can_publish('70000000-0000-0000-0000-0000000000e2') = 'That event wasn''t found.', 'publishing reasons are private';
+  begin
+    perform public.account_plan('70000000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'an account''s plan is private';
+end $$;
+reset role;
+delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'

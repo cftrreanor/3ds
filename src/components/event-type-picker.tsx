@@ -5,18 +5,17 @@ import { useRef } from "react";
 import { EVENT_TYPES } from "@/lib/event-types";
 
 /**
- * The choices, as large cards that start a new event of that kind. (Free
- * teacher accounts skip this: they go straight to a new conference.)
+ * The choices, as large cards that start a new event of that kind. Kinds the
+ * account's package doesn't include (and it has no pass for) are shown, but
+ * can't be picked. An account with one kind skips this and goes straight there.
  */
-export function EventTypeChoices() {
+export function EventTypeChoices({ allowed }: { allowed?: string[] }) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2">
-      {EVENT_TYPES.map((t) => (
-        <li key={t.value}>
-          <Link
-            href={`/dashboard/events/new?type=${t.value}`}
-            className="flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-card transition hover:border-brand focus-visible:border-brand"
-          >
+      {EVENT_TYPES.map((t) => {
+        const open = !allowed || allowed.includes(t.value);
+        const body = (
+          <>
             <span aria-hidden className="text-3xl">
               {t.icon}
             </span>
@@ -25,25 +24,45 @@ export function EventTypeChoices() {
               {t.value === "conference" && (
                 <span className="rounded-sm bg-success-soft px-2 py-0.5 text-xs font-semibold text-success">Free</span>
               )}
+              {!open && <span className="rounded-sm bg-background px-2 py-0.5 text-xs font-semibold text-muted ring-1 ring-border">Not in your plan</span>}
             </span>
             <span className="mt-1 text-sm leading-6 text-muted">{t.blurb}</span>
-          </Link>
-        </li>
-      ))}
+          </>
+        );
+        return (
+          <li key={t.value}>
+            {open ? (
+              <Link
+                href={`/dashboard/events/new?type=${t.value}`}
+                className="flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-card transition hover:border-brand focus-visible:border-brand"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div aria-disabled className="flex h-full flex-col rounded-xl border border-dashed border-border p-5 opacity-70">
+                {body}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-/** "New event": asks what kind of event first. Free teacher accounts host conferences only, so theirs goes straight there. */
-export function NewEventButton({ className, teacherOnly }: { className?: string; teacherOnly?: boolean }) {
+/**
+ * "New event": asks what kind of event first. `allowed` is what the account's
+ * package (and passes) can start; with just one kind, it goes straight there.
+ */
+export function NewEventButton({ className, allowed }: { className?: string; allowed?: string[] }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const buttonClass =
     className ??
     "inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-hover";
-  if (teacherOnly) {
+  if (allowed?.length === 1) {
     return (
-      <Link href="/dashboard/events/new?type=conference" className={buttonClass}>
-        New conference
+      <Link href={`/dashboard/events/new?type=${allowed[0]}`} className={buttonClass}>
+        {allowed[0] === "conference" ? "New conference" : "New event"}
       </Link>
     );
   }
@@ -83,8 +102,17 @@ export function NewEventButton({ className, teacherOnly }: { className?: string;
             </button>
           </div>
           <div className="mt-5">
-            <EventTypeChoices />
+            <EventTypeChoices allowed={allowed} />
           </div>
+          {allowed && allowed.length < EVENT_TYPES.length && (
+            <p className="mt-4 text-sm leading-6 text-muted">
+              Planning something your plan doesn&apos;t include? Add a one-time event pass or upgrade. See what&apos;s included on your{" "}
+              <Link href="/dashboard/account" className="font-medium text-brand underline-offset-4 hover:underline">
+                Account
+              </Link>{" "}
+              page.
+            </p>
+          )}
         </div>
       </dialog>
     </>

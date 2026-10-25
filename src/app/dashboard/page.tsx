@@ -20,6 +20,7 @@ import type { createClient as CreateClient } from "@/lib/supabase/server";
 import { RequestAccess } from "@/components/request-access";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
+import { loadAccountPlan, startableTypes } from "@/lib/plan";
 import { SuccessToast } from "@/components/toaster";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -217,6 +218,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   }
 
   const teacher = org?.account_kind === "teacher";
+  // What New event can start: the package's kinds plus any with an unused pass.
+  const plan = org ? await loadAccountPlan(supabase, org.id) : null;
+  const allowed = plan ? startableTypes(plan) : teacher ? ["conference"] : undefined;
   return (
     <div className="space-y-10">
       <div className="space-y-4">
@@ -244,7 +248,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               ? "Parent-teacher conferences you're running. Free during the pilot."
               : `Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`
           }
-          action={<NewEventButton teacherOnly={teacher} />}
+          action={<NewEventButton allowed={allowed} />}
           notice={org && <PlanNotice org={org} />}
           items={hosted.map((e) => ({
             key: e.id,
@@ -260,7 +264,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                   : "Create your first event. It stays a private draft until you publish it, so you can set everything up at your own pace."}
               </p>
               <div className="mt-4">
-                <NewEventButton teacherOnly={teacher} />
+                <NewEventButton allowed={allowed} />
               </div>
             </Card>
           }
@@ -269,7 +273,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <h3 className="font-semibold">{teacher ? "No upcoming conferences" : "No upcoming events"}</h3>
               <p className="mx-auto mt-2 max-w-md leading-7 text-muted">Your past ones are below.</p>
               <div className="mt-4">
-                <NewEventButton teacherOnly={teacher} />
+                <NewEventButton allowed={allowed} />
               </div>
             </Card>
           }
@@ -615,8 +619,8 @@ function PlanNotice({ org }: { org: Organization }) {
   if (free.ended) {
     return (
       <p className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm leading-6">
-        <strong>Your free period ended {free.day}.</strong> Events you&apos;ve already published stay live, but publishing new
-        ones is paused. Email <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">{brand.supportEmail}</a> to keep going.
+        <strong>Your free period ended {free.day}.</strong> Events you&apos;ve already published stay live, and you can publish
+        parent-teacher conferences. Email <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">{brand.supportEmail}</a> to keep going.
       </p>
     );
   }
@@ -626,7 +630,7 @@ function PlanNotice({ org }: { org: Organization }) {
       {free.soon && (
         <>
           {" "}
-          After that, publishing new events pauses. Email{" "}
+          After that, you can publish parent-teacher conferences only. Email{" "}
           <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">
             {brand.supportEmail}
           </a>{" "}

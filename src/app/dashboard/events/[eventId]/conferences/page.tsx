@@ -8,6 +8,7 @@ import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
 import { hasConferences, isMeeting } from "@/lib/event-types";
 import { displayTime } from "@/lib/schedule";
+import { loadAccountPlan } from "@/lib/plan";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
@@ -51,12 +52,15 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
   const starts = meetingStarts(start, end, settings);
   const perWeek = weeklyMeetingCount(settings.weekly_hours, settings);
   const timesDone = Boolean(saved?.times_saved_at);
-  const [booked, { data: premium }] = await Promise.all([
-    conferenceBookedCount(supabase, eventId),
-    supabase.rpc("org_has_active_plan", { org: event.organization_id }),
-  ]);
-  const placeTodo = placeMissing(saved, event.venue_address, event.event_type);
   const published = event.status === "published";
+  const [booked, plan, { data: planReason }] = await Promise.all([
+    conferenceBookedCount(supabase, eventId),
+    loadAccountPlan(supabase, event.organization_id),
+    // Why the plan won't let it publish (weekly hours, one at a time...), or null.
+    published ? Promise.resolve({ data: null }) : supabase.rpc("org_can_publish", { p_event: eventId }),
+  ]);
+  const weeklyIncluded = plan?.weekly_hours ?? true;
+  const placeTodo = placeMissing(saved, event.venue_address, event.event_type);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -77,8 +81,7 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
           published={published}
           meeting={meeting}
           missing={
-            notReady(saved, event.venue_address, event.event_type) ??
-            (weekly && premium !== true ? "Weekly hours are a premium feature. Write to us to add them to your account." : null)
+            notReady(saved, event.venue_address, event.event_type) ?? (typeof planReason === "string" ? planReason : null)
           }
         >
           {published ? (
@@ -117,7 +120,8 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
             start={start}
             end={end}
             booked={booked}
-            premium={premium === true}
+            weeklyIncluded={weeklyIncluded}
+            planName={plan?.active_name ?? null}
             meeting={meeting}
           />
         </SetupStep>

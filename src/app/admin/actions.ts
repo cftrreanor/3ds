@@ -5,6 +5,7 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { isFreePlan, PLANS, planLabel, requirePlatformAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/time";
+import { dollars, isPackage, isRate, packageLabel, passFor, rateLabel } from "@/lib/plan";
 
 /** Change an organization's plan. The database checks it's an admin and logs it. */
 export async function setPlan(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -54,12 +55,53 @@ export async function reopenAccount(orgId: string, _prev: ActionState, formData:
 /** Make a free teacher account a full account (every event type). Its plan is set separately. */
 export async function upgradeTeacher(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requirePlatformAdmin();
+  const pkg = String(formData.get("package") ?? "");
+  if (!isPackage(pkg) || pkg === "free") return { error: "Pick a package." };
   const note = String(formData.get("note") ?? "").trim().slice(0, 500);
   const supabase = await createClient();
-  const { error } = await supabase.rpc("admin_upgrade_teacher", { p_org: orgId, p_note: note || null });
+  const { error } = await supabase.rpc("admin_upgrade_teacher", { p_org: orgId, p_package: pkg, p_note: note || null });
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/admin", "layout");
-  return { ok: true, message: "Upgraded to a full account. Set their plan under Details if it should change." };
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: `Upgraded to a full account on ${packageLabel(pkg)}. Set their plan under Details if it should change.` };
+}
+
+/** The account's package and rate: the only way either changes (set_account_package logs it). */
+export async function setPackage(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePlatformAdmin();
+  const pkg = String(formData.get("package") ?? "");
+  const rate = String(formData.get("rate") ?? "");
+  if (!isPackage(pkg)) return { error: "Pick a package." };
+  if (!isRate(rate)) return { error: "Pick a rate." };
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_account_package", { p_org: orgId, p_package: pkg, p_rate: rate, p_note: note || null, p_source: "admin" });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin", "layout");
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: `Saved: ${packageLabel(pkg)}, ${rateLabel(rate).toLowerCase()}.` };
+}
+
+/** A one-time event pass, at the price paid (add_event_pass logs it and adds it to the account's total). */
+export async function addPass(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requirePlatformAdmin();
+  const pass = passFor(String(formData.get("type") ?? ""));
+  if (!pass) return { error: "Pick an event pass." };
+  const price = String(formData.get("price") ?? "").trim();
+  if (!/^\d{1,5}$/.test(price)) return { error: "Enter the price paid in whole dollars, or 0." };
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("add_event_pass", {
+    p_org: orgId,
+    p_event_type: pass.type,
+    p_note: note || null,
+    p_source: "admin",
+    p_price_cents: Number(price) * 100,
+  });
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath("/admin", "layout");
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: `Added a ${pass.label.toLowerCase()} pass (${dollars(Number(price) * 100)}). It's good for 12 months.` };
 }
 
 /** Suspend an account: its published events go offline and it can't publish until unsuspended. */

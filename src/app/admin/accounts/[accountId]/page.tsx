@@ -6,7 +6,7 @@ import { eventTypeLabel } from "@/lib/event-types";
 import { isSchemaError, missing } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
-import { closeAccount, reopenAccount, setPlan, suspendAccount, unsuspendAccount, upgradeTeacher } from "../../actions";
+import { addPass, closeAccount, reopenAccount, setPackage, setPlan, suspendAccount, unsuspendAccount, upgradeTeacher } from "../../actions";
 import { EMAIL_COLUMNS, loadAccount, NOTE_COLUMNS, signIns, type EmailRow, type NoteRow } from "../../data";
 import { EmptyRow, Facts, HealthPill, PageHeader, Panel, RecordLink, Table, Tag, Td, Th, Tr } from "../../kit";
 import { NoteComposer } from "../../note-composer";
@@ -15,6 +15,8 @@ import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
 import { ClosureForm, NoteActionForm } from "../closure-form";
 import { PlanForm } from "../plan-form";
+import { PackageForm, PassForm, TeacherUpgradeForm } from "../package-form";
+import { dollars, loadAccountPlan, packageLabel, passFor, rateLabel, usageLines } from "@/lib/plan";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -73,6 +75,32 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
   const suspendable = "suspended_at" in account;
   const suspendedAt = account.suspended_at ?? null;
   const published = account.events.filter((e) => e.status === "published").length;
+  // Packages and passes: missing before 20261223000000_packages.sql.
+  const hasPackages = "package" in account;
+  const [plan, { data: passData }] = hasPackages
+    ? await Promise.all([
+        loadAccountPlan(admin, accountId),
+        admin
+          .from("event_passes")
+          .select("id, event_type, price_cents, source, note, purchased_at, expires_at, used_at, event:events(id, name)")
+          .eq("organization_id", accountId)
+          .order("purchased_at", { ascending: false }),
+      ])
+    : [null, { data: [] }];
+  type PassRow = {
+    id: string;
+    event_type: string;
+    price_cents: number;
+    source: string;
+    note: string | null;
+    purchased_at: string;
+    expires_at: string;
+    used_at: string | null;
+    event: { id: string; name: string } | null;
+  };
+  const nowIso = new Date().toISOString();
+  const passes = ((passData ?? []) as unknown as PassRow[]).map((p) => ({ ...p, expired: !p.used_at && p.expires_at < nowIso }));
+  const shortDate = (iso: string) => formatDate(utcToZonedDate(iso, ADMIN_TZ), { weekday: undefined });
 
   const items: TimelineItem[] = [
     { at: account.created_at, kind: "account", title: "Organization set up" },
@@ -247,6 +275,13 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
               items={[
                 ["Plan", planLabel(account.subscription_status)],
                 ["Free through", account.free_until ? formatDate(account.free_until, { weekday: undefined }) : "—"],
+                ...(hasPackages
+                  ? ([
+                      ["Package", `${packageLabel(account.package ?? "")}${plan && plan.active !== plan.package ? ` (publishing as ${plan.active_name} while the plan isn't active)` : ""}`],
+                      ["Rate", rateLabel(account.rate ?? "")],
+                      ["Event passes", `${dollars(account.pass_total_cents ?? 0)} in all`],
+                    ] as [string, string][])
+                  : []),
                 ["Time zone", account.default_timezone.replace("America/", "").replaceAll("_", " ")],
                 ["Pilot request", requests[0] ? <RecordLink href={`/admin/pipeline/${requests[0].id}`}>{stageLabel(requests[0].status)}</RecordLink> : "—"],
               ]}
@@ -263,21 +298,75 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
                 />
               </div>
             </details>
+            {hasPackages && (
+              <details className="mt-3 border-t border-border pt-3">
+                <summary className="cursor-pointer text-sm font-semibold">Change package</summary>
+                <div className="mt-3">
+                  <PackageForm action={setPackage.bind(null, account.id)} pkg={account.package ?? "event"} rate={account.rate ?? "standard"} />
+                </div>
+              </details>
+            )}
           </Panel>
+
+          {plan && (
+            <Panel title="Usage">
+              <ul className="space-y-1 text-sm">
+                {usageLines(plan).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+
+          {hasPackages && (
+            <Panel title="Event passes">
+              {passes.length ? (
+                <ul className="mb-3 divide-y divide-border text-sm">
+                  {passes.map((p) => {
+                    const expired = p.expired;
+                    return (
+                      <li key={p.id} className="py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{passFor(p.event_type)?.label ?? p.event_type}</span>
+                          <Tag tone={p.used_at ? "neutral" : expired ? "warning" : "success"}>{p.used_at ? "Used" : expired ? "Expired" : "Unused"}</Tag>
+                          <span className="text-muted">{dollars(p.price_cents)}</span>
+                        </div>
+                        <p className="text-xs text-muted">
+                          {p.source === "payment" ? "Paid" : "Added by an admin"} {shortDate(p.purchased_at)}
+                          {p.used_at
+                            ? p.event
+                              ? <> · Used on <RecordLink href={`/dashboard/events/${p.event.id}`}>{p.event.name}</RecordLink></>
+                              : " · Used on an event that was deleted"
+                            : ` · ${expired ? "Expired" : "Good through"} ${shortDate(p.expires_at)}`}
+                        </p>
+                        {p.note && <p className="text-xs text-muted">{p.note}</p>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="mb-3 text-sm text-muted">No event passes yet</p>
+              )}
+              <details className="border-t border-border pt-3">
+                <summary className="cursor-pointer text-sm font-semibold">Add event pass</summary>
+                <div className="mt-3">
+                  <PassForm action={addPass.bind(null, account.id)} />
+                </div>
+              </details>
+            </Panel>
+          )}
 
           {teacher && (
             <Panel title="Free teacher account">
               <p className="mb-3 text-sm text-muted">
-                {account.school ? `${account.school}. ` : ""}Parent-teacher conferences only, one published at a time. Upgrading lets them create
-                every kind of event; set their plan under Details afterwards.
+                {account.school ? `${account.school}. ` : ""}Parent-teacher conferences only, one published at a time. Upgrading moves them to the
+                package you pick; set their plan under Details afterwards.
               </p>
-              <NoteActionForm
-                action={upgradeTeacher.bind(null, account.id)}
-                label="Upgrade to full account"
-                pendingText="Upgrading…"
-                placeholder="e.g. Joined the school-wide pilot"
-                confirmMessage="Upgrade this teacher to a full account? They'll be able to create every kind of event."
-              />
+{hasPackages ? (
+                <TeacherUpgradeForm action={upgradeTeacher.bind(null, account.id)} />
+              ) : (
+                <p className="text-sm text-muted">Run the packages database update to upgrade teacher accounts.</p>
+              )}
             </Panel>
           )}
 
