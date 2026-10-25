@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
+import { ADMINISTRATORS_PAGE, AUDIENCES, CONFERENCES_PAGE, MEETINGS_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 
 /** The marketing pages' footer: a link to each kind of event, plus contact. */
@@ -9,7 +9,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-4 py-10 text-sm text-muted sm:px-6">
         <nav aria-label="Event types">
           <ul className="flex flex-wrap gap-x-6 gap-y-2">
-            {[...AUDIENCES, CONFERENCES_PAGE, ADMINISTRATORS_PAGE].map((a) => (
+            {[...AUDIENCES, CONFERENCES_PAGE, MEETINGS_PAGE, ADMINISTRATORS_PAGE].map((a) => (
               <li key={a.path}>
                 <Link href={a.path} className="inline-flex min-h-11 items-center hover:text-foreground">
                   {a.name}

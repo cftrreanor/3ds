@@ -11,7 +11,7 @@ import { publicBanners } from "@/lib/site-banners";
 import { brand } from "@/lib/brand";
 import { SUPPORT_POINTS as support } from "@/lib/support";
 import { SITE_URL } from "@/lib/site-url";
-import { ADMINISTRATORS_PAGE, audiences, CONFERENCES_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
+import { ADMINISTRATORS_PAGE, audiences, CONFERENCES_PAGE, MEETINGS_PAGE, STUDENT_PRIVACY_PAGE } from "@/lib/audiences";
 import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
@@ -95,6 +95,18 @@ const kinds = [
       "Parents register ahead with each child, teacher, and grade",
       "Reminders to bring a photo ID, and a calendar invite",
       "See how many families are coming, then check each adult in at the door",
+    ],
+  },
+  {
+    icon: MEETINGS_PAGE.icon,
+    title: "Meetings",
+    summary: "Office hours, advising, and appointments",
+    href: MEETINGS_PAGE.path,
+    examples: "Counselor appointments, office hours, coaching check-ins, and PTA meetings",
+    points: [
+      "Set one day or weekly hours, and people book from one link",
+      "In person, on video, or by phone, with calendar invites and a reminder",
+      "Only you see who booked and their notes",
     ],
   },
   {

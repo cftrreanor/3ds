@@ -718,4 +718,7 @@ export const STUDENT_PRIVACY_PAGE = { path: "/student-data-privacy", name: "Stud
 
 export const CONFERENCES_PAGE = { path: "/parent-teacher-conferences", name: "Parent-teacher conferences", icon: "🍎" } as const;
 
+/** Meetings: office hours and appointments anyone can book (not a school-event audience, so its own page). */
+export const MEETINGS_PAGE = { path: "/meetings", name: "Meetings", icon: "🤝" } as const;
+
 export const AUDIENCES: Audience[] = [audiences.bands, audiences.groups, audiences.fairs, audiences.volunteers, audiences.parents];
