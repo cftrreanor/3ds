@@ -11,6 +11,7 @@ export const MARKETING_PAGES = [
   { path: "/school-volunteers", label: "School volunteers" },
   { path: "/parent-check-in", label: "Parent check-in" },
   { path: "/parent-teacher-conferences", label: "Parent-teacher conferences" },
+  { path: "/meetings", label: "Meetings" },
   { path: "/school-administrators", label: "For administrators" },
   { path: "/student-data-privacy", label: "Student data privacy" },
 ] as const;

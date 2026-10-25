@@ -8,7 +8,7 @@ import { JumpLink } from "@/components/jump-link";
 import { PhoneFrame } from "@/components/phone-frame";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
-import { AUDIENCES, CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
+import { AUDIENCES, CONFERENCES_PAGE, MEETINGS_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
 import { PILOT_END_LABEL } from "@/lib/pilot";
@@ -63,7 +63,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
       },
     ],
   };
-  const others = [...AUDIENCES.filter((o) => o.path !== a.path), CONFERENCES_PAGE];
+  const others = [...AUDIENCES.filter((o) => o.path !== a.path), CONFERENCES_PAGE, MEETINGS_PAGE];
 
   return (
     <div className="flex flex-1 flex-col">

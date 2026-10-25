@@ -240,7 +240,8 @@ function TimesForm({
               <span>
                 <span className="flex flex-wrap items-center gap-2 font-semibold">
                   {o.label}
-                  {o.value === "weekly" && <span className="rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-brand-foreground">Premium</span>}
+                  {/* Meetings always need a plan, so weekly hours aren't an extra for them. */}
+                  {o.value === "weekly" && !forMeetings && <span className="rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-brand-foreground">Premium</span>}
                 </span>
                 <span className="block text-sm text-muted">
                   {locked ? `${w.Families} have booked. Cancel their meetings on your Meetings page to switch.` : forMeetings && o.value === "one_day" ? "A single day of meetings." : o.hint}

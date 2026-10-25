@@ -161,6 +161,7 @@ export const SITE_PAGES: { group: string; pages: { label: string; href: string }
       { label: "Parent check-in", href: "/parent-check-in" },
       { label: "Parent-teacher conferences", href: "/parent-teacher-conferences" },
       { label: "Meetings", href: "/meetings" },
+      { label: "Meetings", href: "/meetings" },
       { label: "For administrators", href: "/school-administrators" },
       { label: "Student data privacy", href: "/student-data-privacy" },
     ],

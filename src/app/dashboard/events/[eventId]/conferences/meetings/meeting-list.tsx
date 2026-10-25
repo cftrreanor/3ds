@@ -182,9 +182,10 @@ export function MeetingList({
               </a>
             )}
             <ul className="text-sm">
-              {r.booking.parents.map((p) => (
+              {r.booking.parents.map((p, i) => (
                 <li key={p.email} className="flex flex-wrap items-center gap-x-4">
-                  <span className="font-medium">{p.name}</span>
+                  {/* With no child's name, the first person is already the heading above. */}
+                  {(r.booking!.child || i > 0) && <span className="font-medium">{p.name}</span>}
                   <a href={`mailto:${p.email}`} className="inline-flex min-h-11 items-center text-brand hover:underline print:min-h-0">
                     {p.email}
                   </a>
