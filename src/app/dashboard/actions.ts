@@ -179,7 +179,8 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
   if (error) return { error: friendlyDbError(error) };
 
   revalidatePath("/dashboard");
-  redirect(`/dashboard/events/${data.id}`);
+  // Conferences and meetings go straight to their setup, where the day or weekly hours are set.
+  redirect(hasConferences(eventType as string) ? `/dashboard/events/${data.id}/conferences` : `/dashboard/events/${data.id}`);
 }
 
 export async function updateEvent(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {

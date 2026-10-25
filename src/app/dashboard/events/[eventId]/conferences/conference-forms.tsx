@@ -186,7 +186,8 @@ function TimesForm({
     return nextKey;
   };
   // The day and hours can be changed right here; saving moves the event too.
-  const [changingHours, setChangingHours] = useState(false);
+  // A new conference (times never saved) starts with the day and hours open, since none were picked yet.
+  const [changingHours, setChangingHours] = useState(!initial.times_saved_at);
   const [day, setDay] = useState(date);
   const [from, setFrom] = useState(start);
   const [to, setTo] = useState(end);
