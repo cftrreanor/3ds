@@ -104,10 +104,14 @@ export function FormatBar({
         className="h-7 rounded-sm border border-border bg-surface px-1 text-xs font-semibold"
       >
         <option value="">Quick button…</option>
-        {QUICK_BUTTONS.map((q) => (
-          <option key={q.label} value={q.label}>
-            {q.label}
-          </option>
+        {[...new Set(QUICK_BUTTONS.map((q) => q.group))].map((group) => (
+          <optgroup key={group} label={group}>
+            {QUICK_BUTTONS.filter((q) => q.group === group).map((q) => (
+              <option key={q.label} value={q.label}>
+                {q.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
