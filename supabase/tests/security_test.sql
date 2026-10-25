@@ -6131,6 +6131,55 @@ reset role;
 delete from public.host_invitations where email = 'savedlead@example.com';
 delete from public.pilot_requests where email = 'savedlead@example.com';
 
+-- ---------------------------------------------------------------------------
+-- Editable system emails (20261227000000_system_emails.sql)
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.admin_save_system_email('team_invite_cohost', 'Hi', 'Hello', 'Body', null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t change a system email';
+  ok := false;
+  begin
+    insert into public.system_email_overrides (key, subject, heading, body) values ('team_invite_cohost', 'x', 'x', 'x');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'nor write the table directly';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  perform public.admin_save_system_email('team_invite_cohost', ' Join {{organization}} ', 'Co-host with us', 'Hello {{name}}', ' ');
+  assert (select subject = 'Join {{organization}}' and button_label is null from public.system_email_overrides where key = 'team_invite_cohost'),
+         'an admin saves a system email (trimmed; a blank button keeps the built-in one)';
+  perform public.admin_save_system_email('team_invite_cohost', 'Join us', 'Co-host with us', 'Hello', 'Accept');
+  assert (select subject = 'Join us' and button_label = 'Accept' from public.system_email_overrides where key = 'team_invite_cohost'),
+         'saving again updates it';
+  assert exists (select 1 from public.admin_log where action = 'system_email_changed'), 'and it''s logged';
+  begin
+    perform public.admin_save_system_email('Bad Key!', 'x', 'x', 'x', null);
+    raise exception 'FAIL: saved a bad key';
+  exception when check_violation then null;
+  end;
+  perform public.admin_reset_system_email('team_invite_cohost');
+  assert not exists (select 1 from public.system_email_overrides where key = 'team_invite_cohost'), 'resetting goes back to the built-in wording';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.admin_reset_system_email('team_invite_cohost');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t reset a system email';
+end $$;
+reset role;
+
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'

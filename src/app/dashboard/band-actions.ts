@@ -12,6 +12,7 @@ import { normalizePhone } from "@/lib/phone";
 import { hasRooms } from "@/lib/event-types";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { createRegistration } from "@/lib/band-registration";
 import { formatDate, formatTime, utcToZonedDate, zoneAbbreviation, zonedToUtc } from "@/lib/time";
 
@@ -123,20 +124,25 @@ export async function withdrawBand(bandId: string): Promise<ActionState> {
   after(async () => {
     const to = await organizerEmails(band.event_id);
     if (!to.length) return;
+    const custom = customWords("band_withdrew", await loadSystemEmail("band_withdrew"), {
+      band_name: band.band_name,
+      school: band.school_name,
+      event_name: event.name,
+    });
     const { html, text } = emailLayout({
-      heading: `${band.band_name} withdrew`,
+      heading: custom?.heading || `${band.band_name} withdrew`,
       paragraphs: [
-        `${band.band_name} (${band.school_name}) withdrew from ${event.name}.`,
+        ...(custom?.paragraphs ?? [`${band.band_name} (${band.school_name}) withdrew from ${event.name}.`]),
         remove
           ? `Their registration was removed.`
           : one === "group"
             ? `They're marked withdrawn on your group list. Their room times stay on the schedule until you change it. If this looks like a mistake, contact the director.`
             : `They're marked withdrawn on your schedule and band list, so you can adjust the schedule if you need to. If this looks like a mistake, contact the director.`,
       ],
-      button: { label: `See your ${one}s`, url: `${origin}/dashboard/events/${band.event_id}/bands` },
+      button: { label: custom?.button || `See your ${one}s`, url: `${origin}/dashboard/events/${band.event_id}/bands` },
     });
     for (const address of to) {
-      await sendEmail({ to: address, subject: `${band.band_name} withdrew from ${event.name}`, html, text });
+      await sendEmail({ to: address, subject: custom?.subject || `${band.band_name} withdrew from ${event.name}`, html, text });
       await pause();
     }
   });
