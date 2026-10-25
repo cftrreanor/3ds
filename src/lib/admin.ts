@@ -6,6 +6,7 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 import { dollars, packageLabel, passFor, rateLabel } from "@/lib/plan";
+import { invitePackageLabel, inviteStatusLabel } from "@/lib/invitation-plan";
 
 /**
  * For every admin page and action: a FieldCommand admin (platform_admins), or
@@ -61,6 +62,8 @@ export type AdminLogRow = {
     event_type?: string;
     price_cents?: number;
     source?: string;
+    plan_status?: string | null;
+    free_until?: string | null;
     note?: string | null;
     email?: string;
     unpublished?: number;
@@ -76,10 +79,21 @@ export const ADMIN_LOG_COLUMNS =
 const planWithEnd = (p?: { status?: string; free_until?: string | null }) =>
   p ? `${planLabel(p.status ?? "?")}${p.free_until ? ` through ${formatDate(p.free_until, { weekday: undefined })}` : ""}` : "?";
 
+/** ": Schedule Command, free pilot through Feb 1, 2027", or "" when nothing was chosen. */
+function invitationChoices(r: AdminLogRow) {
+  const { package: pkg, plan_status: status, free_until: until } = r.details;
+  const parts = [
+    pkg ? invitePackageLabel(pkg) : null,
+    status ? `${inviteStatusLabel(status).toLowerCase()}${until ? ` through ${formatDate(until, { weekday: undefined })}` : ""}` : null,
+  ].filter(Boolean);
+  return parts.length ? `: ${parts.join(", ")}` : "";
+}
+
 /** "Pilot (free) through Jan 1, 2027 → Paid" */
 export function describeAdminLog(r: AdminLogRow) {
   if (r.action === "plan_changed") return `Plan: ${planWithEnd(r.details.from)} → ${planWithEnd(r.details.to)}`;
-  if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host`;
+  if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host${invitationChoices(r)}`;
+  if (r.action === "invitation_plan_changed") return `Changed ${r.details.email ?? "someone"}'s host invitation${invitationChoices(r) || ": nothing chosen"}`;
   if (r.action === "account_closed") return "Closed the account (deleted 90 days later)";
   if (r.action === "account_reopened") return "Reopened the account";
   if (r.action === "teacher_upgraded")

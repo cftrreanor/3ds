@@ -89,7 +89,8 @@ export function ActionForm({
       onSubmit={(e) => {
         // Submit manually so React doesn't wipe the inputs when we show an error.
         e.preventDefault();
-        const data = new FormData(e.currentTarget);
+        // With the button pressed, so a form with two buttons (name="intent") knows which.
+        const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
         const problem = validate?.(data);
         setChecked(problem ?? null);
         if (problem) return;

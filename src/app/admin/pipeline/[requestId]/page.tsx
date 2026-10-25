@@ -3,10 +3,11 @@ import { pilotEventTypeLabels } from "@/lib/pilot";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
-import { requirePlatformAdmin } from "@/lib/admin";
+import { DEFAULT_PILOT_END, requirePlatformAdmin } from "@/lib/admin";
+import { invitePackageLabel, inviteStatusLabel } from "@/lib/invitation-plan";
 import { ADMIN_TZ, byNewest, STAGES, stageLabel, type TimelineItem } from "@/lib/admin-crm";
 import { formatPhone } from "@/lib/phone";
-import { missing } from "@/lib/schema-check";
+import { isSchemaError, missing } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 import { EMAIL_COLUMNS, NOTE_COLUMNS, type EmailRow, type NoteRow } from "../../data";
@@ -17,8 +18,26 @@ import { EmailPanel } from "../../email-panel";
 import { emailItems, noteItems, Timeline } from "../../timeline";
 import { inviteHost } from "../actions";
 import { StageSelect } from "../stage-select";
+import { InvitationPlanForm } from "../invitation-plan-form";
 
 export const metadata: Metadata = { title: "Pilot request" };
+
+type Invitation = {
+  invited_at: string;
+  used_at: string | null;
+  expires_at: string;
+  /** Missing before 20261224000000_invitation_plan.sql; null when nothing was chosen. */
+  package?: string | null;
+  plan_status?: string | null;
+  free_until?: string | null;
+};
+
+/** The host invitation for this email, with its package and plan when the database has them. */
+async function selectInvitation(admin: ReturnType<typeof createAdminClient>, email: string) {
+  const q = (columns: string) => admin.from("host_invitations").select(columns).eq("email", email).maybeSingle<Invitation>();
+  const res = await q("invited_at, used_at, expires_at, package, plan_status, free_until");
+  return isSchemaError(res.error) ? q("invited_at, used_at, expires_at") : res;
+}
 
 /** One pilot request: who asked, where it stands, and the conversation so far. */
 export default async function PilotRequestPage({ params }: PageProps<"/admin/pipeline/[requestId]">) {
@@ -30,14 +49,14 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
 
   const email = String(r.email).toLowerCase();
   const [{ data: invite }, { data: noteData }, { data: emailData }, { data: person }, { data: account }] = await Promise.all([
-    admin.from("host_invitations").select("invited_at, used_at, expires_at").eq("email", email).maybeSingle(),
+    selectInvitation(admin, email),
     admin.from("admin_notes").select(NOTE_COLUMNS).eq("pilot_request_id", requestId).order("created_at", { ascending: false }),
     admin.from("email_log").select(EMAIL_COLUMNS).eq("to_email", email).order("created_at", { ascending: false }).limit(50),
     admin.from("profiles").select("id, full_name").eq("email", email).maybeSingle(),
     r.organization_id ? admin.from("organizations").select("id, name").eq("id", r.organization_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   const today = utcToZonedDate(new Date().toISOString(), ADMIN_TZ);
-  const inv = invite as { invited_at: string; used_at: string | null; expires_at: string } | null;
+  const inv = invite;
   const inviteText = !inv
     ? "Not invited yet"
     : inv.used_at
@@ -106,7 +125,28 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
           </Panel>
           <Panel title="Host invitation">
             <p className="text-sm">{inviteText}</p>
-            {!inv?.used_at && (
+            {inv?.package && (
+              <p className="mt-1 text-sm text-muted">
+                {invitePackageLabel(inv.package)}
+                {inv.plan_status && inv.free_until
+                  ? `, ${inviteStatusLabel(inv.plan_status).toLowerCase()} through ${formatDate(inv.free_until, { weekday: undefined })}`
+                  : ""}
+              </p>
+            )}
+            {inv?.used_at ? (
+              inv.package && <p className="mt-1 text-xs text-muted">Applied to their account when they set up. Change it on their account page.</p>
+            ) : "package" in (inv ?? { package: null }) ? (
+              <InvitationPlanForm
+                action={inviteHost.bind(null, r.id)}
+                email={r.email}
+                name={r.name}
+                invited={Boolean(inv)}
+                pkg={inv?.package ?? "event"}
+                status={inv?.plan_status ?? "comped"}
+                freeUntil={inv?.free_until ?? DEFAULT_PILOT_END}
+              />
+            ) : (
+              // Before 20261224000000_invitation_plan.sql: invite without choices, as before.
               <ActionForm action={inviteHost.bind(null, r.id)} resetOnSuccess={false} className="mt-2 space-y-2">
                 <input type="hidden" name="email" value={r.email} />
                 <input type="hidden" name="name" value={r.name} />
