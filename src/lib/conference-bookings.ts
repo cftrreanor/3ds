@@ -60,8 +60,8 @@ export async function withCallPhone<T extends { error: { code?: string } | null 
 export const privacyLine = (teacher: Teacher, weekly = false, child = true) =>
   // Without the child's name, the short version (like the booking page's privacy note).
   child
-    ? `Only ${teacher.name} sees your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`
-    : `Only ${teacher.name} sees your details and your note. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`;
+    ? `Only ${teacher.name} and their co-hosts see your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`
+    : `Only ${teacher.name} and their co-hosts see your details and your note. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`;
 
 /** A family's link to see, change or cancel their meeting. */
 export const bookingLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/book/r/${token}`;
@@ -139,13 +139,17 @@ const invite = (method: "REQUEST" | "CANCEL", ...args: Parameters<typeof toIcsEv
   content: buildIcs(method, toIcsEvent(...args), brand.name),
 });
 
+/** A host's or co-host's own words, added to the family's email when they reschedule or cancel. */
+export type OrganizerNote = { from: string; text: string };
+
 /**
  * One parent's email: the confirmation (with a calendar invite), a changed
- * time (an updated invite), the reminder the day before, or the cancellation
- * (removes the invite).
+ * time (an updated invite), a time the teacher or a co-host rescheduled (an
+ * updated invite), the reminder the day before, or the cancellation (removes
+ * the invite).
  */
 export async function bookingEmail(
-  kind: "confirmation" | "changed" | "reminder" | "canceled",
+  kind: "confirmation" | "changed" | "rescheduled" | "reminder" | "canceled",
   b: Booking,
   event: BookingEvent,
   s: ConferenceSettings,
@@ -154,6 +158,8 @@ export async function bookingEmail(
   to: BookingParent,
   /** The teacher canceled it, or moved the conference to a new day (not the family). */
   byTeacher = false,
+  /** What the host or co-host wrote when they rescheduled or canceled. */
+  note: OrganizerNote | null = null,
 ) {
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
   const place = meetingPlace(b, event, s, teacher);
@@ -168,6 +174,7 @@ export async function bookingEmail(
   const moved = kind === "changed" && byTeacher;
   const key =
     kind === "canceled" ? (byTeacher ? "family_booking_canceled_by_organizer" : "family_booking_canceled") : moved ? "family_booking_moved" : `family_booking_${kind}`;
+  const noteRow = note ? [{ title: `A note from ${note.from}`, detail: note.text }] : [];
   const custom = customWords(key, await loadSystemEmail(key), {
     first_name: first,
     teacher: teacher.name,
@@ -194,6 +201,7 @@ export async function bookingEmail(
               ]),
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
+        rows: noteRow,
         button: { label: custom?.button || "Book another time", url: link },
         footer,
       }),
@@ -204,15 +212,17 @@ export async function bookingEmail(
   const heading =
     kind === "confirmation"
       ? `Your ${word} is booked`
-      : moved
-        ? `${teacher.name} moved your ${word} to a new day`
-        : kind === "changed"
-          ? `Your ${word} was changed`
-          : `Your ${word} is tomorrow`;
+      : kind === "rescheduled"
+        ? `${teacher.name} changed your ${word} time`
+        : moved
+          ? `${teacher.name} moved your ${word} to a new day`
+          : kind === "changed"
+            ? `Your ${word} was changed`
+            : `Your ${word} is tomorrow`;
   const subject =
     kind === "confirmation"
       ? `Booked: your ${word} with ${teacher.name}, ${when}`
-      : kind === "changed"
+      : kind === "changed" || kind === "rescheduled"
         ? `${moved ? "New day" : "New time"}: your ${word} with ${teacher.name}, ${when}`
         : `Tomorrow: your ${word} with ${teacher.name}, ${when}`;
   const change = custom?.button || "Change or cancel";
@@ -224,14 +234,26 @@ export async function bookingEmail(
         ...(custom?.paragraphs ?? [
           kind === "reminder"
             ? `Hi ${first}, a reminder that you're meeting ${teacher.name}${about} tomorrow (${event.name}).`
-            : moved
+            : kind === "rescheduled"
+              ? `Hi ${first}, ${teacher.name} moved your ${word}${about} (${event.name}) to a new time. The details below are current.`
+              : moved
               ? `Hi ${first}, ${teacher.name} moved ${event.name} to a new day. Your meeting${about} is at the same time of day, on the day below.`
               : `Hi ${first}, you're booked to meet ${teacher.name}${about} (${event.name}).`,
           ...(moved ? ["If the new day doesn't work for you, use the button below to pick another time or cancel."] : []),
+          ...(kind === "rescheduled" ? ["If the new time doesn't work for you, use the button below to pick another time or cancel."] : []),
         ]),
-        ...(kind !== "reminder" ? [moved ? "An updated calendar invite is attached, so your calendar shows the new day." : "A calendar invite is attached, so it's on your calendar with the details."] : []),
+        ...(kind !== "reminder"
+          ? [
+              moved
+                ? "An updated calendar invite is attached, so your calendar shows the new day."
+                : kind === "rescheduled"
+                  ? "An updated calendar invite is attached, so your calendar shows the new time."
+                  : "A calendar invite is attached, so it's on your calendar with the details.",
+            ]
+          : []),
       ],
       rows: [
+        ...noteRow,
         { title: "When", detail: when, strong: true },
         { title: place.title, detail: place.lines.join(" ") },
         ...(b.parents.length > 1 ? [{ title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
@@ -286,11 +308,12 @@ function teacherIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings,
 }
 
 /**
- * The teacher's email when a family books, changes or cancels: with a
- * calendar invite that adds, moves or removes the meeting on their calendar.
+ * The teacher's email when a family books, changes or cancels, or when the
+ * teacher or a co-host reschedules or cancels: with a calendar invite that
+ * adds, moves or removes the meeting on their calendar.
  */
 export function teacherBookingEmail(
-  kind: "booked" | "changed" | "canceled",
+  kind: "booked" | "changed" | "rescheduled" | "canceled",
   b: Booking,
   event: BookingEvent,
   s: ConferenceSettings,
@@ -301,7 +324,12 @@ export function teacherBookingEmail(
   byTeacher = false,
   /** An admin's wording for this email (organizer_booking_<kind>); used when a family made the change. */
   saved: SystemEmailText | null = null,
+  /** A co-host who rescheduled or canceled it (null: the teacher did, "You"). */
+  actor: string | null = null,
 ) {
+  // A reschedule is always the teacher's side (them or a co-host), never the family's.
+  if (kind === "rescheduled") byTeacher = true;
+  const who = actor ?? "You";
   const when = meetingWhen(b.starts_at, s.meeting_minutes, event.timezone);
   const place = meetingPlace(b, event, s, teacher);
   const family = familyName(b);
@@ -314,10 +342,10 @@ export function teacherBookingEmail(
   const subject =
     kind === "booked"
       ? `New ${word} booked: ${when}`
-      : kind === "changed"
+      : kind === "changed" || kind === "rescheduled"
         ? `${byTeacher ? `${Word} moved` : `${Word} changed`}: ${when}`
         : byTeacher
-          ? `You canceled a ${word}: ${when}`
+          ? `${who} canceled a ${word}: ${when}`
           : `Canceled ${word}: ${when}`;
   const custom = byTeacher ? null : customWords(`organizer_booking_${kind}`, saved, { who: family, when, kind: word, event_name: event.name });
   const ics = (method: "REQUEST" | "CANCEL", seq: number): CalendarInvite => ({
@@ -333,11 +361,11 @@ export function teacherBookingEmail(
       ...emailLayout({
         heading:
           custom?.heading ||
-          (byTeacher ? `You canceled a ${word}` : b.child_name ? `A family canceled their ${word}` : `A ${word} was canceled`),
+          (byTeacher ? `${who} canceled a ${word}` : b.child_name ? `A family canceled their ${word}` : `A ${word} was canceled`),
         paragraphs: [
           ...(custom?.paragraphs ?? [
             byTeacher
-              ? `You canceled the ${word} with ${family} (${when}). We emailed ${them}, and the time is open again.`
+              ? `${who} canceled the ${word} with ${family} (${when}). We emailed ${them}, and the time is open again.`
               : `${family} canceled their ${word} (${when}). The time is open again.`,
           ]),
           "This email takes it off your calendar (in Gmail, you may need to open it first).",
@@ -356,13 +384,17 @@ export function teacherBookingEmail(
         custom?.heading ||
         (kind === "booked"
           ? b.child_name ? `A family booked a ${word}` : `A ${word} was booked`
-          : byTeacher
+          : kind === "rescheduled"
+            ? `A ${word} was rescheduled`
+            : byTeacher
             ? `A ${word} moved to your new day`
             : b.child_name ? `A family changed their ${word}` : `A ${word} was changed`),
       paragraphs: custom?.paragraphs ?? [
         kind === "booked"
           ? `${family} booked a ${word} with you (${event.name}). A calendar invite is attached, so it's on your calendar.`
-          : byTeacher
+          : kind === "rescheduled"
+            ? `${who} moved the ${word} with ${family} to a new time. We emailed ${them}, and your calendar invite is updated.`
+            : byTeacher
             ? `You moved ${event.name} to a new day, so ${family}'s meeting moved with it, at the same time of day. We emailed ${them}, and your calendar invite is updated.`
             : `${family} changed their ${word}. The details below are current, and your calendar invite is updated.`,
         "After the meeting, mark it Met or No-show on your Meetings page, so your records are complete.",
@@ -398,9 +430,14 @@ export async function emailTeacher(
   conf: { event: BookingEvent & { id: string }; settings: ConferenceSettings; teacher: Teacher },
   origin: string,
   byTeacher = false,
+  /** A co-host who rescheduled or canceled it (null: the teacher did). */
+  actor: string | null = null,
 ) {
   if (!conf.teacher.email) return false;
   const meetings = `${origin}/dashboard/events/${conf.event.id}/conferences/meetings`;
-  const saved = byTeacher ? null : await loadSystemEmail(`organizer_booking_${kind}`);
-  return sendEmail({ to: conf.teacher.email, ...teacherBookingEmail(kind, b, conf.event, conf.settings, conf.teacher, meetings, byTeacher, saved) });
+  const saved = byTeacher || kind === "rescheduled" ? null : await loadSystemEmail(`organizer_booking_${kind}`);
+  return sendEmail({
+    to: conf.teacher.email,
+    ...teacherBookingEmail(kind, b, conf.event, conf.settings, conf.teacher, meetings, byTeacher, saved, actor),
+  });
 }

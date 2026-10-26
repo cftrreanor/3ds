@@ -79,7 +79,7 @@ const sections: Audience["sections"] = [
 ];
 
 const privacy = [
-  "Only you see who booked, their contact details, and their notes.",
+  "Only you and your co-hosts see who booked, their contact details, and their notes.",
   "People never see who else booked. Taken times simply aren't listed.",
   "Bookings are deleted 30 days after each meeting.",
   "No ads, no spam, and emails used only for your meetings",

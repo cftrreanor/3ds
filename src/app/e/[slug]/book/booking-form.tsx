@@ -337,7 +337,7 @@ export function BookingForm({
         <Field
           label="Anything you'd like to talk about? (optional)"
           // Without the child's name, the note isn't about a student, so no medical caution.
-          hint={askChild ? `Only ${teacher} sees this. Please leave out health or medical details; share those with the school directly.` : `Only ${teacher} sees this.`}
+          hint={askChild ? `Only ${teacher} and their co-hosts see this. Please leave out health or medical details; share those with the school directly.` : `Only ${teacher} and their co-hosts see this.`}
         >
           <Textarea name="note" rows={3} maxLength={500} defaultValue={state.values?.note} />
         </Field>

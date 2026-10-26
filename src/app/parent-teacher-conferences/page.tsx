@@ -99,7 +99,7 @@ const sections: Audience["sections"] = [
 ];
 
 const privacy = [
-  "Only you see children's names and family notes, not anyone else at the school or any other family.",
+  "Only you and your co-hosts see children's names and family notes, never other families.",
   "Families never see who else booked. Taken times simply aren't listed.",
   "Bookings are deleted 30 days after your conferences, or for weekly hours, 30 days after each meeting.",
 ];
