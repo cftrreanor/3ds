@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { startTransition, useMemo, useOptimistic, useState } from "react";
-import { ActionForm } from "@/components/action-form";
-import { SubmitButton } from "@/components/submit-button";
 import { toast } from "@/components/toaster";
 import { Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { RECORDS_NOTE } from "@/lib/records";
+import { CancelMeetingButton, RescheduleButton, type DayRange, type OpenSlot } from "./meeting-dialogs";
 
 export type Outcome = "met" | "no_show" | null;
 
@@ -40,6 +39,10 @@ export type MeetingRow =
         call: { tel: string; display: string } | null;
         note: string | null;
         cancel: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+        /** Move it to an open time or a typed-in one (with a note for the email). */
+        reschedule: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+        /** When it is now, in full ("Tue, Nov 3 · 3:20 – 3:35 PM"). */
+        when: string;
         /** The meeting's time has come: Met / No-show replace Cancel. */
         started: boolean;
         /** undefined until the conference outcomes database update has been run. */
@@ -68,7 +71,13 @@ export function MeetingList({
   summaryHref,
   today,
   meeting = false,
+  slots,
+  days,
 }: {
+  /** Open times a meeting can be rescheduled to. */
+  slots: OpenSlot[];
+  /** The days a typed-in time can be on. */
+  days: DayRange;
   /** Weekly hours: today's date, to list Today, Needs marking, and Upcoming by day. */
   today?: string;
   rows: MeetingRow[];
@@ -231,16 +240,17 @@ export function MeetingList({
             </div>
           ) : (
             !r.booking.started && (
-              <ActionForm
-                action={r.booking.cancel}
-                resetOnSuccess={false}
-                confirmMessage={`Cancel the meeting with ${whoOf(r.booking)}? We'll email them that you canceled, delete their details, and open the time up again.`}
-                className="shrink-0 print:hidden"
-              >
-                <SubmitButton variant="ghost" pendingText="Canceling…" className="-ml-4 font-medium underline hover:text-danger">
-                  Cancel meeting
-                </SubmitButton>
-              </ActionForm>
+              <div className="flex shrink-0 flex-wrap items-center gap-x-5 print:hidden">
+                <RescheduleButton
+                  who={whoOf(r.booking)}
+                  them={r.booking.child ? "the family" : "them"}
+                  current={r.booking.when}
+                  slots={slots}
+                  days={days}
+                  action={r.booking.reschedule}
+                />
+                <CancelMeetingButton who={whoOf(r.booking)} them={r.booking.child ? "the family" : "them"} action={r.booking.cancel} />
+              </div>
             )
           )}
         </div>

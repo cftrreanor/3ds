@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { withCallPhone, type Booking } from "@/lib/conference-bookings";
+import { meetingWhen, withCallPhone, type Booking } from "@/lib/conference-bookings";
 import { meetingStarts, modesOf } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { getEventAccess } from "@/lib/data";
@@ -14,15 +14,15 @@ import { createClient } from "@/lib/supabase/server";
 import { conferenceBookedCount, isConferenceTeacher } from "@/lib/conference-access";
 import { NotTheTeacher } from "./not-teacher";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime, zoneName } from "@/lib/time";
-import { cancelMeeting, setMeetingOutcome } from "../actions";
+import { cancelMeeting, rescheduleMeeting, setMeetingOutcome } from "../actions";
 import { MeetingList, type MeetingRow, type Outcome } from "./meeting-list";
 
 export const metadata: Metadata = { title: "Your meetings" };
 
 /**
- * The teacher's booked meetings, in time order: who's coming, how to reach
- * them, and their notes. Only the teacher can see this page (and the database
- * only lets them read their own bookings).
+ * The booked meetings, in time order: who's coming, how to reach them, and
+ * their notes, with Reschedule and Cancel. Only the event's hosts and co-hosts
+ * can see this page (and the database only lets them read its bookings).
  */
 export default async function MeetingsPage({ params }: PageProps<"/dashboard/events/[eventId]/conferences/meetings">) {
   const { eventId } = await params;
@@ -32,7 +32,7 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end")
+    .select("id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -49,9 +49,11 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
         .eq("event_id", eventId)
         .order("starts_at"),
     );
-  const [{ settings, error: settingsError }, withOutcomes] = await Promise.all([
+  const [{ settings, error: settingsError }, withOutcomes, { data: openRows }] = await Promise.all([
     loadConferenceSettings(supabase, eventId),
     loadBookings(", outcome"),
+    // The open times a meeting can be rescheduled to (none while it's a draft).
+    supabase.rpc("conference_open_times", { p_slug: event.slug }),
   ]);
   // Met / No-show needs the conference outcomes update (20261130000000); until then the list works without it.
   const outcomesReady = !isSchemaError(withOutcomes.error);
@@ -63,8 +65,11 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
   const len = settings.meeting_minutes;
   const starts = meetingStarts(utcToZonedTime(event.window_start, tz), utcToZonedTime(event.window_end, tz), settings);
   const byTime = new Map(bookings.map((b) => [utcToZonedTime(b.starts_at, tz), b]));
-  // Every meeting time, plus any booking at a time that's since been taken out of the hours.
-  const times = [...new Set([...starts, ...byTime.keys()])].sort();
+  // A meeting moved to a typed-in time (say 3:37) covers the usual times it overlaps: they aren't open.
+  const bookedAt = [...byTime.keys()].map(toMinutes);
+  const covered = (t: string) => !byTime.has(t) && bookedAt.some((m) => m < toMinutes(t) + len && toMinutes(t) < m + len);
+  // Every meeting time, plus any booking at a time that's since been taken out of the hours (or moved to a typed-in one).
+  const times = [...new Set([...starts, ...byTime.keys()])].filter((t) => !covered(t)).sort();
 
   const nowIso = new Date().toISOString();
   const today = utcToZonedDate(nowIso, tz);
@@ -90,6 +95,8 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
     call: b.meeting_mode === "phone" && b.call_phone ? { tel: b.call_phone, display: formatPhone(b.call_phone) } : null,
     note: b.note,
     cancel: cancelMeeting.bind(null, eventId, b.id),
+    reschedule: rescheduleMeeting.bind(null, eventId, b.id),
+    when: meetingWhen(b.starts_at, len, tz),
     // The real start, as Met / No-show checks it (not just the time of day).
     started: Date.parse(b.starts_at) <= Date.parse(nowIso),
     outcome: outcomesReady ? (b.outcome ?? null) : undefined,
@@ -174,12 +181,18 @@ export default async function MeetingsPage({ params }: PageProps<"/dashboard/eve
             today={weekly ? today : undefined}
             summaryHref={`/dashboard/events/${eventId}/conferences/meetings/summary`}
             meeting={meeting}
+            slots={((openRows ?? []) as { starts_at: string }[]).map((o) => ({
+              value: o.starts_at,
+              day: formatDate(utcToZonedDate(o.starts_at, tz), { weekday: "long", year: undefined }),
+              label: formatTimeRange(o.starts_at, new Date(Date.parse(o.starts_at) + len * 60_000).toISOString(), tz, { zone: false }),
+            }))}
+            days={{ min: event.starts_on, max: event.ends_on, zone: zoneName(tz) }}
           />
         </div>
       )}
 
       <p className="mt-8 text-sm text-muted print:hidden">
-        Only you can see {meeting ? "who booked" : "these families"} and their notes. Everything is deleted 30 days after{" "}
+        Only you and your co-hosts can see {meeting ? "who booked" : "these families"} and their notes. Everything is deleted 30 days after{" "}
         {weekly || meeting ? "each meeting" : "your conference"}.
       </p>
     </div>

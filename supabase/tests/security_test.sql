@@ -4469,9 +4469,10 @@ end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d2';
 
--- Conference bookings, teacher only (20261209000000_conference_teacher_only.sql)
--- On a shared account, only the teacher who set up the conference sees its
--- bookings; another host on the account sees how many are booked, not who.
+-- Conference bookings: the event's hosts and co-hosts, and rescheduling
+-- (20261228000000_reschedule_meetings.sql; 20261209000000 kept bookings to the
+-- teacher who set the conference up). Another host on the account now sees and
+-- manages the bookings, and can move a meeting to an open time or a typed-in one.
 insert into public.organization_members (organization_id, user_id, role)
 values (:'org_id', '00000000-0000-0000-0000-000000000009', 'admin');
 insert into public.events (id, organization_id, name, slug, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_address, created_by)
@@ -4483,48 +4484,112 @@ insert into public.conference_settings (event_id, meeting_minutes, gap_minutes, 
 values ('10000000-0000-0000-0000-0000000000d3', 15, 0, '[]', now(), 'in_person', 'Room 3');
 select set_config('test.park_token', public.book_conference('10000000-0000-0000-0000-0000000000d3',
   ((current_date + 3) + time '15:00') at time zone 'America/Chicago', 'Ivy Chen', '[{"name": "Lin Chen", "email": "lin@example.com"}]', null, 'Math')::text, false) \g /dev/null
-update public.conference_bookings set starts_at = now() - interval '10 minutes' where access_token = current_setting('test.park_token')::uuid;
+select set_config('test.park_token2', public.book_conference('10000000-0000-0000-0000-0000000000d3',
+  ((current_date + 3) + time '15:15') at time zone 'America/Chicago', 'Max Lee', '[{"name": "Ana Lee", "email": "ana@example.com"}]', null, null)::text, false) \g /dev/null
+select set_config('test.ivy', (select id::text from public.conference_bookings where access_token = current_setting('test.park_token')::uuid), false) \g /dev/null
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000009","email":"cohost@example.com"}';
 do $$
 declare
-  ok boolean := false;
-  real_id uuid;
+  ev  uuid := '10000000-0000-0000-0000-0000000000d3';
+  ivy uuid := current_setting('test.ivy')::uuid;
+  at3 timestamptz := ((current_date + 3) + time '15:00') at time zone 'America/Chicago';
+  ok  boolean;
 begin
-  assert public.is_event_admin('10000000-0000-0000-0000-0000000000d3'), 'the other host runs the account''s events';
-  assert not public.is_conference_teacher('10000000-0000-0000-0000-0000000000d3'), 'but isn''t this conference''s teacher';
-  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3') = 0,
-         'another host on the account can''t read the teacher''s bookings';
-  assert public.conference_booked_count('10000000-0000-0000-0000-0000000000d3') = 1, 'but sees how many times are booked';
-  delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3';
+  assert public.is_conference_teacher(ev), 'another host on the account runs its conferences too';
+  assert (select count(*) from public.conference_bookings where event_id = ev) = 2, 'and reads the bookings';
+
+  perform public.reschedule_conference_booking(ivy, ((current_date + 3) + time '17:10') at time zone 'America/Chicago');
   reset role;
-  real_id := (select id from public.conference_bookings where access_token = current_setting('test.park_token')::uuid);
+  assert (select starts_at = ((current_date + 3) + time '17:10') at time zone 'America/Chicago' and calendar_sequence = 1
+            from public.conference_bookings where id = ivy),
+         'a co-host moves a meeting to a typed-in time after hours (and the calendar invite updates)';
   set local role authenticated;
+  assert exists (select 1 from public.conference_open_times('conf-d3') t where t.starts_at = at3), 'its old time opens up';
+
+  perform public.reschedule_conference_booking(ivy, ((current_date + 3) + time '15:37') at time zone 'America/Chicago');
+  assert not exists (select 1 from public.conference_open_times('conf-d3') t
+                      where t.starts_at in (at3 + interval '30 minutes', at3 + interval '45 minutes')),
+         'families aren''t offered times that overlap a typed-in meeting';
+  assert exists (select 1 from public.conference_open_times('conf-d3') t where t.starts_at = at3), 'but are offered the rest';
+
+  ok := false;
   begin
-    perform public.set_conference_outcome(real_id, 'met');
-  exception when insufficient_privilege then ok := true;
+    perform public.reschedule_conference_booking(ivy, ((current_date + 3) + time '15:20') at time zone 'America/Chicago');
+  exception when others then ok := sqlerrm = 'That time overlaps another meeting. Pick another.';
   end;
-  assert ok, 'another host can''t mark the teacher''s meetings';
+  assert ok, 'a reschedule can''t overlap another meeting';
+  ok := false;
+  begin
+    perform public.reschedule_conference_booking(ivy, ((current_date + 4) + time '15:00') at time zone 'America/Chicago');
+  exception when others then ok := sqlerrm = 'Pick a day within the event''s dates.';
+  end;
+  assert ok, 'or fall outside the event''s days';
+  ok := false;
+  begin
+    perform public.reschedule_conference_booking(ivy, now() - interval '1 hour');
+  exception when others then ok := sqlerrm = 'Pick a time that hasn''t passed yet.';
+  end;
+  assert ok, 'or be in the past';
 end $$;
 reset role;
-do $$ begin
-  assert exists (select 1 from public.conference_bookings where access_token = current_setting('test.park_token')::uuid and outcome is null),
-         'another host can''t cancel or mark the teacher''s bookings';
+do $$
+declare
+  at3 timestamptz := ((current_date + 3) + time '15:00') at time zone 'America/Chicago';
+  ok  boolean := false;
+begin
+  begin
+    perform public.change_conference_booking(current_setting('test.park_token2')::uuid, at3 + interval '45 minutes', null);
+  exception when others then ok := sqlerrm = 'That time was just taken. Please pick another.';
+  end;
+  assert ok, 'a family can''t change into a time that overlaps a typed-in meeting';
+  perform public.change_conference_booking(current_setting('test.park_token2')::uuid, at3, null);
+  assert (select starts_at = at3 from public.conference_bookings where access_token = current_setting('test.park_token2')::uuid),
+         'but can change to an open time';
 end $$;
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
-do $$ begin
+do $$
+declare ok boolean := false;
+begin
   assert public.conference_booked_count('10000000-0000-0000-0000-0000000000d3') is null, 'strangers get no count';
+  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3') = 0,
+         'or bookings';
+  begin
+    perform public.reschedule_conference_booking('00000000-0000-0000-0000-000000000000', now() + interval '1 day');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'and can''t reschedule';
 end $$;
-set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
-do $$ begin
-  assert public.is_conference_teacher('10000000-0000-0000-0000-0000000000d3'), 'the teacher who set it up is its teacher';
-  assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3') = 1,
-         'the teacher reads their bookings';
-  perform public.set_conference_outcome((select id from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3'), 'met');
+reset role;
+do $$
+declare ok boolean := false;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}', true);
+  begin
+    perform public.reschedule_conference_booking(current_setting('test.ivy')::uuid,
+      ((current_date + 3) + time '15:30') at time zone 'America/Chicago');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'not even a real meeting they can''t see';
+end $$;
+reset role;
+update public.conference_bookings set starts_at = now() - interval '10 minutes' where access_token = current_setting('test.park_token')::uuid;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000009","email":"cohost@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.reschedule_conference_booking(current_setting('test.ivy')::uuid, now() + interval '1 hour');
+  exception when others then ok := sqlerrm = 'This meeting has already started, so it can''t be moved.';
+  end;
+  assert ok, 'a meeting that has started can''t be moved';
+  perform public.set_conference_outcome(current_setting('test.ivy')::uuid, 'met');
   delete from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3';
   assert (select count(*) from public.conference_bookings where event_id = '10000000-0000-0000-0000-0000000000d3') = 0,
-         'and can cancel them';
+         'a co-host marks and cancels meetings too';
 end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d3';

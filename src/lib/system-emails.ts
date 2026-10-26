@@ -63,6 +63,7 @@ const familyFields: SystemEmailField[] = [
 const childFields = ["child", "about_child", "for_child"];
 const bookingRows = "Then: when, where, who's coming, and the privacy promise";
 const calendarRemoved = "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).";
+const organizerNote = "Your note, if you added one when you rescheduled or canceled";
 const bookingDeleted = "Your booking details (their contact details, note, and any child's name) have been deleted.";
 
 const visitFields: SystemEmailField[] = [
@@ -313,7 +314,23 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
       body: "Hi {{first_name}}, {{teacher}} had to cancel the {{kind}} {{for_child}} ({{when}}). You're welcome to book another open time.",
       button_label: "Book another time",
     },
-    locked: [bookingDeleted, calendarRemoved],
+    locked: [bookingDeleted, calendarRemoved, organizerNote],
+  },
+  {
+    key: "family_booking_rescheduled",
+    group: "Families: conferences and meetings",
+    name: "Rescheduled by the teacher or organizer",
+    description: "Goes to each parent or guest when the teacher or a co-host moves their meeting to a new time. The calendar invite is updated.",
+    fields: familyFields,
+    required: [],
+    private: childFields,
+    starting: {
+      subject: "New time: your {{kind}} with {{teacher}}, {{when}}",
+      heading: "{{teacher}} changed your {{kind}} time",
+      body: "Hi {{first_name}}, {{teacher}} moved your {{kind}} {{about_child}} ({{event_name}}) to a new time. The details below are current.\n\nIf the new time doesn't work for you, use the button below to pick another time or cancel.",
+      button_label: "Change or cancel",
+    },
+    locked: ["An updated calendar invite is attached, so your calendar shows the new time.", organizerNote, bookingRows],
   },
   {
     key: "family_booking_moved",

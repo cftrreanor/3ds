@@ -20,7 +20,7 @@ import { isSchemaError } from "@/lib/schema-check";
 import { conferenceBookedCount } from "@/lib/conference-access";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { emailMovedMeetings, loadConference } from "@/app/e/[slug]/book/data";
-import { bookingEmail, emailTeacher, withCallPhone, type Booking } from "@/lib/conference-bookings";
+import { bookingEmail, bookingLink, emailTeacher, meetingWhen, withCallPhone, type Booking, type OrganizerNote } from "@/lib/conference-bookings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -267,15 +267,29 @@ function legacyMode(modes: Mode[]) {
   return null;
 }
 
+/** Who did it, for the emails: null when it's the teacher (the conference's creator) themself. */
+async function actorName(user: { id: string; email?: string | null }, teacherEmail: string | null) {
+  if (user.email && teacherEmail && user.email.toLowerCase() === teacherEmail.toLowerCase()) return null;
+  const { data } = await createAdminClient().from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+  return data?.full_name?.trim() || user.email || null;
+}
+
+/** The host's or co-host's optional note for the family's email (blank: none). */
+function readNote(formData: FormData) {
+  return String(formData.get("note") ?? "").replace(/\r\n/g, "\n").trim().slice(0, 1000);
+}
+
 /**
- * The teacher cancels one family's meeting: the time opens up again, the
- * booking (the child's name and the family's details) is deleted, and each
- * parent is emailed so the invite comes off their calendar.
+ * The teacher or a co-host cancels one family's meeting: the time opens up
+ * again, the booking (the child's name and the family's details) is deleted,
+ * and each parent is emailed (with their note, if they wrote one) so the
+ * invite comes off their calendar.
  */
-export async function cancelMeeting(eventId: string, bookingId: string): Promise<ActionState> {
-  await requireUser();
+export async function cancelMeeting(eventId: string, bookingId: string, _prev?: ActionState, formData?: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const text = formData ? readNote(formData) : "";
   const supabase = await createClient();
-  // Only the teacher can see (and delete) their bookings.
+  // Only the event's hosts and co-hosts can see (and delete) its bookings.
   const { data: seen } = await supabase.from("conference_bookings").select("id").eq("id", bookingId).eq("event_id", eventId).maybeSingle();
   if (!seen) return { error: "You don't have permission to do that." };
   const admin = createAdminClient();
@@ -290,20 +304,81 @@ export async function cancelMeeting(eventId: string, bookingId: string): Promise
     const b = booking as unknown as Booking;
     const origin = await getOrigin();
     const link = `${origin}/e/${conf.event.slug}/book`;
+    const actor = await actorName(user, conf.teacher.email);
+    const note: OrganizerNote | null = text ? { from: actor ?? conf.teacher.name, text } : null;
     emailed = true;
     for (const [i, p] of b.parents.entries()) {
       if (i) await pause();
-      const message = await bookingEmail("canceled", b, conf.event, conf.settings, conf.teacher, link, p, true);
+      const message = await bookingEmail("canceled", b, conf.event, conf.settings, conf.teacher, link, p, true, note);
       emailed = (await sendEmail({ to: p.email, ...message, eventId: conf.event.id })) && emailed;
     }
     // Takes it off the teacher's own calendar too.
-    await emailTeacher("canceled", b, conf, origin, true);
+    await emailTeacher("canceled", b, conf, origin, true, actor);
     revalidatePath(`/e/${conf.event.slug}/book`);
   }
   refresh(eventId);
   return {
     ok: true,
     message: emailed ? "Canceled. We emailed the family, and the time is open again." : "Canceled, and the time is open again. We couldn't email the family, so please let them know.",
+  };
+}
+
+/**
+ * The teacher or a co-host moves one meeting: to an open time ("slot", as
+ * sent), or a day and time they type in ("date" and "time", in the event's
+ * time zone). reschedule_conference_booking() checks it's one of the event's
+ * days, in the future, and doesn't overlap another meeting. Each parent gets
+ * an updated calendar invite (with the note, if there is one), and so does
+ * the teacher.
+ */
+export async function rescheduleMeeting(eventId: string, bookingId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const conf = await loadConference({ id: eventId });
+  if (!conf) return { error: "We couldn't find this event." };
+  const how = String(formData.get("how") ?? "");
+  let startsAt: string;
+  if (how === "custom") {
+    const date = String(formData.get("date") ?? "");
+    const time = String(formData.get("time") ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Pick a day." };
+    if (!/^\d{2}:\d{2}$/.test(time)) return { error: "Enter a time." };
+    startsAt = zonedToUtc(date, time, conf.event.timezone).toISOString();
+  } else {
+    startsAt = String(formData.get("slot") ?? "");
+    if (!startsAt || Number.isNaN(Date.parse(startsAt))) return { error: "Pick a new time." };
+  }
+  const text = readNote(formData);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("reschedule_conference_booking", { p_id: bookingId, p_starts_at: startsAt });
+  if (error) return { error: error.code === "P0001" || error.code === "42501" ? error.message : friendlyDbError(error) };
+
+  const admin = createAdminClient();
+  const { data: row } = await withCallPhone((columns) =>
+    admin.from("conference_bookings").select(`${columns}, access_token`).eq("id", bookingId).single(),
+  );
+  const b = row as unknown as (Booking & { access_token: string }) | null;
+  refresh(eventId);
+  revalidatePath(`/e/${conf.event.slug}/book`, "layout");
+  if (!b) return { ok: true, message: "Moved." };
+  const when = meetingWhen(b.starts_at, conf.settings.meeting_minutes, conf.event.timezone);
+  const origin = await getOrigin();
+  const actor = await actorName(user, conf.teacher.email);
+  const note: OrganizerNote | null = text ? { from: actor ?? conf.teacher.name, text } : null;
+  const link = bookingLink(origin, conf.event.slug, b.access_token);
+  let emailed = true;
+  for (const [i, p] of b.parents.entries()) {
+    if (i) await pause();
+    const message = await bookingEmail("rescheduled", b, conf.event, conf.settings, conf.teacher, link, p, true, note);
+    emailed = (await sendEmail({ to: p.email, ...message, eventId: conf.event.id })) && emailed;
+  }
+  await emailTeacher("rescheduled", b, conf, origin, true, actor);
+  const them = b.child_name ? "the family" : "them";
+  return {
+    ok: true,
+    message: emailed
+      ? `Moved to ${when}. We emailed ${them} an updated calendar invite.`
+      : `Moved to ${when}, but we couldn't email ${them}. Please let them know.`,
   };
 }
 

@@ -34,7 +34,7 @@ const kinds = [
     points: [
       "Families book their own meeting time from one link",
       "Calendar invites for families and the teacher, a reminder the day before, and easy changes",
-      "Only the teacher sees children's names",
+      "Only the teacher and their co-hosts see children's names",
     ],
   },
   {
@@ -106,7 +106,7 @@ const kinds = [
     points: [
       "Set one day or weekly hours, and people book from one link",
       "In person, on video, or by phone, with calendar invites and a reminder",
-      "Only you see who booked and their notes",
+      "Only you and your co-hosts see who booked and their notes",
     ],
   },
   {
