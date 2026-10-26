@@ -9,6 +9,7 @@ import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { AUDIENCES, FILE_TYPES, FILES_BUCKET, fileHref, MAX_FILE_BYTES } from "@/lib/event-files";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDate } from "@/lib/time";
 import { manageUrl } from "@/lib/volunteer-emails";
 
@@ -159,6 +160,20 @@ async function notify(
   if (!event) return;
   const heading = `${replaced ? "Updated" : "New"}: ${label}`;
   const intro = `${replaced ? "An updated" : "A new"} file was shared for ${event.name} (${formatDate(event.starts_on)}).`;
+  // An admin's wording (/admin/emails), if they saved one.
+  const vars = {
+    file_name: label,
+    change: replaced ? "updated" : "new",
+    a_change: replaced ? "an updated" : "a new",
+    event_name: event.name,
+    event_date: formatDate(event.starts_on),
+  };
+  const [forDirectors, forVolunteers] = await Promise.all([
+    who.directors ? loadSystemEmail("director_file_shared") : null,
+    who.volunteers ? loadSystemEmail("volunteer_file_shared") : null,
+  ]);
+  const director = customWords("director_file_shared", forDirectors, vars);
+  const volunteer = customWords("volunteer_file_shared", forVolunteers, vars);
 
   if (who.directors) {
     // The accounts that registered the bands: they're the ones who can sign in and open it.
@@ -168,11 +183,11 @@ async function notify(
     const emails = [...new Set((people ?? []).map((p) => p.email as string).filter(Boolean))];
     for (const to of emails) {
       const { html, text } = emailLayout({
-        heading,
-        paragraphs: [intro, "Sign in with the email you registered your band with to open it."],
-        button: { label: `Open ${label}`, url: `${origin}${fileHref(fileId)}` },
+        heading: director?.heading || heading,
+        paragraphs: director?.paragraphs ?? [intro, "Sign in with the email you registered your band with to open it."],
+        button: { label: director?.button || `Open ${label}`, url: `${origin}${fileHref(fileId)}` },
       });
-      await sendEmail({ to, subject: `${heading} · ${event.name}`, html, text, eventId });
+      await sendEmail({ to, subject: director?.subject || `${heading} · ${event.name}`, html, text, eventId });
       await pause();
     }
   }
@@ -184,11 +199,11 @@ async function notify(
       .not("email", "is", null);
     for (const v of vols ?? []) {
       const { html, text } = emailLayout({
-        heading,
-        paragraphs: [intro, "It's on your shifts page, along with your times."],
-        button: { label: "View my shifts", url: manageUrl(origin, v) },
+        heading: volunteer?.heading || heading,
+        paragraphs: volunteer?.paragraphs ?? [intro, "It's on your shifts page, along with your times."],
+        button: { label: volunteer?.button || "View my shifts", url: manageUrl(origin, v) },
       });
-      await sendEmail({ to: v.email!, subject: `${heading} · ${event.name}`, html, text, eventId });
+      await sendEmail({ to: v.email!, subject: volunteer?.subject || `${heading} · ${event.name}`, html, text, eventId });
       await pause();
     }
   }

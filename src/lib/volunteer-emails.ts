@@ -4,6 +4,7 @@ import { emailLayout, pause, sendEmail, type CalendarInvite } from "@/lib/email"
 import { buildIcs, googleCalendarUrl, type IcsEvent } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDate, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 
 /** One signup, with everything needed for its email and calendar invite. */
@@ -116,23 +117,26 @@ export async function sendSignupConfirmation(
   if (entries.length === 0) return false;
   const first = entries[0];
   const single = entries.length === 1;
+  const custom = customWords("volunteer_signup", await loadSystemEmail("volunteer_signup"), volunteerVars(first));
   const { html, text } = emailLayout({
-    heading: `You're signed up for ${first.event_name}`,
+    heading: custom?.heading || `You're signed up for ${first.event_name}`,
     paragraphs: [
-      `Thanks, ${first.volunteer_name.split(" ")[0]}. Here ${single ? "is your shift" : "are your shifts"}${first.venue_name ? ` at ${first.venue_name}` : ""}.`,
+      ...(custom?.paragraphs ?? [
+        `Thanks, ${first.volunteer_name.split(" ")[0]}. Here ${single ? "is your shift" : "are your shifts"}${first.venue_name ? ` at ${first.venue_name}` : ""}.`,
+      ]),
       ...(others.length ? [`Also signed up for ${single ? "this shift" : "these shifts"}: ${others.join(", ")}.`] : []),
       single
         ? CALENDAR_TIP
         : "Each shift gets its own email with a calendar invite, which keeps your calendar up to date if anything changes.",
     ],
     rows: entries.map((e) => shiftRow(e, tz, origin, multiDay)),
-    button: { label: "View or cancel my shifts", url: manageUrl(origin, first) },
+    button: { label: custom?.button || "View or cancel my shifts", url: manageUrl(origin, first) },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}. This link is just for you; anyone you forward it to can view and cancel your shifts.`,
   });
   const sent = await sendEmail({
     to: first.volunteer_email,
     eventId: first.event_id,
-    subject: `You're signed up: ${first.event_name}`,
+    subject: custom?.subject || `You're signed up: ${first.event_name}`,
     html,
     text,
     ...(single ? { invite: invite("REQUEST", first, origin) } : {}),
@@ -165,37 +169,51 @@ export async function sendShiftReminder(entries: CalendarEntry[], tz: string, or
   const first = entries[0];
   const single = entries.length === 1;
   const leads = [...new Set(entries.filter((e) => e.lead_name).map((e) => `${e.lead_name}${e.lead_phone ? ` at ${formatPhone(e.lead_phone)}` : ""}`))];
+  const details = [
+    ...entries.filter((e) => e.instructions).map((e) => `${e.station_name}: ${e.instructions}`),
+    ...(leads.length ? [`Questions on the day? Your ${leads.length === 1 ? "lead is" : "leads are"} ${leads.join(" and ")}.`] : []),
+  ];
+  const custom = customWords("volunteer_reminder", await loadSystemEmail("volunteer_reminder"), volunteerVars(first));
   const { html, text } = emailLayout({
-    heading: `See you tomorrow at ${first.event_name}`,
-    paragraphs: [
-      `Hi ${first.volunteer_name.split(" ")[0]}, a reminder that you're volunteering tomorrow${first.venue_name ? ` at ${first.venue_name}` : ""}. Here ${single ? "is your shift" : "are your shifts"}.`,
-      ...entries.filter((e) => e.instructions).map((e) => `${e.station_name}: ${e.instructions}`),
-      ...(leads.length ? [`Questions on the day? Your ${leads.length === 1 ? "lead is" : "leads are"} ${leads.join(" and ")}.`] : []),
-      "Can't make it anymore? Please cancel below so someone else can take your spot.",
-    ],
+    heading: custom?.heading || `See you tomorrow at ${first.event_name}`,
+    paragraphs: custom
+      ? [...custom.paragraphs, ...details]
+      : [
+          `Hi ${first.volunteer_name.split(" ")[0]}, a reminder that you're volunteering tomorrow${first.venue_name ? ` at ${first.venue_name}` : ""}. Here ${single ? "is your shift" : "are your shifts"}.`,
+          ...details,
+          "Can't make it anymore? Please cancel below so someone else can take your spot.",
+        ],
     rows: entries.map((e) => shiftRow(e, tz, origin, false)),
-    button: { label: "View or cancel my shifts", url: manageUrl(origin, first) },
+    button: { label: custom?.button || "View or cancel my shifts", url: manageUrl(origin, first) },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}.`,
   });
-  return sendEmail({ to: first.volunteer_email, eventId: first.event_id, subject: `Tomorrow: your volunteer shift at ${first.event_name}`, html, text });
+  return sendEmail({
+    to: first.volunteer_email,
+    eventId: first.event_id,
+    subject: custom?.subject || `Tomorrow: your volunteer shift at ${first.event_name}`,
+    html,
+    text,
+  });
 }
 
 /** Tell each volunteer their shift changed and update their calendar. */
 export async function sendShiftUpdates(entries: CalendarEntry[], tz: string, origin: string) {
+  const saved = await loadSystemEmail("volunteer_shift_changed");
   for (const e of entries) {
+    const custom = customWords("volunteer_shift_changed", saved, volunteerVars(e));
     const { html, text } = emailLayout({
-      heading: "Your volunteer shift changed",
+      heading: custom?.heading || "Your volunteer shift changed",
       paragraphs: [
-        `Hi ${e.volunteer_name.split(" ")[0]}, the organizers of ${e.event_name} updated your shift. Here are the new details.`,
+        ...(custom?.paragraphs ?? [`Hi ${e.volunteer_name.split(" ")[0]}, the organizers of ${e.event_name} updated your shift. Here are the new details.`]),
         "If you added our calendar invite, it updates automatically. If you added a copy to another calendar, please update it yourself.",
       ],
       rows: [shiftRow(e, tz, origin, false)],
-      button: { label: "View or cancel my shifts", url: manageUrl(origin, e) },
+      button: { label: custom?.button || "View or cancel my shifts", url: manageUrl(origin, e) },
     });
     await sendEmail({
       to: e.volunteer_email,
       eventId: e.event_id,
-      subject: `Updated: your shift at ${e.event_name}`,
+      subject: custom?.subject || `Updated: your shift at ${e.event_name}`,
       html,
       text,
       invite: invite("REQUEST", e, origin),
@@ -206,15 +224,22 @@ export async function sendShiftUpdates(entries: CalendarEntry[], tz: string, ori
 
 /** Confirm a cancellation and remove the event from their calendar. */
 export async function sendCancellation(e: CalendarEntry, tz: string, origin: string, signupUrl: string | null = null) {
+  const removed =
+    "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first). If you added a copy to another calendar, please delete it.";
+  const custom = customWords("volunteer_shift_canceled", await loadSystemEmail("volunteer_shift_canceled"), {
+    ...volunteerVars(e),
+    station: e.station_name,
+    time: formatTimeRange(e.starts_at, e.ends_at, tz),
+  });
   const { html, text } = emailLayout({
-    heading: "Your shift was canceled",
-    paragraphs: [
-      `Hi ${e.volunteer_name.split(" ")[0]}, you're no longer signed up for ${e.station_name} (${formatTimeRange(e.starts_at, e.ends_at, tz)}) at ${e.event_name}.`,
-      "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first). If you added a copy to another calendar, please delete it.",
-      signupUrl
-        ? "Changed your mind, or want a different time? Signup is still open."
-        : "Thanks for letting the organizers know.",
-    ],
+    heading: custom?.heading || "Your shift was canceled",
+    paragraphs: custom
+      ? [...custom.paragraphs, removed]
+      : [
+          `Hi ${e.volunteer_name.split(" ")[0]}, you're no longer signed up for ${e.station_name} (${formatTimeRange(e.starts_at, e.ends_at, tz)}) at ${e.event_name}.`,
+          removed,
+          signupUrl ? "Changed your mind, or want a different time? Signup is still open." : "Thanks for letting the organizers know.",
+        ],
     button: signupUrl
       ? { label: "Sign up for more shifts", url: signupUrl }
       : { label: "View my other shifts", url: manageUrl(origin, e) },
@@ -222,9 +247,16 @@ export async function sendCancellation(e: CalendarEntry, tz: string, origin: str
   return sendEmail({
     to: e.volunteer_email,
     eventId: e.event_id,
-    subject: `Canceled: your shift at ${e.event_name}`,
+    subject: custom?.subject || `Canceled: your shift at ${e.event_name}`,
     html,
     text,
     invite: invite("CANCEL", { ...e, calendar_sequence: e.calendar_sequence + 1 }, origin),
   });
 }
+
+/** The fields every volunteer email fills in (src/lib/system-emails.ts). */
+const volunteerVars = (e: CalendarEntry) => ({
+  first_name: e.volunteer_name.split(" ")[0],
+  event_name: e.event_name,
+  at_venue: e.venue_name ? `at ${e.venue_name}` : "",
+});

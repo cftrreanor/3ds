@@ -9,6 +9,7 @@ import { getOrigin } from "@/lib/data";
 import { emailLayout, sendEmail } from "@/lib/email";
 import { hasRooms } from "@/lib/event-types";
 import { createClient } from "@/lib/supabase/server";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDateRange } from "@/lib/time";
 
 /** Save a registration, email the director a copy and open their band's page. */
@@ -44,9 +45,15 @@ export async function createRegistration(
   const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const origin = await getOrigin();
   after(async () => {
+    const custom = customWords("director_registered", await loadSystemEmail("director_registered"), {
+      band_name: v.band_name,
+      school: v.school_name,
+      event_name: event?.name ?? "the event",
+      event_dates: event ? formatDateRange(event.starts_on, event.ends_on) : "",
+    });
     const { html, text } = emailLayout({
-      heading: `${v.band_name} is registered`,
-      paragraphs: [
+      heading: custom?.heading || `${v.band_name} is registered`,
+      paragraphs: custom?.paragraphs ?? [
         `Thanks. ${v.school_name} is registered for ${event?.name ?? "the event"} (${event ? formatDateRange(event.starts_on, event.ends_on) : ""}).`,
         `You can review or change your registration while registration is open. We'll email you when ${group ? "the schedule and your group's times in each room are" : "the performance order and your times are"} posted.`,
       ],
@@ -65,9 +72,9 @@ export async function createRegistration(
               ].join(" · "),
         },
       ],
-      button: { label: "View my registration", url: `${origin}/dashboard/bands/${data.id}` },
+      button: { label: custom?.button || "View my registration", url: `${origin}/dashboard/bands/${data.id}` },
     });
-    await sendEmail({ to: user.email, subject: `Registered: ${v.band_name} at ${event?.name ?? "the event"}`, html, text, eventId });
+    await sendEmail({ to: user.email, subject: custom?.subject || `Registered: ${v.band_name} at ${event?.name ?? "the event"}`, html, text, eventId });
   });
 
   revalidatePath("/dashboard");
