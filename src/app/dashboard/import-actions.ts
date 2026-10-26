@@ -155,7 +155,7 @@ export async function importParents(eventId: string, records: unknown, sendEmail
       for (const { token, item } of added) {
         const { data: reg } = await admin.from("parent_registrations").select("id, calendar_sequence").eq("access_token", token).single();
         if (!reg) continue;
-        const message = parentEmail(
+        const message = await parentEmail(
           "confirmation",
           { ...reg, parent_name: item.parentName, email: item.email, children: item.children, other_adults: item.otherAdults },
           event,

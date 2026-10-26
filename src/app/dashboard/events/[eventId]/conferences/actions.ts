@@ -293,7 +293,7 @@ export async function cancelMeeting(eventId: string, bookingId: string): Promise
     emailed = true;
     for (const [i, p] of b.parents.entries()) {
       if (i) await pause();
-      const message = bookingEmail("canceled", b, conf.event, conf.settings, conf.teacher, link, p, true);
+      const message = await bookingEmail("canceled", b, conf.event, conf.settings, conf.teacher, link, p, true);
       emailed = (await sendEmail({ to: p.email, ...message, eventId: conf.event.id })) && emailed;
     }
     // Takes it off the teacher's own calendar too.

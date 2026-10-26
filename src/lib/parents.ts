@@ -2,6 +2,7 @@ import "server-only";
 import { brand } from "@/lib/brand";
 import { emailLayout, type CalendarInvite } from "@/lib/email";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDate, formatDateRange, formatTime, formatTimeRange, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 
 // School visitor events: parents register their children ahead and are
@@ -93,23 +94,26 @@ const CALENDAR_TIP =
  * The confirmation (a calendar invite; registering again updates it), the
  * reminder the day before, and the cancellation (removes the invite).
  */
-export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "already", r: Registration, event: ParentEvent, link: string) {
+export async function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "already", r: Registration, event: ParentEvent, link: string) {
   const when = `${formatDateRange(event.starts_on, event.ends_on)}, ${formatTimeRange(event.window_start, event.window_end, event.timezone)}`;
   const where = [event.venue_name, event.venue_address].filter(Boolean).join(", ");
   const first = r.parent_name.split(" ")[0];
   const footer = `Sent by ${brand.name}. Your children's details are deleted 30 days after the event.`;
+  // An admin's wording (/admin/emails), if they saved one. The photo ID and privacy lines always stay.
+  const key = `parent_visit_${kind}`;
+  const custom = customWords(key, await loadSystemEmail(key), { first_name: first, event_name: event.name, when });
 
   // Someone registered again with this email: nothing changed; here's the parent's own link.
   if (kind === "already") {
     return {
-      subject: `Your registration: ${event.name}`,
+      subject: custom?.subject || `Your registration: ${event.name}`,
       ...emailLayout({
-        heading: "You're already registered",
-        paragraphs: [
+        heading: custom?.heading || "You're already registered",
+        paragraphs: custom?.paragraphs ?? [
           `Hi ${first}, someone (we hope it was you) tried to register this email again for ${event.name} (${when}). Nothing was changed.`,
           "To see, change, or cancel your registration, use the button below. If this wasn't you, you can ignore this email.",
         ],
-        button: { label: "View or change my registration", url: link },
+        button: { label: custom?.button || "View or change my registration", url: link },
         footer,
       }),
     };
@@ -117,14 +121,16 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "al
 
   if (kind === "canceled") {
     return {
-      subject: `Canceled: ${event.name}`,
+      subject: custom?.subject || `Canceled: ${event.name}`,
       ...emailLayout({
-        heading: "Your registration was canceled",
+        heading: custom?.heading || "Your registration was canceled",
         paragraphs: [
-          `Hi ${first}, your registration for ${event.name} (${when}) is canceled, and your children's details have been deleted.`,
+          ...(custom
+            ? [...custom.paragraphs, "Your children's details have been deleted."]
+            : [`Hi ${first}, your registration for ${event.name} (${when}) is canceled, and your children's details have been deleted.`]),
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
-        button: { label: "Register again", url: link },
+        button: { label: custom?.button || "Register again", url: link },
         footer,
       }),
       invite: invite("CANCEL", { ...r, calendar_sequence: r.calendar_sequence + 1 }, event, link),
@@ -132,11 +138,11 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "al
   }
 
   return {
-    subject: kind === "confirmation" ? `You're registered: ${event.name}` : `Tomorrow: ${event.name}. Bring your photo ID`,
+    subject: custom?.subject || (kind === "confirmation" ? `You're registered: ${event.name}` : `Tomorrow: ${event.name}. Bring your photo ID`),
     ...emailLayout({
-      heading: kind === "confirmation" ? "You're registered" : "See you tomorrow",
+      heading: custom?.heading || (kind === "confirmation" ? "You're registered" : "See you tomorrow"),
       paragraphs: [
-        `Hi ${first}, ${kind === "confirmation" ? "you're registered for" : "a reminder about"} ${event.name}.`,
+        ...(custom?.paragraphs ?? [`Hi ${first}, ${kind === "confirmation" ? "you're registered for" : "a reminder about"} ${event.name}.`]),
         ID_REMINDER,
         ...(kind === "confirmation" ? [CALENDAR_TIP] : []),
       ],
@@ -148,7 +154,7 @@ export function parentEmail(kind: "confirmation" | "reminder" | "canceled" | "al
           ? [{ title: "Also coming", detail: `${r.other_adults.join(", ")}. Each adult needs their own photo ID.` }]
           : []),
       ],
-      button: { label: "View, change, or cancel my registration", url: link },
+      button: { label: custom?.button || "View, change, or cancel my registration", url: link },
       footer,
       preheader: `${when}${where ? ` · ${where}` : ""}`,
     }),

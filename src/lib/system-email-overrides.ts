@@ -3,8 +3,20 @@ import { systemEmail, systemEmailWords, type SystemEmailText } from "@/lib/syste
 import { brand } from "@/lib/brand";
 import { createAdminClient } from "@/lib/supabase/server";
 
+// The daily job and a booking with several parents send many emails at once: keep each answer for a short while.
+const recent = new Map<string, { at: number; value: SystemEmailText | null }>();
+const KEEP_MS = 30_000;
+
 /** An admin's saved wording for a system email, or null for the built-in wording (or before the database update). */
 export async function loadSystemEmail(key: string): Promise<SystemEmailText | null> {
+  const hit = recent.get(key);
+  if (hit && Date.now() - hit.at < KEEP_MS) return hit.value;
+  const value = await readSystemEmail(key);
+  recent.set(key, { at: Date.now(), value });
+  return value;
+}
+
+async function readSystemEmail(key: string): Promise<SystemEmailText | null> {
   try {
     const { data, error } = await createAdminClient()
       .from("system_email_overrides")

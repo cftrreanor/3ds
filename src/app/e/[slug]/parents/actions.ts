@@ -109,7 +109,7 @@ export async function registerParents(eventId: string, _prev: ParentState, formD
       .maybeSingle();
     let emailSent = false;
     if (event && reg) {
-      const message = parentEmail(
+      const message = await parentEmail(
         "already",
         { ...reg, children: reg.children as Child[], other_adults: adultNames(reg.other_adults) },
         event,
@@ -123,7 +123,7 @@ export async function registerParents(eventId: string, _prev: ParentState, formD
   const { data: reg } = await admin.from("parent_registrations").select("id, calendar_sequence").eq("access_token", token as string).single();
   let emailSent = false;
   if (event && reg) {
-    const message = parentEmail(
+    const message = await parentEmail(
       "confirmation",
       { ...reg, parent_name: v.parentName, email: v.email, children: v.children, other_adults: v.otherAdults },
       event,
@@ -158,7 +158,7 @@ export async function updateParents(token: string, _prev: ParentState, formData:
   ]);
   let emailSent = false;
   if (event && reg) {
-    const message = parentEmail(
+    const message = await parentEmail(
       "confirmation",
       { ...reg, parent_name: v.parentName, children: v.children, other_adults: v.otherAdults },
       event,
@@ -186,7 +186,7 @@ export async function cancelParents(token: string): Promise<ActionState> {
   }
   const { data: event } = reg ? await admin.from("events").select(EVENT_FIELDS).eq("id", reg.event_id).single() : { data: null };
   if (reg && event) {
-    const message = parentEmail("canceled", { ...reg, children: reg.children as Child[], other_adults: adultNames(reg.other_adults) }, event, `${await getOrigin()}/e/${event.slug}/parents`);
+    const message = await parentEmail("canceled", { ...reg, children: reg.children as Child[], other_adults: adultNames(reg.other_adults) }, event, `${await getOrigin()}/e/${event.slug}/parents`);
     await sendEmail({ to: reg.email, ...message, eventId: reg.event_id });
   }
   redirect(event ? `/e/${event.slug}/parents?canceled=1` : "/");

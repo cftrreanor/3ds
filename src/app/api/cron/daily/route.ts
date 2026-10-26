@@ -94,7 +94,7 @@ async function runDailyJob() {
         unsent++;
         continue;
       }
-      const { subject, html, text } = parentEmail(
+      const { subject, html, text } = await parentEmail(
         "reminder",
         { ...r, children: r.children as Child[], other_adults: adultNames(r.other_adults) },
         event,
@@ -153,7 +153,7 @@ async function runDailyJob() {
       }
       let all = true;
       for (const p of b.parents) {
-        const message = bookingEmail("reminder", b, event, s, teacher, bookingLink(origin, event.slug, b.access_token), p);
+        const message = await bookingEmail("reminder", b, event, s, teacher, bookingLink(origin, event.slug, b.access_token), p);
         all = (await sendEmail({ to: p.email, ...message, eventId: event.id })) && all;
         await pause();
       }

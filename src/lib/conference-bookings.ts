@@ -144,7 +144,7 @@ const invite = (method: "REQUEST" | "CANCEL", ...args: Parameters<typeof toIcsEv
  * time (an updated invite), the reminder the day before, or the cancellation
  * (removes the invite).
  */
-export function bookingEmail(
+export async function bookingEmail(
   kind: "confirmation" | "changed" | "reminder" | "canceled",
   b: Booking,
   event: BookingEvent,
@@ -164,26 +164,43 @@ export function bookingEmail(
   const details = b.child_name ? "your child's name, your contact details, and your note" : "your contact details and your note";
   const word = kindWord(event);
   // Subjects never name the child: our sent-email log keeps subjects (lib/email), and the child's name is only kept 30 days.
+  // An admin's wording (/admin/emails), if they saved one; its subject can't use the child's name either.
+  const moved = kind === "changed" && byTeacher;
+  const key =
+    kind === "canceled" ? (byTeacher ? "family_booking_canceled_by_organizer" : "family_booking_canceled") : moved ? "family_booking_moved" : `family_booking_${kind}`;
+  const custom = customWords(key, await loadSystemEmail(key), {
+    first_name: first,
+    teacher: teacher.name,
+    kind: word,
+    when,
+    event_name: event.name,
+    child: b.child_name ?? "",
+    about_child: b.child_name ? `about ${b.child_name}` : "",
+    for_child: b.child_name ? `for ${b.child_name}` : "",
+  });
 
   if (kind === "canceled") {
     return {
-      subject: `Canceled: your ${word} with ${teacher.name}`,
+      subject: custom?.subject || `Canceled: your ${word} with ${teacher.name}`,
       ...emailLayout({
-        heading: byTeacher ? `${teacher.name} canceled your ${word}` : `Your ${word} was canceled`,
+        heading: custom?.heading || (byTeacher ? `${teacher.name} canceled your ${word}` : `Your ${word} was canceled`),
         paragraphs: [
-          byTeacher
-            ? `Hi ${first}, ${teacher.name} had to cancel the ${word}${forChild} (${when}). Your booking details (${details}) have been deleted. You're welcome to book another open time.`
-            : `Hi ${first}, the ${word}${forChild} with ${teacher.name} (${when}) is canceled, and your booking details (${details}) have been deleted.`,
+          ...(custom
+            ? [...custom.paragraphs, `Your booking details (${details}) have been deleted.`]
+            : [
+                byTeacher
+                  ? `Hi ${first}, ${teacher.name} had to cancel the ${word}${forChild} (${when}). Your booking details (${details}) have been deleted. You're welcome to book another open time.`
+                  : `Hi ${first}, the ${word}${forChild} with ${teacher.name} (${when}) is canceled, and your booking details (${details}) have been deleted.`,
+              ]),
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
-        button: { label: "Book another time", url: link },
+        button: { label: custom?.button || "Book another time", url: link },
         footer,
       }),
       invite: invite("CANCEL", { ...b, calendar_sequence: b.calendar_sequence + 1 }, event, s, teacher, link, to),
     };
   }
 
-  const moved = kind === "changed" && byTeacher;
   const heading =
     kind === "confirmation"
       ? `Your ${word} is booked`
@@ -198,17 +215,20 @@ export function bookingEmail(
       : kind === "changed"
         ? `${moved ? "New day" : "New time"}: your ${word} with ${teacher.name}, ${when}`
         : `Tomorrow: your ${word} with ${teacher.name}, ${when}`;
+  const change = custom?.button || "Change or cancel";
   return {
-    subject,
+    subject: custom?.subject || subject,
     ...emailLayout({
-      heading,
+      heading: custom?.heading || heading,
       paragraphs: [
-        kind === "reminder"
-          ? `Hi ${first}, a reminder that you're meeting ${teacher.name}${about} tomorrow (${event.name}).`
-          : moved
-            ? `Hi ${first}, ${teacher.name} moved ${event.name} to a new day. Your meeting${about} is at the same time of day, on the day below.`
-            : `Hi ${first}, you're booked to meet ${teacher.name}${about} (${event.name}).`,
-        ...(moved ? ["If the new day doesn't work for you, use the button below to pick another time or cancel."] : []),
+        ...(custom?.paragraphs ?? [
+          kind === "reminder"
+            ? `Hi ${first}, a reminder that you're meeting ${teacher.name}${about} tomorrow (${event.name}).`
+            : moved
+              ? `Hi ${first}, ${teacher.name} moved ${event.name} to a new day. Your meeting${about} is at the same time of day, on the day below.`
+              : `Hi ${first}, you're booked to meet ${teacher.name}${about} (${event.name}).`,
+          ...(moved ? ["If the new day doesn't work for you, use the button below to pick another time or cancel."] : []),
+        ]),
         ...(kind !== "reminder" ? [moved ? "An updated calendar invite is attached, so your calendar shows the new day." : "A calendar invite is attached, so it's on your calendar with the details."] : []),
       ],
       rows: [
@@ -219,8 +239,8 @@ export function bookingEmail(
       ],
       // On video, joining is what they'll need most, so it gets the button.
       ...(place.link
-        ? { button: { label: "Join the meeting", url: place.link }, link: { label: "Change or cancel", url: link } }
-        : { button: { label: "Change or cancel", url: link } }),
+        ? { button: { label: "Join the meeting", url: place.link }, link: { label: change, url: link } }
+        : { button: { label: change, url: link } }),
       footer,
       preheader: `${when} · ${place.title} with ${teacher.name}`,
     }),
