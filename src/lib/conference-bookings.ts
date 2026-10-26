@@ -174,13 +174,8 @@ export async function bookingEmail(
   const moved = kind === "changed" && byTeacher;
   const key =
     kind === "canceled" ? (byTeacher ? "family_booking_canceled_by_organizer" : "family_booking_canceled") : moved ? "family_booking_moved" : `family_booking_${kind}`;
-  // The host's or co-host's own words, as one paragraph ({{note}} in an admin's wording).
-  const noteLine = note ? `A note from ${note.from}: “${note.text}”` : "";
-  const saved = await loadSystemEmail(key);
-  // Wording saved before {{note}} existed: the note goes after its message instead of disappearing.
-  const noteAfter = noteLine && saved && !/\{\{\s*note\s*\}\}/i.test(saved.body) ? [noteLine] : [];
-  const custom = customWords(key, saved, {
-    note: noteLine,
+  const noteRow = note ? [{ title: `A note from ${note.from}`, detail: note.text }] : [];
+  const custom = customWords(key, await loadSystemEmail(key), {
     first_name: first,
     teacher: teacher.name,
     kind: word,
@@ -198,15 +193,15 @@ export async function bookingEmail(
         heading: custom?.heading || (byTeacher ? `${teacher.name} canceled your ${word}` : `Your ${word} was canceled`),
         paragraphs: [
           ...(custom
-            ? [...custom.paragraphs, ...noteAfter, `Your booking details (${details}) have been deleted.`]
+            ? [...custom.paragraphs, `Your booking details (${details}) have been deleted.`]
             : [
                 byTeacher
                   ? `Hi ${first}, ${teacher.name} had to cancel the ${word}${forChild} (${when}). Your booking details (${details}) have been deleted. You're welcome to book another open time.`
                   : `Hi ${first}, the ${word}${forChild} with ${teacher.name} (${when}) is canceled, and your booking details (${details}) have been deleted.`,
-                ...(noteLine ? [noteLine] : []),
               ]),
           "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).",
         ],
+        rows: noteRow,
         button: { label: custom?.button || "Book another time", url: link },
         footer,
       }),
@@ -236,7 +231,7 @@ export async function bookingEmail(
     ...emailLayout({
       heading: custom?.heading || heading,
       paragraphs: [
-        ...(custom ? [...custom.paragraphs, ...noteAfter] : [
+        ...(custom?.paragraphs ?? [
           kind === "reminder"
             ? `Hi ${first}, a reminder that you're meeting ${teacher.name}${about} tomorrow (${event.name}).`
             : kind === "rescheduled"
@@ -245,7 +240,6 @@ export async function bookingEmail(
               ? `Hi ${first}, ${teacher.name} moved ${event.name} to a new day. Your meeting${about} is at the same time of day, on the day below.`
               : `Hi ${first}, you're booked to meet ${teacher.name}${about} (${event.name}).`,
           ...(moved ? ["If the new day doesn't work for you, use the button below to pick another time or cancel."] : []),
-          ...(kind === "rescheduled" && noteLine ? [noteLine] : []),
           ...(kind === "rescheduled" ? ["If the new time doesn't work for you, use the button below to pick another time or cancel."] : []),
         ]),
         ...(kind !== "reminder"
@@ -259,6 +253,7 @@ export async function bookingEmail(
           : []),
       ],
       rows: [
+        ...noteRow,
         { title: "When", detail: when, strong: true },
         { title: place.title, detail: place.lines.join(" ") },
         ...(b.parents.length > 1 ? [{ title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
