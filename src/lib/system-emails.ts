@@ -63,7 +63,12 @@ const familyFields: SystemEmailField[] = [
 const childFields = ["child", "about_child", "for_child"];
 const bookingRows = "Then: when, where, who's coming, and the privacy promise";
 const calendarRemoved = "If you added our calendar invite, it will be removed from your calendar (in Gmail, you may need to open this email first).";
-const organizerNote = "Your note, if you added one when you rescheduled or canceled";
+/** What a host or co-host typed when they rescheduled or canceled, with their name; blank when they didn't add one. */
+const noteField: SystemEmailField = {
+  key: "note",
+  label: "Your note, with your name (left out when you don't add one)",
+  sample: "A note from Pat Rivera: “Sorry for the change. I have a staff meeting at 3:30.”",
+};
 const bookingDeleted = "Your booking details (their contact details, note, and any child's name) have been deleted.";
 
 const visitFields: SystemEmailField[] = [
@@ -305,32 +310,32 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
     group: "Families: conferences and meetings",
     name: "Canceled by the teacher or organizer",
     description: "Goes to each parent or guest when the teacher or organizer cancels their meeting.",
-    fields: familyFields,
-    required: [],
-    private: childFields,
+    fields: [...familyFields, noteField],
+    required: ["note"],
+    private: [...childFields, "note"],
     starting: {
       subject: "Canceled: your {{kind}} with {{teacher}}",
       heading: "{{teacher}} canceled your {{kind}}",
-      body: "Hi {{first_name}}, {{teacher}} had to cancel the {{kind}} {{for_child}} ({{when}}). You're welcome to book another open time.",
+      body: "Hi {{first_name}}, {{teacher}} had to cancel the {{kind}} {{for_child}} ({{when}}). You're welcome to book another open time.\n\n{{note}}",
       button_label: "Book another time",
     },
-    locked: [bookingDeleted, calendarRemoved, organizerNote],
+    locked: [bookingDeleted, calendarRemoved],
   },
   {
     key: "family_booking_rescheduled",
     group: "Families: conferences and meetings",
     name: "Rescheduled by the teacher or organizer",
     description: "Goes to each parent or guest when the teacher or a co-host moves their meeting to a new time. The calendar invite is updated.",
-    fields: familyFields,
-    required: [],
-    private: childFields,
+    fields: [...familyFields, noteField],
+    required: ["note"],
+    private: [...childFields, "note"],
     starting: {
       subject: "New time: your {{kind}} with {{teacher}}, {{when}}",
       heading: "{{teacher}} changed your {{kind}} time",
-      body: "Hi {{first_name}}, {{teacher}} moved your {{kind}} {{about_child}} ({{event_name}}) to a new time. The details below are current.\n\nIf the new time doesn't work for you, use the button below to pick another time or cancel.",
+      body: "Hi {{first_name}}, {{teacher}} moved your {{kind}} {{about_child}} ({{event_name}}) to a new time. The details below are current.\n\n{{note}}\n\nIf the new time doesn't work for you, use the button below to pick another time or cancel.",
       button_label: "Change or cancel",
     },
-    locked: ["An updated calendar invite is attached, so your calendar shows the new time.", organizerNote, bookingRows],
+    locked: ["An updated calendar invite is attached, so your calendar shows the new time.", bookingRows],
   },
   {
     key: "family_booking_moved",
@@ -673,7 +678,7 @@ export function checkSystemText(email: SystemEmail, t: SystemEmailText): string 
   const used = new Set([...all.matchAll(FIELD)].map((m) => m[1].toLowerCase()));
   const inSubject = [...t.subject.matchAll(FIELD)].map((m) => m[1].toLowerCase());
   const hidden = (email.private ?? []).filter((k) => inSubject.includes(k));
-  if (hidden.length) return `Leave ${hidden.map((k) => `{{${k}}}`).join(", ")} out of the subject: children's names never go in subjects.`;
+  if (hidden.length) return `Leave ${hidden.map((k) => `{{${k}}}`).join(", ")} out of the subject: it can include a child's name, and subjects are kept in our email log.`;
   const missing = email.required.filter((k) => !used.has(k));
   if (missing.length) return `Keep ${missing.map((k) => `{{${k}}}`).join(", ")} in the email: people need it.`;
   return null;
