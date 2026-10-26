@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 /** Done / Reopen and Delete for a note in a timeline or follow-ups list. */
 export function NoteControls({
@@ -30,8 +31,8 @@ export function NoteControls({
       <button
         type="button"
         disabled={pending}
-        onClick={() => {
-          if (window.confirm("Delete this note?")) start(remove);
+        onClick={async () => {
+          if (await confirmDialog({ title: "Delete this note?", confirmLabel: "Delete note", danger: true })) start(remove);
         }}
         className="text-muted hover:text-danger disabled:opacity-50"
       >

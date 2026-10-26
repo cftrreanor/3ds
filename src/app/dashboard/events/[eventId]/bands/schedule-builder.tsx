@@ -23,6 +23,7 @@ import {
   type Times,
 } from "./schedule-parts";
 import { RoundRows, RowEditor, type Row } from "./schedule-view";
+import { confirmDialog, confirmFromText } from "@/components/confirm-dialog";
 
 export type { FinalsSlot, OrderBand, ScheduleBreak };
 
@@ -147,8 +148,8 @@ export function ScheduleBuilder({
     setBreaksWork(saved.breaks);
     setEditing(next);
   };
-  const cancel = () => {
-    if (dirty && !window.confirm("Discard the changes you haven't saved?")) return;
+  const cancel = async () => {
+    if (dirty && !(await confirmDialog({ title: "Discard the changes you haven't saved?", confirmLabel: "Discard changes", cancelLabel: "Keep editing", danger: true }))) return;
     setBands(saved.bands);
     setFinals(saved.finals);
     setReadyText(saved.readyText);
@@ -247,8 +248,8 @@ export function ScheduleBuilder({
       : persist({ ...saved, finals: apply(saved.finals).map((f, k) => (k === index ? { ...f, bandId } : f)) }, then);
   };
 
-  const run = (action: () => Promise<ActionState>, confirmMessage?: string) => {
-    if (confirmMessage && !window.confirm(confirmMessage)) return;
+  const run = async (action: () => Promise<ActionState>, confirmMessage?: string) => {
+    if (confirmMessage && !(await confirmDialog(confirmFromText(confirmMessage)))) return;
     startTransition(async () => setResult(await action()));
   };
 
@@ -353,13 +354,14 @@ export function ScheduleBuilder({
                 variant="warn"
                 className="min-h-10"
                 disabled={pending || pickedAfterSave === 0}
-                onClick={() => {
-                  if (
-                    !window.confirm(
-                      `Save and reveal ${pickedAfterSave} finalist${pickedAfterSave === 1 ? "" : "s"}? Their names will show on the public schedule and their directors will see it right away.`,
-                    )
-                  )
-                    return;
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: `Save and reveal ${pickedAfterSave} finalist${pickedAfterSave === 1 ? "" : "s"}?`,
+                    message: "Their names will show on the public schedule and their directors will see it right away.",
+                    confirmLabel: "Save & reveal",
+                    danger: true,
+                  });
+                  if (!ok) return;
                   onSave(() => revealFinalists(true));
                 }}
               >
@@ -371,12 +373,15 @@ export function ScheduleBuilder({
               type="button"
               variant={revealing ? "warn" : "primary"}
               className="ml-auto min-h-10"
-              onClick={() => {
+              onClick={async () => {
                 if (
                   revealing &&
-                  !window.confirm(
-                    `Finalists are revealed. Saving shows ${revealing} more finalist name${revealing === 1 ? "" : "s"} on the public schedule right away, and directors can see it. Continue?`,
-                  )
+                  !(await confirmDialog({
+                    title: `Show ${revealing} more finalist name${revealing === 1 ? "" : "s"}?`,
+                    message: "Finalists are revealed, so saving shows them on the public schedule right away, and directors can see it.",
+                    confirmLabel: "Save",
+                    danger: true,
+                  }))
                 )
                   return;
                 onSave();
@@ -1104,12 +1109,19 @@ function FinalsEditor({
   const edit = (i: number, patch: Partial<FinalsSlot>) => onChange(finals.map((f, k) => (k === i ? { ...f, ...patch } : f)));
 
   // Resize when the host finishes typing, so typing "12" doesn't first cut the list to 1.
-  const applyCount = () => {
+  const applyCount = async () => {
     const n = Math.min(Math.max(Number(countText) || 0, 1), MAX_FINALISTS);
     setCountText(String(n));
     if (n === finals.length) return;
     const dropped = finals.slice(n).filter((f) => f.bandId || f.perform).length;
-    if (dropped && !window.confirm(`Remove the last ${finals.length - n} finals slot(s) and their times?`)) {
+    if (
+      dropped &&
+      !(await confirmDialog({
+        title: `Remove the last ${finals.length - n} finals ${finals.length - n === 1 ? "slot" : "slots"} and their times?`,
+        confirmLabel: "Remove",
+        danger: true,
+      }))
+    ) {
       setCountText(String(finals.length));
       return;
     }
@@ -1170,8 +1182,15 @@ function FinalsEditor({
         <Button
           type="button"
           variant="danger"
-          onClick={() => {
-            if (window.confirm("Remove the finals round and its times? This takes effect when you save.")) {
+          onClick={async () => {
+            if (
+              await confirmDialog({
+                title: "Remove the finals round and its times?",
+                message: "This takes effect when you save.",
+                confirmLabel: "Remove finals",
+                danger: true,
+              })
+            ) {
               setCountText("");
               onChange([]);
             }

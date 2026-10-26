@@ -7,6 +7,7 @@ import type { ActionState } from "@/lib/action-state";
 import { brand } from "@/lib/brand";
 import { checkSystemText, systemEmailWords, type SystemEmail, type SystemEmailText } from "@/lib/system-emails";
 import { editorField } from "../../email-editor";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 /**
  * The words of one system email on the left (subject, heading, message, and
@@ -94,7 +95,13 @@ export function SystemEmailEditor({
               <button
                 type="button"
                 onClick={async () => {
-                  if (window.confirm(`Go back to the original wording for “${email.name}”? Your version is removed.`)) await onReset();
+                  const ok = await confirmDialog({
+                    title: `Go back to the original wording for “${email.name}”?`,
+                    message: "Your version is removed.",
+                    confirmLabel: "Reset to original",
+                    danger: true,
+                  });
+                  if (ok) await onReset();
                 }}
                 className="text-muted hover:text-danger"
               >

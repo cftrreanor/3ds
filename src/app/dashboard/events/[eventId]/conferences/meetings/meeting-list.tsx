@@ -7,6 +7,7 @@ import { Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { RECORDS_NOTE } from "@/lib/records";
 import { CancelMeetingButton, RescheduleButton, type DayRange, type OpenSlot } from "./meeting-dialogs";
+import { copyDialog } from "@/components/confirm-dialog";
 
 export type Outcome = "met" | "no_show" | null;
 
@@ -327,7 +328,7 @@ export function MeetingList({
                           await navigator.clipboard.writeText(list);
                           toast(`Copied ${emails.length} ${meeting ? "" : "parent "}${emails.length === 1 ? "email" : "emails"}`);
                         } catch {
-                          window.prompt("Copy these emails:", list);
+                          await copyDialog("Copy these emails", list);
                         }
                       }}
                     >

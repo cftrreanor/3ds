@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, use, useActionState, useEffect, useRef, useState, startTransition, type ReactNode } from "react";
+import { confirmDialog, confirmFromText } from "@/components/confirm-dialog";
 import type { ActionState } from "@/lib/action-state";
 import { toast } from "./toaster";
 import { FormMessage } from "./ui";
@@ -27,6 +28,7 @@ export function ActionForm({
   children,
   className,
   confirmMessage,
+  confirmLabel,
   resetOnSuccess = true,
   onSuccess,
   validate,
@@ -36,7 +38,10 @@ export function ActionForm({
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   children: ReactNode;
   className?: string;
+  /** Ask first, in our confirm window: "The question? What happens." */
   confirmMessage?: string;
+  /** The confirm window's action button ("Delete station"); "Continue" if not given. */
+  confirmLabel?: string;
   resetOnSuccess?: boolean;
   onSuccess?: () => void;
   validate?: (data: FormData) => ActionState | null;
@@ -86,7 +91,7 @@ export function ActionForm({
       action={formAction}
       onInput={onEdit ? (e) => onEdit(e.currentTarget) : undefined}
       onChange={onEdit ? (e) => onEdit(e.currentTarget) : undefined}
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         // Submit manually so React doesn't wipe the inputs when we show an error.
         e.preventDefault();
         // With the button pressed, so a form with two buttons (name="intent") knows which.
@@ -94,7 +99,7 @@ export function ActionForm({
         const problem = validate?.(data);
         setChecked(problem ?? null);
         if (problem) return;
-        if (confirmMessage && !window.confirm(confirmMessage)) return;
+        if (confirmMessage && !(await confirmDialog(confirmFromText(confirmMessage, confirmLabel ? { confirmLabel } : undefined)))) return;
         startTransition(() => formAction(data));
       }}
     >

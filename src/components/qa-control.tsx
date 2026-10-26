@@ -7,6 +7,7 @@ import { createScenario, resetMyEvents } from "@/app/qa/control-actions";
 import { RoleButtons } from "@/components/demo-switcher";
 import { Button, FormMessage } from "@/components/ui";
 import { PUBLIC_PAGES, SCENARIOS, SITE_PAGES, type Scenario } from "@/lib/qa-scenarios";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 export type QaEvent = {
   id: string;
@@ -230,8 +231,14 @@ function StartOver({ hasEvents }: { hasEvents: boolean }) {
         variant="danger"
         className="mt-3"
         disabled={pending}
-        onClick={() => {
-          if (!window.confirm("Delete every event in your test organization? This can't be undone.")) return;
+        onClick={async () => {
+          const ok = await confirmDialog({
+            title: "Delete every event in your test organization?",
+            message: "This can't be undone.",
+            confirmLabel: "Delete all events",
+            danger: true,
+          });
+          if (!ok) return;
           setError(null);
           start(async () => {
             const r = await resetMyEvents();

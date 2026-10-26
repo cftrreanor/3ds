@@ -10,6 +10,7 @@ import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
+import { copyDialog } from "@/components/confirm-dialog";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -586,7 +587,7 @@ export function CopyLinkButton({ url, label = "Copy invite link" }: { url: strin
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         } catch {
-          window.prompt("Copy this invitation link:", url);
+          await copyDialog("Copy this invitation link", url);
         }
       }}
     >

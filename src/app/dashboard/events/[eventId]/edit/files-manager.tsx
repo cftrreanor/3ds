@@ -5,6 +5,7 @@ import { Button, Field, FormMessage, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { uploadToSignedUrl } from "@/lib/signed-upload";
 import type { UploadedFile } from "../../../file-actions";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 const TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const MAX = 10 * 1024 * 1024;
@@ -120,8 +121,14 @@ function RemoveFile({ label, onRemove }: { label: string; onRemove: () => Promis
         variant="ghost"
         className="min-h-9 px-2 text-xs"
         disabled={pending}
-        onClick={() => {
-          if (!window.confirm(`Remove “${label}”? Anyone with the link won't be able to open it anymore.`)) return;
+        onClick={async () => {
+          const ok = await confirmDialog({
+            title: `Remove “${label}”?`,
+            message: "Anyone with the link won't be able to open it anymore.",
+            confirmLabel: "Remove file",
+            danger: true,
+          });
+          if (!ok) return;
           start(async () => {
             const r = await onRemove();
             if (r.error) setError(r.error);
