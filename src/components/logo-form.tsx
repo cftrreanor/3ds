@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { darkForWhiteText } from "@/lib/brand-color";
 import { colorOf } from "@/lib/logo-color";
 import { uploadToSignedUrl } from "@/lib/signed-upload";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 const TYPES = ["image/png", "image/jpeg"];
 const MAX = 2 * 1024 * 1024;
@@ -63,7 +64,13 @@ export function LogoForm({ eventId, logo, color }: { eventId: string; logo: stri
   }
 
   async function remove() {
-    if (!window.confirm("Remove the logo? Your event pages and badges go back to the standard look.")) return;
+    const ok = await confirmDialog({
+      title: "Remove the logo?",
+      message: "Your event pages and badges go back to the standard look.",
+      confirmLabel: "Remove logo",
+      danger: true,
+    });
+    if (!ok) return;
     setError(null);
     setBusy("Removing…");
     const saved = await saveLogo(eventId, null);

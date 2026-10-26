@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { backToMe, endDemo, switchDemo } from "@/app/demo-actions";
 import { Button, FormMessage } from "@/components/ui";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 type Persona = { value: string; label: string };
 
@@ -114,8 +115,14 @@ export function DemoStart({ eventId, personas, active }: { eventId: string; pers
             variant="secondary"
             className="min-h-9 px-3"
             disabled={removing}
-            onClick={() => {
-              if (!window.confirm("Take the demo people and sample data off this event? The sample stations, volunteers, bands, groups, parents, and booths go too.")) return;
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: "Take the demo data off this event?",
+                message: "The sample stations, volunteers, bands, groups, parents, and booths go too.",
+                confirmLabel: "Remove demo data",
+                danger: true,
+              });
+              if (!ok) return;
               start(async () => {
                 const r = await endDemo(eventId);
                 setMessage(r.error ? { error: r.error } : { success: r.message });

@@ -6,6 +6,7 @@ import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { confirmDialog, confirmFromText } from "@/components/confirm-dialog";
 
 /**
  * A big one-tap button for the contest-day screen. Stadium signal is patchy,
@@ -34,8 +35,8 @@ export function TapButton({
         disabled={pending}
         aria-busy={pending}
         className="w-full"
-        onClick={() => {
-          if (confirmMessage && !window.confirm(confirmMessage)) return;
+        onClick={async () => {
+          if (confirmMessage && !(await confirmDialog(confirmFromText(confirmMessage)))) return;
           setError(null);
           start(async () => {
             try {

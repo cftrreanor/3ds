@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { brand } from "@/lib/brand";
 import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
+import { DialogHost } from "@/components/confirm-dialog";
 import { Toaster } from "@/components/toaster";
 import { RequiredFields } from "@/components/required-fields";
 import { QaBar } from "@/components/qa-bar";
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SiteMetrics />
         {children}
         <Toaster />
+        <DialogHost />
         <RequiredFields />
       </body>
     </html>

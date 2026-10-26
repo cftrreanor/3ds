@@ -7,6 +7,7 @@ import { SiteBannerView } from "@/components/site-banner";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-state";
 import { BANNER_AUDIENCES, BANNER_TONES, HOST_FILTERS, type BannerTone, type SiteBanner } from "@/lib/banner-types";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 const field =
   "w-full rounded-sm border border-border bg-surface px-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
@@ -134,7 +135,7 @@ export function BannerBuilder({
               <button
                 type="button"
                 onClick={async () => {
-                  if (window.confirm("Delete this banner?")) await onDelete();
+                  if (await confirmDialog({ title: "Delete this banner?", confirmLabel: "Delete banner", danger: true })) await onDelete();
                 }}
                 className="text-muted hover:text-danger"
               >

@@ -5,6 +5,7 @@ import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 export type DeskVolunteer = {
   assignmentId: string;
@@ -495,8 +496,14 @@ function VolunteerRow({
             variant="ghost"
             className="px-2 text-xs"
             disabled={releasing}
-            onClick={() => {
-              if (!window.confirm(`Release ${v.name}'s spot? They'll be taken off this shift so someone else can fill it.`)) return;
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: `Release ${v.name}'s spot?`,
+                message: "They'll be taken off this shift so someone else can fill it.",
+                confirmLabel: "Release spot",
+                danger: true,
+              });
+              if (!ok) return;
               setReleasing(true);
               setError(null);
               release(v.assignmentId)

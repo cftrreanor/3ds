@@ -5,6 +5,7 @@ import { toast } from "@/components/toaster";
 import { Button, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { formatDate } from "@/lib/time";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 export type HistoryRow = {
   email: string;
@@ -84,8 +85,15 @@ export function HistoryTable({ rows, remove }: { rows: HistoryRow[]; remove?: (e
     URL.revokeObjectURL(url);
   };
 
-  const removeOne = (r: HistoryRow) => {
-    if (!remove || !confirm(`Remove ${r.full_name} from your volunteer tracking? Their counts are deleted and can't be brought back.`)) return;
+  const removeOne = async (r: HistoryRow) => {
+    if (!remove) return;
+    const ok = await confirmDialog({
+      title: `Remove ${r.full_name} from your volunteer tracking?`,
+      message: "Their counts are deleted and can't be brought back.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       const result = await remove(r.email);
       if (result.error) toast(result.error);

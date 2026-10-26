@@ -3,6 +3,7 @@
 import { startTransition, useMemo, useOptimistic, useState } from "react";
 import { Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 /** One adult on a registration. index 0 is the parent who registered. */
 export type DoorAdult = { index: number; name: string; checkedIn: boolean };
@@ -44,8 +45,8 @@ export function Door({
   const everyone = optimistic.flatMap((p) => p.adults);
   const here = everyone.filter((a) => a.checkedIn).length;
 
-  function onToggle(p: DoorParent, a: DoorAdult) {
-    if (a.checkedIn && !window.confirm(`Undo ${a.name}'s check-in?`)) return;
+  async function onToggle(p: DoorParent, a: DoorAdult) {
+    if (a.checkedIn && !(await confirmDialog({ title: `Undo ${a.name}'s check-in?`, confirmLabel: "Undo check-in" }))) return;
     setError(null);
     startTransition(async () => {
       setOptimistic({ id: p.id, adult: a.index, checkedIn: !a.checkedIn });

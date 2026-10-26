@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "./toaster";
+import { copyDialog } from "@/components/confirm-dialog";
 
 /** Copies a link to the clipboard and says so with a toast. */
 export function CopyLink({ url, className }: { url: string; className?: string }) {
@@ -12,7 +13,7 @@ export function CopyLink({ url, className }: { url: string; className?: string }
           await navigator.clipboard.writeText(url);
           toast("Link copied.");
         } catch {
-          window.prompt("Copy this link:", url);
+          await copyDialog("Copy this link", url);
         }
       }}
       className={className}

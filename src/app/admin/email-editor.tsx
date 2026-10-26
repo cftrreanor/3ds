@@ -4,6 +4,7 @@ import { useMemo, type RefObject } from "react";
 import { renderEmail } from "@/lib/email-format";
 import { fillTemplate, MERGE_FIELDS, QUICK_BUTTONS, type MergeVars } from "@/lib/merge-fields";
 import { brand } from "@/lib/brand";
+import { askDialog } from "@/components/confirm-dialog";
 
 export const editorField =
   "w-full rounded-sm border border-border bg-surface px-2.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/25";
@@ -60,16 +61,24 @@ export function FormatBar({
         .join("\n");
       return { text: `\n${block}\n` };
     });
-  const link = () => {
-    const url = window.prompt("Link address (starts with https://)", "https://");
+  const link = async () => {
+    const got = await askDialog("Add a link", [{ name: "url", label: "Link address (starts with https://)", defaultValue: "https://", type: "url" }], "Add link");
+    const url = got?.url.trim();
     if (!url || url === "https://") return;
-    edit((sel) => ({ text: `[${sel || "link text"}](${url.trim()})` }));
+    edit((sel) => ({ text: `[${sel || "link text"}](${url})` }));
   };
-  const button = () => {
-    const url = window.prompt("Where should the button go? (starts with https://)", "https://");
+  const button = async () => {
+    const got = await askDialog(
+      "Add a button",
+      [
+        { name: "url", label: "Where should the button go? (starts with https://)", defaultValue: "https://", type: "url" },
+        { name: "label", label: "Button text", defaultValue: `Open ${brand.name}` },
+      ],
+      "Add button",
+    );
+    const url = got?.url.trim();
     if (!url || url === "https://") return;
-    const label = window.prompt("Button text", `Open ${brand.name}`) || "Open";
-    edit(() => ({ text: `\n[[${label.trim()}|${url.trim()}]]\n` }));
+    edit(() => ({ text: `\n[[${got?.label.trim() || "Open"}|${url}]]\n` }));
   };
 
   return (

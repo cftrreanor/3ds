@@ -8,6 +8,7 @@ import type { ActionState } from "@/lib/action-state";
 import { brand } from "@/lib/brand";
 import type { MergeVars } from "@/lib/merge-fields";
 import { EmailPreview, editorField, FormatBar, FormatHelp, SAMPLE_VARS } from "../email-editor";
+import { confirmDialog } from "@/components/confirm-dialog";
 
 /**
  * The template builder: name, subject and message on the left, a live
@@ -82,7 +83,7 @@ export function TemplateBuilder({
               <button
                 type="button"
                 onClick={async () => {
-                  if (window.confirm("Delete this template?")) await onDelete();
+                  if (await confirmDialog({ title: "Delete this template?", confirmLabel: "Delete template", danger: true })) await onDelete();
                 }}
                 className="text-muted hover:text-danger"
               >
