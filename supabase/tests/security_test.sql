@@ -5137,6 +5137,59 @@ reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000e2';
 
 -- ---------------------------------------------------------------------------
+-- Who gets an event's notifications (20261230000000): hosts only, and only
+-- plain email addresses, at most five.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  insert into public.event_notification_recipients (event_id, member_ids, extra_emails)
+  values ('10000000-0000-0000-0000-00000000000a', array['00000000-0000-0000-0000-000000000001']::uuid[], array['office@school.org']);
+  assert (select extra_emails = array['office@school.org'] from public.event_notification_recipients where event_id = '10000000-0000-0000-0000-00000000000a'),
+         'a host picks who gets notifications';
+  begin
+    update public.event_notification_recipients set extra_emails = array['x@y.org>, evil@z.org'] where event_id = '10000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: an address with extra recipients was saved';
+  exception when check_violation then null;
+  end;
+  begin
+    update public.event_notification_recipients set extra_emails = array['a@x.org','b@x.org','c@x.org','d@x.org','e@x.org','f@x.org']
+     where event_id = '10000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: more than five other addresses were saved';
+  exception when check_violation then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.event_notification_recipients), 'a Volunteer Lead can''t see who gets notifications';
+  update public.event_notification_recipients set extra_emails = array['vl@example.com'] where event_id = '10000000-0000-0000-0000-00000000000a';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.event_notification_recipients), 'a stranger can''t see who gets notifications';
+  begin
+    insert into public.event_notification_recipients (event_id, extra_emails) values ('10000000-0000-0000-0000-00000000000b', array['phish@example.com']);
+    raise exception 'FAIL: a stranger added themselves to an event''s notifications';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+do $$ begin
+  assert (select extra_emails = array['office@school.org'] from public.event_notification_recipients where event_id = '10000000-0000-0000-0000-00000000000a'),
+         'the Volunteer Lead''s change didn''t apply';
+end $$;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.event_notification_recipients;
+    raise exception 'FAIL: the public read who gets notifications';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.event_notification_recipients;
+
+-- ---------------------------------------------------------------------------
 -- Event email settings (where replies go): Hosts only, never the public or
 -- the event team, and only a plain email address.
 -- ---------------------------------------------------------------------------

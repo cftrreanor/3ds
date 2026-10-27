@@ -3,8 +3,11 @@ export function PrivacyNote({
   teacher,
   weekly = false,
   askChild = true,
+  shared = false,
 }: {
   teacher: string;
+  /** The hosts also send booking emails to other addresses (lib/notify-recipients). */
+  shared?: boolean;
   /** Weekly hours: deleted 30 days after each meeting. */
   weekly?: boolean;
   /** The teacher asks for the child's name; when they don't, there's none to protect. */
@@ -20,7 +23,8 @@ export function PrivacyNote({
         {askChild && (
           <>
             <li>
-              Only <strong>{teacher}</strong> and their co-hosts see your child&apos;s name, your names and contact details, and your note.
+              Only <strong>{teacher}</strong>
+              {shared ? ", their co-hosts, and the people they've chosen to notify" : " and their co-hosts"} see your child&apos;s name, your names and contact details, and your note.
             </li>
             <li>Other families only see which times are still open. They never see who booked, or when.</li>
           </>

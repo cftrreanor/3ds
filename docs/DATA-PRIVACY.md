@@ -49,7 +49,7 @@ automated test.
 
 - **Families' and children's details (visitor days):** the event's Hosts, Co-hosts, and
   Volunteer Leads (who run the door desk), and Section Leads on event day only.
-- **Conference bookings, parents' notes, and the number to call for phone calls:** only the teacher who set up the conference and the hosts and co-hosts on their account (20261228000000_reschedule_meetings.sql), who can reschedule or cancel a meeting.
+- **Conference bookings, parents' notes, and the number to call for phone calls:** only the teacher who set up the conference and the hosts and co-hosts on their account (20261228000000_reschedule_meetings.sql), who can reschedule or cancel a meeting. Hosts can also send booking emails to up to five other addresses they choose (20261230000000_notification_recipients.sql, Edit details → Notifications); when they do, the family's privacy note and booking emails say their details go to the people the teacher chose to notify.
   Other hosts on the same account see how many times are booked, not who booked
   (database update `20261209000000_conference_teacher_only.sql`).
 - **Volunteers' phone numbers:** Hosts, Co-hosts, and Volunteer Leads; Section Leads only on

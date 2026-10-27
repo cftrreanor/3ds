@@ -129,7 +129,7 @@ export default async function ManageBookingPage({ params }: Params) {
           </>
         )}
         <div className="mt-8">
-          <PrivacyNote teacher={teacher.name} weekly={settings.schedule === "weekly" || meeting} askChild={Boolean(booking.child_name)} />
+          <PrivacyNote teacher={teacher.name} weekly={settings.schedule === "weekly" || meeting} askChild={Boolean(booking.child_name)} shared={teacher.shared} />
         </div>
       </main>
     </>

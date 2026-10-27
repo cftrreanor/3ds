@@ -10,6 +10,7 @@ import { BAND_COLUMNS, bandColumns, parseBand, readyAt, registrationIsOpen, warm
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
 import { groupWords, hasRooms } from "@/lib/event-types";
+import { notificationEmails } from "@/lib/notify-recipients";
 import { eventForShare, shareLink } from "@/lib/share";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -155,8 +156,16 @@ export async function withdrawBand(bandId: string): Promise<ActionState> {
   redirect(`/dashboard/bands/${bandId}?withdrawn=1`);
 }
 
-/** Who hears about a withdrawal: the organizer's contact for directors, or else the account's hosts. */
+/**
+ * Who hears about a withdrawal: the people the hosts picked to get
+ * notifications, or else the organizer's contact for directors, or else the
+ * account's hosts.
+ */
 async function organizerEmails(eventId: string): Promise<string[]> {
+  return notificationEmails(eventId, () => contactOrHosts(eventId));
+}
+
+async function contactOrHosts(eventId: string): Promise<string[]> {
   const admin = createAdminClient();
   const { data: contact } = await admin.from("event_director_contacts").select("email").eq("event_id", eventId).maybeSingle();
   if (contact?.email) return [contact.email];

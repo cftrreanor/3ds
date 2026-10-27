@@ -12,6 +12,9 @@ import { brand as product } from "@/lib/brand";
 import { isSchemaError } from "@/lib/schema-check";
 import { saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
+import { saveNotifyRecipients } from "../../../notify-actions";
+import { NotifyForm, type TeamMember } from "./notify-form";
+import { MAX_EXTRA_EMAILS } from "@/lib/notify-recipients";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
 import { setEventShowBrand, setEventType, updateEvent } from "../../../actions";
@@ -122,6 +125,29 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     supabase.from("organizations").select("name").eq("id", event.organization_id).maybeSingle(),
   ]);
   const conference = hasConferences(event.event_type);
+  // Notifications: bookings (conferences and meetings) and withdrawals (bands and groups) go to the people picked here.
+  const notifyHere = conference || hasEnsembles(event.event_type);
+  const [{ data: memberRows }, { data: notifyRow, error: notifyError }] = notifyHere
+    ? await Promise.all([
+        admin.from("organization_members").select("user_id, role, profiles(full_name, email)").eq("organization_id", event.organization_id),
+        supabase.from("event_notification_recipients").select("member_ids, extra_emails").eq("event_id", eventId).maybeSingle(),
+      ])
+    : [{ data: null }, { data: null, error: null }];
+  const members: TeamMember[] = ((memberRows ?? []) as unknown as { user_id: string; role: string; profiles: { full_name: string | null; email: string | null } | null }[])
+    .map((m) => ({
+      id: m.user_id,
+      name: m.profiles?.full_name?.trim() || m.profiles?.email || "Someone on your account",
+      email: m.profiles?.email ?? null,
+      role: m.role === "owner" ? "Account Host" : "Co-host",
+    }))
+    .sort((a, b) => Number(b.role === "Account Host") - Number(a.role === "Account Host"));
+  // Not saved yet: who gets them today (the teacher for bookings; every host for band and group alerts).
+  const notifyPicked = notifyRow
+    ? (notifyRow.member_ids as string[])
+    : conference
+      ? members.filter((m) => m.id === event.created_by).map((m) => m.id)
+      : members.map((m) => m.id);
+  const notifyCount = notifyPicked.filter((id) => members.some((m) => m.id === id)).length + (notifyRow?.extra_emails?.length ?? 0);
   const senderName = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
   const repliesOn = replyRow ? replyRow.replies : true;
   const replyTo = replyRow?.reply_to || (creator?.email as string | undefined) || "";
@@ -299,6 +325,34 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
             />
           )}
         </SetupStep>
+
+        {notifyHere && (
+          <SetupStep
+            id="notifications"
+            title="5. Notifications"
+            status={<StepStatus done={Boolean(notifyRow)} doneLabel={`${notifyCount} ${notifyCount === 1 ? "person" : "people"}`} todoLabel="Default" />}
+            open={step === "notifications"}
+            intro={
+              conference
+                ? "Who gets an email, with a calendar invite, when someone books, changes, or cancels a meeting."
+                : `Who gets an email when a ${words.one} withdraws.`
+            }
+          >
+            {isSchemaError(notifyError) ? (
+              <p className="text-sm text-muted">
+                A database update is needed before notifications can be set up. See “Applying database updates” in the setup guide.
+              </p>
+            ) : (
+              <NotifyForm
+                action={saveNotifyRecipients.bind(null, eventId)}
+                members={members}
+                picked={notifyPicked}
+                extraEmails={notifyRow?.extra_emails ?? []}
+                max={MAX_EXTRA_EMAILS}
+              />
+            )}
+          </SetupStep>
+        )}
       </div>
     </div>
   );
