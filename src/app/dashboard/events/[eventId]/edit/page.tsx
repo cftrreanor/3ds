@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SetupStep, StepStatus } from "@/components/setup-step";
-import { EVENT_TYPES, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, isMeeting } from "@/lib/event-types";
+import { Card } from "@/components/ui";
+import { SettingsNav, type SettingsSection } from "./settings-nav";
+import { TeamRoles } from "../team/team-roles";
+import { EVENT_TYPES, eventTypeLabel, groupWords, leadWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, isMeeting } from "@/lib/event-types";
 import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
@@ -12,6 +14,9 @@ import { brand as product } from "@/lib/brand";
 import { isSchemaError } from "@/lib/schema-check";
 import { saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
+import { saveNotifyRecipients } from "../../../notify-actions";
+import { NotifyForm, type TeamMember } from "./notify-form";
+import { MAX_EXTRA_EMAILS, notifyKinds, type NotifyKind } from "@/lib/notify-kinds";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
 import { setEventShowBrand, setEventType, updateEvent } from "../../../actions";
@@ -45,10 +50,15 @@ const SWITCH_NOTE = {
   fair: "Booths and partners by zone, partner check-in, and the public \u201cWhat's at the event\u201d list are added; band registration and the performance schedule go away.",
 };
 
-/** Edit details, as setup steps (see "Setup pages" in docs/DESIGN.md). ?step=files opens Maps & documents. */
+/**
+ * Set up or edit an event's global settings: a section menu with one panel at
+ * a time (?section=details, files, team, or emails). Type-specific setup
+ * (bands, stations, conference times) stays on its own pages. Old ?step=
+ * links still land in the right section.
+ */
 export default async function EditEventPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/edit">) {
   const { eventId } = await params;
-  const { step } = await searchParams;
+  const { step, section: sectionParam, tab } = await searchParams;
   const access = await getEventAccess(eventId);
   if (!access.isHost) redirect(`/dashboard/events/${eventId}`);
 
@@ -56,11 +66,18 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, name, event_type, created_by, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng",
+      "id, organization_id, name, status, event_type, created_by, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng",
     )
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
+  const ALL_SECTIONS = ["details", "files", "team", "emails"] as const;
+  type Section = (typeof ALL_SECTIONS)[number];
+  // Conferences and meetings share no maps or documents: their booking pages and emails have no place for them.
+  const SECTIONS = ALL_SECTIONS.filter((x) => x !== "files" || !hasConferences(event.event_type));
+  const fromStep: Record<string, Section> = { files: "files", kind: "details", replies: "emails", notifications: "emails" };
+  const asked = ALL_SECTIONS.find((x) => x === sectionParam) ?? (typeof step === "string" ? fromStep[step] : undefined);
+  const section: Section = asked && SECTIONS.includes(asked) ? asked : "details";
   // The account's logo for volunteer badges lives with the other uploads, here.
   const badgesHere = !hasConferences(event.event_type);
   const askChildName = hasConferences(event.event_type) ? await asksChildName(supabase, eventId) : true;
@@ -122,6 +139,45 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     supabase.from("organizations").select("name").eq("id", event.organization_id).maybeSingle(),
   ]);
   const conference = hasConferences(event.event_type);
+  // Notifications: each kind of email the event sends its organizers, and who gets it.
+  const kinds = notifyKinds(event.event_type);
+  const [{ data: memberRows }, { data: leadRows }, { data: notifyRows, error: notifyError }] = await Promise.all([
+    admin.from("organization_members").select("user_id, role, profiles(full_name, email)").eq("organization_id", event.organization_id),
+    conference
+      ? Promise.resolve({ data: [] })
+      : admin.from("event_staff").select("user_id, profiles(full_name, email)").eq("event_id", eventId).eq("role", "volunteer_director"),
+    supabase.from("event_notification_recipients").select("kind, member_ids, extra_emails").eq("event_id", eventId),
+  ]);
+  type PersonRow = { user_id: string; role?: string; profiles: { full_name: string | null; email: string | null } | null };
+  const person = (m: PersonRow, role: string): TeamMember => ({
+    id: m.user_id,
+    name: m.profiles?.full_name?.trim() || m.profiles?.email || "Someone on your team",
+    email: m.profiles?.email ?? null,
+    role,
+  });
+  const hostMembers = ((memberRows ?? []) as unknown as PersonRow[])
+    .map((m) => person(m, m.role === "owner" ? "Account Host" : "Co-host"))
+    .sort((a, b) => Number(b.role === "Account Host") - Number(a.role === "Account Host"));
+  const members: TeamMember[] = [
+    ...hostMembers,
+    ...((leadRows ?? []) as unknown as PersonRow[]).filter((l) => !hostMembers.some((h) => h.id === l.user_id)).map((l) => person(l, "Volunteer Lead")),
+  ];
+  const savedKinds = new Map(
+    ((notifyRows ?? []) as { kind: NotifyKind; member_ids: string[]; extra_emails: string[] }[]).map((r) => [r.kind, r]),
+  );
+  // Not saved yet: who gets each kind today (the teacher for bookings, every host for withdrawals, no one for the rest).
+  const notifyPicked = Object.fromEntries(
+    kinds.map(({ kind }) => [
+      kind,
+      savedKinds.get(kind)?.member_ids ??
+        (kind === "bookings" ? hostMembers.filter((m) => m.id === event.created_by).map((m) => m.id) : kind === "band_withdrew" ? hostMembers.map((m) => m.id) : []),
+    ]),
+  ) as Partial<Record<NotifyKind, string[]>>;
+  const notifyExtras = [...new Set([...savedKinds.values()].flatMap((r) => r.extra_emails))].map((email) => ({
+    email,
+    kinds: kinds.map((k) => k.kind).filter((k) => savedKinds.get(k)?.extra_emails.includes(email)),
+  }));
+  const notifySaved = savedKinds.size > 0;
   const senderName = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
   const repliesOn = replyRow ? replyRow.replies : true;
   const replyTo = replyRow?.reply_to || (creator?.email as string | undefined) || "";
@@ -142,164 +198,231 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     uploaded: uploaded.get(f.id) ?? null,
   }));
 
+  // Team: how many co-hosts and Volunteer Leads, for the menu.
+  const [{ count: coHostCount }, { count: leadCount }] = await Promise.all([
+    supabase.from("organization_members").select("user_id", { count: "exact", head: true }).eq("organization_id", event.organization_id).eq("role", "admin"),
+    supabase.from("event_staff").select("user_id", { count: "exact", head: true }).eq("event_id", eventId).eq("role", "volunteer_director"),
+  ]);
+  const teamCount = (coHostCount ?? 0) + (conference ? 0 : (leadCount ?? 0));
+  const base = `/dashboard/events/${eventId}/edit`;
+  const sections: SettingsSection[] = [
+    { id: "details", label: "Event details", done: true, status: eventTypeLabel(event.event_type) },
+    ...(conference ? [] : [{ id: "files", label: "Maps & documents", done: files.length > 0, status: files.length ? `${files.length} ${files.length === 1 ? "file" : "files"}` : "Optional" }]),
+    { id: "team", label: "Team setup", done: teamCount > 0, status: teamCount ? `${teamCount} ${teamCount === 1 ? "person" : "people"}` : "Optional" },
+    { id: "emails", label: "Email settings", done: Boolean(replyRow || notifySaved), status: replyRow || notifySaved ? "Saved" : "Default" },
+  ];
+  const published = event.status === "published";
+
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-5xl">
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Edit Event Details</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{published ? "Edit Event Details" : "Set Up Your Event"}</h1>
       <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
-      <div className="mt-6 flex flex-col gap-3">
-        <SetupStep
-          id="details"
-          title="1. Event details"
-          status={<StepStatus done doneLabel="Saved" />}
-          open={step !== "files" && step !== "kind" && step !== "replies"}
-          intro={when ? `The name and time zone everyone sees. The day or weekly hours are set in ${when.setupName}.` : "The name, dates, times, and venue everyone sees."}
-        >
-          <EventForm
-            action={updateEvent.bind(null, eventId)}
-            organizationId={event.organization_id}
-            initial={{
-              name: event.name,
-              startsOn: event.starts_on,
-              endsOn: event.ends_on,
-              startTime: utcToZonedTime(event.window_start, event.timezone),
-              endTime: utcToZonedTime(event.window_end, event.timezone),
-              timezone: event.timezone,
-              venue: {
-                name: event.venue_name,
-                address: event.venue_address,
-                placeId: event.venue_place_id,
-                lat: event.venue_lat,
-                lng: event.venue_lng,
-              },
-              askChildName,
-            }}
-            venueSearchEnabled={isPlacesConfigured}
-            submitLabel="Save changes"
-            hasShifts={(count ?? 0) > 0}
-            eventType={event.event_type}
-            when={when}
-          />
-        </SetupStep>
+      <div className="mt-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
+        <SettingsNav sections={sections} current={section} base={base} />
+        <div id="settings-panel" className="min-w-0 space-y-6">
+          {section === "details" && (
+            <>
+              <Panel
+                title="Event details"
+                intro={when ? `The name and time zone everyone sees. The day or weekly hours are set in ${when.setupName}.` : "The name, dates, times, and venue everyone sees."}
+              >
+                <EventForm
+                  action={updateEvent.bind(null, eventId)}
+                  organizationId={event.organization_id}
+                  initial={{
+                    name: event.name,
+                    startsOn: event.starts_on,
+                    endsOn: event.ends_on,
+                    startTime: utcToZonedTime(event.window_start, event.timezone),
+                    endTime: utcToZonedTime(event.window_end, event.timezone),
+                    timezone: event.timezone,
+                    venue: {
+                      name: event.venue_name,
+                      address: event.venue_address,
+                      placeId: event.venue_place_id,
+                      lat: event.venue_lat,
+                      lng: event.venue_lng,
+                    },
+                    askChildName,
+                  }}
+                  venueSearchEnabled={isPlacesConfigured}
+                  submitLabel="Save changes"
+                  hasShifts={(count ?? 0) > 0}
+                  eventType={event.event_type}
+                  when={when}
+                />
+              </Panel>
 
-        <SetupStep
-          id="files"
-          title="2. Maps & documents"
-          status={<StepStatus done={files.length > 0} doneLabel={`${files.length} ${files.length === 1 ? "file" : "files"}`} todoLabel="Optional" />}
-          open={step === "files"}
-          intro={`${
-            groupsHere
-              ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map, or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers, or your team.`
-              : "Share a site map, parking map, or volunteer guide. Choose who sees each one: the public page, volunteers, or your team."
-          }${badgesHere ? " Your logo and color for your public pages and volunteer badges are here too, and any map can go on the back of the badges." : ""}`}
-        >
-          <FilesManager
-            files={files}
-            audiences={groupsHere ? AUDIENCES : AUDIENCES.filter((a) => a.value !== "directors")}
-            prepareUpload={prepareUpload.bind(null, eventId)}
-            saveFile={saveFile.bind(null, eventId)}
-            deleteFile={deleteFile.bind(null, eventId)}
-            canNotify={bandsHere}
-          />
-          {badgesHere && (
-            <div id="logo" className="mt-6 scroll-mt-6 border-t border-border pt-5">
-              <p className="font-semibold">Your logo and color</p>
-              <p className="mt-1 text-sm text-muted">
-                One logo for your account, shown next to ours at the top of your public event pages and printed on volunteer
-                badges. Print badges from{" "}
-                <Link href={`/dashboard/events/${eventId}/volunteering/badges`} className="font-medium text-brand underline">
-                  Volunteer Setup
-                </Link>
-                .
-              </p>
-              <div className="mt-3">
-                <LogoForm eventId={eventId} logo={brand.logo} color={brand.color} />
-              </div>
-              {brandSwitch}
-            </div>
+              {badgesHere && (
+                <Panel id="logo" title="Logo and color">
+                  <p className="text-sm text-muted">
+                    One logo for your account, shown next to ours at the top of your public event pages and printed on volunteer
+                    badges. Print badges from{" "}
+                    <Link href={`/dashboard/events/${eventId}/volunteering/badges`} className="font-medium text-brand underline">
+                      Volunteer Setup
+                    </Link>
+                    .
+                  </p>
+                  <div className="mt-3">
+                    <LogoForm eventId={eventId} logo={brand.logo} color={brand.color} />
+                  </div>
+                  {brandSwitch}
+                </Panel>
+              )}
+              {/* Conferences don't set the logo here, but can switch off the one the account has. */}
+              {!badgesHere && hasBrand && (
+                <Panel id="logo" title="Your account's logo and color" intro="Set on your account's other events. You can leave them off this one.">
+                  {brandSwitch}
+                </Panel>
+              )}
+
+              <Panel id="kind" title="Kind of event" intro="What the event is for decides which pages and tools it has.">
+                <div className="space-y-3">
+                  <p>
+                    This is {isMeeting(event.event_type) ? "for " : "a "}<strong>{event.event_type === "conference" ? "parent-teacher conference" : eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
+                    <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
+                  </p>
+                  {hasConferences(event.event_type) ? (
+                    <p className="text-sm text-muted">
+                      {isMeeting(event.event_type) ? "Meetings stay meetings" : "A conference stays a conference"}. For another kind of event, create a new one.
+                    </p>
+                  ) : groupsHere && (bandCount ?? 0) > 0 ? (
+                    <p className="text-sm text-muted">
+                      {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
+                      {eventTypeLabel(event.event_type).toLowerCase()}.
+                    </p>
+                  ) : hasBooths(event.event_type) && (boothCount ?? 0) > 0 ? (
+                    <p className="text-sm text-muted">This fair has booths and partners, so it has to stay a school fair.</p>
+                  ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
+                    <p className="text-sm text-muted">
+                      {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest") && !hasConferences(t.value)).map((t) => (
+                        <ActionButton
+                          key={t.value}
+                          action={setEventType.bind(null, eventId, t.value)}
+                          variant="secondary"
+                          confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value as keyof typeof SWITCH_NOTE]} Volunteers and shifts stay as they are.`}
+                        >
+                          Make it a {t.label.toLowerCase()}
+                        </ActionButton>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Panel>
+            </>
           )}
-          {/* Conferences don't set the logo here, but can switch off the one the account has. */}
-          {!badgesHere && hasBrand && (
-            <div id="logo" className="mt-6 scroll-mt-6 border-t border-border pt-5">
-              <p className="font-semibold">Your account&apos;s logo and color</p>
-              <p className="mt-1 text-sm text-muted">Set on your account&apos;s other events. You can leave them off this one.</p>
-              {brandSwitch}
-            </div>
-          )}
-        </SetupStep>
 
-        <SetupStep
-          id="kind"
-          title="3. Kind of event"
-          status={<StepStatus done doneLabel={eventTypeLabel(event.event_type)} />}
-          open={step === "kind"}
-          intro="What the event is for decides which pages and tools it has."
-        >
-          <div className="space-y-3">
-            <p>
-              This is {isMeeting(event.event_type) ? "for " : "a "}<strong>{event.event_type === "conference" ? "parent-teacher conference" : eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
-              <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
-            </p>
-            {hasConferences(event.event_type) ? (
-              <p className="text-sm text-muted">
-                {isMeeting(event.event_type) ? "Meetings stay meetings" : "A conference stays a conference"}. For another kind of event, create a new one.
-              </p>
-            ) : groupsHere && (bandCount ?? 0) > 0 ? (
-              <p className="text-sm text-muted">
-                {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
-                {eventTypeLabel(event.event_type).toLowerCase()}.
-              </p>
-            ) : hasBooths(event.event_type) && (boothCount ?? 0) > 0 ? (
-              <p className="text-sm text-muted">This fair has booths and partners, so it has to stay a school fair.</p>
-            ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
-              <p className="text-sm text-muted">
-                {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest") && !hasConferences(t.value)).map((t) => (
-                  <ActionButton
-                    key={t.value}
-                    action={setEventType.bind(null, eventId, t.value)}
-                    variant="secondary"
-                    confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value as keyof typeof SWITCH_NOTE]} Volunteers and shifts stay as they are.`}
-                  >
-                    Make it a {t.label.toLowerCase()}
-                  </ActionButton>
-                ))}
-              </div>
-            )}
-          </div>
-        </SetupStep>
-
-        <SetupStep
-          id="replies"
-          title="4. Email replies"
-          status={<StepStatus done={repliesOn} doneLabel="Replies on" todoLabel="No replies" />}
-          open={step === "replies"}
-          intro={`Emails about this event show as from \u201c${senderName ? `${senderName} via ` : ""}${product.name}\u201d. Choose whether people can reply to them.`}
-        >
-          {repliesUnavailable ? (
-            <p className="text-sm text-muted">
-              A database update is needed before replies can be set up. See “Applying database updates” in the setup guide.
-            </p>
-          ) : (
-            <RepliesForm action={saveReplies.bind(null, eventId)} replies={repliesOn} replyTo={replyTo}
-              who={
-                conference
-                  ? "Families"
-                  : groupsHere
-                    ? `${words.one[0].toUpperCase()}${words.one.slice(1)} directors and volunteers`
-                    : hasParents(event.event_type)
-                      ? "Families and volunteers"
-                      : "Volunteers"
+          {section === "files" && (
+            <Panel
+              title="Maps & documents"
+              intro={
+                groupsHere
+                  ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map, or director packet. Choose who sees each one: the public page, ${words.one} directors, volunteers, or your team.`
+                  : "Share a site map, parking map, or volunteer guide. Choose who sees each one: the public page, volunteers, or your team."
               }
-            />
+            >
+              <FilesManager
+                files={files}
+                audiences={groupsHere ? AUDIENCES : AUDIENCES.filter((a) => a.value !== "directors")}
+                prepareUpload={prepareUpload.bind(null, eventId)}
+                saveFile={saveFile.bind(null, eventId)}
+                deleteFile={deleteFile.bind(null, eventId)}
+                canNotify={bandsHere}
+              />
+            </Panel>
           )}
-        </SetupStep>
+
+          {section === "team" && (
+            <div>
+              <h2 className="text-xl font-semibold">Team setup</h2>
+              <p className="mb-4 mt-1 text-sm text-muted">
+                {conference
+                  ? "Co-hosts share your account: they can see your bookings, and reschedule or cancel meetings."
+                  : `Everyone helping you run ${event.name}. ${leadWords(event.event_type).many} are invited in Volunteer Setup, next to the stations they lead.`}
+              </p>
+              <TeamRoles eventId={eventId} roles={conference ? ["hosts"] : ["hosts", "volunteer-leads"]} open={typeof tab === "string" ? tab : null} />
+            </div>
+          )}
+
+          {section === "emails" && (
+            <>
+              <Panel
+                title="Email replies"
+                intro={`Emails about this event show as from \u201c${senderName ? `${senderName} via ` : ""}${product.name}\u201d. Choose whether people can reply to them.`}
+              >
+                {repliesUnavailable ? (
+                  <p className="text-sm text-muted">
+                    A database update is needed before replies can be set up. See “Applying database updates” in the setup guide.
+                  </p>
+                ) : (
+                  <RepliesForm
+                    action={saveReplies.bind(null, eventId)}
+                    replies={repliesOn}
+                    replyTo={replyTo}
+                    who={
+                      conference
+                        ? "Families"
+                        : groupsHere
+                          ? `${words.one[0].toUpperCase()}${words.one.slice(1)} directors and volunteers`
+                          : hasParents(event.event_type)
+                            ? "Families and volunteers"
+                            : "Volunteers"
+                    }
+                  />
+                )}
+              </Panel>
+
+              <Panel
+                id="notifications"
+                title="Who gets notifications"
+                intro="Pick who gets each kind of email about this event. Volunteers, families, and directors get their own emails either way."
+              >
+                {isSchemaError(notifyError) ? (
+                  <p className="text-sm text-muted">
+                    A database update is needed before notifications can be set up. See “Applying database updates” in the setup guide.
+                  </p>
+                ) : (
+                  <>
+                    <NotifyForm
+                      action={saveNotifyRecipients.bind(null, eventId)}
+                      kinds={kinds}
+                      members={members}
+                      picked={notifyPicked}
+                      extras={notifyExtras}
+                      max={MAX_EXTRA_EMAILS}
+                    />
+                    <p className="mt-3 text-sm text-muted">
+                      Someone missing?{" "}
+                      <Link href={`${base}?section=team`} className="font-medium text-brand underline">
+                        Add them in Team setup
+                      </Link>
+                      .
+                    </p>
+                  </>
+                )}
+              </Panel>
+            </>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+/** One titled card in a settings section. */
+function Panel({ id, title, intro, children }: { id?: string; title: string; intro?: string; children: React.ReactNode }) {
+  return (
+    <Card id={id} className="scroll-mt-6">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      {intro && <p className="mt-1 text-sm text-muted">{intro}</p>}
+      <div className="mt-4">{children}</div>
+    </Card>
   );
 }

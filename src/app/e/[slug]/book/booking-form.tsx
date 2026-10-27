@@ -33,6 +33,7 @@ export function BookingForm({
   times,
   modes,
   teacher,
+  shared = false,
   place,
   zone,
   askChild = true,
@@ -45,6 +46,8 @@ export function BookingForm({
   modes: Mode[];
   /** The teacher's name, as families see it. */
   teacher: string;
+  /** Its hosts also send booking emails to other addresses, so the note says so. */
+  shared?: boolean;
   /** The room and school, for meeting in person. */
   place: string;
   /** The conference's time zone by name, e.g. "Central Time". */
@@ -337,7 +340,7 @@ export function BookingForm({
         <Field
           label="Anything you'd like to talk about? (optional)"
           // Without the child's name, the note isn't about a student, so no medical caution.
-          hint={askChild ? `Only ${teacher} and their co-hosts see this. Please leave out health or medical details; share those with the school directly.` : `Only ${teacher} and their co-hosts see this.`}
+          hint={`Only ${teacher}${shared ? ", their co-hosts, and the people they've chosen to notify" : " and their co-hosts"} see this.${askChild ? " Please leave out health or medical details; share those with the school directly." : ""}`}
         >
           <Textarea name="note" rows={3} maxLength={500} defaultValue={state.values?.note} />
         </Field>

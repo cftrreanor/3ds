@@ -3,6 +3,7 @@ import { bookingEmail, withCallPhone, bookingLink, emailTeacher, type Booking, t
 import { asksChildName, loadConferenceSettings } from "@/lib/conference-settings";
 import { getOrigin } from "@/lib/data";
 import { pause, sendEmail } from "@/lib/email";
+import { loadNotifyRecipients } from "@/lib/notify-recipients";
 import { createAdminClient } from "@/lib/supabase/server";
 import { utcToZonedDate } from "@/lib/time";
 import { hasConferences, isMeeting } from "@/lib/event-types";
@@ -31,15 +32,20 @@ export async function loadConference(by: { slug: string } | { id: string }) {
   const q = admin.from("events").select(EVENT_COLUMNS);
   const { data: event } = await ("slug" in by ? q.eq("slug", by.slug) : q.eq("id", by.id)).maybeSingle();
   if (!event || !hasConferences(event.event_type)) return null;
-  const [{ settings: s }, { data: teacher }, askChild] = await Promise.all([
+  const [{ settings: s }, { data: teacher }, askChild, notify] = await Promise.all([
     loadConferenceSettings(admin, event.id),
     event.created_by
       ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle()
       : Promise.resolve({ data: null }),
     asksChildName(admin, event.id),
+    loadNotifyRecipients(event.id),
   ]);
   const meeting = isMeeting(event.event_type);
-  const t: Teacher = { name: teacher?.full_name?.trim() || (meeting ? "Your organizer" : "Your teacher"), email: teacher?.email ?? null };
+  const t: Teacher = {
+    name: teacher?.full_name?.trim() || (meeting ? "Your organizer" : "Your teacher"),
+    email: teacher?.email ?? null,
+    shared: Boolean(notify.get("bookings")?.extraEmails.length),
+  };
   return { event: event as ConferenceEvent, settings: s, teacher: t, askChild };
 }
 

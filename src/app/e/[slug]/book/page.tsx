@@ -103,6 +103,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
                 times={times}
                 modes={modes}
                 teacher={teacher.name}
+                shared={teacher.shared}
                 place={place}
                 zone={zoneName(event.timezone)}
                 askChild={askChild}
@@ -110,7 +111,7 @@ export default async function BookConferencePage({ params, searchParams }: Param
                 meeting={!words.child}
               />
               <div className="mt-6">
-                <PrivacyNote teacher={teacher.name} weekly={weekly || !words.child} askChild={askChild} />
+                <PrivacyNote teacher={teacher.name} weekly={weekly || !words.child} askChild={askChild} shared={teacher.shared} />
               </div>
             </>
           ) : (

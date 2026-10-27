@@ -7,6 +7,7 @@ import type { SystemEmailText } from "@/lib/system-emails";
 import type { ConferenceSettings } from "@/lib/conferences";
 import { formatPhone } from "@/lib/phone";
 import { isSchemaError } from "@/lib/schema-check";
+import { notificationEmails } from "@/lib/notify-recipients";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
 
 // Parent-teacher conferences: a family's booked meeting, and the emails each
@@ -42,7 +43,16 @@ const kindWord = (event: Pick<BookingEvent, "event_type">) => (event.event_type 
 const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
 
 /** The teacher, as families see them: their name, and an email to reply to. */
-export type Teacher = { name: string; email: string | null };
+export type Teacher = {
+  name: string;
+  email: string | null;
+  /** Its hosts also send booking emails to other addresses (Edit details → Notifications), so families are told. */
+  shared?: boolean;
+};
+
+/** Who sees a family's details: "Ms. Ruiz and their co-hosts", plus anyone else they notify. */
+export const whoSees = (teacher: Pick<Teacher, "name" | "shared">) =>
+  teacher.shared ? `${teacher.name}, their co-hosts, and the people they've chosen to notify` : `${teacher.name} and their co-hosts`;
 
 export const BOOKING_COLUMNS = "id, starts_at, child_name, parents, meeting_mode, note, calendar_sequence";
 
@@ -60,8 +70,8 @@ export async function withCallPhone<T extends { error: { code?: string } | null 
 export const privacyLine = (teacher: Teacher, weekly = false, child = true) =>
   // Without the child's name, the short version (like the booking page's privacy note).
   child
-    ? `Only ${teacher.name} and their co-hosts see your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`
-    : `Only ${teacher.name} and their co-hosts see your details and your note. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`;
+    ? `Only ${whoSees(teacher)} see your child's name, your details, and your note. Other families never see who booked. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`
+    : `Only ${whoSees(teacher)} see your details and your note. Everything is deleted 30 days after ${weekly ? "your meeting" : "the conference"}.`;
 
 /** A family's link to see, change or cancel their meeting. */
 export const bookingLink = (origin: string, slug: string, token: string) => `${origin}/e/${slug}/book/r/${token}`;
@@ -430,7 +440,11 @@ export function teacherBookingEmail(
   };
 }
 
-/** Emails the teacher (the conference's creator), if they have an email. True if it went. */
+/**
+ * Emails the teacher (the conference's creator), or the people its hosts
+ * picked to get notifications (Edit details), each with the calendar invite.
+ * True if every one went.
+ */
 export async function emailTeacher(
   kind: Parameters<typeof teacherBookingEmail>[0],
   b: Booking,
@@ -440,11 +454,15 @@ export async function emailTeacher(
   /** A co-host who rescheduled or canceled it (null: the teacher did). */
   actor: string | null = null,
 ) {
-  if (!conf.teacher.email) return false;
+  const to = await notificationEmails(conf.event.id, "bookings", () => (conf.teacher.email ? [conf.teacher.email] : []));
+  if (!to.length) return false;
   const meetings = `${origin}/dashboard/events/${conf.event.id}/conferences/meetings`;
   const saved = byTeacher || kind === "rescheduled" ? null : await loadSystemEmail(`organizer_booking_${kind}`);
-  return sendEmail({
-    to: conf.teacher.email,
-    ...teacherBookingEmail(kind, b, conf.event, conf.settings, conf.teacher, meetings, byTeacher, saved, actor),
-  });
+  let all = true;
+  for (const email of to) {
+    // Each person is the invite's attendee, so it lands on their own calendar.
+    const message = teacherBookingEmail(kind, b, conf.event, conf.settings, { ...conf.teacher, email }, meetings, byTeacher, saved, actor);
+    all = (await sendEmail({ to: email, ...message })) && all;
+  }
+  return all;
 }

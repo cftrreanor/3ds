@@ -139,7 +139,7 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
    and fill in what we can work out (shift titles from their times, the host's own contact details).
 4. **Actions where the thing lives.** Each row carries its own buttons (Assign a Section Lead,
    Rename, Delete). Show a button only when it can be used; otherwise say how to make it possible
-   ("Add Section Leads on the Team page").
+   ("Invite Section Leads below").
 5. **A quick way and a careful way.** Where both make sense, a simple toggle between them (Auto
    create shifts / Create single shift). Redoing the quick way replaces what it made, as long as
    no real people depend on it yet.
@@ -157,6 +157,22 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
    ("Save or cancel your changes first, then publish.").
 10. **Plain, matching names.** A page's title matches the card that links to it. Buttons say what
    they do ("Create shifts", "Open band registration"), never "Submit".
+
+## Event settings (Edit details)
+
+An event's global settings live on one page with a section menu: down the side on wide
+screens, a row of tabs on phones. One section shows at a time, each with its own link
+(`?section=details`, `files`, `team`, `emails`), and a ✓ in the menu once it has something in
+it. Leaving a section with unsaved changes asks first. Before the event is published the page
+is called "Set Up Your Event"; after, "Edit Event Details".
+
+- **Event details**: name, dates, venue, the logo and color, and the kind of event.
+- **Maps & documents**.
+- **Team setup**: co-hosts and Volunteer Leads. Section Leads are invited in Volunteer Setup,
+  next to the stations they lead.
+- **Email settings**: where replies go, and who gets notifications.
+
+Type-specific setup (bands, stations and shifts, conference times) stays on its own pages.
 
 ## Dark theme
 

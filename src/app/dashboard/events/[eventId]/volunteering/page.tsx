@@ -19,6 +19,7 @@ import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
+import { TeamRoles } from "../team/team-roles";
 
 export const metadata: Metadata = { title: "Volunteer Setup" };
 
@@ -263,10 +264,10 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           )}
           {!hasSectionLeads && stations.length > 0 && (
             <p className="mt-2 text-sm text-muted">
-              To assign {leadWords(event.event_type).many}, invite them on the{" "}
-              <Link href={`/dashboard/events/${eventId}/team?tab=section-leads`} className="font-medium text-brand underline">
-                Team page
-              </Link>
+              To assign {leadWords(event.event_type).many},{" "}
+              <a href="#section-leads" className="font-medium text-brand underline">
+                invite them below
+              </a>
               .
             </p>
           )}
@@ -374,6 +375,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             <p className="mt-1 text-sm text-muted">Add a station in step 1 first.</p>
           )}
         </div>
+      </section>
+
+      {/* Section Leads run one station each, so they're invited here, next to the stations. */}
+      <section className="mt-10" aria-label={leadWords(event.event_type).many}>
+        <TeamRoles eventId={eventId} roles={["section-leads"]} />
       </section>
 
       <section className="mt-10" aria-labelledby="import-heading">

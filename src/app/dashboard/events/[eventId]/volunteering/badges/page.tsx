@@ -161,7 +161,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
           {access.isHost && (
             <p className="border-t border-border pt-5 text-sm text-muted">
               {logo ? "Your logo is on the badges." : "Badges show the event name at the top until you add your logo."}{" "}
-              <Link href={`/dashboard/events/${eventId}/edit?step=files#logo`} className="font-medium text-brand underline">
+              <Link href={`/dashboard/events/${eventId}/edit?section=details#logo`} className="font-medium text-brand underline">
                 {logo ? "Change the logo or add maps" : "Add your logo or maps"}
               </Link>{" "}
               in Maps &amp; documents.
