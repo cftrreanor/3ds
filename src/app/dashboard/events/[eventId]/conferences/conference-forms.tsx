@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, use, useState, type ReactNode } from "react";
+import { linkFrom } from "@/lib/meeting-link";
 import { ActionForm } from "@/components/action-form";
 import { PublishBar, PublishLine } from "@/components/publish-bar";
 import { NumberInput } from "@/components/number-input";
@@ -597,6 +598,8 @@ type PlaceProps = {
   timezone: string;
   /** Meetings: "people" where conferences say "families", and a place rather than a school. */
   meeting?: boolean;
+  /** The room and directions from their last conference or meeting, to start from when this one has none yet. */
+  lastRoom?: string | null;
 };
 
 /** Step 2: in person, video (one meeting with a waiting room for the whole time), or the family's choice. */
@@ -628,6 +631,7 @@ function PlaceForm({
   editing,
   setEditing,
   onCancel,
+  lastRoom,
 }: PlaceProps & { editing: boolean; setEditing: (on: boolean) => void; onCancel: () => void }) {
   const w = whoBooks(meeting);
   const [modes, setModes] = useState<Mode[]>(modesOf(initial));
@@ -681,13 +685,20 @@ function PlaceForm({
       )}
 
       {inPerson && (
-        <Field label="Room and directions" hint={`${w.Families} get this in their confirmation and reminder.`}>
+        <Field
+          label="Room and directions"
+          hint={
+            !initial.room && lastRoom
+              ? `Filled in from your last event. Change it if this one's different. ${w.Families} get this in their confirmation and reminder.`
+              : `${w.Families} get this in their confirmation and reminder.`
+          }
+        >
           <Textarea
             name="room"
             required
             rows={2}
             maxLength={200}
-            defaultValue={initial.room ?? ""}
+            defaultValue={initial.room ?? lastRoom ?? ""}
             placeholder="e.g. Room 214, purple hallway, 3rd door on the left"
           />
         </Field>
@@ -739,7 +750,8 @@ function PlaceForm({
                     required
                     maxLength={500}
                     value={link}
-                    onChange={(e) => setLink(e.target.value)}
+                    // A whole pasted invitation becomes just its link.
+                    onChange={(e) => setLink(/\s/.test(e.target.value.trim()) ? linkFrom(e.target.value) : e.target.value)}
                     placeholder="https://zoom.us/j/… or https://meet.google.com/…"
                   />
                   <Button
@@ -753,6 +765,27 @@ function PlaceForm({
                   </Button>
                 </div>
               </Field>
+              <details className="-mt-2 rounded-md bg-background px-3 py-2 text-sm">
+                <summary className="font-medium text-brand">Where do I find my link?</summary>
+                <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted">
+                  <li>
+                    <strong className="text-foreground">Zoom:</strong> in the Zoom app, open Meetings, pick your meeting, and choose{" "}
+                    <strong className="text-foreground">Copy invitation</strong>. Paste the whole invitation here and we&apos;ll keep just the link. It
+                    starts with https://zoom.us/j/ and usually has your passcode built in, so {w.families} won&apos;t need the meeting ID.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Google Meet:</strong> in Google Calendar, make an event, add Google Meet video conferencing, and
+                    copy its meet.google.com link.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Microsoft Teams:</strong> in your Teams calendar, open the meeting and copy its join link.
+                  </li>
+                  <li>
+                    One link for all your meetings works best. On a free Zoom account, meetings end after 40 minutes, so a free Google Meet link or a paid
+                    Zoom account is better for a long block of meetings.
+                  </li>
+                </ul>
+              </details>
               <label className="flex gap-3 rounded-lg border border-field-border p-3 text-sm leading-6">
                 <input
                   type="checkbox"

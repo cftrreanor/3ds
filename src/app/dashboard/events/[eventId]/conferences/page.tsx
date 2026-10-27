@@ -12,7 +12,7 @@ import { loadAccountPlan } from "@/lib/plan";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
-import { setEventPublished } from "../../../actions";
+import { publishAndOpen, setEventPublished } from "../../../actions";
 import { ActionButton } from "../forms";
 import { saveMeetingPlace, saveMeetingTimes } from "./actions";
 import { conferenceBookedCount } from "@/lib/conference-access";
@@ -94,7 +94,11 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
               Unpublish
             </ActionButton>
           ) : (
-            <ActionButton action={setEventPublished.bind(null, eventId, true)} variant="go" pendingText="Publishing…">
+            <ActionButton
+              action={publishAndOpen.bind(null, eventId)}
+              variant="go"
+              pendingText="Publishing…"
+            >
               Publish
             </ActionButton>
           )}
@@ -147,9 +151,30 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
             venueSearchEnabled={isPlacesConfigured}
             timezone={tz}
             meeting={meeting}
+            lastRoom={settings.room ? null : await lastRoom(supabase, event.organization_id, eventId)}
           />
         </SetupStep>
       </ConferenceSetup>
     </div>
   );
+}
+
+/** The room and directions from the account's most recent other conference or meeting, if any. */
+async function lastRoom(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, eventId: string) {
+  const { data: others } = await supabase
+    .from("events")
+    .select("id")
+    .eq("organization_id", orgId)
+    .in("event_type", ["conference", "meeting"])
+    .neq("id", eventId);
+  if (!others?.length) return null;
+  const { data } = await supabase
+    .from("conference_settings")
+    .select("room")
+    .in("event_id", others.map((e) => e.id))
+    .not("room", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.room ?? null;
 }

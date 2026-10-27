@@ -216,6 +216,11 @@
   display: none;
 }
 
+/* Anything you can press shows a hand, like a link (Tailwind leaves buttons on the arrow). */
+:is(button, summary, [role="button"], label:has(> input[type="checkbox"], > input[type="radio"])):not(:disabled) {
+  cursor: pointer;
+}
+
 /* Required answers, on every form (components/required-fields.tsx): submit
    buttons look faded until the required boxes are filled in; tapping one
    early outlines each box still needed in red and says so under the form. */
