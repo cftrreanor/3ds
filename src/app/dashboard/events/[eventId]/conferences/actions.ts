@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { linkFrom } from "@/lib/meeting-link";
+import { linkFrom, passcodeFrom } from "@/lib/meeting-link";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import {
@@ -206,7 +206,9 @@ export async function saveMeetingPlace(eventId: string, _prev: ActionState, form
 
   const room = String(formData.get("room") ?? "").trim();
   // A pasted Zoom invitation counts: keep just its link.
-  const link = linkFrom(String(formData.get("videoLink") ?? ""));
+  const pasted = String(formData.get("videoLink") ?? "");
+  const link = linkFrom(pasted);
+  const passcode = String(formData.get("videoPasscode") ?? "").trim() || passcodeFrom(pasted) || "";
   const waitingRoom = formData.get("waitingRoom") === "on";
   const ownLink = video && formData.get("linkSource") === "own";
   const venueName = String(formData.get("venueName") ?? "").trim().slice(0, 120);
@@ -223,6 +225,7 @@ export async function saveMeetingPlace(eventId: string, _prev: ActionState, form
   if (room.length > 200) fieldErrors.room = "Keep this under 200 characters.";
   if (video && !ownLink) {
     if (!/^https:\/\/\S+$/.test(link) || link.length > 500) fieldErrors.videoLink = "Paste your meeting link. It starts with https://";
+    if (passcode.length > 50 || /\s/.test(passcode)) fieldErrors.videoPasscode = "Enter just the passcode, with no spaces.";
     if (!waitingRoom) fieldErrors.waitingRoom = "Set up your meeting with a waiting room, then tick this.";
   }
   if (Object.keys(fieldErrors).length) {
@@ -250,7 +253,10 @@ export async function saveMeetingPlace(eventId: string, _prev: ActionState, form
     video_link: video && !ownLink ? link : null,
     waiting_room_confirmed: video && !ownLink && waitingRoom,
   };
-  let error = await saveSettings(eventId, { ...place, meeting_modes: modes });
+  let error = await saveSettings(eventId, { ...place, meeting_modes: modes, video_passcode: video && !ownLink && passcode ? passcode : null });
+  // Before the passcode update (20261229000000): save the rest, and say the passcode needs it.
+  const noPasscode = isSchemaError(error);
+  if (noPasscode) error = await saveSettings(eventId, { ...place, meeting_modes: modes });
   // Before the several-ways-to-meet update (20261213000000), only one way, or in person and video, can be saved.
   if (isSchemaError(error)) {
     const single = legacyMode(modes);
@@ -259,6 +265,7 @@ export async function saveMeetingPlace(eventId: string, _prev: ActionState, form
   }
   if (error) return { error: friendlyDbError(error) };
   refresh(eventId);
+  if (noPasscode && passcode) return { ok: true, message: "Saved, except the passcode: that needs a database update first. Please write to us." };
   return { ok: true, message: "Saved." };
 }
 

@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import QRCode from "qrcode";
 import { CopyLink } from "@/components/copy-link";
+import { ScrollTo } from "@/components/scroll-to";
 import { RememberedPanel } from "@/components/remembered-panel";
 import { missing } from "@/lib/schema-check";
 import { conferenceBookedCount } from "@/lib/conference-access";
@@ -25,7 +26,7 @@ import {
 import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
-import { deleteEvent, setEventPublished } from "../../actions";
+import { deleteEvent, publishAndOpen, setEventPublished } from "../../actions";
 import { DeleteEventButton } from "./delete-event";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
@@ -72,7 +73,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   // Back from demo mode (demo-actions backToMe).
   const query = await searchParams;
   const demoEnded = query.demo === "ended";
-  // Just published from Conference Setup.
+  // Just published (here or from a setup page).
   const justPublished = query.published === "1";
   const user = await requireUser();
   const supabase = await createClient();
@@ -732,7 +733,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     </PageSection>
   );
 
-  const publish = setup && checklist ? <PublishPanel facts={setup} remaining={checklist.remaining} /> : null;
+  const publish =
+    setup && checklist ? (
+      <PublishPanel facts={setup} remaining={checklist.remaining} share={{ url: publicUrl, qrPng: publicQr?.[1] ?? null, slug: event.slug, booking: conferenceHere }} />
+    ) : null;
 
   const attentionBlock =
     attention.length > 0 ? (
@@ -783,7 +787,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             : undefined
       }
     >
-      {justPublished && <SuccessToast message="Published. Your booking page is live; share its link below." />}
+      {justPublished && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; share its link below.`} />}
+      {justPublished && <ScrollTo id="publish" />}
       {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">
@@ -962,12 +967,29 @@ function PageSection({ id, title, saved, children }: { id: string; title: string
  * Publish or unpublish, with what that does in plain words, so hosts know
  * when they're ready and that nothing is sent or locked in.
  */
-function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: ReturnType<typeof setupChecklist>["remaining"] }) {
+function PublishPanel({
+  facts,
+  remaining,
+  share,
+}: {
+  facts: SetupFacts;
+  remaining: ReturnType<typeof setupChecklist>["remaining"];
+  /** The public page (a conference's booking page), to share once it's live. */
+  share: { url: string; qrPng: string | null; slug: string; booking: boolean };
+}) {
   const words = groupWords(facts.eventType);
   if (facts.published) {
     // Each thing people can use or see, whether it's on, and where to change it.
-    type Live = { label: string; on: boolean; onText: string; offText: string; href: string; note?: string };
-    const open = (label: string, on: boolean, href: string): Live => ({ label, on, onText: "Open", offText: "Closed", href });
+    type Live = { label: string; on: boolean; onText: string; offText: string; href: string; note?: string; link?: string };
+    // A registration that's open has its own link to share.
+    const open = (label: string, on: boolean, href: string, path: string): Live => ({
+      label,
+      on,
+      onText: "Open",
+      offText: "Closed",
+      href,
+      link: `${share.url}/${path}`,
+    });
     const shown = (label: string, on: boolean, href: string, note?: string): Live => ({
       label,
       on,
@@ -977,8 +999,8 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
       note,
     });
     const live: Live[] = [
-      ...(facts.stations > 0 || facts.eventType === "volunteer" ? [open("Volunteer sign-up", facts.volunteerSignupOpen, "volunteering")] : []),
-      ...(hasEnsembles(facts.eventType) ? [open(`${words.One} registration`, facts.bandRegistrationOpen, "bands")] : []),
+      ...(facts.stations > 0 || facts.eventType === "volunteer" ? [open("Volunteer sign-up", facts.volunteerSignupOpen, "volunteering", "volunteer")] : []),
+      ...(hasEnsembles(facts.eventType) ? [open(`${words.One} registration`, facts.bandRegistrationOpen, "bands", "bands")] : []),
       ...(facts.eventType === "band_contest" ? [shown("Performance schedule", facts.scheduleShared, "schedule")] : []),
       ...(facts.eventType === "band_contest" && facts.finalsSlots > 0
         ? [
@@ -991,13 +1013,31 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
           ]
         : []),
       ...(hasRooms(facts.eventType) ? [shown("Room schedule", facts.scheduleShared, "rooms#order-heading")] : []),
-      ...(hasParents(facts.eventType) ? [open("Parent registration", facts.parentRegistrationOpen, "parents")] : []),
+      ...(hasParents(facts.eventType) ? [open("Parent registration", facts.parentRegistrationOpen, "parents", "parents")] : []),
     ];
     return (
       <Card id="publish" className="mt-8 scroll-mt-6">
         <h2 className="text-lg font-semibold">Your event is live</h2>
         <SavedBy eventId={facts.eventId} area="publish" className="mt-1" />
-        <p className="mt-1 text-sm text-muted">Your public page is online. Here&apos;s what people can use and see right now:</p>
+        <div className="mt-4 rounded-md border border-border bg-background p-3 text-sm leading-6">
+          <p className="font-semibold">Share your {share.booking ? "booking page" : "event page"}</p>
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <a href={share.url} target="_blank" rel="noreferrer" className="break-all font-mono text-brand underline-offset-4 hover:underline">
+              {share.url.replace(/^https?:\/\//, "")} ↗
+            </a>
+            <CopyLink url={share.url} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline" />
+            {share.qrPng && (
+              <a
+                href={share.qrPng}
+                download={`${share.slug}-qr.png`}
+                className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline"
+              >
+                Download QR code
+              </a>
+            )}
+          </p>
+        </div>
+        <p className="mt-4 text-sm text-muted">Here&apos;s what people can use and see right now:</p>
         {live.length > 0 && (
           <ul className="mt-3 space-y-2 text-sm">
             {live.map((l) => (
@@ -1011,6 +1051,9 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
                 >
                   {l.on ? "Manage" : l.offText === "Closed" ? "Open it" : "Publish it"}
                 </Link>
+                {l.on && l.link && (
+                  <CopyLink url={l.link} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline" />
+                )}
               </li>
             ))}
           </ul>
@@ -1085,7 +1128,7 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
         </div>
       ) : (
         <div className="mt-5">
-          <ActionButton action={setEventPublished.bind(null, facts.eventId, true)} variant="go" pendingText="Publishing…">
+          <ActionButton action={publishAndOpen.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
             Publish event
           </ActionButton>
         </div>

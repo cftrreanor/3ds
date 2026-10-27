@@ -298,7 +298,7 @@ function SignUpMoreLink({ slug, primary = false }: { slug: string; primary?: boo
     <Link
       href={`/e/${slug}/volunteer`}
       className={`mt-4 inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium ${
-        primary ? "bg-brand text-brand-foreground hover:opacity-90" : "border border-brand text-brand hover:bg-brand-soft"
+        primary ? "bg-brand text-brand-foreground hover:bg-brand-hover" : "border border-brand text-brand hover:bg-brand-soft"
       }`}
     >
       Sign up for more shifts
@@ -312,7 +312,7 @@ function SwitchAccountButton({ email, label }: { email?: string; label: string }
   return (
     <form action="/auth/signout" method="post" className="mt-3">
       <input type="hidden" name="next" value={next} />
-      <button className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90">
+      <button className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover">
         {label}
       </button>
     </form>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { PublishBar, PublishLine } from "@/components/publish-bar";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 import type { ChangedBands, ScheduleSaveState } from "@/app/dashboard/band-actions";
@@ -23,7 +23,7 @@ import {
   type Times,
 } from "./schedule-parts";
 import { RoundRows, RowEditor, type Row } from "./schedule-view";
-import { confirmDialog, confirmFromText } from "@/components/confirm-dialog";
+import { confirmDialog, confirmFromText, shareDialog } from "@/components/confirm-dialog";
 
 export type { FinalsSlot, OrderBand, ScheduleBreak };
 
@@ -112,6 +112,10 @@ export function ScheduleBuilder({
   const [inlineBreak, setInlineBreak] = useState<{ key: number; from: "list" | Round } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [result, setResult] = useState<ActionState>({});
+  // Something went public (the schedule, finals, finalist names): show the link to share.
+  useEffect(() => {
+    if (result.ok && result.share) shareDialog(result.share);
+  }, [result]);
   const [pending, startTransition] = useTransition();
   // Published bands whose times changed since the host last emailed them.
   const [changes, setChanges] = useState<ChangedBands | null>(null);

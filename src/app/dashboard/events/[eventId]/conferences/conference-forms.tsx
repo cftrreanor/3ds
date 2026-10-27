@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, use, useState, type ReactNode } from "react";
-import { linkFrom } from "@/lib/meeting-link";
+import { linkFrom, passcodeFrom } from "@/lib/meeting-link";
 import { ActionForm } from "@/components/action-form";
 import { PublishBar, PublishLine } from "@/components/publish-bar";
 import { NumberInput } from "@/components/number-input";
@@ -213,6 +213,8 @@ function TimesForm({
       resetOnSuccess={false}
       className="space-y-5"
       onEdit={() => setEditing(true)}
+      // No days start picked, so each set of weekly hours needs at least one tapped.
+      validate={() => (schedule === "weekly" && groups.some((g) => !g.days.length) ? { error: "Tap at least one day for each set of hours." } : null)}
       onSuccess={() => {
         setEditing(false);
         setChangingHours(false);
@@ -237,7 +239,7 @@ function TimesForm({
                 checked={schedule === o.value}
                 onChange={() => {
                   setSchedule(o.value);
-                  if (o.value === "weekly" && !groups.length) setGroups([{ key: newKey(), days: [2, 4], start: "15:30", end: "16:30" }]);
+                  if (o.value === "weekly" && !groups.length) setGroups([{ key: newKey(), days: [], start: "15:30", end: "16:30" }]);
                 }}
                 className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
               />
@@ -327,7 +329,7 @@ function TimesForm({
                       </Button>
                     )}
                   </div>
-                  {!g.days.length && <p className="text-sm font-semibold text-danger">Tap at least one day.</p>}
+                  {!g.days.length && <p className="text-sm text-muted">Tap the days these hours are for.</p>}
                   {/* Saved as one block per day. */}
                   {g.days.map((day) => (
                     <span key={day} hidden>
@@ -636,6 +638,7 @@ function PlaceForm({
   const w = whoBooks(meeting);
   const [modes, setModes] = useState<Mode[]>(modesOf(initial));
   const [link, setLink] = useState(initial.video_link ?? "");
+  const [passcode, setPasscode] = useState(initial.video_passcode ?? "");
   const [ownLink, setOwnLink] = useState(initial.own_link);
   const inPerson = modes.includes("in_person");
   const video = modes.includes("video");
@@ -751,7 +754,13 @@ function PlaceForm({
                     maxLength={500}
                     value={link}
                     // A whole pasted invitation becomes just its link.
-                    onChange={(e) => setLink(/\s/.test(e.target.value.trim()) ? linkFrom(e.target.value) : e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!/\s/.test(v.trim())) return setLink(v);
+                      setLink(linkFrom(v));
+                      const code = passcodeFrom(v);
+                      if (code) setPasscode(code);
+                    }}
                     placeholder="https://zoom.us/j/… or https://meet.google.com/…"
                   />
                   <Button
@@ -765,13 +774,27 @@ function PlaceForm({
                   </Button>
                 </div>
               </Field>
+              <Field
+                label="Passcode (optional)"
+                hint={`If ${w.families} need a passcode to join, add it here. We show it next to the link, so no one has to hunt for it.`}
+              >
+                <Input
+                  name="videoPasscode"
+                  maxLength={50}
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value.trim())}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="sm:max-w-xs"
+                />
+              </Field>
               <details className="-mt-2 rounded-md bg-background px-3 py-2 text-sm">
                 <summary className="font-medium text-brand">Where do I find my link?</summary>
                 <ul className="mt-2 list-disc space-y-1.5 pl-5 text-muted">
                   <li>
                     <strong className="text-foreground">Zoom:</strong> in the Zoom app, open Meetings, pick your meeting, and choose{" "}
-                    <strong className="text-foreground">Copy invitation</strong>. Paste the whole invitation here and we&apos;ll keep just the link. It
-                    starts with https://zoom.us/j/ and usually has your passcode built in, so {w.families} won&apos;t need the meeting ID.
+                    <strong className="text-foreground">Copy invitation</strong>. Paste the whole invitation into the link box and we&apos;ll keep just the link, and fill in the
+                    passcode for you. The link starts with https://zoom.us/j/.
                   </li>
                   <li>
                     <strong className="text-foreground">Google Meet:</strong> in Google Calendar, make an event, add Google Meet video conferencing, and

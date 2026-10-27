@@ -9,7 +9,8 @@ import { requireUser } from "@/lib/auth";
 import { BAND_COLUMNS, bandColumns, parseBand, readyAt, registrationIsOpen, warmUpEndAt, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { normalizePhone } from "@/lib/phone";
-import { hasRooms } from "@/lib/event-types";
+import { groupWords, hasRooms } from "@/lib/event-types";
+import { eventForShare, shareLink } from "@/lib/share";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
@@ -187,7 +188,23 @@ async function updateEventRow(eventId: string, values: Record<string, unknown>):
 }
 
 export async function setBandRegistrationOpen(eventId: string, open: boolean) {
-  return updateEventRow(eventId, { band_registration_open: open });
+  const result = await updateEventRow(eventId, { band_registration_open: open });
+  return result.error || !open ? result : registrationShare(eventId);
+}
+
+/** Registration just opened: the link to send directors. */
+async function registrationShare(eventId: string): Promise<ActionState> {
+  const event = await eventForShare(eventId);
+  if (!event) return { ok: true };
+  const w = groupWords(event.event_type);
+  return {
+    ok: true,
+    share: await shareLink(
+      `${w.One} registration is open`,
+      `/e/${event.slug}/bands`,
+      `Send this link to ${w.one} directors. Directors you invite by email can register with one tap from their invitation.`,
+    ),
+  };
 }
 
 /**
@@ -203,7 +220,8 @@ export async function reopenBandRegistration(eventId: string, _prev: ActionState
     if (event && deadline < utcToZonedDate(new Date().toISOString(), event.timezone))
       return { error: "Pick today or a later date for the new deadline." };
   }
-  return updateEventRow(eventId, { band_registration_open: true, band_registration_deadline: deadline || null });
+  const result = await updateEventRow(eventId, { band_registration_open: true, band_registration_deadline: deadline || null });
+  return result.error ? result : registrationShare(eventId);
 }
 
 export async function updateBandSettings(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -491,13 +509,22 @@ export async function publishRunningOrder(eventId: string, publish: boolean): Pr
     }));
     emailTimes(event, rows, await getOrigin(), "order");
   }
-  return { ok: true, message: "Published. Directors are being emailed their times." };
+  return scheduleShare(eventId, "Your schedule is published", "Directors are being emailed their times. Everyone else can see the schedule on your public page.");
+}
+
+/** A schedule just went public: the public page, where it shows. */
+async function scheduleShare(eventId: string, title: string, note: string): Promise<ActionState> {
+  const event = await eventForShare(eventId);
+  return event ? { ok: true, share: await shareLink(title, `/e/${event.slug}`, note) } : { ok: true, message: title };
 }
 
 /** Publish (or hide) the finals. Finalists are emailed separately, once they're picked. */
 export async function publishFinals(eventId: string, publish: boolean): Promise<ActionState> {
   const result = await updateEventRow(eventId, publish ? { finals_published: true } : { finals_published: false, finalists_revealed: false });
-  return result.error ? result : { ok: true, message: publish ? "Finals published." : "Finals hidden." };
+  if (result.error) return result;
+  return publish
+    ? scheduleShare(eventId, "Finals published", "The finals times are on your public page. Finalist names stay hidden until you reveal them.")
+    : { ok: true, message: "Finals hidden." };
 }
 
 /**
@@ -506,7 +533,10 @@ export async function publishFinals(eventId: string, publish: boolean): Promise<
  */
 export async function revealFinalists(eventId: string, reveal: boolean): Promise<ActionState> {
   const result = await updateEventRow(eventId, reveal ? { finals_published: true, finalists_revealed: true } : { finalists_revealed: false });
-  return result.error ? result : { ok: true, message: reveal ? "Finalists revealed." : "Finalist names hidden again." };
+  if (result.error) return result;
+  return reveal
+    ? scheduleShare(eventId, "Finalists revealed", "The finalist names are on your public page now.")
+    : { ok: true, message: "Finalist names hidden again." };
 }
 
 /** Email each picked finalist their finals times. */

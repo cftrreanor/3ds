@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
+import { eventForShare, shareLink } from "@/lib/share";
 import { createClient } from "@/lib/supabase/server";
 import { zonedToUtc } from "@/lib/time";
 
@@ -24,7 +25,16 @@ export async function setParentRegistrationOpen(eventId: string, open: boolean):
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "Only the event's host can open or close registration." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true };
+  const event = open ? await eventForShare(eventId) : null;
+  if (!event) return { ok: true };
+  return {
+    ok: true,
+    share: await shareLink(
+      "Parent registration is open",
+      `/e/${event.slug}/parents`,
+      "Send this link to families, or put the QR code in your newsletter. Parents register each child who's coming.",
+    ),
+  };
 }
 
 /** Hosts pick when parent registration closes on its own (in the event's time zone), or clear it. */

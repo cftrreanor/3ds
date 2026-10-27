@@ -54,6 +54,8 @@ export type ConferenceSettings = {
   meeting_modes?: Mode[] | null;
   room: string | null;
   video_link: string | null;
+  /** The meeting's passcode, when the link doesn't carry it (missing before the 20261229000000 update). */
+  video_passcode?: string | null;
   waiting_room_confirmed: boolean;
   /** The teacher sends families the video link themselves (in their own calendar invite). */
   own_link: boolean;
@@ -87,7 +89,9 @@ export const LEGACY_SETTINGS_COLUMNS =
   "meeting_minutes, gap_minutes, breaks, times_saved_at, meeting_mode, room, video_link, waiting_room_confirmed, own_link";
 /** Before the several-ways-to-meet update (20261213000000) has been run. */
 export const WEEKLY_SETTINGS_COLUMNS = `${LEGACY_SETTINGS_COLUMNS}, schedule, weekly_hours, closed_dates, min_notice_hours, max_days_ahead`;
-export const SETTINGS_COLUMNS = `${WEEKLY_SETTINGS_COLUMNS}, meeting_modes`;
+/** Before the passcode update (20261229000000) has been run. */
+export const MODES_SETTINGS_COLUMNS = `${WEEKLY_SETTINGS_COLUMNS}, meeting_modes`;
+export const SETTINGS_COLUMNS = `${MODES_SETTINGS_COLUMNS}, video_passcode`;
 
 /** The ways a conference offers, in a fixed order (from the old single setting before the update). */
 export function modesOf(s: Pick<ConferenceSettings, "meeting_mode" | "meeting_modes"> | null): Mode[] {

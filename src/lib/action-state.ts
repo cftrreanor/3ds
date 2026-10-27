@@ -7,6 +7,21 @@ export type ActionState = {
   message?: string;
   /** Per-field problems, keyed by the input's name, shown under each field. */
   fieldErrors?: Record<string, string>;
+  /** Something just went public: show its link to share (in place of the toast). */
+  share?: Share;
+};
+
+/** A link a host can share right away (shareLink in src/lib/share.ts adds the QR code). */
+export type Share = {
+  /** What just happened ("Volunteer sign-up is open"). */
+  title: string;
+  /** Who it's for and what to do with it. */
+  note?: string;
+  url: string;
+  /** A QR code for the link, as a PNG data URL. */
+  qr?: string;
+  /** The QR code's file name when it's downloaded. */
+  qrName?: string;
 };
 
 /** An error state for one or more fields: the summary names the problem, or how many there are. */

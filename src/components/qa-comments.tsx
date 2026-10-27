@@ -227,7 +227,7 @@ export function QaComments() {
               }}
               aria-pressed={mode === "pick"}
               title="Shortcut: C"
-              className={`fixed bottom-4 right-32 min-h-11 rounded-full px-4 text-sm font-semibold shadow-lg hover:opacity-90 ${
+              className={`fixed bottom-4 right-32 min-h-11 rounded-full px-4 text-sm font-semibold shadow-lg hover:brightness-90 ${
                 mode === "pick" ? "z-[70] bg-danger text-danger-foreground ring-2 ring-white" : "z-40 bg-header text-white ring-1 ring-white/50"
               }`}
             >

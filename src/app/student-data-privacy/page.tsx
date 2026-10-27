@@ -237,7 +237,7 @@ export default function StudentDataPrivacyPage() {
           </p>
           <a
             href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent("Data privacy agreement")}`}
-            className="mt-6 inline-flex min-h-11 items-center rounded-md bg-brand px-5 font-semibold text-brand-foreground hover:opacity-90"
+            className="mt-6 inline-flex min-h-11 items-center rounded-md bg-brand px-5 font-semibold text-brand-foreground hover:bg-brand-hover"
           >
             Email {brand.supportEmail}
           </a>

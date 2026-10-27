@@ -63,7 +63,7 @@ export function QaControl({ events }: { events: QaEvent[] }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className="fixed bottom-4 right-4 z-40 min-h-11 rounded-full bg-violet px-4 text-sm font-semibold text-header shadow-lg ring-1 ring-header/20 hover:opacity-90"
+        className="fixed bottom-4 right-4 z-40 min-h-11 rounded-full bg-violet px-4 text-sm font-semibold text-header shadow-lg ring-1 ring-header/20 hover:brightness-90"
       >
         QA tools
       </button>

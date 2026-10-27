@@ -114,6 +114,7 @@ export function meetingPlace(b: Pick<Booking, "meeting_mode" | "child_name" | "p
       "You'll wait in a waiting room until you're let in. If the meeting before yours runs over, please stay put: you'll be brought in as soon as they're ready.",
     ],
     link: s.video_link,
+    passcode: s.video_passcode || null,
   };
 }
 
@@ -127,7 +128,12 @@ function toIcsEvent(b: Booking, event: BookingEvent, s: ConferenceSettings, teac
     end: new Date(meetingEnd(b.starts_at, s.meeting_minutes)),
     summary: b.child_name ? `Conference with ${teacher.name}: ${b.child_name}` : `${cap(kindWord(event))} with ${teacher.name}`,
     location: place.link ?? (b.meeting_mode === "in_person" ? place.lines[0] : b.meeting_mode === "phone" ? `${teacher.name} calls you` : "Video"),
-    description: [...place.lines, ...(place.link ? [`Join: ${place.link}`] : []), `Change or cancel: ${link}`].join("\n"),
+    description: [
+      ...place.lines,
+      ...(place.link ? [`Join: ${place.link}`] : []),
+      ...(place.passcode ? [`Passcode: ${place.passcode}`] : []),
+      `Change or cancel: ${link}`,
+    ].join("\n"),
     url: link,
     attendee: { name: to.name, email: to.email },
     alarm: place.link ? `Join as ${familyName(b)}` : `${cap(kindWord(event))} with ${teacher.name}`,
@@ -256,6 +262,7 @@ export async function bookingEmail(
         ...noteRow,
         { title: "When", detail: when, strong: true },
         { title: place.title, detail: place.lines.join(" ") },
+        ...(place.passcode ? [{ title: "Passcode", detail: place.passcode, strong: true }] : []),
         ...(b.parents.length > 1 ? [{ title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") }] : []),
         { title: b.child_name ? "Your child's privacy" : "Your privacy", detail: privacyLine(teacher, s.schedule === "weekly" || word === "meeting", Boolean(b.child_name)) },
       ],
@@ -410,7 +417,7 @@ export function teacherBookingEmail(
                 ? callLine(b)
                 : s.own_link || !s.video_link
                   ? `You send ${them} your video link`
-                  : s.video_link,
+                  : [s.video_link, s.video_passcode && `Passcode: ${s.video_passcode}`].filter(Boolean).join(" · "),
         },
         { title: b.meeting_mode === "phone" ? "On the call" : "Coming", detail: b.parents.map((p) => p.name).join(", ") },
         ...(b.note ? [{ title: "Their note", detail: "They left you a note. It's on your Meetings page." }] : []),

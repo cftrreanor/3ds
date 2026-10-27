@@ -19,7 +19,7 @@ export function Button({
         "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0",
         variant === "primary" && "bg-brand font-semibold text-brand-foreground hover:bg-brand-hover",
         variant === "secondary" && "border border-border bg-surface hover:border-brand/40 hover:bg-background",
-        variant === "accent" && "bg-accent font-semibold text-accent-foreground hover:opacity-90",
+        variant === "accent" && "bg-accent font-semibold text-accent-foreground hover:brightness-90",
         variant === "go" && "bg-success font-semibold text-success-foreground shadow-sm hover:shadow-md hover:brightness-90",
         variant === "warn" && "bg-danger font-semibold text-danger-foreground shadow-sm hover:shadow-md hover:brightness-90",
         variant === "danger" && "border border-danger bg-surface font-semibold text-danger hover:bg-danger/5",

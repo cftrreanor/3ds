@@ -69,6 +69,11 @@ export default async function ManageBookingPage({ params }: Params) {
                 {l}
               </p>
             ))}
+            {place.passcode && (
+              <p className="leading-7">
+                Passcode: <strong>{place.passcode}</strong>
+              </p>
+            )}
             {place.link && (
               <a
                 href={place.link}

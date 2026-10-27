@@ -140,7 +140,7 @@ export function Door({
                         aria-pressed={a.checkedIn}
                         aria-label={a.checkedIn ? `${a.name} is checked in. Tap to undo.` : `ID checked: check in ${a.name}`}
                         className={`flex min-h-12 min-w-36 shrink-0 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
-                          a.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:opacity-90"
+                          a.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:bg-brand-hover"
                         }`}
                       >
                         {a.checkedIn ? (
