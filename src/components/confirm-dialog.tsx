@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button, Field, Input } from "@/components/ui";
+import type { Share } from "@/lib/action-state";
 
 // Our own windows in place of the browser's confirm(), prompt() and "copy
 // this" boxes, which look different in every browser and can't be styled.
@@ -27,6 +28,7 @@ type Request = { id: number } & (
   | ({ kind: "confirm"; resolve: (ok: boolean) => void } & ConfirmOptions)
   | { kind: "ask"; title: string; fields: AskField[]; confirmLabel?: string; resolve: (values: Record<string, string> | null) => void }
   | { kind: "copy"; title: string; text: string; resolve: () => void }
+  | ({ kind: "share"; resolve: () => void } & Share)
 );
 type NewRequest = Request extends infer R ? (R extends Request ? Omit<R, "id"> : never) : never;
 
@@ -65,6 +67,11 @@ export function askDialog(title: string, fields: AskField[], confirmLabel?: stri
 /** When copying to the clipboard isn't allowed: show the text, ready to select and copy. */
 export function copyDialog(title: string, text: string): Promise<void> {
   return new Promise((resolve) => show({ kind: "copy", title, text, resolve }));
+}
+
+/** Something just went public: its link, ready to copy, open, or share as a QR code. */
+export function shareDialog(share: Share): Promise<void> {
+  return new Promise((resolve) => show({ kind: "share", ...share, resolve }));
 }
 
 /** Shows the window asked for, once per page (in the root layout). */
@@ -131,6 +138,30 @@ function DialogBody({ request: r, close }: { request: Request; close: () => void
           ))}
         </div>
       )}
+      {r.kind === "share" && (
+        <div className="mt-3 space-y-4">
+          {r.note && <p className="leading-7 text-muted">{r.note}</p>}
+          <input
+            readOnly
+            value={r.url}
+            onFocus={(e) => e.currentTarget.select()}
+            aria-label="Link to share"
+            className="min-h-11 w-full rounded-sm border border-field-border bg-background px-3 text-sm"
+          />
+          {r.qr && (
+            <div className="flex items-center gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a data URL made on the server */}
+              <img src={r.qr} alt="QR code for the link" width={96} height={96} className="shrink-0 rounded-md border border-border bg-white p-1" />
+              <p className="text-sm leading-6 text-muted">
+                For flyers, slides, and signs.{" "}
+                <a href={r.qr} download={r.qrName ?? "qr-code.png"} className="font-medium text-brand underline-offset-4 hover:underline">
+                  Download QR code
+                </a>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {r.kind === "copy" && (
         <textarea
           readOnly
@@ -143,7 +174,33 @@ function DialogBody({ request: r, close }: { request: Request; close: () => void
         />
       )}
       <div className="mt-6 flex flex-wrap justify-end gap-2">
-        {r.kind === "copy" ? (
+        {r.kind === "share" ? (
+          <>
+            <a
+              href={r.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-muted hover:text-foreground"
+            >
+              Open page ↗
+            </a>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(r.url);
+                  setCopied(true);
+                } catch {
+                  // Blocked: the link above is ready to select and copy by hand.
+                }
+              }}
+            >
+              {copied ? "Copied" : "Copy link"}
+            </Button>
+            <Button type="submit">Done</Button>
+          </>
+        ) : r.kind === "copy" ? (
           <>
             <Button
               type="button"

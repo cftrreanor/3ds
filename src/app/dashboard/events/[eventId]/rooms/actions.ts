@@ -3,6 +3,7 @@
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
+import { eventForShare, shareLink } from "@/lib/share";
 import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, pause, sendEmail } from "@/lib/email";
@@ -150,9 +151,15 @@ export async function setRoomSchedulePosted(eventId: string, posted: boolean): P
   let sent = 0;
   if (posted) sent = await emailItineraries(eventId, null, "posted");
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  const event = posted ? await eventForShare(eventId) : null;
+  if (!event) return { ok: true, message: posted ? `Posted. Emailing ${sent} director${sent === 1 ? "" : "s"} their group's schedule.` : "The schedule is hidden again." };
   return {
     ok: true,
-    message: posted ? `Posted. Emailing ${sent} director${sent === 1 ? "" : "s"} their group's schedule.` : "The schedule is hidden again.",
+    share: await shareLink(
+      "Your schedule is posted",
+      `/e/${event.slug}`,
+      `We're emailing ${sent} director${sent === 1 ? "" : "s"} their group's schedule. Everyone else can see it on your public page.`,
+    ),
   };
 }
 

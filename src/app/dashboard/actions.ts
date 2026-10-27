@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
+import { eventForShare, shareLink } from "@/lib/share";
 import { requireUser } from "@/lib/auth";
 import { emailMovedMeetings } from "@/app/e/[slug]/book/data";
 import { getOrigin } from "@/lib/data";
@@ -312,7 +313,16 @@ export async function setVolunteerSignupOpen(eventId: string, open: boolean): Pr
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "Only the event's host can open or close signups." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true };
+  const event = open ? await eventForShare(eventId) : null;
+  if (!event) return { ok: true };
+  return {
+    ok: true,
+    share: await shareLink(
+      "Volunteer sign-up is open",
+      `/e/${event.slug}/volunteer`,
+      "Send this link to your volunteers, or put the QR code on a flyer. They pick a shift and sign up.",
+    ),
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, use, useActionState, useEffect, useRef, useState, startTransition, type ReactNode } from "react";
-import { confirmDialog, confirmFromText } from "@/components/confirm-dialog";
+import { confirmDialog, confirmFromText, shareDialog } from "@/components/confirm-dialog";
 import type { ActionState } from "@/lib/action-state";
 import { toast } from "./toaster";
 import { FormMessage } from "./ui";
@@ -63,7 +63,9 @@ export function ActionForm({
   useEffect(() => {
     if (state.ok) {
       if (resetOnSuccess) ref.current?.reset();
-      if (state.message) toast(state.message);
+      // Something went public: show its link to share, not just a toast.
+      if (state.share) shareDialog(state.share);
+      else if (state.message) toast(state.message);
       onSuccess?.();
       if (resetOnSuccess && ref.current) onEditRef.current?.(ref.current);
     }
