@@ -71,11 +71,13 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
-  const SECTIONS = ["details", "files", "team", "emails"] as const;
-  type Section = (typeof SECTIONS)[number];
+  const ALL_SECTIONS = ["details", "files", "team", "emails"] as const;
+  type Section = (typeof ALL_SECTIONS)[number];
+  // Conferences and meetings share no maps or documents: their booking pages and emails have no place for them.
+  const SECTIONS = ALL_SECTIONS.filter((x) => x !== "files" || !hasConferences(event.event_type));
   const fromStep: Record<string, Section> = { files: "files", kind: "details", replies: "emails", notifications: "emails" };
-  const section: Section =
-    SECTIONS.find((x) => x === sectionParam) ?? (typeof step === "string" ? fromStep[step] : undefined) ?? "details";
+  const asked = ALL_SECTIONS.find((x) => x === sectionParam) ?? (typeof step === "string" ? fromStep[step] : undefined);
+  const section: Section = asked && SECTIONS.includes(asked) ? asked : "details";
   // The account's logo for volunteer badges lives with the other uploads, here.
   const badgesHere = !hasConferences(event.event_type);
   const askChildName = hasConferences(event.event_type) ? await asksChildName(supabase, eventId) : true;
@@ -188,7 +190,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const base = `/dashboard/events/${eventId}/edit`;
   const sections: SettingsSection[] = [
     { id: "details", label: "Event details", done: true, status: eventTypeLabel(event.event_type) },
-    { id: "files", label: "Maps & documents", done: files.length > 0, status: files.length ? `${files.length} ${files.length === 1 ? "file" : "files"}` : "Optional" },
+    ...(conference ? [] : [{ id: "files", label: "Maps & documents", done: files.length > 0, status: files.length ? `${files.length} ${files.length === 1 ? "file" : "files"}` : "Optional" }]),
     { id: "team", label: "Team setup", done: teamCount > 0, status: teamCount ? `${teamCount} ${teamCount === 1 ? "person" : "people"}` : "Optional" },
     { id: "emails", label: "Email settings", done: Boolean(replyRow || notifyRow), status: replyRow || notifyRow ? "Saved" : "Default" },
   ];
