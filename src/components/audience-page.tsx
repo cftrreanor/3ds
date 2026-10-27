@@ -77,7 +77,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
         </Link>
         <JumpLink
           href="#join"
-          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-header transition hover:opacity-90 sm:px-5 sm:text-sm"
+          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-header transition hover:brightness-90 sm:px-5 sm:text-sm"
         >
           {CTA}
         </JumpLink>
@@ -93,7 +93,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
             <h1 className="mt-6 max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">{a.headline}</h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">{a.intro}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <JumpLink href="#join" className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
+              <JumpLink href="#join" className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:brightness-90">
                 {CTA}
               </JumpLink>
               <JumpLink href="#how" className="rounded-md px-5 py-3 font-medium text-white ring-1 ring-white/30 hover:bg-white/10">
@@ -187,7 +187,7 @@ export function AudiencePage({ audience: a }: { audience: Audience }) {
             <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Every detail organized. Every organizer supported.</h2>
             <p className="mx-auto mt-4 max-w-xl text-on-dark-mute">Free until {PILOT_END_LABEL}. Spots are limited.</p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <JumpLink href="#join" className="inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
+              <JumpLink href="#join" className="inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:brightness-90">
                 {CTA}
               </JumpLink>
               <a

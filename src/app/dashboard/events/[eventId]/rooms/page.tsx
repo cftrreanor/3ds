@@ -103,7 +103,7 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
           </p>
           <Link
             href={`/dashboard/events/${eventId}/event-day`}
-            className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover"
           >
             Open event day
           </Link>

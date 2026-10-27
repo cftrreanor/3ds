@@ -134,7 +134,7 @@ export default function MeetingsPage() {
         </Link>
         <JumpLink
           href={START}
-          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-header transition hover:opacity-90 sm:px-5 sm:text-sm"
+          className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-violet px-3 text-[13px] font-semibold text-header transition hover:brightness-90 sm:px-5 sm:text-sm"
         >
           Join the pilot
         </JumpLink>
@@ -153,7 +153,7 @@ export default function MeetingsPage() {
               back-and-forth emails, and no double bookings.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <JumpLink href={START} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:opacity-90">
+              <JumpLink href={START} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:brightness-90">
                 Join the pilot
               </JumpLink>
             </div>
@@ -204,7 +204,7 @@ export default function MeetingsPage() {
         <section className="bg-teal-deep text-white">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
             <h2 className="mx-auto max-w-2xl text-3xl font-medium leading-tight sm:text-4xl">Every detail organized. Every organizer supported.</h2>
-            <JumpLink href={START} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:opacity-90">
+            <JumpLink href={START} className="mt-8 inline-flex rounded-md bg-white px-6 py-3 font-semibold text-teal-deep hover:brightness-90">
               Join the pilot
             </JumpLink>
           </div>

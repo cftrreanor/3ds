@@ -115,7 +115,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
                     </p>
                     <Link
                       href={`/login?next=${encodeURIComponent(`/invite/${token}`)}&email=${encodeURIComponent(invite.email)}`}
-                      className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+                      className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover"
                     >
                       Sign in to accept
                     </Link>

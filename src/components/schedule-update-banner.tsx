@@ -42,7 +42,7 @@ export function ScheduleUpdateBanner({ slug, version }: { slug: string; version:
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="inline-flex min-h-10 shrink-0 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:opacity-90"
+          className="inline-flex min-h-10 shrink-0 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover"
         >
           Refresh now
         </button>

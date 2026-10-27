@@ -25,7 +25,7 @@ import {
 import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
-import { deleteEvent, setEventPublished } from "../../actions";
+import { deleteEvent, publishAndOpen, setEventPublished } from "../../actions";
 import { DeleteEventButton } from "./delete-event";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
@@ -72,7 +72,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   // Back from demo mode (demo-actions backToMe).
   const query = await searchParams;
   const demoEnded = query.demo === "ended";
-  // Just published from Conference Setup.
+  // Just published (here or from a setup page).
   const justPublished = query.published === "1";
   const user = await requireUser();
   const supabase = await createClient();
@@ -783,7 +783,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             : undefined
       }
     >
-      {justPublished && <SuccessToast message="Published. Your booking page is live; share its link below." />}
+      {justPublished && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; share its link below.`} />}
       {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">
@@ -1085,7 +1085,7 @@ function PublishPanel({ facts, remaining }: { facts: SetupFacts; remaining: Retu
         </div>
       ) : (
         <div className="mt-5">
-          <ActionButton action={setEventPublished.bind(null, facts.eventId, true)} variant="go" pendingText="Publishing…">
+          <ActionButton action={publishAndOpen.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
             Publish event
           </ActionButton>
         </div>

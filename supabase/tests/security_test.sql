@@ -6245,6 +6245,38 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- One-tap host invitations and video passcodes (20261229000000_one_tap_host_invites_and_passcode.sql)
+-- ---------------------------------------------------------------------------
+insert into public.host_invitations (email, email_token, sent_at) values ('onetap@example.com', gen_random_uuid(), now());
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  assert (select count(*) from public.host_invitations where email = 'onetap@example.com') = 1, 'an admin still reads host invitations';
+  begin
+    perform email_token from public.host_invitations where email = 'onetap@example.com';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'but not the secret sign-in key from the invitation email';
+end $$;
+reset role;
+delete from public.host_invitations where email = 'onetap@example.com';
+do $$
+declare ok boolean := false;
+begin
+  assert has_column_privilege('authenticated', 'public.conference_settings', 'video_passcode', 'UPDATE'), 'hosts can save a meeting passcode';
+  assert not has_column_privilege('anon', 'public.conference_settings', 'video_passcode', 'SELECT'), 'the public can''t read it';
+  begin
+    insert into public.conference_settings (event_id, video_passcode)
+    select id, repeat('x', 51) from public.events where event_type in ('conference', 'meeting') limit 1;
+    if not found then ok := true; raise notice 'no conference left to test the passcode length on'; end if;
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'a passcode is at most 50 characters';
+end $$;
+
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'

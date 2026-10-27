@@ -99,7 +99,7 @@ export function SignupForm({
         <div className="flex flex-wrap gap-3">
           <Link
             href={`/my?as=${encodeURIComponent(state.confirmed.email)}`}
-            className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:opacity-90"
+            className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover"
           >
             View my shifts
           </Link>

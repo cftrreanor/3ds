@@ -115,8 +115,8 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
     starting: {
       subject: "Your {{brand}} host invitation",
       heading: "You're invited to host on {{brand}}",
-      body: "Hi {{first_name}}. Your pilot spot is ready. Sign in with this email address ({{email}}) to set up your organization and create your first event.\n\nThere's no password to remember: we'll email you a sign-in link. The invitation works for 30 days.",
-      button_label: "Set up my organization",
+      body: "Hi {{first_name}}. Your pilot spot is ready. Tap the button below to set up your account and create your first event.\n\nThere's no password to remember: the button signs you in as {{email}}. It works for 7 days. After that, sign in with this email address and we'll email you a sign-in link.",
+      button_label: "Set up my account",
     },
     locked: [],
   },

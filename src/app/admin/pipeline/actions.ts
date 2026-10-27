@@ -7,6 +7,8 @@ import { brand } from "@/lib/brand";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, emailLogoUrl, sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-format";
+import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
+import { hostWelcomeLink } from "@/lib/host-invite-link";
 import { invitePackageLabel, inviteStatusLabel, isInvitePackage, isInviteStatus } from "@/lib/invitation-plan";
 import { fillTemplate, firstName, siteLinks } from "@/lib/merge-fields";
 import { normalizePhone } from "@/lib/phone";
@@ -83,6 +85,8 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
   if (!sendNow) return { ok: true, message: `Saved: ${plan}. No email was sent.` };
 
   const origin = await getOrigin();
+  // The email's button signs them straight in (a fresh link each send); before the update, normal sign-in.
+  const welcome = await hostWelcomeLink(origin, email);
   let message: { subject: string; html: string; text: string; body?: string };
   if (templateId) {
     const { data: template } = await createAdminClient().from("email_templates").select("subject, body").eq("id", templateId).maybeSingle();
@@ -95,11 +99,16 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
       free_until: formatDate(freeUntil, { weekday: undefined }),
       my_name: await myName(user.id),
       ...siteLinks(origin, email),
+      ...(welcome && {
+        login_url: welcome(),
+        new_event_url: welcome("/dashboard/events/new"),
+        account_url: welcome("/dashboard/account"),
+      }),
     };
     const body = fillTemplate(template.body, vars).text;
     message = { subject: fillTemplate(template.subject, vars).text, body, ...renderEmail(body, { logoUrl: emailLogoUrl(origin) }) };
   } else {
-    const url = `${origin}/login?${new URLSearchParams({ next: "/dashboard", email })}`;
+    const url = welcome?.() ?? `${origin}/login?${new URLSearchParams({ next: "/dashboard", email })}`;
     const custom = customWords("host_invitation", await loadSystemEmail("host_invitation"), {
       first_name: firstName(name),
       name,
@@ -113,10 +122,10 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
       ...emailLayout({
         heading: custom?.heading || `You're invited to host on ${brand.name}`,
         paragraphs: custom?.paragraphs ?? [
-          `Hi ${firstName(name)}. Your pilot spot is ready. Sign in with this email address (${email}) to set up your organization and create your first event.`,
-          "There's no password to remember: we'll email you a sign-in link. The invitation works for 30 days.",
+          `Hi ${firstName(name)}. Your pilot spot is ready. Tap the button below to set up your account and create your first event.`,
+          `There's no password to remember: the button signs you in as ${email}. It works for ${EMAIL_LINK_DAYS} days. After that, sign in with this email address and we'll email you a sign-in link.`,
         ],
-        button: { label: custom?.button || "Set up my organization", url },
+        button: { label: custom?.button || "Set up my account", url },
         footer: `Questions? Reply to this email or write to ${brand.supportEmail}.`,
       }),
     };

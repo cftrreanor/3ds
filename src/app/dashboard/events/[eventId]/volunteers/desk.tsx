@@ -524,7 +524,7 @@ function VolunteerRow({
             aria-pressed={v.checkedIn}
             aria-label={v.checkedIn ? `${v.name} is checked in. Tap to undo.` : `Check in ${v.name}`}
             className={`flex min-h-12 min-w-28 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
-              v.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:opacity-90"
+              v.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:bg-brand-hover"
             }`}
           >
             {v.checkedIn ? (
