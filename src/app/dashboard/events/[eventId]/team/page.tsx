@@ -3,7 +3,7 @@ import { getEventAccess } from "@/lib/data";
 
 /**
  * The team now lives where it's set up: co-hosts and Volunteer Leads in Edit
- * details → Team setup, and Sign-up Leads in Volunteer Setup. Old links land
+ * details → Team setup, and Coordinators in Volunteer Setup. Old links land
  * in the right place.
  */
 export default async function TeamPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/team">) {

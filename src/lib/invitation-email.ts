@@ -22,11 +22,11 @@ export type InvitationDetails = {
   inviter_name: string | null;
 };
 
-/** A different email for co-hosts, Volunteer Leads and Sign-up Leads, with a one-tap accept link. */
+/** A different email for co-hosts, Volunteer Leads and Coordinators, with a one-tap accept link. */
 /** `bands`: the event is a band contest (a volunteer event has no bands). */
 /** `leadTitle`: what the person leading a sign-up is called. */
 /** `saved`: an admin's wording for this kind of invitation (invitationEmailKey), if any. */
-export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true, leadTitle = "Sign-up Lead", saved: SystemEmailText | null = null) {
+export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true, leadTitle = "Coordinator", saved: SystemEmailText | null = null) {
   const who = inv.inviter_name ? `${inv.inviter_name} from ${inv.organization}` : inv.organization;
   const when = `${formatDateRange(inv.starts_on, inv.ends_on)}${inv.venue_name ? ` at ${inv.venue_name}` : ""}`;
   const station = inv.station_name ?? "a sign-up";

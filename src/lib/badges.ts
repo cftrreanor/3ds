@@ -36,7 +36,7 @@ type StaffRow = { user_id: string; role: string; profiles: { full_name: string |
 
 /**
  * Everyone who gets a badge: each volunteer with their whole schedule, and
- * each Sign-up Lead (marked "Station Lead" only on the sign-ups they lead,
+ * each Coordinator (marked "Station Lead" only on the sign-ups they lead,
  * whether or not they also signed up for shifts). Sorted by last name.
  * Filters pick who gets a badge (a station or a day); a badge always shows
  * the person's full schedule.
@@ -120,7 +120,7 @@ export async function loadBadges(
     for (const stationId of led) if (!rows.some((r) => r.lead && shifts.get(r.key)?.station_id === stationId)) rows.push(leadRow(stationId));
     badges.push({ key: id, ...badgeName(p.name, p.minor), rows: rows.sort((x, y) => Number(!!x.sort) - Number(!!y.sort) || x.sort.localeCompare(y.sort)) });
   }
-  // Sign-up Leads who didn't sign up for a shift: their sign-ups.
+  // Coordinators who didn't sign up for a shift: their sign-ups.
   for (const [key, l] of leadsByEmail) {
     if (leadsWithBadge.has(key) || !l.name) continue;
     if (filters.station && !l.stations.has(filters.station)) continue;

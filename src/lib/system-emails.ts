@@ -156,12 +156,12 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
   {
     key: "team_invite_section_lead",
     group: "Team invitations",
-    name: "Sign-up Lead invitation",
+    name: "Coordinator invitation",
     description: "Goes to someone a host asks to lead one sign-up.",
     fields: [
       ...inviteFields,
       { key: "station", label: "Their sign-up", sample: "Concessions" },
-      { key: "lead_title", label: "Sign-up Lead", sample: "Sign-up Lead" },
+      { key: "lead_title", label: "Coordinator", sample: "Coordinator" },
     ],
     required: [],
     starting: {

@@ -48,12 +48,12 @@ Access is enforced by the database itself, not just by the app's screens, and ev
 automated test.
 
 - **Families' and children's details (visitor days):** the event's Hosts, Co-hosts, and
-  Volunteer Leads (who run the door desk), and Sign-up Leads on event day only.
+  Volunteer Leads (who run the door desk), and Coordinators on event day only.
 - **Conference bookings, parents' notes, and the number to call for phone calls:** only the teacher who set up the conference and the hosts and co-hosts on their account (20261228000000_reschedule_meetings.sql), who can reschedule or cancel a meeting. Hosts can also send booking emails to up to five other addresses they choose (20261230000000_notification_recipients.sql, Edit details → Notifications); when they do, the family's privacy note and booking emails say their details go to the people the teacher chose to notify. The same setting can send a daily summary of volunteer sign-ups and cancellations (names and shifts) to the hosts, Volunteer Leads, or addresses they pick. A cancelled sign-up is kept for that summary (the volunteer's name, the shift, and when) in volunteer_dropped_shifts, which only the server can read, and deleted after 7 days. Cancelled items to bring are noted there the same way.
 - **Items to bring (20261231000000_items_to_bring.sql):** when a volunteer signs up to bring something, the public sign-up page shows their first name and their short note (like "Brownies") next to the item, so others can see what's covered; the sign-up form says so. Their full name, email, and phone are seen only by the event's hosts and Volunteer Leads. Item sign-ups are deleted with the volunteer, 10 days after the event.
   Other hosts on the same account see how many times are booked, not who booked
   (database update `20261209000000_conference_teacher_only.sql`).
-- **Volunteers' phone numbers:** Hosts, Co-hosts, and Volunteer Leads; Sign-up Leads only on
+- **Volunteers' phone numbers:** Hosts, Co-hosts, and Volunteer Leads; Coordinators only on
   event day.
 - **Visiting directors:** see their own registration, never other schools' contact details.
 - **The public:** sees only what the organizer publishes, such as the schedule. Families never

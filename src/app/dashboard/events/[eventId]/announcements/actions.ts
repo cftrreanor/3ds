@@ -23,7 +23,7 @@ const refresh = (eventId: string, slug?: string) => {
 
 /**
  * Post a day-of banner. The database checks who may post to whom: hosts to
- * anyone, Volunteer Leads to volunteers and Sign-up Leads.
+ * anyone, Volunteer Leads to volunteers and Coordinators.
  */
 export async function postAnnouncement(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
@@ -55,7 +55,7 @@ export async function postAnnouncement(eventId: string, _prev: ActionState, form
     .from("announcements")
     .insert({ event_id: eventId, sender_id: user.id, body, priority, audiences, ends_at: endsAt });
   if (error) {
-    if (error.code === "42501") return { error: "Volunteer Leads can post to volunteers and Sign-up Leads only. Ask a host to post to directors or the public." };
+    if (error.code === "42501") return { error: "Volunteer Leads can post to volunteers and Coordinators only. Ask a host to post to directors or the public." };
     return { error: friendlyDbError(error) };
   }
   refresh(eventId, event.slug);
@@ -79,7 +79,7 @@ export async function postAnnouncement(eventId: string, _prev: ActionState, form
 /**
  * Everyone an emergency goes to by email: directors' and contact addresses
  * (directors), signed-up volunteers who gave an email (volunteers), and the
- * event team (Volunteer Leads and Sign-up Leads). The public has no list. Read
+ * event team (Volunteer Leads and Coordinators). The public has no list. Read
  * with the admin client, only after the database accepted the post above.
  */
 async function emergencyRecipients(eventId: string, audiences: string[]): Promise<string[]> {

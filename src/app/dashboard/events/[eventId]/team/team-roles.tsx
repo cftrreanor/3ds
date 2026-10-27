@@ -39,7 +39,7 @@ const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 /**
  * The team, one numbered setup step per role (see "Setup pages" in
  * docs/DESIGN.md): co-hosts and Volunteer Leads in Edit details → Team, and
- * Sign-up Leads in Volunteer Setup, next to the sign-ups they lead.
+ * Coordinators in Volunteer Setup, next to the sign-ups they lead.
  */
 export async function TeamRoles({
   eventId,
@@ -53,7 +53,7 @@ export async function TeamRoles({
   open?: string | null;
 }) {
   const access = await getEventAccess(eventId);
-  // Only hosts manage co-hosts and Volunteer Leads; Volunteer Leads manage Sign-up Leads.
+  // Only hosts manage co-hosts and Volunteer Leads; Volunteer Leads manage Coordinators.
   const roles = asked.filter((r) => (access.isHost ? true : access.canManage && r === "section-leads"));
   if (!roles.length) return null;
   const user = await requireUser();
@@ -114,7 +114,7 @@ export async function TeamRoles({
     const removed = removals.filter(
       (r) => r.role === tabRole && !current.has(r.user_id) && !pending.some((inv) => inv.email.toLowerCase() === r.email.toLowerCase()),
     );
-    // Volunteer Leads manage Sign-up Leads; hosts manage everyone.
+    // Volunteer Leads manage Coordinators; hosts manage everyone.
     const canInvite = access.isHost || tab === "section-leads";
     const roleName = tab === "hosts" ? "co-host" : tab === "volunteer-leads" ? "Volunteer Lead" : lead.one;
     return { pending, removed, canInvite, roleName };
@@ -183,7 +183,7 @@ export async function TeamRoles({
                     <h2 className="text-sm font-semibold">Current members</h2>
                     <p className="mt-1 text-sm leading-6 text-muted">
                       Volunteer Leads run volunteers with you: sign-ups, shifts, volunteers, and check-in. They can invite
-                      Sign-up Leads.
+                      Coordinators.
                     </p>
                     {directors.length > 0 ? (
                       <ul className="mt-3 space-y-2">

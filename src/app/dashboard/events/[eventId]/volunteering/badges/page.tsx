@@ -327,7 +327,7 @@ function ScheduleRow({ row }: { row: BadgeRow }) {
           className="ml-1 inline-block rounded-sm bg-[#1a1a1a] px-[0.05in] align-[1px] text-[7pt] font-bold tracking-wide text-white"
           style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
         >
-          SIGN-UP LEAD
+          COORDINATOR
         </span>
       )}
     </li>

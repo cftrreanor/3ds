@@ -17,7 +17,7 @@ const ROLE = {
     blurb: "You'll set up shifts, see every volunteer's contact details, and check people in on the day.",
   },
   section_lead: {
-    label: "Sign-up Lead",
+    label: "Coordinator",
     blurb: "You'll see who's assigned to your sign-up. Their phone numbers unlock on event day.",
   },
 } as const;

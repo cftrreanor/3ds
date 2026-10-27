@@ -179,7 +179,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       also: [sh.title, `${station} ${sh.title}`, `${station} ${time}`, `${sh.title} ${time}`, `${station} ${day}${time}`],
     };
   });
-  // Assigning leads waits until the team has Sign-up Leads.
+  // Assigning leads waits until the team has Coordinators.
   const hasSectionLeads = staffRows.some((r) => r.role === "section_lead");
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
 
@@ -418,7 +418,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         </div>
       </section>
 
-      {/* Sign-up Leads run one sign-up each, so they're invited here, next to the stations. */}
+      {/* Coordinators run one sign-up each, so they're invited here, next to the stations. */}
       <section className="mt-10" aria-label={leadWords(event.event_type).many}>
         <TeamRoles eventId={eventId} roles={["section-leads"]} />
       </section>

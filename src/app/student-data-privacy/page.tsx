@@ -161,10 +161,10 @@ export default function StudentDataPrivacyPage() {
           <ul className="mt-4 list-disc space-y-2 pl-5 leading-7">
             <li>
               Children&apos;s and families&apos; details from visitor days: the event&apos;s Hosts, Co-hosts, and Volunteer Leads, who run the
-              door, and Sign-up Leads on event day only
+              door, and Coordinators on event day only
             </li>
             <li>Conference bookings, parents&apos; notes, and the number to call for phone calls: only the teacher who set up the conference and the hosts and co-hosts on their account, who can reschedule or cancel a meeting.</li>
-            <li>Volunteers&apos; phone numbers: Hosts, Co-hosts, and Volunteer Leads, and Sign-up Leads on event day only</li>
+            <li>Volunteers&apos; phone numbers: Hosts, Co-hosts, and Volunteer Leads, and Coordinators on event day only</li>
             <li>
               An organizer&apos;s volunteer history (who volunteered and how many shifts they kept): that organizer&apos;s Hosts, Co-hosts, and
               Volunteer Leads only, never other organizers

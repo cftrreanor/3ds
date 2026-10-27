@@ -37,7 +37,7 @@ export type LeadStation = {
 };
 
 /**
- * A Sign-up Lead's stations, one tab each, with their volunteers grouped by
+ * A Coordinator's stations, one tab each, with their volunteers grouped by
  * shift. On event day, phone numbers show along with who has arrived (the
  * volunteer desk checks people in, where they get shirts and lanyards).
  */

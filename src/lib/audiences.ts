@@ -138,7 +138,7 @@ export const audiences = {
     ],
     privacy: [
       "Only your organizers and each band's own director see that band's contact details.",
-      "Sign-up Leads see each band's name, school, and progress. Volunteer Leads also see headcounts and vehicles.",
+      "Coordinators see each band's name, school, and progress. Volunteer Leads also see headcounts and vehicles.",
       "Directors' personal details are removed 2 years after the contest. The band, school, and headcounts stay for your records.",
       "Volunteers' phone numbers are deleted 10 days after the contest.",
     ],
@@ -341,7 +341,7 @@ export const audiences = {
         title: "Volunteers for every booth",
         body: "Share one link or QR code, and parents pick a sign-up and a shift on their phone without making an account. They get a confirmation, a calendar invite, and a reminder the day before.",
         points: [
-          "Give each volunteer sign-up a zone, and a Sign-up Lead to run it",
+          "Give each volunteer sign-up a zone, and a Coordinator to run it",
           "Parents can sign up with their student under one sign-up, and sign-ups like parking can be adults only",
           "Already have volunteers lined up in a spreadsheet? Import them onto their shifts",
           "Print name badges that carry your logo",
@@ -408,7 +408,7 @@ export const audiences = {
       "Partners' contact details never appear on the public page and are removed 15 months after the event.",
       "Volunteers' phone numbers are deleted 10 days after the event.",
       "Student volunteers under 18 are stored by first name and last initial, with their parent's contact details.",
-      "Sign-up Leads see their volunteers' phone numbers only on event day.",
+      "Coordinators see their volunteers' phone numbers only on event day.",
     ],
     faqs: [
       {
@@ -510,9 +510,9 @@ export const audiences = {
       },
       {
         title: "Leads for every sign-up",
-        body: "Invite Volunteer Leads to run the desk and Sign-up Leads to run a sign-up. Each sees what their role needs, and nothing they don't.",
+        body: "Invite Volunteer Leads to run the desk and Coordinators to run a sign-up. Each sees what their role needs, and nothing they don't.",
         points: [
-          "Sign-up Leads see their volunteers' phone numbers only on event day",
+          "Coordinators see their volunteers' phone numbers only on event day",
           "Volunteers see their lead's contact details, so they know who to find",
         ],
       },
@@ -540,7 +540,7 @@ export const audiences = {
     privacy: [
       "Volunteers never make an account, and their phone numbers are deleted 10 days after the event.",
       "Under-18 helpers are stored by first name and last initial, with a guardian's contact details.",
-      "Sign-up Leads see their volunteers' contact details only on event day.",
+      "Coordinators see their volunteers' contact details only on event day.",
       "No ads, no spam, and emails used only for your event",
     ],
     faqs: [
@@ -671,7 +671,7 @@ export const audiences = {
       },
     ],
     privacy: [
-      "Only your event team sees children's names, teachers, and grades, and Sign-up Leads see them only on event day.",
+      "Only your event team sees children's names, teachers, and grades, and Coordinators see them only on event day.",
       "Every registration, including children's details, is deleted 30 days after the event.",
       "Parents never make an account.",
       "No ads, no spam, and emails used only for your event",
@@ -691,7 +691,7 @@ export const audiences = {
       },
       {
         q: "Who can see children's names?",
-        a: "Only your event team. Sign-up Leads see them only on the day of the event, and every registration is deleted 30 days after the event.",
+        a: "Only your event team. Coordinators see them only on the day of the event, and every registration is deleted 30 days after the event.",
       },
       {
         q: "Can walk-ins still come?",

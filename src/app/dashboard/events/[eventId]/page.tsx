@@ -66,7 +66,7 @@ type Invitation = {
   expires_at: string;
 };
 
-const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Sign-up Lead" } as const;
+const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator" } as const;
 
 export default async function EventPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]">) {
   const { eventId } = await params;
@@ -190,7 +190,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
 
-  // Sign-up Leads: their sign-ups (volunteers by shift) are on the Contest day page.
+  // Coordinators: their sign-ups (volunteers by shift) are on the Contest day page.
   const myStations = stations.filter((s) => s.lead_ids.includes(user.id));
   const myVolunteers = (shifts ?? [])
     .filter((sh) => myStations.some((st) => st.id === sh.station_id))
@@ -271,7 +271,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, other_adults, children").eq("event_id", eventId)).data ?? [])
     : [];
   const parentNumbers = parentStats(parentRows);
-  // Sign-up Leads see children's details (and work the door) on event day only.
+  // Coordinators see children's details (and work the door) on event day only.
   const doorLocked = parentsHere && !access.canManage && !isEventDay;
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
   // The emptiest shifts first: where to send the next volunteers.
@@ -913,7 +913,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 ) : (
                   <div className="mt-2 space-y-2">
                     <p>
-                      Tap a role and this browser signs in as a demo person in that role: a co-host, a Volunteer Lead, a Sign-up Lead (of
+                      Tap a role and this browser signs in as a demo person in that role: a co-host, a Volunteer Lead, a Coordinator (of
                       the first stations),{groupsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift,
                       or a parent looking at the public page. A bar at the top switches roles; <strong className="text-foreground">Back to me</strong>{" "}
                       takes the demo people and sample data back off and returns you here, still signed in.
@@ -1162,7 +1162,7 @@ function TeamStats({
             <dt className="text-xs text-muted">{c.label}</dt>
             <dd className="text-xl font-semibold tabular-nums">
               {c.value}
-              {/* The whole tile opens where that role is set up (Team setup, or Volunteer Setup for Sign-up Leads). */}
+              {/* The whole tile opens where that role is set up (Team setup, or Volunteer Setup for Coordinators). */}
               <Link href={href(c.tab)} className="absolute inset-0 rounded-lg" aria-label={`${c.label}: ${c.value}`} />
             </dd>
           </div>

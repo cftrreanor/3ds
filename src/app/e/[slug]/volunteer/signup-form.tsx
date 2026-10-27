@@ -41,7 +41,7 @@ export function SignupForm({
   action,
   stations,
   disabled,
-  lead = "Sign-up Lead",
+  lead = "Coordinator",
 }: {
   action: (prev: SignupState, formData: FormData) => Promise<SignupState>;
   stations: PublicStation[];

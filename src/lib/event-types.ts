@@ -30,7 +30,7 @@ export const EVENT_TYPES = [
     value: "fair",
     label: "School fair or fundraiser",
     icon: "🎪",
-    blurb: "Carnivals, fall festivals, and fundraisers: your booths and community partners by zone, a quick partner check-in on the day, volunteer shifts with Sign-up Leads, and a public \u201cWhat's at the event\u201d page.",
+    blurb: "Carnivals, fall festivals, and fundraisers: your booths and community partners by zone, a quick partner check-in on the day, volunteer shifts with Coordinators, and a public \u201cWhat's at the event\u201d page.",
   },
   {
     value: "conference",
@@ -116,7 +116,7 @@ export const hasBooths = (type: string | null | undefined) => type === "fair";
 /** What the person who runs one sign-up is called; the same for every event type now. */
 export function leadWords(type?: string | null) {
   void type;
-  return { one: "Sign-up Lead", many: "Sign-up Leads" };
+  return { one: "Coordinator", many: "Coordinators" };
 }
 
 /** Zones a fair's booths and stations usually fall into (any name works). */

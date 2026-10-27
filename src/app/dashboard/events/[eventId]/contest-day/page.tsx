@@ -101,7 +101,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const allStations = (pathData ?? []) as unknown as StationRow[];
   const path = sortStations(allStations.filter((s) => s.checkpoint_kind));
   const leads = (id: string) => (myLeads ?? []).some((l) => l.station_id === id);
-  // Hosts and Volunteer Leads work every check-in station; Sign-up Leads the
+  // Hosts and Volunteer Leads work every check-in station; Coordinators the
   // ones they lead, plus their other stations (like Concessions) for their volunteers.
   // A volunteer event has no band path: just the stations someone leads
   // (hosts and Volunteer Leads run the day from the check-in desk).
@@ -179,7 +179,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
     </>
   );
 
-  // Sign-up Leads: the volunteers on their sign-up's shifts. A check-in
+  // Coordinators: the volunteers on their sign-up's shifts. A check-in
   // station has a Bands / Volunteers switch; any other station is just volunteers.
   const volunteersView = other ?? (!access.canManage && view === "volunteers" ? allStations.find((s) => s.id === station?.id) : undefined);
   const viewSwitch = (current: "bands" | "volunteers") =>

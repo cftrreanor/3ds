@@ -22,7 +22,7 @@ const TYPE = { routine: "Announcement", schedule: "Schedule change", emergency: 
 /**
  * Day-of banners for an event: post one (a band switch, a delay, an emergency)
  * and it shows at the top of the pages of the people it's for.
- * Hosts post to anyone; Volunteer Leads to volunteers and Sign-up Leads.
+ * Hosts post to anyone; Volunteer Leads to volunteers and Coordinators.
  * Laid out as numbered steps (see "Setup pages" in docs/DESIGN.md).
  */
 export default async function AnnouncementsPage({ params }: PageProps<"/dashboard/events/[eventId]/announcements">) {
@@ -54,7 +54,7 @@ export default async function AnnouncementsPage({ params }: PageProps<"/dashboar
       ? [{ value: "band_directors", label: words.one === "group" ? "Group leads" : "Directors", where: `their ${words.one} page`, hostOnly: true }]
       : []),
     { value: "volunteers", label: "Volunteers", where: "their My shifts page", hostOnly: false },
-    { value: "section_leads", label: "Event team", where: "Volunteer Leads' and Sign-up Leads' event pages", hostOnly: false },
+    { value: "section_leads", label: "Event team", where: "Volunteer Leads' and Coordinators' event pages", hostOnly: false },
   ];
   const audiences = all.filter((a) => access.isHost || !a.hostOnly);
   const label = (v: string) => all.find((a) => a.value === v)?.label ?? v;

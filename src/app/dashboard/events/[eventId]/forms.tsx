@@ -36,7 +36,7 @@ export function StationForm({
   bands = true,
   locations = [],
   zones,
-  leadLabel = "Sign-up Leads",
+  leadLabel = "Coordinators",
   trackUnsaved,
 }: {
   action: Action;
@@ -77,7 +77,7 @@ export function StationForm({
       {bands && (
       <Field
         label="Check-in stop?"
-        hint="Check-in stops are the places a band goes through on contest day, in the order you set. Their Sign-up Leads tap bands in."
+        hint="Check-in stops are the places a band goes through on contest day, in the order you set. Their Coordinators tap bands in."
       >
         <Select name="checkpointKind" value={kind} onChange={(e) => setKind(e.target.value)}>
           <option value="">No, a regular sign-up (concessions, hospitality…)</option>
@@ -148,7 +148,7 @@ export function StationForm({
           <p className="mt-1 text-sm text-muted">
             {leads.length
               ? "Pick one or more, so there's a backup if someone can't make it. Every lead sees this sign-up's volunteers; volunteers contact the first lead you added."
-              : "Invite Sign-up Leads in the Team card on the event page."}
+              : "Invite Coordinators in the Team card on the event page."}
           </p>
           {leads.length > 0 && (
             <div className="mt-2 space-y-1.5">
@@ -543,7 +543,7 @@ export function StationRow({
   leadNames: string[];
   leadIds: string[];
   leads: LeadOption[];
-  /** The team has Sign-up Leads (Sign-up Leads) to assign. */
+  /** The team has Coordinators to assign. */
   canAssign: boolean;
   leadWord: { one: string; many: string };
   setLeads: Action;

@@ -54,7 +54,7 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
   const job = (id: string, icon: DayIcon, label: string, short: string, hint: string, path: string) =>
     a.push({ id, icon, label, short, hint, href: `${base}${path}` });
 
-  // Sign-up Leads: one button per station they lead, named for the job there,
+  // Coordinators: one button per station they lead, named for the job there,
   // straight to that sign-up's tab. A station that isn't a check-in station
   // just shows its staffing.
   const stationJob = (st: LedStation) => {

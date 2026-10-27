@@ -181,7 +181,7 @@ const faqs = [
   },
   {
     q: "Can it run a school fair or PTO fundraiser?",
-    a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer sign-ups with Sign-up Leads, and share a public page of everything at the event that thanks your partners.",
+    a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer sign-ups with Coordinators, and share a public page of everything at the event that thanks your partners.",
   },
   {
     q: "Do volunteers, parents, or visiting directors have to pay or download an app?",
@@ -189,7 +189,7 @@ const faqs = [
   },
   {
     q: "How is student and family information handled?",
-    a: "Band contests collect headcounts, not student names. Children's names at school visitor events and conferences are deleted 30 days after the event, and volunteers' phone numbers 10 days after. Conference bookings are seen only by the teacher, and Sign-up Leads see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event. Our Student data privacy page has the full details.",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events and conferences are deleted 30 days after the event, and volunteers' phone numbers 10 days after. Conference bookings are seen only by the teacher, and Coordinators see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event. Our Student data privacy page has the full details.",
   },
   {
     q: "Who is it for?",

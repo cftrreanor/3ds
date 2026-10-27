@@ -377,7 +377,7 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
   const v = parsed.data;
   const kind = checkpointKind(formData);
   const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
-  if (!leadIds.success) return { error: "Something went wrong with the Sign-up Leads. Please try again." };
+  if (!leadIds.success) return { error: "Something went wrong with the Coordinators. Please try again." };
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -419,7 +419,7 @@ export async function updateStation(
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
   const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
-  if (!leadIds.success) return { error: "Something went wrong with the Sign-up Leads. Please try again." };
+  if (!leadIds.success) return { error: "Something went wrong with the Coordinators. Please try again." };
 
   const supabase = await createClient();
   // A station that becomes a check-in station goes to the end of the order; one that stops being one leaves it.
