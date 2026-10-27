@@ -1658,19 +1658,19 @@ reset role;
 -- Signing up with others, minors, and name-only walk-ups
 -- ---------------------------------------------------------------------------
 insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
-  ('30000000-0000-0000-0000-0000000000a1', '20000000-0000-0000-0000-00000000000a', 'Family Parking',
+  ('3a000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'Family Parking',
    now() + interval '11 days', now() + interval '11 days 2 hours', 3),
-  ('30000000-0000-0000-0000-0000000000a2', '20000000-0000-0000-0000-00000000000a', 'Tiny Parking',
+  ('3a000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-00000000000a', 'Tiny Parking',
    now() + interval '12 days', now() + interval '12 days 2 hours', 1);
 set role service_role;
 select public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Pat Pair', 'pat.pair@example.com', '+15125550170',
-       array['30000000-0000-0000-0000-0000000000a1']::uuid[], false,
+       array['3a000000-0000-0000-0000-000000000001']::uuid[], false,
        '[{"name": "Sam Pair"}, {"name": "Kid Pairson Junior", "minor": true}]'::jsonb) \g /dev/null
 do $$
 declare primary_id uuid;
 begin
   select id into primary_id from public.volunteers where email = 'pat.pair@example.com';
-  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-0000000000a1') = 3,
+  assert (select registered_count from public.shifts where id = '3a000000-0000-0000-0000-000000000001') = 3,
          'everyone in a signup takes a spot';
   assert (select count(*) from public.volunteers where contact_id = primary_id and phone = '+15125550170' and email is null) = 2,
          'the people added share the signer''s phone and have no email';
@@ -1678,21 +1678,21 @@ begin
          'a minor is stored as first name + last initial';
   begin
     perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Duo One', 'duo@example.com', '+15125550171',
-            array['30000000-0000-0000-0000-0000000000a2']::uuid[], false, '[{"name": "Duo Two"}]'::jsonb);
+            array['3a000000-0000-0000-0000-000000000002']::uuid[], false, '[{"name": "Duo Two"}]'::jsonb);
     raise exception 'FAIL: a group of 2 got the last 1 spot';
   exception when sqlstate 'P0002' then null;
   end;
-  assert (select registered_count from public.shifts where id = '30000000-0000-0000-0000-0000000000a2') = 0
+  assert (select registered_count from public.shifts where id = '3a000000-0000-0000-0000-000000000002') = 0
      and not exists (select 1 from public.volunteers where email = 'duo@example.com'), 'a group that doesn''t fit books no one';
   begin
     perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Big Group', 'big@example.com', '+15125550172',
-            array['30000000-0000-0000-0000-0000000000a2']::uuid[], false,
+            array['3a000000-0000-0000-0000-000000000002']::uuid[], false,
             '[{"name":"A"},{"name":"B"},{"name":"C"},{"name":"D"},{"name":"E"}]'::jsonb);
     raise exception 'FAIL: added more than 4 people';
   exception when sqlstate 'P0001' then null;
   end;
   perform public.register_volunteer('10000000-0000-0000-0000-00000000000a', 'Teen Volunteer', 'guardian@example.com', '+15125550173',
-          array['30000000-0000-0000-0000-0000000000a2']::uuid[], true, '[]'::jsonb);
+          array['3a000000-0000-0000-0000-000000000002']::uuid[], true, '[]'::jsonb);
   assert (select full_name from public.volunteers where email = 'guardian@example.com') = 'Teen V.',
          'a minor signing up for themselves keeps only their last initial';
 end $$;
@@ -1710,13 +1710,13 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":
 do $$
 declare walk uuid;
 begin
-  walk := public.add_walk_up('30000000-0000-0000-0000-0000000000a1', 'Nora Noname', null, true, false,
+  walk := public.add_walk_up('3a000000-0000-0000-0000-000000000001', 'Nora Noname', null, true, false,
           '[{"name": "Nolan Noname", "minor": true}]'::jsonb);
   assert (select phone is null and walk_up from public.volunteers where id = walk), 'a walk-up needs only a name';
   assert (select count(*) from public.volunteer_assignments va join public.volunteers v on v.id = va.volunteer_id
-           where va.shift_id = '30000000-0000-0000-0000-0000000000a1' and (v.id = walk or v.contact_id = walk)
+           where va.shift_id = '3a000000-0000-0000-0000-000000000001' and (v.id = walk or v.contact_id = walk)
              and va.checked_in_at is not null) = 2, 'a walk-up and the person with them are both checked in';
-  assert (select max_capacity from public.shifts where id = '30000000-0000-0000-0000-0000000000a1') = 5,
+  assert (select max_capacity from public.shifts where id = '3a000000-0000-0000-0000-000000000001') = 5,
          'adding a group to a full shift makes room for all of them';
   assert (select bool_or(minor and signed_up_by = 'Pat Pair') from public.station_roster('20000000-0000-0000-0000-00000000000a')),
          'the roster says who''s a minor and who signed them up';
@@ -6456,6 +6456,50 @@ begin
          'and is noted for the daily summary';
   perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Pat Potluck', 'pat.potluck@example.com', '+15125550170',
           array[]::uuid[], false, '[]', '[{"item": "70000000-0000-0000-0000-000000000001", "note": "Brownies"}]');
+end $$;
+reset role;
+
+-- Shifts and items together: Judy can't take two overlapping shifts, but she
+-- can bring her brownies and help set up at 5:30 in the same sign-up.
+set role service_role;
+do $$
+declare
+  day timestamptz := date_trunc('day', now() + interval '12 days');
+  judy uuid;
+begin
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+    ('3e1d0000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'Setup 5:00', day + interval '17 hours', day + interval '18 hours', 5),
+    ('3e1d0000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-00000000000a', 'Setup 5:30', day + interval '17 hours 30 minutes', day + interval '18 hours 30 minutes', 5);
+  insert into public.station_items (id, station_id, event_id, name, needed) values
+    ('7e1d0000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-00000000000a', 'Desserts', 4);
+
+  begin
+    perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Judy Baker', 'judy@example.com', '+15125550180',
+            array['3e1d0000-0000-0000-0000-000000000001', '3e1d0000-0000-0000-0000-000000000002']::uuid[], false, '[]',
+            '[{"item": "7e1d0000-0000-0000-0000-000000000003", "note": "Famous brownies"}]');
+    raise exception 'FAIL: signed up for two overlapping shifts';
+  exception when sqlstate 'P0003' then null;
+  end;
+  assert not exists (select 1 from public.volunteers where email = 'judy@example.com'), 'an overlap saves nothing, items included';
+  assert (select claimed_count from public.station_items where id = '7e1d0000-0000-0000-0000-000000000003') = 0, 'the brownies are not claimed';
+
+  judy := public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Judy Baker', 'judy@example.com', '+15125550180',
+            array['3e1d0000-0000-0000-0000-000000000002']::uuid[], false, '[]',
+            '[{"item": "7e1d0000-0000-0000-0000-000000000003", "note": "Famous brownies"}]');
+  assert (select count(*) from public.volunteer_assignments where volunteer_id = judy) = 1, 'Judy has the 5:30 setup shift';
+  assert (select note from public.item_signups where volunteer_id = judy) = 'Famous brownies', 'and is bringing her brownies';
+
+  -- Coming back later for the 5:00 shift still overlaps her 5:30 one.
+  begin
+    perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Judy Baker', 'judy@example.com', '+15125550180',
+            array['3e1d0000-0000-0000-0000-000000000001']::uuid[], false, '[]', '[]');
+    raise exception 'FAIL: added an overlapping shift on a second visit';
+  exception when sqlstate 'P0003' then null;
+  end;
+
+  delete from public.volunteers where id = judy;
+  delete from public.shifts where id in ('3e1d0000-0000-0000-0000-000000000001', '3e1d0000-0000-0000-0000-000000000002');
+  delete from public.station_items where id = '7e1d0000-0000-0000-0000-000000000003';
 end $$;
 reset role;
 
