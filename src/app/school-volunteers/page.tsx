@@ -1,8 +1,6 @@
-import { AudiencePage, audienceMetadata } from "@/components/audience-page";
-import { audiences } from "@/lib/audiences";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata = audienceMetadata(audiences.volunteers);
-
+/** The volunteer events page moved to /volunteer-events; old links still work. */
 export default function Page() {
-  return <AudiencePage audience={audiences.volunteers} />;
+  permanentRedirect("/volunteer-events");
 }

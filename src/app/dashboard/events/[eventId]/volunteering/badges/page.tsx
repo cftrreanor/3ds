@@ -187,7 +187,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
         </Card>
 
         {cards.length === 0 && (
-          <p className="mt-6 text-muted">No volunteers match. Choose another station or day, or add blank badges for walk-ups.</p>
+          <p className="mt-6 text-muted">No volunteers match. Choose another sign-up or day, or add blank badges for walk-ups.</p>
         )}
       </div>
 
@@ -327,7 +327,7 @@ function ScheduleRow({ row }: { row: BadgeRow }) {
           className="ml-1 inline-block rounded-sm bg-[#1a1a1a] px-[0.05in] align-[1px] text-[7pt] font-bold tracking-wide text-white"
           style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
         >
-          STATION LEAD
+          COORDINATOR
         </span>
       )}
     </li>

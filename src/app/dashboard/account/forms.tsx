@@ -16,7 +16,7 @@ export function ProfileForm({ fullName, phone }: { fullName: string; phone: stri
       </Field>
       <Field
         label="Mobile phone"
-        hint="10-digit US number. Shared with your event team, and with your station's volunteers on event day."
+        hint="10-digit US number. Shared with your event team, and with your sign-up's volunteers on event day."
       >
         <Input name="phone" type="tel" inputMode="tel" autoComplete="tel" defaultValue={phone} />
       </Field>

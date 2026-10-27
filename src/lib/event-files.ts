@@ -17,7 +17,7 @@ export const AUDIENCES = [
   { value: "public", label: "Everyone", hint: "On the public event page" },
   { value: "directors", label: "Directors", hint: "Directors of registered bands or groups" },
   { value: "volunteers", label: "Volunteers", hint: "People signed up for shifts" },
-  { value: "team", label: "The team", hint: "Co-hosts, Volunteer Leads, and Section Leads" },
+  { value: "team", label: "The team", hint: "Co-hosts, Volunteer Leads, and Coordinators" },
 ] as const;
 export type Audience = (typeof AUDIENCES)[number]["value"];
 

@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 // that prove which shifts this browser may see and cancel. The database checks
 // the tokens (pass_agenda / cancel_with_pass); the cookie alone grants nothing.
 //   v: volunteer access tokens (from the emailed "View my shifts" link)
-//   a: signup manage tokens (shifts booked from this browser)
+//   a: signup manage tokens (shifts and items booked from this browser)
 //   e: public links (slugs) of events this browser volunteered for, so we can
 //      offer "sign up for more" even after every shift is cancelled
 

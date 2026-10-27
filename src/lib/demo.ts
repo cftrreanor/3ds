@@ -13,7 +13,7 @@ import { hasConferences } from "@/lib/event-types";
 export const PERSONAS = [
   { value: "host", label: "Host" },
   { value: "volunteer_lead", label: "Volunteer Lead" },
-  { value: "section_lead", label: "Section Lead" },
+  { value: "section_lead", label: "Coordinator" },
   { value: "director", label: "Director" },
   { value: "volunteer", label: "Volunteer" },
   { value: "parent", label: "Parent" },

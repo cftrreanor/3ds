@@ -107,7 +107,7 @@ Every QA page has a **QA tools** button in the bottom-right corner. It opens:
 - **See this page on a phone:** the page you're on, at phone size.
 - **Your test events:** each event in your test organization, with links to its
   organizer view and its public pages, and **View as** (Host, Volunteer Lead,
-  Section Lead, Director, Volunteer, or Parent) to see it as that person.
+  Coordinator, Director, Volunteer, or Parent) to see it as that person.
 - **Ready-made events:** one click makes a published event, dated from today and
   filled with sample people: a band contest with registration open, a band contest
   happening today, a choir festival, a school fair, a volunteer event, a family

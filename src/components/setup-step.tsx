@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /**
- * One numbered step of a setup page ("1. Station details", "2. Open
+ * One numbered step of a setup page ("1. Sign-up details", "2. Open
  * registration"): an accordion whose title says whether it's done. See
  * "Setup pages" in docs/DESIGN.md.
  */

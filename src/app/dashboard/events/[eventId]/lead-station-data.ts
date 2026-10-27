@@ -16,7 +16,7 @@ type StationRow = {
 };
 
 /**
- * What a Section Lead sees for each station they lead: its shifts and who's on
+ * What a Coordinator sees for each sign-up they lead: its shifts and who's on
  * them. Contact details come from station_roster(), which only releases them
  * on event day.
  */

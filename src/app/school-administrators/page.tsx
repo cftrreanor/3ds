@@ -87,8 +87,8 @@ const sections: Audience["sections"] = [
     points: [
       "Parents are reminded to bring a photo ID, and your door team finds any family by an adult's or child's name",
       "Volunteers wear printable name badges with your logo and a QR code for event information",
-      "Stations like parking can be adults only, and under-18 helpers are stored by first name and last initial with a parent's contact details",
-      "Section Leads see volunteers' phone numbers only on event day",
+      "Sign-ups like parking can be adults only, and under-18 helpers are stored by first name and last initial with a parent's contact details",
+      "Coordinators see volunteers' phone numbers only on event day",
     ],
     screen: {
       src: "/screens/parent-door-search.webp",
@@ -114,7 +114,7 @@ const sections: Audience["sections"] = [
     points: [
       "Account Hosts can run every event on your school's account",
       "Hosts and Co-hosts run their event",
-      "Volunteer Leads manage volunteers, and Section Leads run one station",
+      "Volunteer Leads manage volunteers, and Coordinators run one sign-up",
       "Visiting directors see their own registration, never other schools' contact details",
     ],
   },

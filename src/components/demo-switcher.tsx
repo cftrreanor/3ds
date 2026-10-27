@@ -118,7 +118,7 @@ export function DemoStart({ eventId, personas, active }: { eventId: string; pers
             onClick={async () => {
               const ok = await confirmDialog({
                 title: "Take the demo data off this event?",
-                message: "The sample stations, volunteers, bands, groups, parents, and booths go too.",
+                message: "The sample sign-ups, volunteers, bands, groups, parents, and booths go too.",
                 confirmLabel: "Remove demo data",
                 danger: true,
               });

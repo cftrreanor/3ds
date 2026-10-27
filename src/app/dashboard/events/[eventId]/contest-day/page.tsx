@@ -101,7 +101,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const allStations = (pathData ?? []) as unknown as StationRow[];
   const path = sortStations(allStations.filter((s) => s.checkpoint_kind));
   const leads = (id: string) => (myLeads ?? []).some((l) => l.station_id === id);
-  // Hosts and Volunteer Leads work every check-in station; Section Leads the
+  // Hosts and Volunteer Leads work every check-in station; Coordinators the
   // ones they lead, plus their other stations (like Concessions) for their volunteers.
   // A volunteer event has no band path: just the stations someone leads
   // (hosts and Volunteer Leads run the day from the check-in desk).
@@ -139,7 +139,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
       )}
 
       {(mine.length + myOther.length > 1 || (bandsHere && access.canManage)) && (
-        <nav aria-label="Stations" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <nav aria-label="Sign-ups" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <ul className="flex min-w-max gap-1 border-b border-border">
             {bandsHere && access.canManage && (
               <li>
@@ -179,7 +179,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
     </>
   );
 
-  // Section Leads: the volunteers on their station's shifts. A check-in
+  // Coordinators: the volunteers on their sign-up's shifts. A check-in
   // station has a Bands / Volunteers switch; any other station is just volunteers.
   const volunteersView = other ?? (!access.canManage && view === "volunteers" ? allStations.find((s) => s.id === station?.id) : undefined);
   const viewSwitch = (current: "bands" | "volunteers") =>
@@ -260,7 +260,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const warmUpOrder = (b: Band) => prelimSlot.get(b.id)?.warm_up_at ?? prelimSlot.get(b.id)?.perform_at ?? "9999";
   const stopsAt = (b: Band, performed = false) =>
     stops.find((s) => s.band_id === b.id && s.station_id === station.id && s.performed === performed && (!byRound || s.round === round));
-  // When this station expects each band, and whether it's late. Parking and
+  // When this sign-up expects each band, and whether it's late. Parking and
   // check-in points count back from warm-up; warm-up and gate follow the schedule.
   const now = new Date().toISOString();
   const dueAt = (b: Band): string | null => {
@@ -281,7 +281,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   };
   const href = (q: Record<string, string>) => `${base}?${new URLSearchParams({ station: station.id, ...q })}`;
 
-  // Each station's list, in the order it works through bands.
+  // Each sign-up's list, in the order it works through bands.
   const scratchedLast = (a: Band, b: Band) => Number(!!a.scratched_at) - Number(!!b.scratched_at);
   let list: Band[];
   if (kind === "parking") {
@@ -792,7 +792,7 @@ function Overview({
           <p className="mt-1 leading-5">
             Bands are due at parking (and any check-in point with a deadline) before their warm-up, and at warm-up by their
             warm-up time. &ldquo;Due soon&rdquo; means within {DUE_SOON_MINUTES} minutes. Green ✓ done, red ! late, gold
-            due soon, grey not yet. Tap a dot to open that station.
+            due soon, grey not yet. Tap a dot to open that stop.
           </p>
         </details>
       </section>

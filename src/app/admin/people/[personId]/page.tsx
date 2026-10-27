@@ -27,7 +27,7 @@ type Profile = {
   bands: { id: string; school_name: string; band_name: string; created_at: string; events: { name: string; starts_on: string; organizations: { id: string; name: string } | null } | null }[];
 };
 
-const STAFF_ROLE: Record<string, string> = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" };
+const STAFF_ROLE: Record<string, string> = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator" };
 
 /** One person: their roles, sign-ins, the emails we sent them, and notes. */
 export default async function PersonPage({ params }: PageProps<"/admin/people/[personId]">) {

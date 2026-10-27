@@ -56,6 +56,29 @@ export async function cancelMyShift(assignmentId: string): Promise<ActionState> 
   return { ok: true };
 }
 
+/** Cancel something I signed up to bring: with this device's pass, or signed in. */
+export async function cancelMyItem(signupId: string): Promise<ActionState> {
+  const pass = await readPass();
+  let cancelled = false;
+  if (hasPass(pass)) {
+    const { data, error } = await createAdminClient().rpc("cancel_item_with_pass", {
+      p_signup_id: signupId,
+      p_volunteer_tokens: pass.v,
+      p_item_tokens: pass.a,
+    });
+    if (error) return { error: friendlyDbError(error) };
+    cancelled = data === true;
+  }
+  if (!cancelled && (await getUser())) {
+    const { data, error } = await (await createClient()).rpc("cancel_my_item", { p_signup_id: signupId });
+    if (error) return { error: friendlyDbError(error) };
+    cancelled = data === true;
+  }
+  if (!cancelled) return { error: "This device doesn't have access to that sign-up anymore. Use the link in your email." };
+  revalidatePath("/my");
+  return { ok: true };
+}
+
 export async function forgetThisDevice(): Promise<ActionState> {
   await forgetPass();
   revalidatePath("/my");
@@ -73,7 +96,7 @@ export async function emailMyLink(_prev: ActionState, formData: FormData): Promi
   if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED };
   const generic: ActionState = {
     ok: true,
-    message: `If ${parsed.data} has upcoming shifts, we just emailed a link to view them. It can take a minute to arrive.`,
+    message: `If ${parsed.data} has upcoming sign-ups, we just emailed a link to view them. It can take a minute to arrive.`,
   };
 
   const admin = createAdminClient();

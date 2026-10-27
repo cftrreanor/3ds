@@ -169,12 +169,12 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     before.push(
       {
         id: "shifts",
-        label: "Add volunteer stations and shifts",
+        label: "Add volunteer sign-ups and shifts",
         hint: volunteerEvent ? "What volunteers sign up for." : "Only if you need volunteers.",
         href: `${base}/volunteering`,
         done: hasShifts,
         required: volunteerEvent,
-        partial: f.stations > 0 ? { fraction: 0.5, note: `${f.stations} station${f.stations === 1 ? "" : "s"}, no shifts yet` } : undefined,
+        partial: f.stations > 0 ? { fraction: 0.5, note: `${f.stations} sign-up${f.stations === 1 ? "" : "s"}, no shifts yet` } : undefined,
       },
       {
         id: "team",

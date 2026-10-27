@@ -64,7 +64,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
           ? "Free during the pilot. Just a name for now. Next, you'll set your day or weekly hours and where you'll meet."
           : type === "meeting"
           ? "Just a name for now. Next, you'll set your day or weekly hours and where you'll meet."
-          : "Just the basics for now. You'll add stations and volunteer shifts next."}{" "}
+          : "Just the basics for now. You'll add sign-ups and volunteer shifts next."}{" "}
         {!onlyOne && (
           <Link href="/dashboard/events/new" className="font-medium text-brand underline-offset-4 hover:underline">
             Change the kind of event

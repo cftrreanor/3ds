@@ -256,7 +256,7 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
 
 /**
  * Deletes an event for good, with everything attached to it (the database
- * removes stations, shifts, volunteers, registrations, schedules and the
+ * removes sign-ups, shifts, volunteers, registrations, schedules and the
  * team along with it), then its uploaded files from storage. Hosts only.
  */
 export async function deleteEvent(eventId: string): Promise<ActionState> {
@@ -333,7 +333,7 @@ const stationSchema = z.object({
   location: optionalText(200),
   instructions: optionalText(2000),
 });
-/** A check-in station's kind (blank for a regular station). */
+/** A check-in sign-up's kind (blank for a regular station). */
 function checkpointKind(formData: FormData) {
   const kind = z.enum(["parking", "stop", "warm_up", "gate"]).safeParse(formData.get("checkpointKind"));
   return kind.success ? kind.data : null;
@@ -346,7 +346,7 @@ function dueMinutes(formData: FormData, kind: string | null) {
   return /^\d{1,3}$/.test(raw) ? Math.min(Number(raw), 600) : null;
 }
 
-/** School fairs: the station's zone, only when the form has the Zone field. */
+/** School fairs: the sign-up's zone, only when the form has the Zone field. */
 function zoneOf(formData: FormData) {
   if (!formData.has("zone")) return {};
   const zone = String(formData.get("zone") ?? "").trim().slice(0, 60);
@@ -367,7 +367,7 @@ async function nextCheckpointOrder(supabase: Awaited<ReturnType<typeof createCli
 
 /**
  * Step 1 of Stations & shifts: a new station, with its name and leads. Its
- * other details are filled in later, in "1. Station details".
+ * other details are filled in later, in "1. Sign-up details".
  */
 export async function createStation(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
@@ -377,7 +377,7 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
   const v = parsed.data;
   const kind = checkpointKind(formData);
   const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
-  if (!leadIds.success) return { error: "Something went wrong with the Section Leads. Please try again." };
+  if (!leadIds.success) return { error: "Something went wrong with the Coordinators. Please try again." };
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -393,6 +393,8 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
       ...zoneOf(formData),
+      // Items to bring (a potluck's desserts) instead of time slots. Only plain sign-ups can be.
+      ...(formData.get("signupKind") === "items" && !kind ? { signup_kind: "items" } : {}),
     })
     .select("id")
     .single();
@@ -417,7 +419,7 @@ export async function updateStation(
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
   const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
-  if (!leadIds.success) return { error: "Something went wrong with the Section Leads. Please try again." };
+  if (!leadIds.success) return { error: "Something went wrong with the Coordinators. Please try again." };
 
   const supabase = await createClient();
   // A station that becomes a check-in station goes to the end of the order; one that stops being one leaves it.
@@ -436,7 +438,7 @@ export async function updateStation(
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
       ...zoneOf(formData),
-      // Marks "1. Station details" done.
+      // Marks "1. Sign-up details" done.
       details_saved_at: new Date().toISOString(),
     })
     .eq("id", stationId);
@@ -448,10 +450,10 @@ export async function updateStation(
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: "Station saved." };
+  return { ok: true, message: "Sign-up saved." };
 }
 
-/** A station's leads become exactly these: the newly ticked are added (in the order shown), the unticked removed. */
+/** A sign-up's leads become exactly these: the newly ticked are added (in the order shown), the unticked removed. */
 async function syncStationLeads(
   supabase: Awaited<ReturnType<typeof createClient>>,
   eventId: string,
@@ -473,7 +475,7 @@ async function syncStationLeads(
   return null;
 }
 
-/** Step 1, on a station's row: who leads it. */
+/** Step 1, on a sign-up's row: who leads it. */
 export async function setStationLeads(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
@@ -485,17 +487,23 @@ export async function setStationLeads(eventId: string, stationId: string, _prev:
   return { ok: true, message: leadIds.data.length ? "Leads saved." : "Leads removed." };
 }
 
-/** Step 1, on a station's row: its name. */
+/** Step 1, on a sign-up's row: its name. */
 export async function renameStation(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const name = text(80).safeParse(formData.get("name") ?? "");
-  if (!name.success) return { error: "Please enter the station's name." };
+  if (!name.success) return { error: "Please enter the sign-up's name." };
+  // Time slots or items to bring; the database only lets it change while the station is empty.
+  const kind = formData.get("signupKind");
   const supabase = await createClient();
-  const { data, error } = await supabase.from("stations").update({ name: name.data }).eq("id", stationId).select("id");
+  const { data, error } = await supabase
+    .from("stations")
+    .update({ name: name.data, ...(kind === "shifts" || kind === "items" ? { signup_kind: kind } : {}) })
+    .eq("id", stationId)
+    .select("id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "You don't have permission to do that." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `Renamed to “${name.data}”.` };
+  return { ok: true, message: `Saved “${name.data}”.` };
 }
 
 /** Moves a check-in station one place earlier or later in the band's path. */
@@ -531,12 +539,78 @@ export async function deleteStation(eventId: string, stationId: string): Promise
     .select("id", { count: "exact", head: true })
     .eq("station_id", stationId)
     .gt("registered_count", 0);
-  if (count) return { error: "Volunteers have signed up for this station's shifts, so it can't be deleted." };
+  if (count) return { error: "Volunteers have signed up for this sign-up's shifts, so it can't be deleted." };
+  const { count: claimed } = await supabase
+    .from("station_items")
+    .select("id", { count: "exact", head: true })
+    .eq("station_id", stationId)
+    .gt("claimed_count", 0);
+  if (claimed) return { error: "People have signed up to bring items for this sign-up, so it can't be deleted." };
 
   const { error } = await supabase.from("stations").delete().eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Items to bring (a station whose sign-ups are things, not times)
+// ---------------------------------------------------------------------------
+const itemSchema = z.object({
+  name: z.string().trim().min(1, "Name the item, like Desserts").max(100, "Keep the name under 100 characters"),
+  needed: z.coerce.number().int("Enter a whole number").min(1, "At least 1").max(500, "500 at most"),
+});
+
+export async function createItem(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = itemSchema.safeParse({ name: formData.get("name"), needed: formData.get("needed") });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const supabase = await createClient();
+  const { count } = await supabase.from("station_items").select("id", { count: "exact", head: true }).eq("station_id", stationId);
+  const { error } = await supabase
+    .from("station_items")
+    .insert({ station_id: stationId, event_id: eventId, name: parsed.data.name, needed: parsed.data.needed, sort_order: count ?? 0 });
+  if (error) return { error: error.code === "P0001" ? error.message : friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: `Added “${parsed.data.name}”.` };
+}
+
+export async function updateItem(eventId: string, itemId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = itemSchema.safeParse({ name: formData.get("name"), needed: formData.get("needed") });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("station_items")
+    .update({ name: parsed.data.name, needed: parsed.data.needed })
+    .eq("id", itemId)
+    .select("id");
+  if (error) return { error: error.code === "P0001" ? error.message : friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's hosts and Volunteer Leads can change this." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: "Saved." };
+}
+
+export async function deleteItem(eventId: string, itemId: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data: item } = await supabase.from("station_items").select("claimed_count").eq("id", itemId).maybeSingle();
+  if (item?.claimed_count) return { error: "People have signed up to bring this, so it can't be deleted. Lower how many are needed instead." };
+  const { error } = await supabase.from("station_items").delete().eq("id", itemId);
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true };
+}
+
+/** Take someone off an item (they can't make it, or signed up by mistake). */
+export async function removeItemSignup(eventId: string, signupId: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("item_signups").delete().eq("id", signupId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's hosts and Volunteer Leads can change this." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: "Removed. That spot is open again." };
 }
 
 // ---------------------------------------------------------------------------
@@ -605,7 +679,7 @@ const generateSchema = z.object({
 
 /**
  * PRD §4.1: split the event's daily window (e.g. 7 AM–10 PM) into equal blocks
- * (e.g. 3 hours) for one station, replacing its shifts (only while nobody has
+ * (e.g. 3 hours) for one sign-up, replacing its shifts (only while nobody has
  * signed up for any of them).
  */
 export async function generateShifts(
@@ -623,11 +697,11 @@ export async function generateShifts(
   if (!event) return { error: "Event not found." };
 
   const supabase = await createClient();
-  // Auto create replaces the station's shifts, as long as nobody has signed up for any of them yet.
+  // Auto create replaces the sign-up's shifts, as long as nobody has signed up for any of them yet.
   const { data: existing } = await supabase.from("shifts").select("id, registered_count").eq("station_id", stationId);
   if ((existing ?? []).some((s) => s.registered_count > 0)) {
     return {
-      error: "Volunteers have signed up for this station's shifts, so auto create can't replace them. Edit them one at a time below, or create a single shift.",
+      error: "Volunteers have signed up for this sign-up's shifts, so auto create can't replace them. Edit them one at a time below, or create a single shift.",
     };
   }
 
@@ -663,7 +737,7 @@ export async function generateShifts(
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   const made = `${rows.length} shift${rows.length === 1 ? "" : "s"}`;
-  return { ok: true, message: replaced ? `Replaced this station's shifts with ${made}.` : `Added ${made}.` };
+  return { ok: true, message: replaced ? `Replaced this sign-up's shifts with ${made}.` : `Added ${made}.` };
 }
 
 function shiftTitle(start: Date, tz: string) {

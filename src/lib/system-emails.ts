@@ -79,7 +79,7 @@ const volunteerFields: SystemEmailField[] = [
   { key: "event_name", label: "Event name", sample: "Lakeside Marching Classic" },
   { key: "at_venue", label: "“at” and the venue (blank when there's none)", sample: "at Lakeside Stadium" },
 ];
-const shiftRows = "Then: each shift's station, time, and where to report";
+const shiftRows = "Then: each shift's sign-up, time, and where to report";
 
 const directorFields: SystemEmailField[] = [
   { key: "band_name", label: "Band or group name", sample: "Lakeside HS Marching Band" },
@@ -148,7 +148,7 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
     starting: {
       subject: "Help run volunteers for {{event_name}}",
       heading: "You're invited to be a Volunteer Lead",
-      body: "{{inviter}} invited you to help run volunteers for {{event_name}} ({{event_when}}).\n\nAs a Volunteer Lead you'll set up stations and shifts, see who's signed up, check people in, and help run {{event_day}}.",
+      body: "{{inviter}} invited you to help run volunteers for {{event_name}} ({{event_when}}).\n\nAs a Volunteer Lead you'll set up sign-ups and shifts, see who's signed up, check people in, and help run {{event_day}}.",
       button_label: "Accept invitation",
     },
     locked: inviteLocked,
@@ -156,18 +156,18 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
   {
     key: "team_invite_section_lead",
     group: "Team invitations",
-    name: "Section Lead invitation",
-    description: "Goes to someone a host asks to lead one station (called Station Coordinator at fairs).",
+    name: "Coordinator invitation",
+    description: "Goes to someone a host asks to lead one sign-up.",
     fields: [
       ...inviteFields,
-      { key: "station", label: "Their station", sample: "Concessions" },
-      { key: "lead_title", label: "Section Lead or Station Coordinator", sample: "Section Lead" },
+      { key: "station", label: "Their sign-up", sample: "Concessions" },
+      { key: "lead_title", label: "Coordinator", sample: "Coordinator" },
     ],
     required: [],
     starting: {
       subject: "Lead {{station}} at {{event_name}}",
       heading: "You're invited to be a {{lead_title}}",
-      body: "{{inviter}} asked you to lead {{station}} at {{event_name}} ({{event_when}}).\n\nYou'll see who's on your station's shifts, and their phone numbers unlock on {{event_day}}.",
+      body: "{{inviter}} asked you to lead {{station}} at {{event_name}} ({{event_when}}).\n\nYou'll see who's on your sign-up's shifts, and their phone numbers unlock on {{event_day}}.",
       button_label: "Accept invitation",
     },
     locked: inviteLocked,
@@ -440,7 +440,7 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
       body: "Hi {{first_name}}, a reminder that you're volunteering tomorrow {{at_venue}}. Here are your shift details.\n\nCan't make it anymore? Please cancel below so someone else can take your spot.",
       button_label: "View or cancel my shifts",
     },
-    locked: ["Each station's instructions, and who their lead is", shiftRows],
+    locked: ["Each sign-up's instructions, and who their lead is", shiftRows],
   },
   {
     key: "volunteer_shift_changed",
@@ -464,7 +464,7 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
     description: "Goes to a volunteer when their shift is canceled. It takes the shift off their calendar.",
     fields: [
       ...volunteerFields,
-      { key: "station", label: "Station", sample: "Concessions" },
+      { key: "station", label: "Sign-up", sample: "Concessions" },
       { key: "time", label: "Shift time", sample: "4:00–6:00 PM" },
     ],
     required: [],

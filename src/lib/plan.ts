@@ -106,8 +106,8 @@ export function includedLines(plan: AccountPlan): string[] {
     ...sortTypes(plan.one_at_a_time).map((t) => `One published ${typeWords(t).replace(/s$/, "")} at a time, with as many drafts as you like`),
     plan.weekly_hours ? "Weekly hours for conferences and meetings" : "Conferences and meetings on set days (weekly hours aren't included)",
     plan.max_team === null
-      ? "A team of any size, including Volunteer Leads and Section Leads"
-      : `A team of up to ${plan.max_team} people${plan.max_team === 2 ? " (a host and a co-host)" : ""}${plan.event_staff ? ", including Volunteer Leads and Section Leads" : ""}`,
+      ? "A team of any size, including Volunteer Leads and Coordinators"
+      : `A team of up to ${plan.max_team} people${plan.max_team === 2 ? " (a host and a co-host)" : ""}${plan.event_staff ? ", including Volunteer Leads and Coordinators" : ""}`,
     plan.volunteer_history ? "Volunteer tracking across your events" : "Volunteer tracking isn't included",
   ];
   return lines;

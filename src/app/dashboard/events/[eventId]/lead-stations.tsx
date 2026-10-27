@@ -37,7 +37,7 @@ export type LeadStation = {
 };
 
 /**
- * A Section Lead's stations, one tab each, with their volunteers grouped by
+ * A Coordinator's stations, one tab each, with their volunteers grouped by
  * shift. On event day, phone numbers show along with who has arrived (the
  * volunteer desk checks people in, where they get shirts and lanyards).
  */
@@ -63,7 +63,7 @@ export function LeadStations({
   return (
     <div>
       {stations.length > 1 && (
-        <div role="tablist" aria-label="Your stations" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div role="tablist" aria-label="Your sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <div className="flex min-w-max gap-1 border-b border-border">
             {stations.map((s) => {
               const n = s.shifts.reduce((k, sh) => k + sh.volunteers.length, 0);
@@ -105,7 +105,7 @@ export function LeadStations({
 
         {current.instructions && (
           <details className="mt-4 rounded-lg border border-border px-3 py-2">
-            <summary className="cursor-pointer text-sm font-medium">Station instructions</summary>
+            <summary className="cursor-pointer text-sm font-medium">Instructions</summary>
             <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted">{current.instructions}</p>
           </details>
         )}
@@ -119,7 +119,7 @@ export function LeadStations({
           <p className="mt-4 text-sm text-muted">Volunteers check in at the volunteer desk. This shows who has arrived.</p>
         )}
 
-        {current.shifts.length === 0 && <p className="mt-4 text-sm text-muted">No shifts at this station yet.</p>}
+        {current.shifts.length === 0 && <p className="mt-4 text-sm text-muted">No shifts in this sign-up yet.</p>}
         <div className="mt-4 space-y-4">
           {current.shifts.map((s) => {
             const here = s.volunteers.filter((v) => v.checkedIn).length;

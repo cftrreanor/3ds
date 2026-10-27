@@ -101,6 +101,44 @@ function shiftRow(e: CalendarEntry, tz: string, origin: string, multiDay: boolea
   };
 }
 
+/** Something they signed up to bring (no time, so no calendar invite). */
+export type ItemLine = { name: string; station: string; note: string | null };
+
+const itemRow = (it: ItemLine) => ({ title: `Bringing: ${it.name}`, detail: [it.station, it.note].filter(Boolean).join(" · ") });
+
+/** Who signed up, for a confirmation with only items (no shifts to read it from). */
+export type SignupPerson = { name: string; email: string; accessToken: string; eventId: string; eventName: string; venueName: string | null };
+
+/** The confirmation when someone signed up only to bring things. */
+async function sendItemsConfirmation(items: ItemLine[], person: SignupPerson, origin: string) {
+  const { html, text } = emailLayout({
+    heading: `You're signed up for ${person.eventName}`,
+    paragraphs: [
+      `Thanks, ${person.name.split(" ")[0]}. Here's what you're bringing${person.venueName ? ` to ${person.venueName}` : ""}.`,
+      "We'll send a reminder the day before.",
+    ],
+    rows: items.map(itemRow),
+    button: { label: "View or cancel my sign-ups", url: manageUrl(origin, { access_token: person.accessToken }) },
+    footer: `You're receiving this because you signed up to volunteer through ${brand.name}. This link is just for you; anyone you forward it to can view and cancel your sign-ups.`,
+  });
+  return sendEmail({ to: person.email, eventId: person.eventId, subject: `You're signed up: ${person.eventName}`, html, text });
+}
+
+/** The day before: what someone signed up to bring. */
+export async function sendItemsReminder(items: ItemLine[], person: SignupPerson, origin: string) {
+  const { html, text } = emailLayout({
+    heading: `See you tomorrow at ${person.eventName}`,
+    paragraphs: [
+      `Hi ${person.name.split(" ")[0]}, a reminder of what you're bringing tomorrow${person.venueName ? ` to ${person.venueName}` : ""}.`,
+      "Can't bring it anymore? Please cancel below so someone else can sign up.",
+    ],
+    rows: items.map(itemRow),
+    button: { label: "View or cancel my sign-ups", url: manageUrl(origin, { access_token: person.accessToken }) },
+    footer: `You're receiving this because you signed up to volunteer through ${brand.name}.`,
+  });
+  return sendEmail({ to: person.email, eventId: person.eventId, subject: `Tomorrow: what you're bringing to ${person.eventName}`, html, text });
+}
+
 /**
  * The signup confirmation. Each email can carry one calendar invite, so a
  * single shift rides in the confirmation itself; with several shifts, the
@@ -113,8 +151,12 @@ export async function sendSignupConfirmation(
   multiDay: boolean,
   /** Other people signed up on the same shifts. */
   others: string[] = [],
+  /** Things they signed up to bring, listed with the shifts. */
+  items: ItemLine[] = [],
+  /** Who signed up, for a confirmation with only items. */
+  person?: SignupPerson,
 ) {
-  if (entries.length === 0) return false;
+  if (entries.length === 0) return items.length && person ? sendItemsConfirmation(items, person, origin) : false;
   const first = entries[0];
   const single = entries.length === 1;
   const custom = customWords("volunteer_signup", await loadSystemEmail("volunteer_signup"), volunteerVars(first));
@@ -129,7 +171,7 @@ export async function sendSignupConfirmation(
         ? CALENDAR_TIP
         : "Each shift gets its own email with a calendar invite, which keeps your calendar up to date if anything changes.",
     ],
-    rows: entries.map((e) => shiftRow(e, tz, origin, multiDay)),
+    rows: [...entries.map((e) => shiftRow(e, tz, origin, multiDay)), ...items.map(itemRow)],
     button: { label: custom?.button || "View or cancel my shifts", url: manageUrl(origin, first) },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}. This link is just for you; anyone you forward it to can view and cancel your shifts.`,
   });

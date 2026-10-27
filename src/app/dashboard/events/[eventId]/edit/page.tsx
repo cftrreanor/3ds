@@ -44,8 +44,8 @@ const TYPE_SUMMARY = {
 // What switching to each kind adds or removes.
 const SWITCH_NOTE = {
   band_contest: "Band registration, the performance schedule, and contest day check-in are added.",
-  group_event: "Group registration, rooms, and each group's room schedule are added; the single performance order and band check-in stations go away.",
-  volunteer: "Band registration, parent registration, and the performance schedule go away; band check-in stations become ordinary stations.",
+  group_event: "Group registration, rooms, and each group's room schedule are added; the single performance order and band check-in stops go away.",
+  volunteer: "Band registration, parent registration, and the performance schedule go away; band check-in stops become ordinary sign-ups.",
   school_visit: "Parent registration and door check-in are added (children's details are deleted 30 days after the event); band registration and the performance schedule go away.",
   fair: "Booths and partners by zone, partner check-in, and the public \u201cWhat's at the event\u201d list are added; band registration and the performance schedule go away.",
 };
@@ -345,7 +345,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
               <p className="mb-4 mt-1 text-sm text-muted">
                 {conference
                   ? "Co-hosts share your account: they can see your bookings, and reschedule or cancel meetings."
-                  : `Everyone helping you run ${event.name}. ${leadWords(event.event_type).many} are invited in Volunteer Setup, next to the stations they lead.`}
+                  : `Everyone helping you run ${event.name}. ${leadWords(event.event_type).many} are invited in Volunteer Setup, next to the sign-ups they lead.`}
               </p>
               <TeamRoles eventId={eventId} roles={conference ? ["hosts"] : ["hosts", "volunteer-leads"]} open={typeof tab === "string" ? tab : null} />
             </div>

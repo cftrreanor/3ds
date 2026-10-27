@@ -137,9 +137,9 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
    yellow dot.
 3. **Ask once.** Never ask again for something an earlier step already has (the station name),
    and fill in what we can work out (shift titles from their times, the host's own contact details).
-4. **Actions where the thing lives.** Each row carries its own buttons (Assign a Section Lead,
+4. **Actions where the thing lives.** Each row carries its own buttons (Assign a Coordinator,
    Rename, Delete). Show a button only when it can be used; otherwise say how to make it possible
-   ("Invite Section Leads below").
+   ("Invite Coordinators below").
 5. **A quick way and a careful way.** Where both make sense, a simple toggle between them (Auto
    create shifts / Create single shift). Redoing the quick way replaces what it made, as long as
    no real people depend on it yet.
@@ -168,7 +168,7 @@ is called "Set Up Your Event"; after, "Edit Event Details".
 
 - **Event details**: name, dates, venue, the logo and color, and the kind of event.
 - **Maps & documents**.
-- **Team setup**: co-hosts and Volunteer Leads. Section Leads are invited in Volunteer Setup,
+- **Team setup**: co-hosts and Volunteer Leads. Coordinators are invited in Volunteer Setup,
   next to the stations they lead.
 - **Email settings**: where replies go, and who gets notifications.
 

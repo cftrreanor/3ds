@@ -76,11 +76,11 @@ const kinds = [
   {
     icon: "🙋",
     title: "Volunteer events",
-    summary: "Concessions, field day, book fairs, and school parking",
+    summary: "Cleanups, food drives, races, and potlucks",
     href: audiences.volunteers.path,
-    examples: "Concessions, field day, book fairs, and school parking",
+    examples: "Cleanups, food drives, races, and potlucks",
     points: [
-      "Stations and shifts that fill evenly, with spots left shown",
+      "Sign-ups and shifts that fill evenly, with spots left shown",
       "Confirmations, calendar invites, and day-before reminders, with no account and no ads",
       "Check-in on any device, with walk-ups and printable badges",
     ],
@@ -127,7 +127,7 @@ const kinds = [
 // Beside the headline: the product as spectators, volunteers, and the front office see it.
 const heroScreens = [
   { src: "/screens/band-live-order.webp", alt: "A band contest's public page on a phone, with the live performance order." },
-  { src: "/screens/volunteer-shift-picker.webp", alt: "Volunteer sign-up on a phone: stations, shifts, and how many spots are left." },
+  { src: "/screens/volunteer-shift-picker.webp", alt: "Volunteer sign-up on a phone: sign-ups, shifts, and how many spots are left." },
   { src: "/screens/parent-door-search.webp", alt: "Door check-in on a phone for a family visitor day: a search, the family's children, and a Check in button for each adult." },
 ];
 
@@ -181,7 +181,7 @@ const faqs = [
   },
   {
     q: "Can it run a school fair or PTO fundraiser?",
-    a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer stations with Station Coordinators, and share a public page of everything at the event that thanks your partners.",
+    a: "Yes. Organize booths and community partners by zone, check partners in as they arrive, staff volunteer sign-ups with Coordinators, and share a public page of everything at the event that thanks your partners.",
   },
   {
     q: "Do volunteers, parents, or visiting directors have to pay or download an app?",
@@ -189,7 +189,7 @@ const faqs = [
   },
   {
     q: "How is student and family information handled?",
-    a: "Band contests collect headcounts, not student names. Children's names at school visitor events and conferences are deleted 30 days after the event, and volunteers' phone numbers 10 days after. Conference bookings are seen only by the teacher, and Section Leads see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event. Our Student data privacy page has the full details.",
+    a: "Band contests collect headcounts, not student names. Children's names at school visitor events and conferences are deleted 30 days after the event, and volunteers' phone numbers 10 days after. Conference bookings are seen only by the teacher, and Coordinators see volunteers' phone numbers only on event day. No ads, no spam, and emails used only for your event. Our Student data privacy page has the full details.",
   },
   {
     q: "Who is it for?",

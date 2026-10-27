@@ -23,7 +23,7 @@ type StationValues = {
   adults_only?: boolean;
   /** School fairs: which zone the station is in. */
   zone?: string | null;
-  /** Everyone leading this station, first-added first. */
+  /** Everyone leading this sign-up, first-added first. */
   lead_ids?: string[];
 };
 export type LeadOption = { id: string; label: string };
@@ -32,26 +32,26 @@ export function StationForm({
   action,
   initial,
   leads,
-  submitLabel = "Add station",
+  submitLabel = "Add sign-up",
   bands = true,
   locations = [],
   zones,
-  leadLabel = "Section Leads",
+  leadLabel = "Coordinators",
   trackUnsaved,
 }: {
   action: Action;
   initial?: StationValues;
   leads?: LeadOption[];
   submitLabel?: string;
-  /** A band contest: stations can be stops on the bands' check-in path. */
+  /** A band contest: sign-ups can be stops on the bands' check-in path. */
   bands?: boolean;
   /** Suggestions for Location: a group event's rooms. */
   locations?: string[];
   /** School fairs: zone suggestions (shows the Zone field). */
   zones?: readonly string[];
-  /** What the station's leads are called ("Station Coordinators" at fairs). */
+  /** What the sign-up's leads are called. */
   leadLabel?: string;
-  /** Step 2's "1. Station details": warn before leaving the station with this unsaved or unfinished. */
+  /** Step 2's "1. Sign-up details": warn before leaving the station with this unsaved or unfinished. */
   trackUnsaved?: boolean;
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
@@ -70,17 +70,17 @@ export function StationForm({
         // Step 2: the name was set in step 1 (rename it there).
         <input type="hidden" name="name" value={initial?.name ?? ""} />
       ) : (
-        <Field label="Station name" hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}>
+        <Field label="Sign-up name" hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}>
           <Input name="name" required defaultValue={initial?.name} />
         </Field>
       )}
       {bands && (
       <Field
-        label="Check-in station?"
-        hint="Check-in stations are the stops a band goes through on contest day, in the order you set. Their Section Leads tap bands in."
+        label="Check-in stop?"
+        hint="Check-in stops are the places a band goes through on contest day, in the order you set. Their Coordinators tap bands in."
       >
         <Select name="checkpointKind" value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">No, a regular station (concessions, hospitality…)</option>
+          <option value="">No, a regular sign-up (concessions, hospitality…)</option>
           {CHECKPOINT_KINDS.map((k) => (
             <option key={k.value} value={k.value}>
               {k.label}: {k.hint}
@@ -107,7 +107,7 @@ export function StationForm({
         </Field>
       )}
       {zones && (
-        <Field label="Zone" hint="Optional. Groups stations on the event's pages. Use one of these or make up your own.">
+        <Field label="Zone" hint="Optional. Groups sign-ups on the event's pages. Use one of these or make up your own.">
           <ZoneInput zones={zones} defaultValue={initial?.zone} />
         </Field>
       )}
@@ -138,7 +138,7 @@ export function StationForm({
         />
         <span>
           <span className="font-medium">Adults only (18+)</span>
-          <span className="block text-muted">No one under 18 can sign up for this station&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
+          <span className="block text-muted">No one under 18 can sign up for this sign-up&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
         </span>
       </label>
       {leads && (
@@ -147,8 +147,8 @@ export function StationForm({
           <input type="hidden" name="leadsField" value="1" />
           <p className="mt-1 text-sm text-muted">
             {leads.length
-              ? "Pick one or more, so there's a backup if someone can't make it. Every lead sees this station's volunteers; volunteers contact the first lead you added."
-              : "Invite Section Leads in the Team card on the event page."}
+              ? "Pick one or more, so there's a backup if someone can't make it. Every lead sees this sign-up's volunteers; volunteers contact the first lead you added."
+              : "Invite Coordinators in the Team card on the event page."}
           </p>
           {leads.length > 0 && (
             <div className="mt-2 space-y-1.5">
@@ -185,7 +185,7 @@ function hasAnswers(form: HTMLFormElement) {
 
 /**
  * "Auto create shifts": split each event day into equal shifts. Run again, it
- * replaces the station's shifts, as long as nobody has signed up for them.
+ * replaces the sign-up's shifts, as long as nobody has signed up for them.
  */
 export function GenerateShiftsForm({
   action,
@@ -204,7 +204,7 @@ export function GenerateShiftsForm({
   if (signedUp) {
     return (
       <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
-        Volunteers have signed up for this station&apos;s shifts, so auto create can&apos;t replace them. Edit shifts one at a
+        Volunteers have signed up for this sign-up&apos;s shifts, so auto create can&apos;t replace them. Edit shifts one at a
         time below, or create a single shift.
       </p>
     );
@@ -213,11 +213,11 @@ export function GenerateShiftsForm({
     <ActionForm
       action={action}
       className="space-y-4"
-      confirmMessage={existing ? `Replace this station's ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
+      confirmMessage={existing ? `Replace this sign-up's ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
       onEdit={(f) => setEdited(hasAnswers(f))}
     >
       <p className="text-sm text-muted">
-        Split the event day ({windowLabel}) into equal shifts for this station.
+        Split the event day ({windowLabel}) into equal shifts for this sign-up.
         {existing > 0 && (
           <>
             {" "}
@@ -335,7 +335,7 @@ export function BuildShifts({
   create: Action;
   windowLabel: string;
   days: string[];
-  /** The station's shifts now, and whether anyone has signed up for one. */
+  /** The sign-up's shifts now, and whether anyone has signed up for one. */
   existing?: number;
   signedUp?: boolean;
 }) {
@@ -376,26 +376,157 @@ export function BuildShifts({
   );
 }
 
-/** "1. Create stations": a station's name. Its leads are picked on its row; the rest comes in step 2. */
-export function NewStationForm({ action }: { action: Action }) {
+/** "1. Create stations": a sign-up's name. Its leads are picked on its row; the rest comes in step 2. */
+/** A station signs people up for times (shifts) or for things to bring (items). */
+const SIGNUP_KINDS = [
+  { value: "shifts", label: "Time slots", hint: "People sign up for a time, like setting up from 5 to 6 PM" },
+  { value: "items", label: "Items to bring", hint: "People sign up to bring something, like desserts or drinks" },
+] as const;
+
+type SignupKind = "shifts" | "items";
+
+/** Time slots or items to bring, as two big choices. */
+function SignupKindPicker({
+  value,
+  onChange,
+  disabled = false,
+  note,
+}: {
+  value: SignupKind;
+  onChange: (kind: SignupKind) => void;
+  disabled?: boolean;
+  note: string;
+}) {
   return (
-    <ActionForm action={action} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-      <Field label="New station name" hint="e.g. Parking, Concessions, Ticket Table" className="flex-1">
+    <fieldset disabled={disabled}>
+      <legend className="text-sm font-semibold">What do people sign up for?</legend>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {SIGNUP_KINDS.map((k) => (
+          <label
+            key={k.value}
+            className={`flex gap-3 rounded-lg border p-3 ${disabled ? "opacity-60" : "cursor-pointer"} ${value === k.value ? "border-brand bg-brand-soft" : "border-field-border"}`}
+          >
+            <input
+              type="radio"
+              name="signupKind"
+              value={k.value}
+              checked={value === k.value}
+              onChange={() => onChange(k.value)}
+              className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+            />
+            <span>
+              <span className="block text-sm font-semibold">{k.label}</span>
+              <span className="block text-sm text-muted">{k.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <p className="mt-1.5 text-sm text-muted">{note}</p>
+    </fieldset>
+  );
+}
+
+/** "Time slots" or "Items to bring", for a sign-up's row. */
+export const signupKindLabel = (kind: SignupKind) => SIGNUP_KINDS.find((k) => k.value === kind)!.label;
+
+export function NewStationForm({ action }: { action: Action }) {
+  const [kind, setKind] = useState<SignupKind>("shifts");
+  return (
+    <ActionForm action={action} className="space-y-4">
+      <Field
+        label="New sign-up name"
+        hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : "e.g. Parking, Concessions, Ticket Table"}
+      >
         <Input name="name" required maxLength={80} />
       </Field>
-      <SubmitButton variant="go" pendingText="Adding…" className="sm:mb-7">
-        Add station
+      <SignupKindPicker value={kind} onChange={setKind} note="You can change this later, until you add shifts or items." />
+      <SubmitButton variant="go" pendingText="Adding…">
+        Add sign-up
+      </SubmitButton>
+    </ActionForm>
+  );
+}
+
+/** Items to bring: one row per item (Desserts, 6 needed), editable, and a form to add another. */
+export function ItemsEditor({
+  items,
+  create,
+}: {
+  /** Each item with its own save and delete (bound on the server). */
+  items: { id: string; name: string; needed: number; claimed_count: number; update: Action; remove: () => Promise<ActionState> }[];
+  create: Action;
+}) {
+  return (
+    <div className="space-y-4">
+      {items.length > 0 && (
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {items.map((it) => (
+            <li key={it.id} className="px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{it.name}</p>
+                  <p className="text-sm text-muted">
+                    {it.claimed_count} of {it.needed} signed up
+                  </p>
+                </div>
+                <DeleteButton
+                  action={it.remove}
+                  label={`Delete ${it.name}`}
+                  confirmMessage={`Delete “${it.name}”?`}
+                />
+              </div>
+              <details className="mt-1">
+                <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
+                  Edit item
+                </summary>
+                <ItemFields action={it.update} initial={it} submitLabel="Save item" />
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div>
+        <p className="text-sm font-semibold">{items.length ? "Add another item" : "Add an item"}</p>
+        <ItemFields action={create} submitLabel="Add item" reset />
+      </div>
+    </div>
+  );
+}
+
+function ItemFields({
+  action,
+  initial,
+  submitLabel,
+  reset = false,
+}: {
+  action: Action;
+  initial?: { name: string; needed: number };
+  submitLabel: string;
+  reset?: boolean;
+}) {
+  return (
+    <ActionForm action={action} resetOnSuccess={reset} className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+      <Field label="Item" hint="e.g. Desserts, Drinks, Paper plates" className="flex-1">
+        <Input name="name" required maxLength={100} defaultValue={initial?.name} />
+      </Field>
+      <Field label="How many needed" className="sm:w-40">
+        <NumberInput name="needed" required defaultValue={initial?.needed ?? 1} maxLength={3} />
+      </Field>
+      <SubmitButton variant={reset ? "go" : "primary"} className="sm:mb-7">
+        {submitLabel}
       </SubmitButton>
     </ActionForm>
   );
 }
 
 /**
- * A station's row in "1. Create stations": its leads, with a button to
+ * A sign-up's row in "1. Create stations": its leads, with a button to
  * assign them (once the team has leads to pick from), and a rename.
  */
 export function StationRow({
   name,
+  kind,
+  kindLocked,
   leadNames,
   leadIds,
   leads,
@@ -406,10 +537,13 @@ export function StationRow({
   remove,
 }: {
   name: string;
+  kind: SignupKind;
+  /** Why the kind can't change right now (it has shifts or items, or it's a check-in stop); null if it can. */
+  kindLocked: string | null;
   leadNames: string[];
   leadIds: string[];
   leads: LeadOption[];
-  /** The team has Section Leads (Station Coordinators) to assign. */
+  /** The team has Coordinators to assign. */
   canAssign: boolean;
   leadWord: { one: string; many: string };
   setLeads: Action;
@@ -417,13 +551,16 @@ export function StationRow({
   remove: Action;
 }) {
   const [open, setOpen] = useState<"leads" | "rename" | null>(null);
+  const [newKind, setNewKind] = useState<SignupKind>(kind);
   const toggle = (which: "leads" | "rename") => setOpen(open === which ? null : which);
   return (
     <li className="px-3 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
           <p className="font-medium">{name}</p>
-          <p className="text-sm text-muted">{leadNames.length ? leadNames.join(", ") : `No ${leadWord.one} yet`}</p>
+          <p className="text-sm text-muted">
+            {signupKindLabel(kind)} · {leadNames.length ? leadNames.join(", ") : `No ${leadWord.one} yet`}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canAssign && (
@@ -432,7 +569,7 @@ export function StationRow({
             </Button>
           )}
           <Button type="button" variant="ghost" className="min-h-10 px-2 text-sm" onClick={() => toggle("rename")} aria-expanded={open === "rename"}>
-            Rename or delete
+            Edit or delete
           </Button>
         </div>
       </div>
@@ -463,10 +600,16 @@ export function StationRow({
       {/* Delete lives in here, out of the way, instead of a red button on every row. */}
       {open === "rename" && (
         <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
-          <ActionForm action={rename} className="flex flex-col gap-2 sm:flex-row sm:items-end" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
-            <Field label="Station name" className="flex-1">
+          <ActionForm action={rename} className="space-y-3" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
+            <Field label="Sign-up name">
               <Input name="name" required maxLength={80} defaultValue={name} />
             </Field>
+            <SignupKindPicker
+              value={newKind}
+              onChange={setNewKind}
+              disabled={Boolean(kindLocked)}
+              note={kindLocked ?? "You can change this until you add shifts or items."}
+            />
             <div className="flex gap-2">
               <SubmitButton pendingText="Saving…">Save</SubmitButton>
               <Button type="button" variant="ghost" onClick={() => setOpen(null)}>
@@ -477,10 +620,10 @@ export function StationRow({
           <div className="border-t border-border pt-3">
             <DeleteButton
               action={remove}
-              label={`Delete station ${name}`}
-              text="Delete station"
+              label={`Delete sign-up ${name}`}
+              text="Delete sign-up"
               destructive
-              confirmMessage={`Delete “${name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
+              confirmMessage={`Delete “${name}”? Its shifts are deleted too, and this can't be undone. (A sign-up with volunteers signed up can't be deleted.)`}
             />
           </div>
         </div>
@@ -555,7 +698,7 @@ export function InviteForm({
         </p>
       )}
       {role === "section_lead" && stations.length > 0 && (
-        <Field label="Station they'll lead" hint="Optional. You can also choose later.">
+        <Field label="Sign-up they'll lead" hint="Optional. You can also choose later.">
           <Select name="stationId" defaultValue="">
             <option value="">Decide later</option>
             {stations.map((s) => (

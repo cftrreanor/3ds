@@ -19,7 +19,7 @@ const onPath = (href: string, pathname: string) => pathname === routeOf(href) ||
 function useHere(day: DayActions) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
-  // A station's own button when its tab is open; otherwise the first job on this page.
+  // A sign-up's own button when its tab is open; otherwise the first job on this page.
   const here = (day.actions.find((a) => pathOf(a.href) === `${pathname}${search ? `?${search}` : ""}`) ?? day.actions.find((a) => onPath(a.href, pathname)))?.id;
   return { pathname, isHere: (a: DayAction) => a.id === here };
 }
