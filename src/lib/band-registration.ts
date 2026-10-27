@@ -7,7 +7,8 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import type { bandColumns } from "@/lib/bands";
 import { getOrigin } from "@/lib/data";
 import { emailLayout, sendEmail } from "@/lib/email";
-import { hasRooms } from "@/lib/event-types";
+import { groupWords, hasRooms } from "@/lib/event-types";
+import { notificationEmails } from "@/lib/notify-recipients";
 import { createClient } from "@/lib/supabase/server";
 import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { formatDateRange } from "@/lib/time";
@@ -75,6 +76,24 @@ export async function createRegistration(
       button: { label: custom?.button || "View my registration", url: `${origin}/dashboard/bands/${data.id}` },
     });
     await sendEmail({ to: user.email, subject: custom?.subject || `Registered: ${v.band_name} at ${event?.name ?? "the event"}`, html, text, eventId });
+
+    // The people the hosts picked to hear about registrations (Edit details → Email settings).
+    const organizers = await notificationEmails(eventId, "band_registered");
+    if (!organizers.length) return;
+    const w = groupWords(event?.event_type);
+    const note = emailLayout({
+      heading: `${v.band_name} registered`,
+      paragraphs: [`${v.school_name} registered ${v.band_name} for ${event?.name ?? "your event"}.`],
+      rows: [
+        { title: "Classification", detail: v.classification },
+        { title: "People", detail: `${v.student_count} ${group ? "participants" : "students"} · ${count(v.chaperone_count, "chaperone", "chaperones")}` },
+      ],
+      button: { label: `See all ${w.many}`, url: `${origin}/dashboard/events/${eventId}/bands` },
+      footer: "You get this because you're set to hear about registrations for this event. Change it in Edit details → Email settings.",
+    });
+    for (const to of organizers) {
+      await sendEmail({ to, subject: `New ${w.one} registration: ${v.band_name}`, html: note.html, text: note.text, eventId });
+    }
   });
 
   revalidatePath("/dashboard");

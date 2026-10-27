@@ -5137,16 +5137,21 @@ reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000e2';
 
 -- ---------------------------------------------------------------------------
--- Who gets an event's notifications (20261230000000): hosts only, and only
--- plain email addresses, at most five.
+-- Who gets an event's notifications (20261230000000): one row per kind of
+-- email, hosts only, and only plain email addresses, at most five.
 -- ---------------------------------------------------------------------------
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 do $$ begin
-  insert into public.event_notification_recipients (event_id, member_ids, extra_emails)
-  values ('10000000-0000-0000-0000-00000000000a', array['00000000-0000-0000-0000-000000000001']::uuid[], array['office@school.org']);
+  insert into public.event_notification_recipients (event_id, kind, member_ids, extra_emails)
+  values ('10000000-0000-0000-0000-00000000000a', 'volunteer_digest', array['00000000-0000-0000-0000-000000000001']::uuid[], array['office@school.org']);
   assert (select extra_emails = array['office@school.org'] from public.event_notification_recipients where event_id = '10000000-0000-0000-0000-00000000000a'),
          'a host picks who gets notifications';
+  begin
+    insert into public.event_notification_recipients (event_id, kind) values ('10000000-0000-0000-0000-00000000000a', 'everything');
+    raise exception 'FAIL: an unknown kind of notification was saved';
+  exception when check_violation then null;
+  end;
   begin
     update public.event_notification_recipients set extra_emails = array['x@y.org>, evil@z.org'] where event_id = '10000000-0000-0000-0000-00000000000a';
     raise exception 'FAIL: an address with extra recipients was saved';
@@ -5168,7 +5173,7 @@ set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":
 do $$ begin
   assert not exists (select 1 from public.event_notification_recipients), 'a stranger can''t see who gets notifications';
   begin
-    insert into public.event_notification_recipients (event_id, extra_emails) values ('10000000-0000-0000-0000-00000000000b', array['phish@example.com']);
+    insert into public.event_notification_recipients (event_id, kind, extra_emails) values ('10000000-0000-0000-0000-00000000000b', 'bookings', array['phish@example.com']);
     raise exception 'FAIL: a stranger added themselves to an event''s notifications';
   exception when insufficient_privilege then null;
   end;
@@ -5188,6 +5193,31 @@ do $$ begin
 end $$;
 reset role;
 delete from public.event_notification_recipients;
+
+-- A dropped sign-up is noted for the daily summary; only the server can read the note.
+do $$
+declare a record;
+begin
+  select va.id, va.shift_id, v.full_name into a
+    from public.volunteer_assignments va join public.volunteers v on v.id = va.volunteer_id limit 1;
+  if a.id is null then raise notice 'no sign-up to test the dropped-shift note on'; return; end if;
+  begin
+    delete from public.volunteer_assignments where id = a.id;
+    assert exists (select 1 from public.volunteer_dropped_shifts where shift_id = a.shift_id and full_name = a.full_name),
+           'a cancelled sign-up is noted for the daily summary';
+    raise exception 'undo the test delete';
+  exception when raise_exception then
+    if sqlerrm <> 'undo the test delete' then raise; end if;
+  end;
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  perform 1 from public.volunteer_dropped_shifts;
+  raise exception 'FAIL: a host read the dropped sign-ups table directly';
+exception when insufficient_privilege then null;
+end $$;
+reset role;
 
 -- ---------------------------------------------------------------------------
 -- Event email settings (where replies go): Hosts only, never the public or

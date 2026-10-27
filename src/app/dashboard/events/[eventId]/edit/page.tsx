@@ -16,7 +16,7 @@ import { saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
 import { saveNotifyRecipients } from "../../../notify-actions";
 import { NotifyForm, type TeamMember } from "./notify-form";
-import { MAX_EXTRA_EMAILS } from "@/lib/notify-recipients";
+import { MAX_EXTRA_EMAILS, notifyKinds, type NotifyKind } from "@/lib/notify-kinds";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
 import { setEventShowBrand, setEventType, updateEvent } from "../../../actions";
@@ -139,28 +139,45 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     supabase.from("organizations").select("name").eq("id", event.organization_id).maybeSingle(),
   ]);
   const conference = hasConferences(event.event_type);
-  // Notifications: bookings (conferences and meetings) and withdrawals (bands and groups) go to the people picked here.
-  const notifyHere = conference || hasEnsembles(event.event_type);
-  const [{ data: memberRows }, { data: notifyRow, error: notifyError }] = notifyHere
-    ? await Promise.all([
-        admin.from("organization_members").select("user_id, role, profiles(full_name, email)").eq("organization_id", event.organization_id),
-        supabase.from("event_notification_recipients").select("member_ids, extra_emails").eq("event_id", eventId).maybeSingle(),
-      ])
-    : [{ data: null }, { data: null, error: null }];
-  const members: TeamMember[] = ((memberRows ?? []) as unknown as { user_id: string; role: string; profiles: { full_name: string | null; email: string | null } | null }[])
-    .map((m) => ({
-      id: m.user_id,
-      name: m.profiles?.full_name?.trim() || m.profiles?.email || "Someone on your account",
-      email: m.profiles?.email ?? null,
-      role: m.role === "owner" ? "Account Host" : "Co-host",
-    }))
+  // Notifications: each kind of email the event sends its organizers, and who gets it.
+  const kinds = notifyKinds(event.event_type);
+  const [{ data: memberRows }, { data: leadRows }, { data: notifyRows, error: notifyError }] = await Promise.all([
+    admin.from("organization_members").select("user_id, role, profiles(full_name, email)").eq("organization_id", event.organization_id),
+    conference
+      ? Promise.resolve({ data: [] })
+      : admin.from("event_staff").select("user_id, profiles(full_name, email)").eq("event_id", eventId).eq("role", "volunteer_director"),
+    supabase.from("event_notification_recipients").select("kind, member_ids, extra_emails").eq("event_id", eventId),
+  ]);
+  type PersonRow = { user_id: string; role?: string; profiles: { full_name: string | null; email: string | null } | null };
+  const person = (m: PersonRow, role: string): TeamMember => ({
+    id: m.user_id,
+    name: m.profiles?.full_name?.trim() || m.profiles?.email || "Someone on your team",
+    email: m.profiles?.email ?? null,
+    role,
+  });
+  const hostMembers = ((memberRows ?? []) as unknown as PersonRow[])
+    .map((m) => person(m, m.role === "owner" ? "Account Host" : "Co-host"))
     .sort((a, b) => Number(b.role === "Account Host") - Number(a.role === "Account Host"));
-  // Not saved yet: who gets them today (the teacher for bookings; every host for band and group alerts).
-  const notifyPicked = notifyRow
-    ? (notifyRow.member_ids as string[])
-    : conference
-      ? members.filter((m) => m.id === event.created_by).map((m) => m.id)
-      : members.map((m) => m.id);
+  const members: TeamMember[] = [
+    ...hostMembers,
+    ...((leadRows ?? []) as unknown as PersonRow[]).filter((l) => !hostMembers.some((h) => h.id === l.user_id)).map((l) => person(l, "Volunteer Lead")),
+  ];
+  const savedKinds = new Map(
+    ((notifyRows ?? []) as { kind: NotifyKind; member_ids: string[]; extra_emails: string[] }[]).map((r) => [r.kind, r]),
+  );
+  // Not saved yet: who gets each kind today (the teacher for bookings, every host for withdrawals, no one for the rest).
+  const notifyPicked = Object.fromEntries(
+    kinds.map(({ kind }) => [
+      kind,
+      savedKinds.get(kind)?.member_ids ??
+        (kind === "bookings" ? hostMembers.filter((m) => m.id === event.created_by).map((m) => m.id) : kind === "band_withdrew" ? hostMembers.map((m) => m.id) : []),
+    ]),
+  ) as Partial<Record<NotifyKind, string[]>>;
+  const notifyExtras = [...new Set([...savedKinds.values()].flatMap((r) => r.extra_emails))].map((email) => ({
+    email,
+    kinds: kinds.map((k) => k.kind).filter((k) => savedKinds.get(k)?.extra_emails.includes(email)),
+  }));
+  const notifySaved = savedKinds.size > 0;
   const senderName = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
   const repliesOn = replyRow ? replyRow.replies : true;
   const replyTo = replyRow?.reply_to || (creator?.email as string | undefined) || "";
@@ -192,7 +209,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     { id: "details", label: "Event details", done: true, status: eventTypeLabel(event.event_type) },
     ...(conference ? [] : [{ id: "files", label: "Maps & documents", done: files.length > 0, status: files.length ? `${files.length} ${files.length === 1 ? "file" : "files"}` : "Optional" }]),
     { id: "team", label: "Team setup", done: teamCount > 0, status: teamCount ? `${teamCount} ${teamCount === 1 ? "person" : "people"}` : "Optional" },
-    { id: "emails", label: "Email settings", done: Boolean(replyRow || notifyRow), status: replyRow || notifyRow ? "Saved" : "Default" },
+    { id: "emails", label: "Email settings", done: Boolean(replyRow || notifySaved), status: replyRow || notifySaved ? "Saved" : "Default" },
   ];
   const published = event.status === "published";
 
@@ -362,40 +379,35 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 )}
               </Panel>
 
-              {notifyHere && (
-                <Panel
-                  id="notifications"
-                  title="Who gets notifications"
-                  intro={
-                    conference
-                      ? "Who gets an email, with a calendar invite, when someone books, changes, or cancels a meeting."
-                      : `Who gets an email when a ${words.one} withdraws.`
-                  }
-                >
-                  {isSchemaError(notifyError) ? (
-                    <p className="text-sm text-muted">
-                      A database update is needed before notifications can be set up. See “Applying database updates” in the setup guide.
+              <Panel
+                id="notifications"
+                title="Who gets notifications"
+                intro="Pick who gets each kind of email about this event. Volunteers, families, and directors get their own emails either way."
+              >
+                {isSchemaError(notifyError) ? (
+                  <p className="text-sm text-muted">
+                    A database update is needed before notifications can be set up. See “Applying database updates” in the setup guide.
+                  </p>
+                ) : (
+                  <>
+                    <NotifyForm
+                      action={saveNotifyRecipients.bind(null, eventId)}
+                      kinds={kinds}
+                      members={members}
+                      picked={notifyPicked}
+                      extras={notifyExtras}
+                      max={MAX_EXTRA_EMAILS}
+                    />
+                    <p className="mt-3 text-sm text-muted">
+                      Someone missing?{" "}
+                      <Link href={`${base}?section=team`} className="font-medium text-brand underline">
+                        Add them in Team setup
+                      </Link>
+                      .
                     </p>
-                  ) : (
-                    <>
-                      <NotifyForm
-                        action={saveNotifyRecipients.bind(null, eventId)}
-                        members={members}
-                        picked={notifyPicked}
-                        extraEmails={notifyRow?.extra_emails ?? []}
-                        max={MAX_EXTRA_EMAILS}
-                      />
-                      <p className="mt-3 text-sm text-muted">
-                        Someone missing?{" "}
-                        <Link href={`${base}?section=team`} className="font-medium text-brand underline">
-                          Add them in Team setup
-                        </Link>
-                        .
-                      </p>
-                    </>
-                  )}
-                </Panel>
-              )}
+                  </>
+                )}
+              </Panel>
             </>
           )}
         </div>

@@ -162,7 +162,7 @@ export async function withdrawBand(bandId: string): Promise<ActionState> {
  * account's hosts.
  */
 async function organizerEmails(eventId: string): Promise<string[]> {
-  return notificationEmails(eventId, () => contactOrHosts(eventId));
+  return notificationEmails(eventId, "band_withdrew", () => contactOrHosts(eventId));
 }
 
 async function contactOrHosts(eventId: string): Promise<string[]> {

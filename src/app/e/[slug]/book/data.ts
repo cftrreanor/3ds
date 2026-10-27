@@ -44,7 +44,7 @@ export async function loadConference(by: { slug: string } | { id: string }) {
   const t: Teacher = {
     name: teacher?.full_name?.trim() || (meeting ? "Your organizer" : "Your teacher"),
     email: teacher?.email ?? null,
-    shared: Boolean(notify?.extraEmails.length),
+    shared: Boolean(notify.get("bookings")?.extraEmails.length),
   };
   return { event: event as ConferenceEvent, settings: s, teacher: t, askChild };
 }

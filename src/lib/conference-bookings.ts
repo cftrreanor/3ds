@@ -454,7 +454,7 @@ export async function emailTeacher(
   /** A co-host who rescheduled or canceled it (null: the teacher did). */
   actor: string | null = null,
 ) {
-  const to = await notificationEmails(conf.event.id, () => (conf.teacher.email ? [conf.teacher.email] : []));
+  const to = await notificationEmails(conf.event.id, "bookings", () => (conf.teacher.email ? [conf.teacher.email] : []));
   if (!to.length) return false;
   const meetings = `${origin}/dashboard/events/${conf.event.id}/conferences/meetings`;
   const saved = byTeacher || kind === "rescheduled" ? null : await loadSystemEmail(`organizer_booking_${kind}`);

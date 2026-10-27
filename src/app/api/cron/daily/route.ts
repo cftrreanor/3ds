@@ -10,6 +10,7 @@ import { runRetention } from "@/lib/retention";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSchemaError } from "@/lib/schema-check";
 import { loadCalendarEntries, sendShiftReminder } from "@/lib/volunteer-emails";
+import { sendVolunteerDigests } from "@/lib/volunteer-digest";
 import { utcToZonedDate } from "@/lib/time";
 
 // Once a day (vercel.json): remind parents to bring their photo ID the day
@@ -218,6 +219,11 @@ async function runDailyJob() {
   }
   if (volunteersUnsent) console.error(`Daily job: ${volunteersUnsent} volunteer reminder(s) not sent`);
 
+  // Volunteer sign-up summaries for the people each event's hosts picked, then forget dropped sign-ups after a week.
+  const volunteerSummaries = Date.now() - started < 270_000 ? await sendVolunteerDigests(admin, origin, started) : 0;
+  const { error: droppedPurgeError } = await admin.rpc("purge_dropped_shifts");
+  if (droppedPurgeError && !isSchemaError(droppedPurgeError)) console.error("purge_dropped_shifts failed", droppedPurgeError);
+
   return NextResponse.json({
     purged: purged ?? 0,
     bookingsPurged: bookingsPurged ?? 0,
@@ -230,5 +236,6 @@ async function runDailyJob() {
     unsent,
     volunteersReminded,
     volunteersUnsent,
+    volunteerSummaries,
   });
 }
