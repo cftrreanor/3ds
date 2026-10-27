@@ -25,7 +25,7 @@ export function StatusLine({
   const soonBands = new Set(soon.map((a) => a.band.id)).size;
   const waiting = phase === "day" && !started && !lateBands && !soonBands;
   const parts: { dot: keyof typeof DOT; text: string }[] = !hasPath
-    ? [{ dot: "neutral", text: "Set up check-in stations to track the day" }]
+    ? [{ dot: "neutral", text: "Set up check-in stops to track the day" }]
     : phase === "before"
       ? [{ dot: "neutral", text: `Contest day is ${dayLabel}` }]
       : phase === "after"

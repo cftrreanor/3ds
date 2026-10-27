@@ -556,7 +556,7 @@ function BandCard({ bands, live }: { bands: DirectorBand[]; live: Map<string, Da
   );
 }
 
-const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
+const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Sign-up Lead" } as const;
 
 function HelpingCard({ row: r, showType }: { row: StaffEvent & { events: EventSummary }; showType: boolean }) {
   return (

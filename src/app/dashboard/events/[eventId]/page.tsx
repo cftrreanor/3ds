@@ -66,7 +66,7 @@ type Invitation = {
   expires_at: string;
 };
 
-const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Section Lead" } as const;
+const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Sign-up Lead" } as const;
 
 export default async function EventPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]">) {
   const { eventId } = await params;
@@ -190,7 +190,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
 
-  // Section Leads: their stations (volunteers by shift) are on the Contest day page.
+  // Sign-up Leads: their sign-ups (volunteers by shift) are on the Contest day page.
   const myStations = stations.filter((s) => s.lead_ids.includes(user.id));
   const myVolunteers = (shifts ?? [])
     .filter((sh) => myStations.some((st) => st.id === sh.station_id))
@@ -225,7 +225,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       ? [
           {
             tone: "warn" as const,
-            text: `${unled.length === 1 ? "1 station needs" : `${unled.length} stations need`} a ${leadWords(event.event_type).one}: ${unled.map((s) => s.name).join(", ")}`,
+            text: `${unled.length === 1 ? "1 sign-up needs" : `${unled.length} sign-ups need`} a ${leadWords(event.event_type).one}: ${unled.map((s) => s.name).join(", ")}`,
             tab: "section-leads",
           },
         ]
@@ -271,7 +271,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? ((await supabase.from("parent_registrations").select("created_at, checked_in_at, adult_count, other_adults, children").eq("event_id", eventId)).data ?? [])
     : [];
   const parentNumbers = parentStats(parentRows);
-  // Section Leads see children's details (and work the door) on event day only.
+  // Sign-up Leads see children's details (and work the door) on event day only.
   const doorLocked = parentsHere && !access.canManage && !isEventDay;
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
   // The emptiest shifts first: where to send the next volunteers.
@@ -492,7 +492,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                     // Visitor days: the parent door is the main check-in.
                     parentsHere && !doorLocked && { href: `/dashboard/events/${eventId}/parents#door-check-in`, label: "Parent door check-in" },
                     access.canManage && { href: `/dashboard/events/${eventId}/volunteers`, label: "Volunteer Check-in" },
-                    myStations.length > 0 && { href: `/dashboard/events/${eventId}/contest-day`, label: "My stations" },
+                    myStations.length > 0 && { href: `/dashboard/events/${eventId}/contest-day`, label: "What I lead" },
                     hasBooths(event.event_type) && { href: `/dashboard/events/${eventId}/booths`, label: "Partner check-in" },
                     access.canManage && !past && { href: `/dashboard/events/${eventId}/announcements`, label: "Broadcast Message" },
                   ]
@@ -913,13 +913,13 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 ) : (
                   <div className="mt-2 space-y-2">
                     <p>
-                      Tap a role and this browser signs in as a demo person in that role: a co-host, a Volunteer Lead, a Section Lead (of
+                      Tap a role and this browser signs in as a demo person in that role: a co-host, a Volunteer Lead, a Sign-up Lead (of
                       the first stations),{groupsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift,
                       or a parent looking at the public page. A bar at the top switches roles; <strong className="text-foreground">Back to me</strong>{" "}
                       takes the demo people and sample data back off and returns you here, still signed in.
                     </p>
                     <p>
-                      The first time, the event fills with sample data for its kind: stations and shifts with a dozen volunteers
+                      The first time, the event fills with sample data for its kind: sign-ups and shifts with a dozen volunteers
                       {bandsHere ? ", six bands" : groupsHere ? ", five groups and three rooms" : ""}
                       {event.event_type === "school_visit" ? ", eight parent registrations" : ""}
                       {event.event_type === "fair" ? ", eight booths across four zones" : ""}. Use a practice event: the demo people
@@ -1162,7 +1162,7 @@ function TeamStats({
             <dt className="text-xs text-muted">{c.label}</dt>
             <dd className="text-xl font-semibold tabular-nums">
               {c.value}
-              {/* The whole tile opens where that role is set up (Team setup, or Volunteer Setup for Section Leads). */}
+              {/* The whole tile opens where that role is set up (Team setup, or Volunteer Setup for Sign-up Leads). */}
               <Link href={href(c.tab)} className="absolute inset-0 rounded-lg" aria-label={`${c.label}: ${c.value}`} />
             </dd>
           </div>
@@ -1184,7 +1184,7 @@ function TeamStats({
             ))}
           </ul>
         ) : (
-          <p className="mt-1 text-sm text-muted">Nothing new. Every station has a lead and no invitations have expired.</p>
+          <p className="mt-1 text-sm text-muted">Nothing new. Every sign-up has a lead and no invitations have expired.</p>
         )}
       </div>
     </div>

@@ -30,7 +30,7 @@ export type PublicStation = {
   name: string;
   location: string | null;
   instructions: string | null;
-  /** No one under 18 on this station's shifts. */
+  /** No one under 18 on this sign-up's shifts. */
   adults_only: boolean;
   shifts: PublicShift[];
   /** A station of things to bring instead of times. */
@@ -41,12 +41,12 @@ export function SignupForm({
   action,
   stations,
   disabled,
-  lead = "section lead",
+  lead = "Sign-up Lead",
 }: {
   action: (prev: SignupState, formData: FormData) => Promise<SignupState>;
   stations: PublicStation[];
   disabled?: boolean;
-  /** Who sees volunteers' phone numbers on the day: "section lead", or "Station Coordinator" at a fair. */
+  /** Who sees volunteers' phone numbers on the day. */
   lead?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
@@ -147,7 +147,7 @@ export function SignupForm({
 
   // The form is submitted by hand (no reset), so choices and typing survive an error.
   const chosen = selected;
-  // Picks across every station, for the summary above the Sign up button.
+  // Picks across every sign-up, for the summary above the Sign up button.
   const picks = stations.flatMap((st) => [
     ...st.shifts.filter((sh) => chosen.has(sh.id)).map((sh) => ({ id: sh.id, station: st.name, detail: sh.when })),
     ...st.items.filter((it) => pickedItems.has(it.id)).map((it) => ({ id: it.id, station: st.name, detail: [it.name, pickedItems.get(it.id)].filter(Boolean).join(": ") })),
@@ -196,8 +196,8 @@ export function SignupForm({
         </p>
 
         {stations.length > 1 && (
-          // Wider screens: a tab per station. Phones list every station instead, so none hide off the edge.
-          <div role="tablist" aria-label="Stations" className="relative mt-4 hidden overflow-x-auto sm:block">
+          // Wider screens: a tab per station. Phones list every sign-up instead, so none hide off the edge.
+          <div role="tablist" aria-label="Sign-ups" className="relative mt-4 hidden overflow-x-auto sm:block">
             <div className="flex min-w-max gap-1 border-b border-border">
               {stations.map((st) => {
                 const active = st.id === activeId;
@@ -232,7 +232,7 @@ export function SignupForm({
           </div>
         )}
 
-        {/* Every station stays in the form (hidden tabs included), so picks on other tabs still submit. On phones they're all shown. */}
+        {/* Every sign-up stays in the form (hidden tabs included), so picks on other tabs still submit. On phones they're all shown. */}
         {stations.map((st) => (
           <Card
             key={st.id}

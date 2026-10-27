@@ -12,7 +12,7 @@ export type BannerTone = (typeof BANNER_TONES)[number]["value"];
 export const BANNER_AUDIENCES = [
   { value: "hosts", label: "Hosts", where: "their dashboard" },
   { value: "directors", label: "Directors & group leads", where: "their dashboard and band pages" },
-  { value: "teams", label: "Event teams (Volunteer Leads, Section Leads)", where: "their dashboard and event pages" },
+  { value: "teams", label: "Event teams (Volunteer Leads, Sign-up Leads)", where: "their dashboard and event pages" },
   { value: "public", label: "Public visitors", where: "the home page" },
 ] as const;
 export type BannerAudience = (typeof BANNER_AUDIENCES)[number]["value"];

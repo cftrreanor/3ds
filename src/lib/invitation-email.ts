@@ -22,14 +22,14 @@ export type InvitationDetails = {
   inviter_name: string | null;
 };
 
-/** A different email for co-hosts, Volunteer Leads and Section Leads, with a one-tap accept link. */
+/** A different email for co-hosts, Volunteer Leads and Sign-up Leads, with a one-tap accept link. */
 /** `bands`: the event is a band contest (a volunteer event has no bands). */
-/** `leadTitle`: what Section Leads are called at this event ("Station Coordinator" at fairs). */
+/** `leadTitle`: what the person leading a sign-up is called. */
 /** `saved`: an admin's wording for this kind of invitation (invitationEmailKey), if any. */
-export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true, leadTitle = "Section Lead", saved: SystemEmailText | null = null) {
+export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands = true, leadTitle = "Sign-up Lead", saved: SystemEmailText | null = null) {
   const who = inv.inviter_name ? `${inv.inviter_name} from ${inv.organization}` : inv.organization;
   const when = `${formatDateRange(inv.starts_on, inv.ends_on)}${inv.venue_name ? ` at ${inv.venue_name}` : ""}`;
-  const station = inv.station_name ?? "a station";
+  const station = inv.station_name ?? "a sign-up";
 
   const { subject, heading, paragraphs } = inv.as_host
     ? {
@@ -39,7 +39,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
           `${who} invited you to co-host their events on ${brand.name}, starting with ${inv.event_name} (${when}).`,
           bands
             ? "Co-hosts have the same access as the host on every event: bands, the schedule, volunteers, the team, and contest day."
-            : "Co-hosts have the same access as the host on every event: stations, shifts, volunteers, the team, and the event day.",
+            : "Co-hosts have the same access as the host on every event: sign-ups, shifts, volunteers, the team, and the event day.",
         ],
       }
     : inv.role === "volunteer_director"
@@ -48,7 +48,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
           heading: "You're invited to be a Volunteer Lead",
           paragraphs: [
             `${who} invited you to help run volunteers for ${inv.event_name} (${when}).`,
-            `As a Volunteer Lead you'll set up stations and shifts, see who's signed up, check people in, and help run ${bands ? "contest day" : "the event day"}.`,
+            `As a Volunteer Lead you'll set up sign-ups and shifts, see who's signed up, check people in, and help run ${bands ? "contest day" : "the event day"}.`,
           ],
         }
       : {
@@ -57,8 +57,8 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
           paragraphs: [
             `${who} asked you to lead ${station} at ${inv.event_name} (${when}).`,
             bands
-              ? "You'll see who's on your station's shifts and check bands in on contest day. Volunteers' phone numbers unlock on the day."
-              : "You'll see who's on your station's shifts, and their phone numbers unlock on the day of the event.",
+              ? "You'll see who's on your sign-up's shifts and check bands in on contest day. Volunteers' phone numbers unlock on the day."
+              : "You'll see who's on your sign-up's shifts, and their phone numbers unlock on the day of the event.",
           ],
         };
   const custom = customWords(invitationEmailKey(inv), saved, {
@@ -69,7 +69,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
     event_day: bands ? "contest day" : "the event day",
     access: bands
       ? "bands, the schedule, volunteers, the team, and contest day"
-      : "stations, shifts, volunteers, the team, and the event day",
+      : "sign-ups, shifts, volunteers, the team, and the event day",
     station,
     lead_title: leadTitle,
   });

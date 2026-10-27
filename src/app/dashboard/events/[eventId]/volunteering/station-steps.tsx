@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
-/** The two steps inside each station. */
+/** The two steps inside each sign-up. */
 export type StationStep = "details" | "shifts";
 
 /**
@@ -40,7 +40,7 @@ export function UnsavedChangesProvider({
   return <Progress.Provider value={{ dirty, setDirty, needs, leaving, setLeaving }}>{children}</Progress.Provider>;
 }
 
-/** For a step's form: report whether it has answers that aren't saved. Outside a station's steps, does nothing. */
+/** For a step's form: report whether it has answers that aren't saved. Outside a sign-up's steps, does nothing. */
 export function useStepEdits(step: StationStep | undefined) {
   const progress = useContext(Progress);
   return useCallback((value: boolean) => {
@@ -50,11 +50,11 @@ export function useStepEdits(step: StationStep | undefined) {
 
 const NOTES: Record<StationStep, { unsaved: string; todo: string }> = {
   details: {
-    unsaved: "Save your changes before moving to another station.",
-    todo: "Save this station's details to finish this step before moving on.",
+    unsaved: "Save your changes before moving to another sign-up.",
+    todo: "Save this sign-up's details to finish this step before moving on.",
   },
   shifts: {
-    unsaved: "Create your shift before moving to another station.",
+    unsaved: "Create your shift before moving to another sign-up.",
     todo: "Add at least one shift to finish this step before moving on.",
   },
 };
@@ -106,7 +106,7 @@ export type StationTab = {
 export function StationTabs({ tabs }: { tabs: StationTab[] }) {
   const progress = useContext(Progress);
   return (
-    <nav aria-label="Stations" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-border">
         {tabs.map((t) => (
           <li key={t.id}>

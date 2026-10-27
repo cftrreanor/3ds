@@ -40,7 +40,7 @@ export function ActionForm({
   className?: string;
   /** Ask first, in our confirm window: "The question? What happens." */
   confirmMessage?: string;
-  /** The confirm window's action button ("Delete station"); "Continue" if not given. */
+  /** The confirm window's action button ("Delete sign-up"); "Continue" if not given. */
   confirmLabel?: string;
   resetOnSuccess?: boolean;
   onSuccess?: () => void;

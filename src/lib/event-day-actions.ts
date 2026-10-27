@@ -54,8 +54,8 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
   const job = (id: string, icon: DayIcon, label: string, short: string, hint: string, path: string) =>
     a.push({ id, icon, label, short, hint, href: `${base}${path}` });
 
-  // Section Leads: one button per station they lead, named for the job there,
-  // straight to that station's tab. A station that isn't a check-in station
+  // Sign-up Leads: one button per station they lead, named for the job there,
+  // straight to that sign-up's tab. A station that isn't a check-in station
   // just shows its staffing.
   const stationJob = (st: LedStation) => {
     const path = `/contest-day?station=${st.id}`;
@@ -84,7 +84,7 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
   }
   if (!hasConferences(type)) {
     if (access.canManage) {
-      job("volunteers", "checkin", "Check in volunteers", "Check in volunteers", "Shifts by station, walk-ups, and no-shows", "/volunteers");
+      job("volunteers", "checkin", "Check in volunteers", "Check in volunteers", "Shifts by sign-up, walk-ups, and no-shows", "/volunteers");
     } else if (lead && !hasBands(type)) {
       for (const st of myStations) stationJob(st);
     }
@@ -108,7 +108,7 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
 
 type LedStation = { id: string; name: string; checkpoint_kind: CheckpointKind | null; checkpoint_order: number | null };
 
-/** The stations this person leads at the event, check-in stations first (in their order along the route). */
+/** The stations this person leads at the event, check-in stops first (in their order along the route). */
 async function myLedStations(eventId: string, userId: string): Promise<LedStation[]> {
   const supabase = await createClient();
   const { data: leads } = await supabase.from("station_leads").select("station_id, user_id").eq("event_id", eventId).eq("user_id", userId);

@@ -40,7 +40,7 @@ language plpgsql security definer set search_path = public
 as $$
 begin
   if new.signup_kind = 'items' and new.checkpoint_kind is not null then
-    raise exception 'A check-in station takes time slots, not items to bring.' using errcode = 'P0001';
+    raise exception 'A check-in stop takes time slots, not items to bring.' using errcode = 'P0001';
   end if;
   if tg_op = 'UPDATE' and new.signup_kind is distinct from old.signup_kind
      and (exists (select 1 from shifts where station_id = new.id)
@@ -62,7 +62,7 @@ language plpgsql security definer set search_path = public
 as $$
 begin
   if exists (select 1 from stations where id = new.station_id and signup_kind = 'items') then
-    raise exception 'This section is for items to bring, so it has no time slots.' using errcode = 'P0001';
+    raise exception 'This sign-up is for items to bring, so it has no time slots.' using errcode = 'P0001';
   end if;
   return new;
 end;
@@ -91,7 +91,7 @@ language plpgsql set search_path = public
 as $$
 begin
   if not exists (select 1 from stations s where s.id = new.station_id and s.event_id = new.event_id and s.signup_kind = 'items') then
-    raise exception 'Items only go in a section for items to bring.' using errcode = 'P0001';
+    raise exception 'Items only go in a sign-up for items to bring.' using errcode = 'P0001';
   end if;
   if new.needed < new.claimed_count then
     raise exception '% people are already bringing "%". Ask some of them to cancel first, or keep the number at % or more.',

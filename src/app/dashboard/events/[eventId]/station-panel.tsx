@@ -40,15 +40,15 @@ export type Station = {
   adults_only?: boolean;
   zone?: string | null;
   lead_user_id: string | null;
-  /** Everyone leading this station, first-added first. */
+  /** Everyone leading this sign-up, first-added first. */
   lead_ids: string[];
-  /** When "1. Station details" was last saved (null: not done yet). */
+  /** When "1. Sign-up details" was last saved (null: not done yet). */
   details_saved_at?: string | null;
   /** Time slots (shifts) or things to bring (items). */
   signup_kind?: "shifts" | "items";
 };
 
-/** One thing an items station needs (Desserts, 6 needed). */
+/** One thing an items sign-up needs (Desserts, 6 needed). */
 export type StationItem = { id: string; station_id: string; name: string; needed: number; claimed_count: number };
 
 /** Who's bringing what, for the event's volunteer managers. */
@@ -69,9 +69,9 @@ export type RosterEntry = {
 };
 
 /**
- * One station: its shifts (with editing for organizers), and for the station's
+ * One station: its shifts (with editing for organizers), and for the sign-up's
  * lead, who's signed up. Used on the Volunteer Setup tabs and, for
- * Section Leads, on the event page.
+ * Sign-up Leads, on the event page.
  */
 export function StationPanel({
   eventId,
@@ -98,11 +98,11 @@ export function StationPanel({
   userId: string;
   canManage: boolean;
   leadNames: string[];
-  /** A group event's rooms, suggested for a station's location. */
+  /** A group event's rooms, suggested for a sign-up's location. */
   locations?: string[];
-  /** A fair's zones, suggested for a station's zone. */
+  /** A fair's zones, suggested for a sign-up's zone. */
   zones?: readonly string[];
-  /** Only for the station's lead: who has signed up. */
+  /** Only for the sign-up's lead: who has signed up. */
   roster?: RosterEntry[];
   /** An items station: what it needs. */
   items?: StationItem[];
@@ -136,10 +136,10 @@ export function StationPanel({
         {canManage && (
           <DeleteButton
             action={deleteStation.bind(null, eventId, station.id)}
-            label={`Delete station ${station.name}`}
-            text="Delete station"
+            label={`Delete sign-up ${station.name}`}
+            text="Delete sign-up"
             quiet
-            confirmMessage={`Delete “${station.name}”? Its shifts are deleted too, and this can't be undone. (A station with volunteers signed up can't be deleted.)`}
+            confirmMessage={`Delete “${station.name}”? Its shifts are deleted too, and this can't be undone. (A sign-up with volunteers signed up can't be deleted.)`}
           />
         )}
       </div>
@@ -148,7 +148,7 @@ export function StationPanel({
         <div className="mt-4 flex flex-col gap-3">
           <SetupStep
             id="station-details"
-            title="1. Station details"
+            title="1. Sign-up details"
             status={<StepStatus done={detailsDone} />}
             open={!detailsDone}
             intro="Where volunteers report and what they should know. Save to finish this step."
@@ -156,7 +156,7 @@ export function StationPanel({
             <StationForm
               action={updateStation.bind(null, eventId, station.id)}
               initial={station}
-              submitLabel="Save station details"
+              submitLabel="Save sign-up details"
               bands={hasBands(event.event_type)}
               locations={locations}
               zones={zones}

@@ -28,7 +28,7 @@ export const metadata: Metadata = { title: "Registration" };
 export default async function BandsPage({ params }: PageProps<"/dashboard/events/[eventId]/bands">) {
   const { eventId } = await params;
   const access = await getEventAccess(eventId);
-  // Volunteer and Section Leads get the read-only schedule instead.
+  // Volunteer and Sign-up Leads get the read-only schedule instead.
   if (!access.isHost) redirect(`/dashboard/events/${eventId}/schedule`);
 
   const supabase = await createClient();

@@ -89,7 +89,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261008000000_finals_ready_position.sql` | Separate ready position for finals | ✅ run |
 | `20261009000000_finalists_revealed.sql` | Finals in three stages: schedule, saved finalists, revealed | ✅ run |
 | `20261010000000_schedule_updated_at.sql` | "The schedule has been updated" banner | ✅ run |
-| `20261011000000_station_leads.sql` | More than one Section Lead per station | ✅ run |
+| `20261011000000_station_leads.sql` | More than one Sign-up Lead per station | ✅ run |
 | `20261012000000_co_hosts.sql` | Co-hosts: invite someone to run events with you | ✅ run |
 | `20261013000000_lead_permissions.sql` | Leads see band names and status, not contact details | ✅ run |
 | `20261014000000_contest_day.sql` | Contest day: ordered check-in stations, parking spots, one-tap stops, notes, undo | ✅ run |
@@ -113,7 +113,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261102000000_parent_walk_ins.sql` | Parent registration: say whether parents who didn't register can still come with a photo ID | ✅ run |
 | `20261103000000_group_events.sql` | Group events: a fourth kind of event; groups register (no trucks), rooms at one address, each group's path and times, posted schedule by room | ✅ run |
 | `20261104000000_group_event_day.sql` | Group events on the day: the team checks each group in ("Arrived") and marks each room done; directors see their group's progress | ✅ run |
-| `20261105000000_security_fixes.sql` | Security fixes: people join a team only by accepting an invitation; hosts can't register a band in someone else's name; Section Leads see children's details on event day only; registering again with a parent's email no longer replaces their registration (parents change it from their own link) | ✅ run |
+| `20261105000000_security_fixes.sql` | Security fixes: people join a team only by accepting an invitation; hosts can't register a band in someone else's name; Sign-up Leads see children's details on event day only; registering again with a parent's email no longer replaces their registration (parents change it from their own link) | ✅ run |
 | `20261106000000_host_invitations.sql` | Hosts by invitation: only emails you invite (Admin → Pilot requests → "Approve as host") can set up an organization; directors, team members, volunteers and parents are unaffected | ✅ run |
 | `20261107000000_volunteer_retention.sql` | Volunteers' names and contact details (under-18 helpers too) are deleted 10 days after the event, by the daily job; shift totals stay | ✅ run |
 | `20261108000000_admin_crm.sql` | Admin dashboard as a CRM: pilot pipeline stages (new → contacted → invited → set up → active), private notes and follow-ups, a log of emails sent, and sign-in history | ✅ run |
@@ -362,7 +362,7 @@ your **Email templates**), and the email lands on their timeline; replies go to 
 address. Only admins can see any of it: hosts, volunteers and directors can't.
 
 Being an admin also turns on **demo mode** (needs `20261026000000_demo_mode.sql`). Open any event
-and scroll to **Demo this event** at the bottom. Tap a role (Host, Volunteer Lead, Section Lead,
+and scroll to **Demo this event** at the bottom. Tap a role (Host, Volunteer Lead, Sign-up Lead,
 Director, Volunteer, Parent) and this browser signs in as a made-up demo person in that role. A bar
 across the top lets you switch roles with one tap. When you're done:
 

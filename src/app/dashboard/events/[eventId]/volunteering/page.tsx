@@ -179,7 +179,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       also: [sh.title, `${station} ${sh.title}`, `${station} ${time}`, `${sh.title} ${time}`, `${station} ${day}${time}`],
     };
   });
-  // Assigning leads waits until the team has Section Leads (Station Coordinators at fairs).
+  // Assigning leads waits until the team has Sign-up Leads.
   const hasSectionLeads = staffRows.some((r) => r.role === "section_lead");
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
 
@@ -261,17 +261,17 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       </Card>
 
       <section className="mt-10">
-        <h2 className="text-xl font-semibold">Stations &amp; shifts</h2>
+        <h2 className="text-xl font-semibold">Volunteer sign-ups</h2>
         <p className="mt-1 text-sm text-muted">
-          Each station is a place or job volunteers are assigned to, like Parking or Concessions, with its own shift schedule.
+          Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items.
         </p>
 
         <Card className="mt-4">
           <h3 className="flex items-center gap-2 text-lg font-semibold">
             <span className="flex size-7 items-center justify-center rounded-full bg-brand text-sm text-brand-foreground">1</span>
-            Create stations
+            Create sign-ups
           </h3>
-          <p className="mt-1 text-sm text-muted">Name each station, then assign who leads it. You&apos;ll set up the rest in step 2.</p>
+          <p className="mt-1 text-sm text-muted">Name each sign-up, then assign who leads it. You&apos;ll set up the rest in step 2.</p>
           {stations.length > 0 && (
             <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
               {stations.map((st) => (
@@ -281,11 +281,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   kind={st.signup_kind ?? "shifts"}
                   kindLocked={
                     st.checkpoint_kind
-                      ? "A check-in station always takes time slots."
+                      ? "A check-in stop always takes time slots."
                       : shifts.some((x) => x.station_id === st.id)
-                        ? "To switch to items to bring, first delete this station's shifts in step 2."
+                        ? "To switch to items to bring, first delete this sign-up's shifts in step 2."
                         : items.some((x) => x.station_id === st.id)
-                          ? "To switch to time slots, first delete this station's items in step 2."
+                          ? "To switch to time slots, first delete this sign-up's items in step 2."
                           : null
                   }
                   leadIds={st.lead_ids}
@@ -320,7 +320,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           {checkpoints.length > 0 ? (
             <>
               <p className="mt-0.5 text-sm text-muted">
-                The stops each band goes through on contest day. This order sorts the station tabs here and on the signup
+                The stops each band goes through on contest day. This order sorts the sign-up tabs here and on the sign-up
                 page, and is how we tell whether a band is on track.
               </p>
               <ol className="mt-3 space-y-2">
@@ -365,7 +365,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         <div className="mt-8">
           <h3 className="flex items-center gap-2 text-lg font-semibold">
             <span className="flex size-7 items-center justify-center rounded-full bg-brand text-sm text-brand-foreground">2</span>
-            Configure stations
+            Set up each sign-up
           </h3>
           {current ? (
             <UnsavedChangesProvider
@@ -374,7 +374,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               needsShifts={current.signup_kind === "items" ? currentItems.length === 0 : currentShifts.length === 0}
             >
               <p className="mt-1 mb-4 text-sm text-muted">
-                Open each station, then finish its details and shifts. A green check means it&apos;s ready.
+                Open each sign-up, then finish its details and shifts. A green check means it&apos;s ready.
               </p>
               <StationTabs
                 tabs={stations.map((st) => {
@@ -413,12 +413,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               </div>
             </UnsavedChangesProvider>
           ) : (
-            <p className="mt-1 text-sm text-muted">Add a station in step 1 first.</p>
+            <p className="mt-1 text-sm text-muted">Add a sign-up in step 1 first.</p>
           )}
         </div>
       </section>
 
-      {/* Section Leads run one station each, so they're invited here, next to the stations. */}
+      {/* Sign-up Leads run one sign-up each, so they're invited here, next to the stations. */}
       <section className="mt-10" aria-label={leadWords(event.event_type).many}>
         <TeamRoles eventId={eventId} roles={["section-leads"]} />
       </section>
@@ -435,7 +435,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         <Card>
           {shifts.length === 0 ? (
             <p className="text-sm">
-              Add a station and its shifts above first. Each volunteer you import goes onto one of your shifts.
+              Add a sign-up and its shifts above first. Each volunteer you import goes onto one of your shifts.
             </p>
           ) : (
             <SpreadsheetImport

@@ -143,7 +143,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
             action={signUpVolunteer.bind(null, event.id)}
             stations={publicStations}
             disabled={!isOpen}
-            lead={hasBooths(event.event_type) ? leadWords(event.event_type).one : "section lead"}
+            lead={leadWords(event.event_type).one}
           />
         )}
       </div>

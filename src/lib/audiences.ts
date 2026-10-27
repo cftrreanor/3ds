@@ -93,7 +93,7 @@ export const audiences = {
         ],
         screen: {
           src: "/screens/band-checkin-station.webp",
-          alt: "The parking station on contest day on a phone: a band marked late, with buttons for buses and equipment, and event-day buttons along the bottom.",
+          alt: "Parking check-in on contest day on a phone: a band marked late, with buttons for buses and equipment, and event-day buttons along the bottom.",
         },
       },
       {
@@ -138,7 +138,7 @@ export const audiences = {
     ],
     privacy: [
       "Only your organizers and each band's own director see that band's contact details.",
-      "Section Leads see each band's name, school, and progress. Volunteer Leads also see headcounts and vehicles.",
+      "Sign-up Leads see each band's name, school, and progress. Volunteer Leads also see headcounts and vehicles.",
       "Directors' personal details are removed 2 years after the contest. The band, school, and headcounts stay for your records.",
       "Volunteers' phone numbers are deleted 10 days after the contest.",
     ],
@@ -339,10 +339,10 @@ export const audiences = {
       },
       {
         title: "Volunteers for every booth",
-        body: "Share one link or QR code, and parents pick a station and a shift on their phone without making an account. They get a confirmation, a calendar invite, and a reminder the day before.",
+        body: "Share one link or QR code, and parents pick a sign-up and a shift on their phone without making an account. They get a confirmation, a calendar invite, and a reminder the day before.",
         points: [
-          "Give each volunteer station a zone, and a Station Coordinator to run it",
-          "Parents can sign up with their student under one sign-up, and stations like parking can be adults only",
+          "Give each volunteer sign-up a zone, and a Sign-up Lead to run it",
+          "Parents can sign up with their student under one sign-up, and sign-ups like parking can be adults only",
           "Already have volunteers lined up in a spreadsheet? Import them onto their shifts",
           "Print name badges that carry your logo",
         ],
@@ -408,16 +408,16 @@ export const audiences = {
       "Partners' contact details never appear on the public page and are removed 15 months after the event.",
       "Volunteers' phone numbers are deleted 10 days after the event.",
       "Student volunteers under 18 are stored by first name and last initial, with their parent's contact details.",
-      "Station Coordinators see their volunteers' phone numbers only on event day.",
+      "Sign-up Leads see their volunteers' phone numbers only on event day.",
     ],
     faqs: [
       {
         q: "Can we make our own zones?",
-        a: "Yes. Pick from the suggested zones or type any zone name you like, such as Bounce Houses or Bake Sale. Booths and volunteer stations can both have a zone.",
+        a: "Yes. Pick from the suggested zones or type any zone name you like, such as Bounce Houses or Bake Sale. Booths and volunteer sign-ups can both have a zone.",
       },
       {
         q: "How do volunteers sign up for booths?",
-        a: "Share one link or QR code. Volunteers pick a station and shift on their phone without making an account, and get a confirmation, a calendar invite, and a reminder the day before.",
+        a: "Share one link or QR code. Volunteers pick a sign-up and shift on their phone without making an account, and get a confirmation, a calendar invite, and a reminder the day before.",
       },
       {
         q: "Do our partners and vendors need to do anything?",
@@ -429,7 +429,7 @@ export const audiences = {
       },
       {
         q: "Can students volunteer at our fair?",
-        a: "Yes. A parent can sign up with their student under one sign-up. Under-18 helpers are stored by first name and last initial with the parent's contact details, and you can mark any station as adults only.",
+        a: "Yes. A parent can sign up with their student under one sign-up. Under-18 helpers are stored by first name and last initial with the parent's contact details, and you can mark any sign-up as adults only.",
       },
       {
         q: "Does it sell tickets or take payments?",
@@ -458,13 +458,13 @@ export const audiences = {
     ],
     sections: [
       {
-        title: "Stations and shifts that fill evenly",
-        body: "Set up each station, its shifts, and how many people each shift needs. Sign-ups stop when a shift is full, so you never end up with ten people at one table and nobody at the next.",
+        title: "Sign-ups and shifts that fill evenly",
+        body: "Set up each sign-up, its shifts, and how many people each shift needs. Sign-ups stop when a shift is full, so you never end up with ten people at one table and nobody at the next.",
         points: [
           "Build a day of equal shifts in one step, or add each shift by hand",
-          "Add where volunteers should report, any instructions, and who's leading each station",
-          "Mark stations as adults only, and open or close sign-ups whenever you're ready",
-          "Make any station a list of things to bring, like sides, desserts, and drinks for a potluck, with how many of each you need",
+          "Add where volunteers should report, any instructions, and who's leading each sign-up",
+          "Mark sign-ups as adults only, and open or close sign-ups whenever you're ready",
+          "Make any sign-up a list of things to bring, like sides, desserts, and drinks for a potluck, with how many of each you need",
         ],
       },
       {
@@ -472,12 +472,12 @@ export const audiences = {
         body: "Share one link or QR code. Volunteers pick one shift or several on their phone and see how many spots are left, with no account to make and nothing to download.",
         points: [
           "Sign up with up to four others, and under-18 helpers use a guardian's contact details",
-          "A confirmation with a calendar invite, an update if their shift changes, and a reminder the day before with their station, time, where to report, and their lead's name and phone",
+          "A confirmation with a calendar invite, an update if their shift changes, and a reminder the day before with their sign-up, time, where to report, and their lead's name and phone",
           "A private link lets each volunteer see their shifts, sign up for more, or cancel",
         ],
         screen: {
           src: "/screens/volunteer-shift-picker.webp",
-          alt: "The volunteer sign-up page on a phone in the organizer's colors: stations with their shifts and how many spots are left.",
+          alt: "The volunteer sign-up page on a phone in the organizer's colors: sign-ups with their shifts and how many spots are left.",
         },
       },
       {
@@ -499,30 +499,30 @@ export const audiences = {
         body: "Check volunteers in at the desk with one tap, on any phone, tablet, or laptop. Walk-ups can be added and checked in on the spot, even onto a full shift.",
         points: [
           "Search for anyone by name, and undo a wrong tap",
-          "See how many have arrived out of how many signed up at each station, and who isn't here yet for shifts that have started",
+          "See how many have arrived out of how many signed up at each sign-up, and who isn't here yet for shifts that have started",
           "Release a no-show to free up their spot",
           "The desk updates on its own, so everyone checking people in sees the same list",
         ],
         screen: {
           src: "/screens/volunteer-desk-overview.webp",
-          alt: "The volunteer check-in desk on a phone: arrived and signed-up counts by station, and who isn't here yet.",
+          alt: "The volunteer check-in desk on a phone: arrived and signed-up counts by sign-up, and who isn't here yet.",
         },
       },
       {
-        title: "Leads for every station",
-        body: "Invite Volunteer Leads to run the desk and Section Leads to run a station. Each sees what their role needs, and nothing they don't.",
+        title: "Leads for every sign-up",
+        body: "Invite Volunteer Leads to run the desk and Sign-up Leads to run a sign-up. Each sees what their role needs, and nothing they don't.",
         points: [
-          "Section Leads see their volunteers' phone numbers only on event day",
+          "Sign-up Leads see their volunteers' phone numbers only on event day",
           "Volunteers see their lead's contact details, so they know who to find",
         ],
       },
     ],
     steps: [
       {
-        title: "Set up stations and shifts",
-        body: "Add stations with their leads, then fill the day with shifts.",
+        title: "Set up sign-ups and shifts",
+        body: "Add sign-ups with their leads, then fill the day with shifts.",
         screen: "/screens/set-up-shifts-blue.webp",
-        alt: "Setting up a station with its morning and late-morning volunteer shifts.",
+        alt: "Setting up a sign-up with its morning and late-morning volunteer shifts.",
       },
       {
         title: "Share a link or QR code",
@@ -540,7 +540,7 @@ export const audiences = {
     privacy: [
       "Volunteers never make an account, and their phone numbers are deleted 10 days after the event.",
       "Under-18 helpers are stored by first name and last initial, with a guardian's contact details.",
-      "Section Leads see their volunteers' contact details only on event day.",
+      "Sign-up Leads see their volunteers' contact details only on event day.",
       "No ads, no spam, and emails used only for your event",
     ],
     faqs: [
@@ -550,15 +550,15 @@ export const audiences = {
       },
       {
         q: "Do volunteers get reminders?",
-        a: "Yes. A confirmation email with a calendar invite when they sign up, an update if their shift changes, and a reminder the day before with their station, time, where to report, and their lead.",
+        a: "Yes. A confirmation email with a calendar invite when they sign up, an update if their shift changes, and a reminder the day before with their sign-up, time, where to report, and their lead.",
       },
       {
         q: "How do we keep track of who showed up?",
-        a: "Check volunteers in at the desk with one tap on any device. Each station shows how many have arrived out of how many signed up, and the desk lists who isn't here yet for shifts that have started. You can add walk-ups or release no-shows on the spot.",
+        a: "Check volunteers in at the desk with one tap on any device. Each sign-up shows how many have arrived out of how many signed up, and the desk lists who isn't here yet for shifts that have started. You can add walk-ups or release no-shows on the spot.",
       },
       {
         q: "Can people sign up together?",
-        a: "Yes. One person can sign up with up to four others, and the whole group takes the same shifts. Under-18 helpers use a guardian's contact details, and stations can be marked adults only.",
+        a: "Yes. One person can sign up with up to four others, and the whole group takes the same shifts. Under-18 helpers use a guardian's contact details, and sign-ups can be marked adults only.",
       },
       {
         q: "Can we use it for volunteers at other kinds of events too?",
@@ -671,7 +671,7 @@ export const audiences = {
       },
     ],
     privacy: [
-      "Only your event team sees children's names, teachers, and grades, and Section Leads see them only on event day.",
+      "Only your event team sees children's names, teachers, and grades, and Sign-up Leads see them only on event day.",
       "Every registration, including children's details, is deleted 30 days after the event.",
       "Parents never make an account.",
       "No ads, no spam, and emails used only for your event",
@@ -691,7 +691,7 @@ export const audiences = {
       },
       {
         q: "Who can see children's names?",
-        a: "Only your event team. Section Leads see them only on the day of the event, and every registration is deleted 30 days after the event.",
+        a: "Only your event team. Sign-up Leads see them only on the day of the event, and every registration is deleted 30 days after the event.",
       },
       {
         q: "Can walk-ins still come?",

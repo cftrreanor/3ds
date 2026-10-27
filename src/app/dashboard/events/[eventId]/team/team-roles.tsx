@@ -39,7 +39,7 @@ const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 /**
  * The team, one numbered setup step per role (see "Setup pages" in
  * docs/DESIGN.md): co-hosts and Volunteer Leads in Edit details → Team, and
- * Section Leads in Volunteer Setup, next to the stations they lead.
+ * Sign-up Leads in Volunteer Setup, next to the sign-ups they lead.
  */
 export async function TeamRoles({
   eventId,
@@ -53,7 +53,7 @@ export async function TeamRoles({
   open?: string | null;
 }) {
   const access = await getEventAccess(eventId);
-  // Only hosts manage co-hosts and Volunteer Leads; Volunteer Leads manage Section Leads.
+  // Only hosts manage co-hosts and Volunteer Leads; Volunteer Leads manage Sign-up Leads.
   const roles = asked.filter((r) => (access.isHost ? true : access.canManage && r === "section-leads"));
   if (!roles.length) return null;
   const user = await requireUser();
@@ -114,7 +114,7 @@ export async function TeamRoles({
     const removed = removals.filter(
       (r) => r.role === tabRole && !current.has(r.user_id) && !pending.some((inv) => inv.email.toLowerCase() === r.email.toLowerCase()),
     );
-    // Volunteer Leads manage Section Leads; hosts manage everyone.
+    // Volunteer Leads manage Sign-up Leads; hosts manage everyone.
     const canInvite = access.isHost || tab === "section-leads";
     const roleName = tab === "hosts" ? "co-host" : tab === "volunteer-leads" ? "Volunteer Lead" : lead.one;
     return { pending, removed, canInvite, roleName };
@@ -134,7 +134,7 @@ export async function TeamRoles({
       title: lead.many,
       status:
         unled.length > 0 ? (
-          <StepStatus done={false} todoLabel={`${plural(unled.length, "station needs", "stations need")} a lead`} />
+          <StepStatus done={false} todoLabel={`${plural(unled.length, "sign-up needs", "sign-ups need")} a lead`} />
         ) : (
           <StepStatus done={leads.length > 0} doneLabel={plural(leads.length, lead.one, lead.many)} todoLabel="Optional" />
         ),
@@ -182,8 +182,8 @@ export async function TeamRoles({
                   <div>
                     <h2 className="text-sm font-semibold">Current members</h2>
                     <p className="mt-1 text-sm leading-6 text-muted">
-                      Volunteer Leads run volunteers with you: stations, shifts, sign-ups, and check-in. They can invite Section
-                      Leads.
+                      Volunteer Leads run volunteers with you: sign-ups, shifts, volunteers, and check-in. They can invite
+                      Sign-up Leads.
                     </p>
                     {directors.length > 0 ? (
                       <ul className="mt-3 space-y-2">
@@ -212,7 +212,7 @@ export async function TeamRoles({
                   <div>
                     <h2 className="text-sm font-semibold">Current members</h2>
                     <p className="mt-1 text-sm leading-6 text-muted">
-                      {lead.many} run one station on the day, like {event.event_type === "fair" ? "Face Painting" : "Parking"}. They see who&apos;s on their shifts; phone numbers
+                      {lead.many} run one sign-up on the day, like {event.event_type === "fair" ? "Face Painting" : "Parking"}. They see who&apos;s on their shifts; phone numbers
                       unlock on event day.
                     </p>
                     {leads.length > 0 ? (
@@ -224,12 +224,12 @@ export async function TeamRoles({
                               key={l.user_id}
                               person={l.profiles}
                               isYou={l.user_id === user.id}
-                              detail={led.length ? `Leads ${led.join(", ")}` : "No station yet"}
+                              detail={led.length ? `Leads ${led.join(", ")}` : "No sign-up yet"}
                             >
                               <RemoveButton
                                 action={removeMember.bind(null, eventId, l.user_id, l.role)}
                                 label={`Remove ${lead.one}`}
-                                confirmMessage={`Remove this ${lead.one} from the event? They'll be taken off their stations.`}
+                                confirmMessage={`Remove this ${lead.one} from the event? They'll be taken off their sign-ups.`}
                               />
                             </PersonRow>
                           );

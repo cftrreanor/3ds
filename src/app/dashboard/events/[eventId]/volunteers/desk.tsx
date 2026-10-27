@@ -38,7 +38,7 @@ export type DeskStation = {
   name: string;
   /** "Parking", "Check-in point"… for stations on the bands' path. */
   kind: string | null;
-  /** No one under 18 on this station's shifts. */
+  /** No one under 18 on this sign-up's shifts. */
   adultsOnly: boolean;
   shifts: DeskShift[];
 };
@@ -98,7 +98,7 @@ export function Desk({
     });
   }
 
-  // Searching looks across every station.
+  // Searching looks across every sign-up.
   const q = query.trim().toLowerCase();
   const matches = useMemo(
     () =>
@@ -149,7 +149,7 @@ export function Desk({
       {q ? (
         <section className="mt-5" aria-label="Search results">
           {matches.length === 0 ? (
-            <p className="text-muted">No one matches that. Adding a walk-up? Open their station&apos;s tab.</p>
+            <p className="text-muted">No one matches that. Adding a walk-up? Open their sign-up&apos;s tab.</p>
           ) : (
             <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
               {matches.map(({ v, st, sh }) => (
@@ -160,7 +160,7 @@ export function Desk({
         </section>
       ) : (
         <>
-          <div role="tablist" aria-label="Stations" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div role="tablist" aria-label="Sign-ups" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <div className="flex min-w-max gap-1 border-b border-border">
               <TabButton active={tab === "overview"} onClick={() => setTab("overview")} label="Overview" sub="Who's not here yet?" />
               {optimistic.map((s) => {
@@ -180,7 +180,7 @@ export function Desk({
 
           {current ? (
             <div className="mt-4 space-y-4">
-              {current.shifts.length === 0 && <p className="text-sm text-muted">No shifts at this station.</p>}
+              {current.shifts.length === 0 && <p className="text-sm text-muted">No shifts in this sign-up.</p>}
               {current.shifts.map((sh) => (
                 <ShiftCard key={sh.id} shift={sh} adultsOnly={current.adultsOnly} addWalkUp={addWalkUp} {...rowProps} />
               ))}
@@ -440,7 +440,7 @@ function WalkUpForm({
       )}
       {blocked && (
         <p role="alert" className="text-sm text-danger">
-          This station is adults only (18+), so someone under 18 can&apos;t be added here. Try another station.
+          This station is adults only (18+), so someone under 18 can&apos;t be added here. Try another sign-up.
         </p>
       )}
       <div className="flex gap-2">

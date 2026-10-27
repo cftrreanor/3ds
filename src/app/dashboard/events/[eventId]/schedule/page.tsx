@@ -47,7 +47,7 @@ function Status({ band, round, track }: { band: LeadBand; round: Round; track: T
   return <Badge tone={BADGE_TONE[w.tone]}>{w.label}</Badge>;
 }
 
-/** Hosts: Performance Schedule Setup. Volunteer Leads and Section Leads: the read-only schedule and band status. */
+/** Hosts: Performance Schedule Setup. Volunteer Leads and Sign-up Leads: the read-only schedule and band status. */
 export default async function SchedulePage({ params }: PageProps<"/dashboard/events/[eventId]/schedule">) {
   const { eventId } = await params;
   const access = await getEventAccess(eventId);

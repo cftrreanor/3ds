@@ -41,7 +41,7 @@ npm run test:db              # needs a local Postgres (psql/createdb on PATH)
 ## Security model (short version)
 Privacy rules are enforced **in the database** with Row Level Security, so a bug in
 a page can't leak data:
-- Section Leads read their roster only through `station_roster()`, which hides
+- Sign-up Leads read their roster only through `station_roster()`, which hides
   phone and email except on the event's calendar day(s) in the event's time zone.
 - Volunteer signup goes through `register_volunteer()`, which locks each shift row
   so the last slot can't be double-booked. It runs only from the server.
