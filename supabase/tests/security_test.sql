@@ -6360,6 +6360,117 @@ begin
   assert ok, 'a passcode is at most 50 characters';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Items to bring (20261231000000): sections without times, sign-ups that
+-- can't overfill, a public board of first names and notes only.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+insert into public.stations (id, event_id, name, signup_kind) values
+  ('20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-00000000000a', 'Potluck', 'items');
+insert into public.station_items (id, station_id, event_id, name, needed) values
+  ('70000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-00000000000a', 'Desserts', 1),
+  ('70000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-00000000000a', 'Drinks', 3);
+do $$ begin
+  begin
+    insert into public.station_items (station_id, event_id, name, needed)
+    values ('20000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', 'Chips', 2);
+    raise exception 'FAIL: an item went in a section of time slots';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    update public.station_items set claimed_count = 0;
+    raise exception 'FAIL: a host set how many are claimed by hand';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+-- A stranger can't add items to someone else's event.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    insert into public.station_items (station_id, event_id, name, needed)
+    values ('20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-00000000000a', 'Spam', 9);
+    raise exception 'FAIL: a stranger added an item';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+set role service_role;
+do $$
+declare v uuid;
+begin
+  v := public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Pat Potluck', 'pat.potluck@example.com', '+15125550170',
+         array[]::uuid[], false, '[]', '[{"item": "70000000-0000-0000-0000-000000000001", "note": "Brownies"}]');
+  assert (select claimed_count from public.station_items where id = '70000000-0000-0000-0000-000000000001') = 1,
+         'signing up for an item claims one';
+  begin
+    perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Late Lou', 'lou@example.com', '+15125550171',
+            array[]::uuid[], false, '[]', '[{"item": "70000000-0000-0000-0000-000000000002"}, {"item": "70000000-0000-0000-0000-000000000001"}]');
+    raise exception 'FAIL: overfilled an item';
+  exception when sqlstate 'P0002' then null;
+  end;
+  assert (select claimed_count from public.station_items where id = '70000000-0000-0000-0000-000000000002') = 0,
+         'a failed item sign-up claims nothing';
+  assert not exists (select 1 from public.volunteers where email = 'lou@example.com'), 'and leaves no volunteer behind';
+  begin
+    perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Nobody', 'nobody@example.com', '+15125550172',
+            array[]::uuid[], false, '[]', '[]');
+    raise exception 'FAIL: signed up for nothing';
+  exception when sqlstate 'P0001' then null;
+  end;
+  -- Cancelling with the item's own link frees it again and is noted for the daily summary.
+  assert public.cancel_item_with_pass(
+           (select id from public.item_signups where volunteer_id = v), '{}',
+           array[(select manage_token from public.item_signups where volunteer_id = v)]),
+         'a volunteer cancels an item with their link';
+  assert (select claimed_count from public.station_items where id = '70000000-0000-0000-0000-000000000001') = 0, 'which frees it';
+  assert exists (select 1 from public.volunteer_dropped_shifts where item_id = '70000000-0000-0000-0000-000000000001'),
+         'and is noted for the daily summary';
+  perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Pat Potluck', 'pat.potluck@example.com', '+15125550170',
+          array[]::uuid[], false, '[]', '[{"item": "70000000-0000-0000-0000-000000000001", "note": "Brownies"}]');
+end $$;
+reset role;
+
+-- The board shows first names and notes, never emails or phones; not for drafts.
+set role anon;
+do $$ begin
+  assert (select first_name = 'Pat' and note = 'Brownies' from public.public_item_board('10000000-0000-0000-0000-00000000000a') limit 1),
+         'the public sees who is bringing what by first name';
+  begin
+    perform 1 from public.item_signups;
+    raise exception 'FAIL: the public read item sign-ups directly';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'X', 'x@example.com', '1', array[]::uuid[], false, '[]', '[]');
+    raise exception 'FAIL: the public called sign_up_volunteer directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+-- The Volunteer Lead sees the sign-ups; a stranger doesn't.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select count(*) from public.item_signups where event_id = '10000000-0000-0000-0000-00000000000a') = 1,
+         'a Volunteer Lead sees who is bringing what';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.item_signups), 'a stranger can''t see item sign-ups';
+end $$;
+-- The volunteer, signed in with their email, sees and cancels their own.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000f9","email":"pat.potluck@example.com"}';
+do $$ begin
+  assert (select count(*) from public.my_items()) = 1, 'a volunteer sees their own items';
+  assert public.cancel_my_item((select signup_id from public.my_items() limit 1)), 'and cancels one';
+end $$;
+reset role;
+delete from public.stations where id = '20000000-0000-0000-0000-0000000000f1';
+delete from public.volunteers where email = 'pat.potluck@example.com';
+delete from public.volunteer_dropped_shifts where item_id is not null;
+
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'

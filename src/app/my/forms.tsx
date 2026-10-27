@@ -17,6 +17,16 @@ export function CancelShiftButton({ action, label }: { action: () => Promise<Act
   );
 }
 
+export function CancelItemButton({ action, label }: { action: () => Promise<ActionState>; label: string }) {
+  return (
+    <ActionForm action={action} confirmMessage={`Cancel bringing ${label}? Someone else can sign up for it.`}>
+      <SubmitButton variant="ghost" pendingText="Cancelling…" className="min-h-9 px-2 text-sm">
+        Cancel
+      </SubmitButton>
+    </ActionForm>
+  );
+}
+
 export function EmailMyLinkForm({ email }: { email?: string }) {
   return (
     <ActionForm action={emailMyLink} className="space-y-4" resetOnSuccess={false}>
@@ -33,7 +43,7 @@ export function ForgetDeviceButton() {
   return (
     <ActionForm
       action={forgetThisDevice}
-      confirmMessage="Forget this device? You'll need the link in your email to see your shifts here again."
+      confirmMessage="Forget this device? You'll need the link in your email to see your sign-ups here again."
     >
       <SubmitButton variant="ghost" pendingText="Forgetting…" className="min-h-9 px-2 text-sm">
         Forget this device

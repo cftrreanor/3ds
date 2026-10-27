@@ -34,10 +34,10 @@ export default async function VolunteerSignupPage({ params }: Params) {
   if (!event) missing();
 
   const supabase = await createClient();
-  const [{ data: stations }, { data: shifts }] = await Promise.all([
+  const [{ data: stations }, { data: shifts }, { data: items }, { data: board }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_order, location, instructions, adults_only")
+      .select("id, name, checkpoint_order, location, instructions, adults_only, signup_kind")
       .eq("event_id", event.id)
       .order("sort_order")
       .order("created_at"),
@@ -47,7 +47,11 @@ export default async function VolunteerSignupPage({ params }: Params) {
       .eq("event_id", event.id)
       .gt("ends_at", new Date().toISOString())
       .order("starts_at"),
+    supabase.from("station_items").select("id, station_id, name, needed, claimed_count").eq("event_id", event.id).order("sort_order").order("created_at"),
+    // Who's bringing what: first names and notes only.
+    supabase.rpc("public_item_board", { p_event_id: event.id }),
   ]);
+  const coming = (board ?? []) as { item_id: string; first_name: string; note: string | null }[];
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
@@ -55,7 +59,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
   const publicStations: PublicStation[] = sortStations(stations ?? [])
     .map((st) => ({
       ...st,
-      shifts: (shifts ?? [])
+      // An items station takes things to bring, never time slots.
+      shifts: (st.signup_kind === "items" ? [] : (shifts ?? []))
         .filter((s) => s.station_id === st.id)
         .map((s) => ({
           id: s.id,
@@ -64,8 +69,17 @@ export default async function VolunteerSignupPage({ params }: Params) {
           when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}`,
           spotsLeft: s.max_capacity - s.registered_count,
         })),
+      items: (items ?? [])
+        .filter((i) => i.station_id === st.id)
+        .map((i) => ({
+          id: i.id,
+          name: i.name,
+          left: i.needed - i.claimed_count,
+          needed: i.needed,
+          coming: coming.filter((c) => c.item_id === i.id).map((c) => (c.note ? `${c.first_name} (${c.note})` : c.first_name)),
+        })),
     }))
-    .filter((st) => st.shifts.length > 0);
+    .filter((st) => st.shifts.length > 0 || st.items.length > 0);
 
   // On fair day, volunteers who show up are added at the volunteer desk instead.
   const fairDay = hasBooths(event.event_type) && eventPhase(event, new Date()) === "day";
@@ -122,7 +136,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
       <div className="mt-8">
         {publicStations.length === 0 ? (
           <Card>
-            <p className="text-muted">No shifts are available right now.</p>
+            <p className="text-muted">Nothing is open for sign-up right now.</p>
           </Card>
         ) : (
           <SignupForm
@@ -137,7 +151,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
       <p className="mt-10 text-center text-sm text-muted">
         Already signed up?{" "}
         <Link href="/my" className="font-medium text-brand underline-offset-4 hover:underline">
-          View my shifts
+          View my sign-ups
         </Link>
       </p>
     </main>

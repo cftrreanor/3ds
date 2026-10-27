@@ -9,13 +9,13 @@ import { adultNames, parentEmail, parentLink, type Child } from "@/lib/parents";
 import { runRetention } from "@/lib/retention";
 import { createAdminClient } from "@/lib/supabase/server";
 import { isSchemaError } from "@/lib/schema-check";
-import { loadCalendarEntries, sendShiftReminder } from "@/lib/volunteer-emails";
+import { loadCalendarEntries, sendItemsReminder, sendShiftReminder } from "@/lib/volunteer-emails";
 import { sendVolunteerDigests } from "@/lib/volunteer-digest";
 import { utcToZonedDate } from "@/lib/time";
 
 // Once a day (vercel.json): remind parents to bring their photo ID the day
-// before a school visitor event, remind volunteers of their shifts the day
-// before, erase parent registrations 30 days after
+// before a school visitor event, remind volunteers of their shifts (and what they're
+// bringing) the day before, erase parent registrations 30 days after
 // their event, volunteers 10 days after theirs, and old admin email records,
 // and run the rest of the privacy policy's deletion schedule (lib/retention).
 // Vercel calls it with the CRON_SECRET environment variable.
@@ -219,6 +219,54 @@ async function runDailyJob() {
   }
   if (volunteersUnsent) console.error(`Daily job: ${volunteersUnsent} volunteer reminder(s) not sent`);
 
+  // Items to bring: one reminder per person for published events that start tomorrow.
+  let itemsReminded = 0;
+  const today = new Date(started).toISOString().slice(0, 10);
+  const { data: itemsDue, error: itemsError } = await admin
+    .from("item_signups")
+    .select(
+      "id, note, volunteer_id, station_items(name, stations(name)), volunteers(full_name, email, access_token), events!inner(id, name, venue_name, timezone, starts_on, status)",
+    )
+    .eq("events.status", "published")
+    .gte("events.starts_on", today)
+    .lte("events.starts_on", new Date(started + 2 * 86_400_000).toISOString().slice(0, 10))
+    .is("reminded_at", null);
+  // Before 20261231000000_items_to_bring.sql there are no items.
+  if (itemsError && !isSchemaError(itemsError)) console.error("Daily job: items lookup failed", itemsError);
+  type ItemDue = {
+    id: string;
+    note: string | null;
+    volunteer_id: string;
+    station_items: { name: string; stations: { name: string } | null } | null;
+    volunteers: { full_name: string; email: string | null; access_token: string } | null;
+    events: { id: string; name: string; venue_name: string | null; timezone: string; starts_on: string };
+  };
+  const itemsByPerson = new Map<string, ItemDue[]>();
+  for (const r of (itemsDue ?? []) as unknown as ItemDue[]) {
+    const local = utcToZonedDate(new Date(started).toISOString(), r.events.timezone);
+    const next = new Date(`${local}T12:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    if (r.events.starts_on !== next.toISOString().slice(0, 10) || !r.volunteers?.email) continue;
+    itemsByPerson.set(r.volunteer_id, [...(itemsByPerson.get(r.volunteer_id) ?? []), r]);
+  }
+  for (const list of itemsByPerson.values()) {
+    if (Date.now() - started > 270_000) break;
+    const { volunteers: v, events: ev } = list[0];
+    const ok = await sendItemsReminder(
+      list.map((r) => ({ name: r.station_items?.name ?? "An item", station: r.station_items?.stations?.name ?? "", note: r.note })),
+      { name: v!.full_name, email: v!.email!, accessToken: v!.access_token, eventId: ev.id, eventName: ev.name, venueName: ev.venue_name },
+      origin,
+    );
+    if (ok) {
+      await admin
+        .from("item_signups")
+        .update({ reminded_at: new Date().toISOString() })
+        .in("id", list.map((r) => r.id));
+      itemsReminded++;
+    }
+    await pause();
+  }
+
   // Volunteer sign-up summaries for the people each event's hosts picked, then forget dropped sign-ups after a week.
   const volunteerSummaries = Date.now() - started < 270_000 ? await sendVolunteerDigests(admin, origin, started) : 0;
   const { error: droppedPurgeError } = await admin.rpc("purge_dropped_shifts");
@@ -236,6 +284,7 @@ async function runDailyJob() {
     unsent,
     volunteersReminded,
     volunteersUnsent,
+    itemsReminded,
     volunteerSummaries,
   });
 }

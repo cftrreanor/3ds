@@ -17,7 +17,7 @@ import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
-import { StationPanel, type RosterEntry, type Shift, type Station } from "../station-panel";
+import { StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
 import { TeamRoles } from "../team/team-roles";
 
@@ -54,7 +54,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     supabase
       .from("stations")
       .select(
-        `id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id, details_saved_at${hasBooths(event.event_type) ? ", zone" : ""}`,
+        `id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id, details_saved_at, signup_kind${hasBooths(event.event_type) ? ", zone" : ""}`,
       )
       .eq("event_id", eventId)
       .order("sort_order")
@@ -100,12 +100,40 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const zones = hasBooths(event.event_type) ? [...new Set(made.length ? made : FAIR_ZONES)] : undefined;
 
   const shifts = (shiftData ?? []) as Shift[];
+  // Items to bring (stations without times), and for the open one, who's bringing what.
+  const { data: itemData } = await supabase
+    .from("station_items")
+    .select("id, station_id, name, needed, claimed_count")
+    .eq("event_id", eventId)
+    .order("sort_order")
+    .order("created_at");
+  const items = (itemData ?? []) as StationItem[];
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = (hostData ?? []) as unknown as HostRow[];
 
   // The open tab: ?station=<id>, "new" to add one, or the first station.
   const current = stations.length === 0 ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
+  const currentItems = current ? items.filter((i) => i.station_id === current.id) : [];
+  const itemSignups: ItemSignup[] | undefined =
+    current?.signup_kind === "items" && currentItems.length
+      ? (
+          ((
+            await supabase
+              .from("item_signups")
+              .select("id, item_id, note, volunteers(full_name, email, phone)")
+              .in("item_id", currentItems.map((i) => i.id))
+              .order("created_at")
+          ).data ?? []) as unknown as { id: string; item_id: string; note: string | null; volunteers: { full_name: string; email: string | null; phone: string | null } | null }[]
+        ).map((r) => ({
+          id: r.id,
+          item_id: r.item_id,
+          note: r.note,
+          volunteer_name: r.volunteers?.full_name ?? "A volunteer",
+          email: r.volunteers?.email ?? null,
+          phone: r.volunteers?.phone ?? null,
+        }))
+      : undefined;
   const roster =
     current && current.lead_ids.includes(user.id)
       ? (((await supabase.rpc("station_roster", { p_station_id: current.id })).data ?? []) as RosterEntry[])
@@ -120,8 +148,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     QRCode.toString(signupUrl, { type: "svg", margin: 1, width: 160 }),
     QRCode.toDataURL(signupUrl, { margin: 2, width: 1024 }),
   ]);
-  const filled = shifts.reduce((n, s) => n + s.registered_count, 0);
-  const capacity = shifts.reduce((n, s) => n + s.max_capacity, 0);
+  const filled = shifts.reduce((n, s) => n + s.registered_count, 0) + items.reduce((n, i) => n + i.claimed_count, 0);
+  const capacity = shifts.reduce((n, s) => n + s.max_capacity, 0) + items.reduce((n, i) => n + i.needed, 0);
 
   const nameOf = (userId: string | null) => {
     if (!userId) return null;
@@ -333,7 +361,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             <UnsavedChangesProvider
               key={current.id}
               needsDetails={!current.details_saved_at}
-              needsShifts={currentShifts.length === 0}
+              needsShifts={current.signup_kind === "items" ? currentItems.length === 0 : currentShifts.length === 0}
             >
               <p className="mt-1 mb-4 text-sm text-muted">
                 Open each station, then finish its details and shifts. A green check means it&apos;s ready.
@@ -341,14 +369,15 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               <StationTabs
                 tabs={stations.map((st) => {
                   const own = shifts.filter((x) => x.station_id === st.id);
+                  const ownItems = items.filter((x) => x.station_id === st.id);
                   return {
                     id: st.id,
                     name: st.name,
                     href: tabHref(st.id),
                     active: current.id === st.id,
-                    configured: Boolean(st.details_saved_at) && own.length > 0,
-                    filled: own.reduce((n, x) => n + x.registered_count, 0),
-                    capacity: own.reduce((n, x) => n + x.max_capacity, 0),
+                    configured: Boolean(st.details_saved_at) && own.length + ownItems.length > 0,
+                    filled: own.reduce((n, x) => n + x.registered_count, 0) + ownItems.reduce((n, x) => n + x.claimed_count, 0),
+                    capacity: own.reduce((n, x) => n + x.max_capacity, 0) + ownItems.reduce((n, x) => n + x.needed, 0),
                   };
                 })}
               />
@@ -358,6 +387,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   key={current.id}
                   eventId={eventId}
                   station={current}
+                  items={currentItems}
+                  itemSignups={itemSignups}
                   stationShifts={currentShifts}
                   event={event}
                   days={days}

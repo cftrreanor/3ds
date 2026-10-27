@@ -439,17 +439,17 @@ export const audiences = {
   },
 
   volunteers: {
-    path: "/school-volunteers",
+    path: "/volunteer-events",
     eventType: "volunteer",
     icon: "🙋",
-    name: "School volunteers",
-    metaTitle: "School Volunteer Sign-up, Scheduling & Check-in Software",
+    name: "Volunteer events",
+    metaTitle: "Volunteer Sign-up, Scheduling & Check-in Software",
     metaDescription:
-      "School volunteer management for PTOs, booster clubs, and front offices. Volunteers sign up for shifts without an account and get confirmations, calendar invites, and day-before reminders. Check them in with one tap on any device.",
-    eyebrow: "For PTOs, booster clubs, and front offices",
+      "Volunteer management for nonprofits, clubs, congregations, and community groups. Volunteers sign up for shifts without an account and get confirmations, calendar invites, and day-before reminders. Check them in with one tap on any device.",
+    eyebrow: "For nonprofits, clubs, and community groups",
     headline: "Volunteer sign-ups and check-in in one place",
     intro:
-      "For concessions, field day, book fairs, and school parking, volunteers sign up for shifts on their own phones. Confirmations, calendar invites, and reminders go out on their own, so you know who's coming and who's here.",
+      "For cleanups, food drives, races, and potlucks, volunteers sign up for shifts and things to bring on their own phones. Confirmations, calendar invites, and reminders go out on their own, so you know who's coming and who's here.",
     replaces: [
       "Paper sign-up sheets and shared spreadsheets",
       "Reminder emails sent one at a time the night before",
@@ -463,14 +463,15 @@ export const audiences = {
         points: [
           "Build a day of equal shifts in one step, or add each shift by hand",
           "Add where volunteers should report, any instructions, and who's leading each station",
-          "Mark stations like parking as adults only, and open or close sign-ups whenever you're ready",
+          "Mark stations as adults only, and open or close sign-ups whenever you're ready",
+          "Make any station a list of things to bring, like sides, desserts, and drinks for a potluck, with how many of each you need",
         ],
       },
       {
         title: "Sign-ups and reminders, without accounts",
         body: "Share one link or QR code. Volunteers pick one shift or several on their phone and see how many spots are left, with no account to make and nothing to download.",
         points: [
-          "Sign up with up to four others, such as a spouse or a student, and under-18 helpers use a parent's contact details",
+          "Sign up with up to four others, and under-18 helpers use a guardian's contact details",
           "A confirmation with a calendar invite, an update if their shift changes, and a reminder the day before with their station, time, where to report, and their lead's name and phone",
           "A private link lets each volunteer see their shifts, sign up for more, or cancel",
         ],
@@ -521,7 +522,7 @@ export const audiences = {
         title: "Set up stations and shifts",
         body: "Add stations with their leads, then fill the day with shifts.",
         screen: "/screens/set-up-shifts-blue.webp",
-        alt: "Setting up a parking station with its morning and late-morning volunteer shifts.",
+        alt: "Setting up a station with its morning and late-morning volunteer shifts.",
       },
       {
         title: "Share a link or QR code",
@@ -538,7 +539,7 @@ export const audiences = {
     ],
     privacy: [
       "Volunteers never make an account, and their phone numbers are deleted 10 days after the event.",
-      "Under-18 helpers are stored by first name and last initial, with their parent's contact details.",
+      "Under-18 helpers are stored by first name and last initial, with a guardian's contact details.",
       "Section Leads see their volunteers' contact details only on event day.",
       "No ads, no spam, and emails used only for your event",
     ],
@@ -556,12 +557,12 @@ export const audiences = {
         a: "Check volunteers in at the desk with one tap on any device. Each station shows how many have arrived out of how many signed up, and the desk lists who isn't here yet for shifts that have started. You can add walk-ups or release no-shows on the spot.",
       },
       {
-        q: "Can parents sign up with their kids?",
-        a: "Yes. One person can sign up with up to four others, and the whole group takes the same shifts. Under-18 helpers use their parent's contact details, and stations can be marked adults only.",
+        q: "Can people sign up together?",
+        a: "Yes. One person can sign up with up to four others, and the whole group takes the same shifts. Under-18 helpers use a guardian's contact details, and stations can be marked adults only.",
       },
       {
-        q: "Can we use it for volunteers at band contests or school fairs too?",
-        a: "Yes. Volunteer sign-ups and check-in are built into every kind of event, from band contests and choir festivals to school fairs and school visitor days.",
+        q: "Can we use it for volunteers at other kinds of events too?",
+        a: "Yes. Volunteer sign-ups and check-in are built into every kind of event, from festivals and fairs to contests and community days.",
       },
     ],
   },

@@ -3,8 +3,19 @@ import { kindLabel, type CheckpointKind } from "@/lib/contest-day";
 import { hasBands, leadWords } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
-import { createShift, deleteShift, deleteStation, generateShifts, updateShift, updateStation } from "../../actions";
-import { BuildShifts, DeleteButton, ShiftForm, StationForm } from "./forms";
+import {
+  createItem,
+  createShift,
+  deleteItem,
+  deleteShift,
+  deleteStation,
+  generateShifts,
+  removeItemSignup,
+  updateItem,
+  updateShift,
+  updateStation,
+} from "../../actions";
+import { BuildShifts, DeleteButton, ItemsEditor, ShiftForm, StationForm } from "./forms";
 import { SetupStep, StepStatus } from "@/components/setup-step";
 
 export type Shift = {
@@ -33,7 +44,15 @@ export type Station = {
   lead_ids: string[];
   /** When "1. Station details" was last saved (null: not done yet). */
   details_saved_at?: string | null;
+  /** Time slots (shifts) or things to bring (items). */
+  signup_kind?: "shifts" | "items";
 };
+
+/** One thing an items station needs (Desserts, 6 needed). */
+export type StationItem = { id: string; station_id: string; name: string; needed: number; claimed_count: number };
+
+/** Who's bringing what, for the event's volunteer managers. */
+export type ItemSignup = { id: string; item_id: string; note: string | null; volunteer_name: string; email: string | null; phone: string | null };
 
 export type RosterEntry = {
   assignment_id: string;
@@ -67,6 +86,8 @@ export function StationPanel({
   roster,
   locations = [],
   zones,
+  items = [],
+  itemSignups,
 }: {
   eventId: string;
   station: Station;
@@ -83,7 +104,12 @@ export function StationPanel({
   zones?: readonly string[];
   /** Only for the station's lead: who has signed up. */
   roster?: RosterEntry[];
+  /** An items station: what it needs. */
+  items?: StationItem[];
+  /** An items station, for managers and its leads: who's bringing what. */
+  itemSignups?: ItemSignup[];
 }) {
+  const itemsStation = station.signup_kind === "items";
   const tz = event.timezone;
   const multiDay = days.length > 1;
   const detailsDone = Boolean(station.details_saved_at);
@@ -138,6 +164,24 @@ export function StationPanel({
               trackUnsaved
             />
           </SetupStep>
+          {itemsStation ? (
+            <SetupStep
+              id="items"
+              title="2. Items to bring"
+              status={<StepStatus done={items.length > 0} />}
+              open={items.length === 0}
+              intro="What people can sign up to bring, and how many of each you need. Sign-ups stop when an item is covered."
+            >
+              <ItemsEditor
+                create={createItem.bind(null, eventId, station.id)}
+                items={items.map((it) => ({
+                  ...it,
+                  update: updateItem.bind(null, eventId, it.id),
+                  remove: deleteItem.bind(null, eventId, it.id),
+                }))}
+              />
+            </SetupStep>
+          ) : (
           <SetupStep
             id="build-shifts"
             title="2. Build shifts"
@@ -153,8 +197,13 @@ export function StationPanel({
               signedUp={stationShifts.some((s) => s.registered_count > 0)}
             />
           </SetupStep>
+          )}
         </div>
       )}
+      {itemsStation ? (
+        <ItemsBoard items={items} signups={itemSignups} eventId={eventId} canManage={canManage} />
+      ) : (
+      <>
       <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
       {stationShifts.length > 0 ? (
         <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
@@ -210,8 +259,10 @@ export function StationPanel({
       ) : (
         <p className="mt-2 text-sm text-muted">No shifts yet.</p>
       )}
+      </>
+      )}
 
-      {roster && (
+      {roster && !itemsStation && (
         <div className="mt-4">
           <h4 className="text-sm font-semibold">Your volunteers</h4>
           {roster.length === 0 ? (
@@ -250,5 +301,66 @@ export function StationPanel({
       )}
 
     </Card>
+  );
+}
+
+/** An items station: each item, how many are coming, and who's bringing what (with their note). */
+function ItemsBoard({
+  items,
+  signups,
+  eventId,
+  canManage,
+}: {
+  items: StationItem[];
+  signups?: ItemSignup[];
+  eventId: string;
+  canManage: boolean;
+}) {
+  return (
+    <>
+      <h4 className="mt-6 text-sm font-semibold">Who&apos;s bringing what</h4>
+      {items.length === 0 ? (
+        <p className="mt-2 text-sm text-muted">No items yet.</p>
+      ) : (
+        <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+          {items.map((it) => {
+            const people = (signups ?? []).filter((s) => s.item_id === it.id);
+            return (
+              <li key={it.id} className="px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{it.name}</p>
+                  <span className="text-sm tabular-nums text-muted">
+                    {it.claimed_count} / {it.needed} coming
+                  </span>
+                </div>
+                {signups && people.length > 0 && (
+                  <ul className="mt-1 space-y-1">
+                    {people.map((p) => (
+                      <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="min-w-0">
+                          <span className="font-medium">{p.volunteer_name}</span>
+                          {p.note && <span className="text-muted"> · {p.note}</span>}
+                          {(p.email || p.phone) && (
+                            <span className="block text-muted">{[p.email, formatPhone(p.phone)].filter(Boolean).join(" · ")}</span>
+                          )}
+                        </span>
+                        {canManage && (
+                          <DeleteButton
+                            action={removeItemSignup.bind(null, eventId, p.id)}
+                            label={`Take ${p.volunteer_name} off ${it.name}`}
+                            text="Remove"
+                            confirmMessage={`Take ${p.volunteer_name} off “${it.name}”? Their spot opens up again. We don't email them, so let them know.`}
+                          />
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
   );
 }

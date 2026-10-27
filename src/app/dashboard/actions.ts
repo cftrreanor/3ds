@@ -393,6 +393,8 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
       ...zoneOf(formData),
+      // Items to bring (a potluck's desserts) instead of time slots. Only plain stations can be.
+      ...(formData.get("signupKind") === "items" && !kind ? { signup_kind: "items" } : {}),
     })
     .select("id")
     .single();
@@ -532,11 +534,77 @@ export async function deleteStation(eventId: string, stationId: string): Promise
     .eq("station_id", stationId)
     .gt("registered_count", 0);
   if (count) return { error: "Volunteers have signed up for this station's shifts, so it can't be deleted." };
+  const { count: claimed } = await supabase
+    .from("station_items")
+    .select("id", { count: "exact", head: true })
+    .eq("station_id", stationId)
+    .gt("claimed_count", 0);
+  if (claimed) return { error: "People have signed up to bring items for this station, so it can't be deleted." };
 
   const { error } = await supabase.from("stations").delete().eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Items to bring (a station whose sign-ups are things, not times)
+// ---------------------------------------------------------------------------
+const itemSchema = z.object({
+  name: z.string().trim().min(1, "Name the item, like Desserts").max(100, "Keep the name under 100 characters"),
+  needed: z.coerce.number().int("Enter a whole number").min(1, "At least 1").max(500, "500 at most"),
+});
+
+export async function createItem(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = itemSchema.safeParse({ name: formData.get("name"), needed: formData.get("needed") });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const supabase = await createClient();
+  const { count } = await supabase.from("station_items").select("id", { count: "exact", head: true }).eq("station_id", stationId);
+  const { error } = await supabase
+    .from("station_items")
+    .insert({ station_id: stationId, event_id: eventId, name: parsed.data.name, needed: parsed.data.needed, sort_order: count ?? 0 });
+  if (error) return { error: error.code === "P0001" ? error.message : friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: `Added “${parsed.data.name}”.` };
+}
+
+export async function updateItem(eventId: string, itemId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const parsed = itemSchema.safeParse({ name: formData.get("name"), needed: formData.get("needed") });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("station_items")
+    .update({ name: parsed.data.name, needed: parsed.data.needed })
+    .eq("id", itemId)
+    .select("id");
+  if (error) return { error: error.code === "P0001" ? error.message : friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's hosts and Volunteer Leads can change this." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: "Saved." };
+}
+
+export async function deleteItem(eventId: string, itemId: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data: item } = await supabase.from("station_items").select("claimed_count").eq("id", itemId).maybeSingle();
+  if (item?.claimed_count) return { error: "People have signed up to bring this, so it can't be deleted. Lower how many are needed instead." };
+  const { error } = await supabase.from("station_items").delete().eq("id", itemId);
+  if (error) return { error: friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true };
+}
+
+/** Take someone off an item (they can't make it, or signed up by mistake). */
+export async function removeItemSignup(eventId: string, signupId: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("item_signups").delete().eq("id", signupId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the event's hosts and Volunteer Leads can change this." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true, message: "Removed. That spot is open again." };
 }
 
 // ---------------------------------------------------------------------------

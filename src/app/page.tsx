@@ -76,9 +76,9 @@ const kinds = [
   {
     icon: "🙋",
     title: "Volunteer events",
-    summary: "Concessions, field day, book fairs, and school parking",
+    summary: "Cleanups, food drives, races, and potlucks",
     href: audiences.volunteers.path,
-    examples: "Concessions, field day, book fairs, and school parking",
+    examples: "Cleanups, food drives, races, and potlucks",
     points: [
       "Stations and shifts that fill evenly, with spots left shown",
       "Confirmations, calendar invites, and day-before reminders, with no account and no ads",

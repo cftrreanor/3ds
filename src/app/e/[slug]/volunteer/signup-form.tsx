@@ -16,6 +16,15 @@ export type PublicShift = {
   description: string | null;
   spotsLeft: number;
 };
+/** Something to bring (Desserts), how many are still needed, and who's bringing what so far. */
+export type PublicItem = {
+  id: string;
+  name: string;
+  left: number;
+  needed: number;
+  /** "Sam (Brownies)", first names only. */
+  coming: string[];
+};
 export type PublicStation = {
   id: string;
   name: string;
@@ -24,6 +33,8 @@ export type PublicStation = {
   /** No one under 18 on this station's shifts. */
   adults_only: boolean;
   shifts: PublicShift[];
+  /** A station of things to bring instead of times. */
+  items: PublicItem[];
 };
 
 export function SignupForm({
@@ -41,6 +52,10 @@ export function SignupForm({
   const [state, formAction, pending] = useActionState(action, {});
   const pathname = usePathname();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Items to bring they've picked, with what they'll bring ("Brownies").
+  const [pickedItems, setPickedItems] = useState<Map<string, string>>(new Map());
+  const hasItems = stations.some((st) => st.items.length > 0);
+  const hasShifts = stations.some((st) => st.shifts.length > 0);
   const [startedAt] = useState(() => Date.now());
   const [activeId, setActiveId] = useState(stations[0]?.id);
   const [minor, setMinor] = useState(false);
@@ -61,6 +76,20 @@ export function SignupForm({
             <span className="font-medium">{state.confirmed.others.join(", ")}</span>
           </p>
         )}
+        {state.confirmed.items.length > 0 && (
+          <div>
+            <p className="text-sm font-semibold">You&apos;re bringing</p>
+            <ul className="mt-1 divide-y divide-border rounded-lg border border-border">
+              {state.confirmed.items.map((it) => (
+                <li key={it.station + it.name} className="px-4 py-3">
+                  <p className="font-medium">{it.name}</p>
+                  <p className="text-sm text-muted">{[it.station, it.note].filter(Boolean).join(" · ")}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {state.confirmed.shifts.length > 0 && (
         <ul className="divide-y divide-border rounded-lg border border-border">
           {state.confirmed.shifts.map((s) => (
             <li key={s.title + s.detail} className="px-4 py-3">
@@ -77,6 +106,7 @@ export function SignupForm({
             </li>
           ))}
         </ul>
+        )}
         {state.confirmed.alreadySignedUp > 0 && (
           <p className="text-sm text-muted">
             {state.confirmed.alreadySignedUp === 1 ? "One shift was" : `${state.confirmed.alreadySignedUp} shifts were`}{" "}
@@ -86,13 +116,13 @@ export function SignupForm({
         <p className="leading-7 text-muted">
           {state.confirmed.emailSent ? (
             <>
-              We emailed a confirmation with calendar invites to{" "}
+              We emailed a confirmation{state.confirmed.shifts.length ? " with calendar invites" : ""} to{" "}
               <strong className="text-foreground">{state.confirmed.email}</strong>.
             </>
-          ) : state.confirmed.shifts.length === 0 ? (
+          ) : state.confirmed.shifts.length === 0 && state.confirmed.items.length === 0 ? (
             <>Your confirmation email went out when you first signed up.</>
           ) : (
-            <>Save this page or take a screenshot so you have your times.</>
+            <>Save this page or take a screenshot so you have your sign-up.</>
           )}{" "}
           This device will remember your signup, so you can come back anytime to view or cancel it. No login needed.
         </p>
@@ -101,14 +131,14 @@ export function SignupForm({
             href={`/my?as=${encodeURIComponent(state.confirmed.email)}`}
             className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover"
           >
-            View my shifts
+            View my sign-ups
           </Link>
           {/* A full reload brings back a fresh form with up-to-date open spots. */}
           <a
             href={pathname}
             className="inline-flex min-h-11 items-center rounded-md border border-brand px-4 text-sm font-medium text-brand hover:bg-brand-soft"
           >
-            Sign up for more shifts
+            Sign up for more
           </a>
         </div>
       </Card>
@@ -118,7 +148,17 @@ export function SignupForm({
   // The form is submitted by hand (no reset), so choices and typing survive an error.
   const chosen = selected;
   // Picks across every station, for the summary above the Sign up button.
-  const picks = stations.flatMap((st) => st.shifts.filter((sh) => chosen.has(sh.id)).map((sh) => ({ ...sh, station: st.name })));
+  const picks = stations.flatMap((st) => [
+    ...st.shifts.filter((sh) => chosen.has(sh.id)).map((sh) => ({ id: sh.id, station: st.name, detail: sh.when })),
+    ...st.items.filter((it) => pickedItems.has(it.id)).map((it) => ({ id: it.id, station: st.name, detail: [it.name, pickedItems.get(it.id)].filter(Boolean).join(": ") })),
+  ]);
+  const toggleItem = (id: string) =>
+    setPickedItems((prev) => {
+      const next = new Map(prev);
+      if (next.has(id)) next.delete(id);
+      else next.set(id, "");
+      return next;
+    });
   const toggle = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -147,10 +187,12 @@ export function SignupForm({
 
       <section aria-labelledby="pick">
         <h2 id="pick" className="text-xl font-semibold">
-          1. Pick your shifts
+          {hasItems ? (hasShifts ? "1. Pick what you'll do" : "1. Pick what you'll bring") : "1. Pick your shifts"}
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Choose as many shifts as you like, as long as the times don&apos;t overlap.
+          {hasShifts && "Choose as many shifts as you like, as long as the times don't overlap."}
+          {hasShifts && hasItems && " "}
+          {hasItems && "Sign up to bring something, and tell everyone what it is so there's a good mix."}
         </p>
 
         {stations.length > 1 && (
@@ -159,8 +201,8 @@ export function SignupForm({
             <div className="flex min-w-max gap-1 border-b border-border">
               {stations.map((st) => {
                 const active = st.id === activeId;
-                const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0);
-                const picked = st.shifts.filter((sh) => chosen.has(sh.id)).length;
+                const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0) + st.items.reduce((n, it) => n + Math.max(it.left, 0), 0);
+                const picked = st.shifts.filter((sh) => chosen.has(sh.id)).length + st.items.filter((it) => pickedItems.has(it.id)).length;
                 return (
                   <button
                     key={st.id}
@@ -180,7 +222,9 @@ export function SignupForm({
                         <span className="rounded-full bg-brand px-1.5 text-xs font-semibold text-brand-foreground">{picked}</span>
                       )}
                     </span>
-                    <span className="text-xs font-normal text-muted">{open > 0 ? `${open} open spot${open === 1 ? "" : "s"}` : "Full"}</span>
+                    <span className="text-xs font-normal text-muted">
+                      {open > 0 ? (st.items.length ? `${open} still needed` : `${open} open spot${open === 1 ? "" : "s"}`) : st.items.length ? "All covered" : "Full"}
+                    </span>
                   </button>
                 );
               })}
@@ -210,12 +254,55 @@ export function SignupForm({
             {stations.length > 1 && (
               <p className="text-sm text-muted sm:hidden">
                 {(() => {
-                  const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0);
+                  const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0) + st.items.reduce((n, it) => n + Math.max(it.left, 0), 0);
+                  if (st.items.length) return open > 0 ? `${open} still needed` : "All covered";
                   return open > 0 ? `${open} open spot${open === 1 ? "" : "s"}` : "Full";
                 })()}
               </p>
             )}
             {st.instructions && <p className="mt-2 text-sm leading-6 text-muted">{st.instructions}</p>}
+            {st.items.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {st.items.map((it) => {
+                  const isPicked = pickedItems.has(it.id);
+                  const covered = it.left <= 0 && !isPicked;
+                  const adultsOnly = st.adults_only && anyMinor && !isPicked;
+                  return (
+                    <li key={it.id} className={`rounded-lg border px-3 py-2.5 ${isPicked ? "border-brand bg-brand-soft" : "border-border"}`}>
+                      <label className={`flex min-h-11 items-center gap-3 ${covered || adultsOnly ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+                        <input
+                          type="checkbox"
+                          name="itemIds"
+                          value={it.id}
+                          checked={isPicked}
+                          disabled={covered || adultsOnly || disabled}
+                          onChange={() => toggleItem(it.id)}
+                          className="h-5 w-5 shrink-0 accent-[var(--brand)]"
+                        />
+                        <span className="min-w-0 flex-1 font-medium">{it.name}</span>
+                        <span className="shrink-0 text-sm font-medium">
+                          {it.left <= 0 ? "Covered" : `${it.left} of ${it.needed} still needed`}
+                        </span>
+                      </label>
+                      {isPicked && (
+                        <Input
+                          name={`itemNote-${it.id}`}
+                          value={pickedItems.get(it.id) ?? ""}
+                          onChange={(e) => setPickedItems((prev) => new Map(prev).set(it.id, e.target.value))}
+                          placeholder="What are you bringing? (optional)"
+                          aria-label={`What are you bringing for ${it.name}?`}
+                          maxLength={200}
+                          autoComplete="off"
+                          className="mt-2"
+                        />
+                      )}
+                      {it.coming.length > 0 && <p className="mt-1 text-sm text-muted">Coming: {it.coming.join(", ")}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {st.shifts.length > 0 && (
             <ul className="mt-3 space-y-2">
               {st.shifts.map((s) => {
                 const isChosen = chosen.has(s.id);
@@ -257,6 +344,7 @@ export function SignupForm({
                 );
               })}
             </ul>
+            )}
           </Card>
         ))}
       </section>
@@ -341,7 +429,9 @@ export function SignupForm({
               >
                 + Add someone else
               </Button>
-              <p className="mt-1 text-xs text-muted">Signing up with a spouse or your student? They&apos;ll be on the same shifts.</p>
+              <p className="mt-1 text-xs text-muted">
+                Signing up with someone? They&apos;ll be on the same shifts.{hasItems ? " Items to bring are just for you." : ""}
+              </p>
             </div>
           )}
         </Card>
@@ -354,7 +444,7 @@ export function SignupForm({
             <ul className="mt-1 space-y-0.5 text-sm">
               {picks.map((p) => (
                 <li key={p.id}>
-                  <span className="font-medium">{p.station}</span> <span className="text-muted">· {p.when}</span>
+                  <span className="font-medium">{p.station}</span> <span className="text-muted">· {p.detail}</span>
                 </li>
               ))}
             </ul>
@@ -362,11 +452,11 @@ export function SignupForm({
         )}
         <BotCheck />
         <FormMessage error={state.error} />
-        <SubmitButtonWithCount count={chosen.size} people={groupSize} disabled={disabled} />
+        <SubmitButtonWithCount count={chosen.size} items={pickedItems.size} people={groupSize} disabled={disabled} />
         <p className="text-center text-xs text-muted">
-          Your contact details are shared only with the event team. Your phone number is deleted 10 days after the event; the
-          organizer keeps your name, email, and how many shifts you&apos;ve volunteered for 2 years, to thank and invite back
-          returning volunteers.
+          Your contact details are shared only with the event team.{hasItems ? " If you bring something, others see your first name and what you're bringing." : ""} Your
+          phone number is deleted 10 days after the event; the organizer keeps your name, email, and how many shifts you&apos;ve
+          volunteered for 2 years, to thank and invite back returning volunteers.
         </p>
       </div>
       </ActionPendingContext>
@@ -374,12 +464,16 @@ export function SignupForm({
   );
 }
 
-function SubmitButtonWithCount({ count, people, disabled }: { count: number; people: number; disabled?: boolean }) {
+function SubmitButtonWithCount({ count, items, people, disabled }: { count: number; items: number; people: number; disabled?: boolean }) {
+  const shifts = `${count} shift${count === 1 ? "" : "s"}`;
+  const things = `${items} item${items === 1 ? "" : "s"}`;
   return (
-    <SubmitButton className="w-full text-base" disabled={disabled || count === 0} pendingText="Signing you up…">
-      {count === 0
-        ? "Pick at least one shift"
-        : `Sign up ${people > 1 ? `${people} people ` : ""}for ${count} shift${count === 1 ? "" : "s"}`}
+    <SubmitButton className="w-full text-base" disabled={disabled || count + items === 0} pendingText="Signing you up…">
+      {count + items === 0
+        ? "Pick at least one"
+        : count === 0
+          ? `Sign up to bring ${things}`
+          : `Sign up ${people > 1 ? `${people} people ` : ""}for ${shifts}${items ? ` and ${things}` : ""}`}
     </SubmitButton>
   );
 }

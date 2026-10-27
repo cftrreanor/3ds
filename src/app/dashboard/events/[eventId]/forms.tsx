@@ -377,14 +377,123 @@ export function BuildShifts({
 }
 
 /** "1. Create stations": a station's name. Its leads are picked on its row; the rest comes in step 2. */
+/** A station signs people up for times (shifts) or for things to bring (items). */
+const SIGNUP_KINDS = [
+  { value: "shifts", label: "Time slots", hint: "People sign up for a time, like setting up from 5 to 6 PM" },
+  { value: "items", label: "Items to bring", hint: "People sign up to bring something, like desserts or drinks" },
+] as const;
+
 export function NewStationForm({ action }: { action: Action }) {
+  const [kind, setKind] = useState<"shifts" | "items">("shifts");
   return (
-    <ActionForm action={action} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-      <Field label="New station name" hint="e.g. Parking, Concessions, Ticket Table" className="flex-1">
-        <Input name="name" required maxLength={80} />
+    <ActionForm action={action} className="space-y-3">
+      <fieldset>
+        <legend className="text-sm font-semibold">What do people sign up for?</legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {SIGNUP_KINDS.map((k) => (
+            <label
+              key={k.value}
+              className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${kind === k.value ? "border-brand bg-brand-soft" : "border-field-border"}`}
+            >
+              <input
+                type="radio"
+                name="signupKind"
+                value={k.value}
+                checked={kind === k.value}
+                onChange={() => setKind(k.value)}
+                className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+              />
+              <span>
+                <span className="block text-sm font-semibold">{k.label}</span>
+                <span className="block text-sm text-muted">{k.hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <Field
+          label="New station name"
+          hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : "e.g. Parking, Concessions, Ticket Table"}
+          className="flex-1"
+        >
+          <Input name="name" required maxLength={80} />
+        </Field>
+        <SubmitButton variant="go" pendingText="Adding…" className="sm:mb-7">
+          Add station
+        </SubmitButton>
+      </div>
+    </ActionForm>
+  );
+}
+
+/** Items to bring: one row per item (Desserts, 6 needed), editable, and a form to add another. */
+export function ItemsEditor({
+  items,
+  create,
+}: {
+  /** Each item with its own save and delete (bound on the server). */
+  items: { id: string; name: string; needed: number; claimed_count: number; update: Action; remove: () => Promise<ActionState> }[];
+  create: Action;
+}) {
+  return (
+    <div className="space-y-4">
+      {items.length > 0 && (
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {items.map((it) => (
+            <li key={it.id} className="px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{it.name}</p>
+                  <p className="text-sm text-muted">
+                    {it.claimed_count} of {it.needed} signed up
+                  </p>
+                </div>
+                <DeleteButton
+                  action={it.remove}
+                  label={`Delete ${it.name}`}
+                  confirmMessage={`Delete “${it.name}”?`}
+                />
+              </div>
+              <details className="mt-1">
+                <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
+                  Edit item
+                </summary>
+                <ItemFields action={it.update} initial={it} submitLabel="Save item" />
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div>
+        <p className="text-sm font-semibold">{items.length ? "Add another item" : "Add an item"}</p>
+        <ItemFields action={create} submitLabel="Add item" reset />
+      </div>
+    </div>
+  );
+}
+
+function ItemFields({
+  action,
+  initial,
+  submitLabel,
+  reset = false,
+}: {
+  action: Action;
+  initial?: { name: string; needed: number };
+  submitLabel: string;
+  reset?: boolean;
+}) {
+  return (
+    <ActionForm action={action} resetOnSuccess={reset} className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+      <Field label="Item" hint="e.g. Desserts, Drinks, Paper plates" className="flex-1">
+        <Input name="name" required maxLength={100} defaultValue={initial?.name} />
       </Field>
-      <SubmitButton variant="go" pendingText="Adding…" className="sm:mb-7">
-        Add station
+      <Field label="How many needed" className="sm:w-40">
+        <NumberInput name="needed" required defaultValue={initial?.needed ?? 1} maxLength={3} />
+      </Field>
+      <SubmitButton variant={reset ? "go" : "primary"} className="sm:mb-7">
+        {submitLabel}
       </SubmitButton>
     </ActionForm>
   );

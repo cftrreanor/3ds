@@ -15,10 +15,10 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, formatTime, formatTimeRange, utcToZonedDate } from "@/lib/time";
 import { icsDownloadUrl } from "@/lib/volunteer-emails";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
-import { cancelMyShift } from "./actions";
-import { CancelShiftButton, EmailMyLinkForm, ForgetDeviceButton } from "./forms";
+import { cancelMyItem, cancelMyShift } from "./actions";
+import { CancelItemButton, CancelShiftButton, EmailMyLinkForm, ForgetDeviceButton } from "./forms";
 
-export const metadata: Metadata = { title: "My shifts" };
+export const metadata: Metadata = { title: "My sign-ups" };
 
 type AgendaRow = {
   assignment_id: string;
@@ -42,6 +42,22 @@ type AgendaRow = {
   volunteer_email: string;
 };
 
+type ItemRow = {
+  signup_id: string;
+  event_id: string;
+  event_name: string;
+  timezone: string;
+  starts_on: string;
+  venue_name: string | null;
+  venue_address: string;
+  station_name: string;
+  station_location: string | null;
+  instructions: string | null;
+  item_name: string;
+  note: string | null;
+  volunteer_email: string;
+};
+
 export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   const { as, link } = await searchParams;
   // "as" is the email someone just signed up with (from the confirmation screen).
@@ -50,12 +66,24 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
 
   // Shifts come from two places: this device's pass (no login needed) and,
   // for anyone signed in, their account's email. Duplicates are merged.
-  const [fromPass, fromAccount] = await Promise.all([
+  const [fromPass, fromAccount, itemsFromPass, itemsFromAccount] = await Promise.all([
     hasPass(pass)
       ? createAdminClient().rpc("pass_agenda", { p_volunteer_tokens: pass.v, p_assignment_tokens: pass.a })
       : Promise.resolve({ data: [] }),
     user ? (await createClient()).rpc("my_agenda") : Promise.resolve({ data: [] }),
+    // Items to bring (none before 20261231000000_items_to_bring.sql).
+    hasPass(pass)
+      ? createAdminClient().rpc("pass_items", { p_volunteer_tokens: pass.v, p_item_tokens: pass.a })
+      : Promise.resolve({ data: [] }),
+    user ? (await createClient()).rpc("my_items") : Promise.resolve({ data: [] }),
   ]);
+  const itemsById = new Map<string, ItemRow>();
+  for (const r of [...((itemsFromPass.data ?? []) as ItemRow[]), ...((itemsFromAccount.data ?? []) as ItemRow[])]) {
+    itemsById.set(r.signup_id, r);
+  }
+  // Until the event's first day is over (in its own time zone).
+  const items = [...itemsById.values()].filter((r) => r.starts_on >= utcToZonedDate(new Date().toISOString(), r.timezone));
+  const itemsByEvent = groupBy(items, (r) => r.event_id);
   const byId = new Map<string, AgendaRow>();
   for (const r of [...((fromPass.data ?? []) as AgendaRow[]), ...((fromAccount.data ?? []) as AgendaRow[])]) {
     byId.set(r.assignment_id, r);
@@ -63,27 +91,29 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   const rows = [...byId.values()].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const { upcoming, past } = splitByTime(rows);
   const byEvent = groupBy(upcoming, (r) => r.event_id);
+  // Events with only items to bring still get their own section.
+  const sections = [...new Set([...byEvent.keys(), ...itemsByEvent.keys()])];
   // Maps & documents the host shared with volunteers (or everyone).
-  const tzOf = new Map(rows.map((r) => [r.event_id, r.timezone]));
+  const tzOf = new Map([...items, ...rows].map((r) => [r.event_id, r.timezone]));
   const files = groupBy(
-    await filesFor([...byEvent.keys()], ["public", "volunteers"], (id) => tzOf.get(id) ?? "America/Chicago"),
+    await filesFor(sections, ["public", "volunteers"], (id) => tzOf.get(id) ?? "America/Chicago"),
     (f) => f.event_id,
   );
   const origin = await getOrigin();
   // Day-of banners from the hosts of the events this person is volunteering at.
-  const nameOf = new Map(rows.map((r) => [r.event_id, r.event_name]));
-  const banners = (await liveVolunteerBanners([...byEvent.keys()])).map((b) => ({
+  const nameOf = new Map([...items, ...rows].map((r) => [r.event_id, r.event_name]));
+  const banners = (await liveVolunteerBanners(sections)).map((b) => ({
     id: b.id,
     body: b.body,
     priority: b.priority,
     time: formatTime(b.created_at, tzOf.get(b.event_id) ?? "America/Chicago"),
-    eventName: byEvent.size > 1 ? nameOf.get(b.event_id) : undefined,
+    eventName: sections.length > 1 ? nameOf.get(b.event_id) : undefined,
   }));
   const shiftToday = upcoming.some((r) => utcToZonedDate(r.starts_at, r.timezone) === utcToZonedDate(new Date().toISOString(), r.timezone));
 
   // Events this person volunteers for (or did, before cancelling) that are
-  // still taking signups: offer "Sign up for more shifts".
-  const knownIds = [...new Set(rows.map((r) => r.event_id))];
+  // still taking signups: offer "Sign up for more".
+  const knownIds = [...new Set([...rows, ...items].map((r) => r.event_id))];
   const { data: openEvents } =
     knownIds.length || pass.e.length
       ? await (await createClient())
@@ -101,13 +131,13 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           )
       : { data: [] };
   const signupLinks = new Map((openEvents ?? []).map((e) => [e.id, { slug: e.slug as string, name: e.name as string }]));
-  const eventsWithoutShifts = [...signupLinks.entries()].filter(([id]) => !byEvent.has(id));
+  const eventsWithoutShifts = [...signupLinks.entries()].filter(([id]) => !byEvent.has(id) && !itemsByEvent.has(id));
 
   const mismatch =
-    user && signedUpAs && signedUpAs !== user.email.toLowerCase() && !rows.some((r) => r.volunteer_email === signedUpAs)
+    user && signedUpAs && signedUpAs !== user.email.toLowerCase() && ![...rows, ...items].some((r) => r.volunteer_email === signedUpAs)
       ? signedUpAs
       : null;
-  const emails = [...new Set(rows.map((r) => r.volunteer_email))];
+  const emails = [...new Set([...rows, ...items].map((r) => r.volunteer_email))];
 
   return (
     <div className="flex flex-1 flex-col">
@@ -124,7 +154,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       </HeaderBar>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My shifts</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My sign-ups</h1>
         {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
         {shiftToday && <AutoRefresh status className="mt-1" />}
         {banners.length > 0 && (
@@ -144,7 +174,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
             <p className="font-medium">You signed up as {mismatch}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
               This device is signed in as {user!.email}. Open the confirmation email we sent to {mismatch} and tap
-              “View or cancel my shifts”, or switch accounts.
+              its “View or cancel” button, or switch accounts.
             </p>
             <SwitchAccountButton email={mismatch} label={`Sign in as ${mismatch}`} />
           </Card>
@@ -154,18 +184,18 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           <Card key={id} className="mt-8">
             <p className="font-medium">{ev.name}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
-              {byEvent.size === 0 && rows.length === 0
-                ? "You don't have any shifts right now. Volunteer signup is still open."
+              {sections.length === 0 && rows.length === 0
+                ? "You don't have anything signed up right now. Volunteer signup is still open."
                 : "Volunteer signup is still open for this event."}
             </p>
             <SignUpMoreLink slug={ev.slug} primary />
           </Card>
         ))}
 
-        {upcoming.length === 0 && eventsWithoutShifts.length === 0 && (
+        {sections.length === 0 && eventsWithoutShifts.length === 0 && (
           <Card className="mt-8">
             <p className="font-medium">
-              {rows.length || user || hasPass(pass) ? "No upcoming shifts here" : "Find your shifts"}
+              {rows.length || user || hasPass(pass) ? "Nothing coming up here" : "Find your sign-ups"}
             </p>
             <p className="mt-1 mb-4 text-sm leading-6 text-muted">
               Enter the email you signed up with and we&apos;ll send you a private link. Tap it on this device and
@@ -175,15 +205,41 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           </Card>
         )}
 
-        {[...byEvent.entries()].map(([eventId, items]) => {
-          const tz = items[0].timezone;
-          const days = groupBy(items, (r) => utcToZonedDate(r.starts_at, tz));
+        {sections.map((eventId) => {
+          const shiftRows = byEvent.get(eventId) ?? [];
+          const bringing = itemsByEvent.get(eventId) ?? [];
+          const head = shiftRows[0] ?? bringing[0];
+          const tz = head.timezone;
+          const days = groupBy(shiftRows, (r) => utcToZonedDate(r.starts_at, tz));
           return (
             <section key={eventId} className="mt-8">
-              <h2 className="text-xl font-semibold">{items[0].event_name}</h2>
+              <h2 className="text-xl font-semibold">{head.event_name}</h2>
               <p className="text-sm text-muted">
-                {[items[0].venue_name, items[0].venue_address].filter(Boolean).join(" · ")}
+                {[head.venue_name, head.venue_address].filter(Boolean).join(" · ")}
               </p>
+              {bringing.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+                    What you&apos;re bringing{shiftRows.length ? "" : ` · ${formatDate(bringing[0].starts_on)}`}
+                  </h3>
+                  <Card className="mt-2 p-0">
+                    <ul className="divide-y divide-border">
+                      {bringing.map((r) => (
+                        <li key={r.signup_id} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="font-medium">{r.item_name}</p>
+                            <p className="text-sm text-muted">
+                              {[r.station_name, r.note, r.station_location && `Drop off: ${r.station_location}`].filter(Boolean).join(" · ")}
+                            </p>
+                            {r.instructions && <p className="mt-1 text-sm leading-6 text-muted">{r.instructions}</p>}
+                          </div>
+                          <CancelItemButton action={cancelMyItem.bind(null, r.signup_id)} label={r.item_name} />
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                </div>
+              )}
               {[...days.entries()].map(([day, shifts]) => (
                 <div key={day} className="mt-4">
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">{formatDate(day)}</h3>
@@ -213,9 +269,9 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           </p>
         )}
 
-        {hasPass(pass) && rows.length > 0 && (
+        {hasPass(pass) && rows.length + items.length > 0 && (
           <div className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 text-sm text-muted">
-            <span>This device remembers your shifts.</span>
+            <span>This device remembers your sign-ups.</span>
             <ForgetDeviceButton />
           </div>
         )}
@@ -301,7 +357,7 @@ function SignUpMoreLink({ slug, primary = false }: { slug: string; primary?: boo
         primary ? "bg-brand text-brand-foreground hover:bg-brand-hover" : "border border-brand text-brand hover:bg-brand-soft"
       }`}
     >
-      Sign up for more shifts
+      Sign up for more
     </Link>
   );
 }

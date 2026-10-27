@@ -10,7 +10,7 @@ import { googleCalendarUrl } from "@/lib/ics";
 import { normalizePhone } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
-import { icsDownloadUrl, loadCalendarEntries, sendSignupConfirmation, toIcsEvent } from "@/lib/volunteer-emails";
+import { icsDownloadUrl, loadCalendarEntries, sendSignupConfirmation, toIcsEvent, type ItemLine } from "@/lib/volunteer-emails";
 import { addToPass } from "@/lib/volunteer-pass";
 
 export type SignupState = ActionState & {
@@ -21,6 +21,8 @@ export type SignupState = ActionState & {
     alreadySignedUp: number;
     /** The other people they signed up, as stored ("Emma R." for a minor). */
     others: string[];
+    /** What they're bringing. */
+    items: ItemLine[];
   };
   values?: { fullName: string; email: string; phone: string; shiftIds: string[]; minor: boolean; companions: Companion[] };
 };
@@ -44,12 +46,16 @@ const schema = z.object({
 });
 
 /**
- * Public volunteer signup. Runs with the server's privileged key because the
- * visitor isn't signed in; register_volunteer() does the capacity checks and
- * locking inside the database, all-or-nothing.
+ * Public volunteer signup: shifts, and items to bring. Runs with the server's
+ * privileged key because the visitor isn't signed in; sign_up_volunteer() does
+ * the capacity checks and locking inside the database, all-or-nothing.
  */
 export async function signUpVolunteer(eventId: string, _prev: SignupState, formData: FormData): Promise<SignupState> {
   const shiftIds = formData.getAll("shiftIds").map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  const itemPicks = [...new Set(formData.getAll("itemIds").map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].map((id) => ({
+    item: id,
+    note: String(formData.get(`itemNote-${id}`) ?? "").trim().slice(0, 200),
+  }));
   const raw = {
     fullName: String(formData.get("fullName") ?? ""),
     email: String(formData.get("email") ?? ""),
@@ -76,7 +82,8 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   if (!others.success) return { error: others.error.issues[0].message, values };
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) return { error: "Please enter a 10-digit mobile phone number.", values };
-  if (shiftIds.length === 0) return { error: "Pick at least one shift above.", values };
+  if (shiftIds.length === 0 && itemPicks.length === 0) return { error: "Pick at least one shift or item above.", values };
+  if (itemPicks.length > 12) return { error: "Please pick 12 items or fewer.", values };
   if (shiftIds.length > 12) return { error: "Please pick 12 shifts or fewer.", values };
   if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED, values };
 
@@ -92,15 +99,16 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   // browser control over signups someone else may have made.
   const { data: before } = await admin
     .from("volunteers")
-    .select("volunteer_assignments(shift_id)")
+    .select("volunteer_assignments(shift_id), item_signups(item_id)")
     .eq("event_id", eventId)
     .eq("email", parsed.data.email)
     .maybeSingle();
   const alreadyHad = new Set(
     ((before?.volunteer_assignments ?? []) as { shift_id: string }[]).map((a) => a.shift_id),
   );
+  const itemsHad = new Set(((before as { item_signups?: { item_id: string }[] } | null)?.item_signups ?? []).map((i) => i.item_id));
 
-  const { data: volunteerId, error } = await admin.rpc("register_volunteer", {
+  const { data: volunteerId, error } = await admin.rpc("sign_up_volunteer", {
     p_event_id: eventId,
     p_full_name: parsed.data.fullName,
     p_email: parsed.data.email,
@@ -108,26 +116,47 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
     p_shift_ids: shiftIds,
     p_minor: minor,
     p_companions: others.data,
+    p_items: itemPicks,
   });
   if (error) {
     if (["P0001", "P0002", "P0003", "P0005"].includes(error.code ?? "")) return { error: error.message, values };
-    console.error("register_volunteer failed", error);
+    console.error("sign_up_volunteer failed", error);
     return { error: "We couldn't save your signup. Please try again.", values };
   }
 
-  const [{ data: event }, { data: assignments }] = await Promise.all([
-    admin.from("events").select("slug, timezone, starts_on, ends_on").eq("id", eventId).single(),
+  const [{ data: event }, { data: assignments }, { data: itemRows }, { data: person }] = await Promise.all([
+    admin.from("events").select("slug, name, venue_name, timezone, starts_on, ends_on").eq("id", eventId).single(),
     admin
       .from("volunteer_assignments")
       .select("id, shift_id, manage_token")
       .eq("volunteer_id", volunteerId as string)
       .in("shift_id", shiftIds),
+    itemPicks.length
+      ? admin
+          .from("item_signups")
+          .select("item_id, note, manage_token, station_items(name, stations(name))")
+          .eq("volunteer_id", volunteerId as string)
+          .in("item_id", itemPicks.map((p) => p.item))
+      : Promise.resolve({ data: [] }),
+    admin.from("volunteers").select("full_name, email, access_token").eq("id", volunteerId as string).single(),
   ]);
+  const brought = (itemRows ?? []) as unknown as {
+    item_id: string;
+    note: string | null;
+    manage_token: string;
+    station_items: { name: string; stations: { name: string } | null } | null;
+  }[];
+  const freshItems = brought.filter((b) => !itemsHad.has(b.item_id));
+  const itemLines: ItemLine[] = freshItems.map((b) => ({
+    name: b.station_items?.name ?? "An item",
+    station: b.station_items?.stations?.name ?? "",
+    note: b.note,
+  }));
   const booked = (assignments ?? []) as { id: string; shift_id: string; manage_token: string }[];
   const fresh = booked.filter((a) => !alreadyHad.has(a.shift_id));
 
   // Remember this device: it may see and cancel the shifts it just booked.
-  await addToPass({ a: fresh.map((a) => a.manage_token), e: event?.slug ? [event.slug] : [] });
+  await addToPass({ a: [...fresh.map((a) => a.manage_token), ...freshItems.map((b) => b.manage_token)], e: event?.slug ? [event.slug] : [] });
 
   const origin = await getOrigin();
   const tz = event?.timezone ?? "America/Chicago";
@@ -137,13 +166,24 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   // when something new was booked: sending the same form again (or a script
   // doing it) mustn't fill someone's inbox with copies.
   const emailSent =
-    fresh.length > 0 &&
+    fresh.length + freshItems.length > 0 &&
     (await sendSignupConfirmation(
-      entries,
+      fresh.length ? entries : [],
       tz,
       origin,
       multiDay,
       others.data.map((c) => (c.minor ? minorName(c.name) : c.name)),
+      itemLines,
+      person && event
+        ? {
+            name: person.full_name,
+            email: person.email,
+            accessToken: person.access_token,
+            eventId,
+            eventName: event.name,
+            venueName: event.venue_name,
+          }
+        : undefined,
     ));
 
   const freshIds = new Set(fresh.map((a) => a.id));
@@ -172,6 +212,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
       emailSent,
       shifts: rows,
       alreadySignedUp: booked.length - fresh.length,
+      items: itemLines,
       others: others.data.map((c) => (c.minor ? minorName(c.name) : c.name.replace(/\s+/g, " "))),
     },
   };
