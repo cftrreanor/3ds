@@ -202,8 +202,9 @@ begin
   if coalesce(cardinality(p_shift_ids), 0) = 0 and coalesce(jsonb_array_length(p_items), 0) = 0 then
     raise exception 'Pick at least one shift or item' using errcode = 'P0001';
   end if;
-  if coalesce(jsonb_array_length(p_items), 0) > 12 then
-    raise exception 'Please pick 12 items or fewer' using errcode = 'P0001';
+  -- People bring as many things as they like; this only stops a script sending thousands.
+  if coalesce(jsonb_array_length(p_items), 0) > 200 then
+    raise exception 'Too many items in one sign-up' using errcode = 'P0001';
   end if;
 
   insert into volunteers (event_id, full_name, email, phone, minor)

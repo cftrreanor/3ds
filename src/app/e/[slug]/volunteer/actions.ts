@@ -83,7 +83,8 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) return { error: "Please enter a 10-digit mobile phone number.", values };
   if (shiftIds.length === 0 && itemPicks.length === 0) return { error: "Pick at least one shift or item above.", values };
-  if (itemPicks.length > 12) return { error: "Please pick 12 items or fewer.", values };
+  // As many items as someone likes; this only stops a script sending thousands.
+  if (itemPicks.length > 200) return { error: "Something went wrong. Please try again.", values };
   if (shiftIds.length > 12) return { error: "Please pick 12 shifts or fewer.", values };
   if (!(await passesBotCheck(formData))) return { error: BOT_CHECK_FAILED, values };
 

@@ -6497,7 +6497,17 @@ begin
   exception when sqlstate 'P0003' then null;
   end;
 
+  -- And she can bring as many things as she likes: 14 more in one go.
+  insert into public.station_items (station_id, event_id, name, needed)
+  select '20000000-0000-0000-0000-0000000000f1', '10000000-0000-0000-0000-00000000000a', 'Extra ' || n, 2
+    from generate_series(1, 14) n;
+  perform public.sign_up_volunteer('10000000-0000-0000-0000-00000000000a', 'Judy Baker', 'judy@example.com', '+15125550180',
+          array[]::uuid[], false, '[]',
+          (select jsonb_agg(jsonb_build_object('item', id)) from public.station_items where name like 'Extra %'));
+  assert (select count(*) from public.item_signups where volunteer_id = judy) = 15, 'Judy is bringing 15 things';
+
   delete from public.volunteers where id = judy;
+  delete from public.station_items where name like 'Extra %';
   delete from public.shifts where id in ('3e1d0000-0000-0000-0000-000000000001', '3e1d0000-0000-0000-0000-000000000002');
   delete from public.station_items where id = '7e1d0000-0000-0000-0000-000000000003';
 end $$;
