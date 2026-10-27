@@ -234,7 +234,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       ? [
           {
             tone: "warn" as const,
-            text: `${expiredInvites.length === 1 ? "1 invitation has" : `${expiredInvites.length} invitations have`} expired. Resend them from the Team page.`,
+            text: `${expiredInvites.length === 1 ? "1 invitation has" : `${expiredInvites.length} invitations have`} expired. Resend them from Team setup.`,
             tab: expiredInvites[0].as_host ? "hosts" : expiredInvites[0].role === "volunteer_director" ? "volunteer-leads" : "section-leads",
           },
         ]
@@ -685,7 +685,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         <Card className="space-y-5">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads, and {words2.many}, and their invitations.</p>
-            <Link href={`/dashboard/events/${eventId}/team`} className={BTN_OUTLINE}>
+            <Link
+              href={access.isHost ? `/dashboard/events/${eventId}/edit?section=team` : `/dashboard/events/${eventId}/volunteering#section-leads`}
+              className={BTN_OUTLINE}
+            >
               Manage team
             </Link>
           </div>
@@ -717,7 +720,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   : "Share a site map, parking map, or volunteer guide with the public, volunteers, or your team."}
             </p>
             {access.isHost && (
-              <Link href={`/dashboard/events/${eventId}/edit?step=files`} className={BTN_OUTLINE}>
+              <Link href={`/dashboard/events/${eventId}/edit?section=files`} className={BTN_OUTLINE}>
                 {files.length ? "Manage maps & documents" : "Add a map or document"}
               </Link>
             )}
@@ -1149,6 +1152,7 @@ function TeamStats({
   counts: { label: string; value: number; tab: string | null }[];
   updates: TeamUpdate[];
 }) {
+  // The team page sends each role to where it's set up now (Edit details → Team setup, or Volunteer Setup).
   const href = (tab: string | null) => `/dashboard/events/${eventId}/team${tab ? `?tab=${tab}` : ""}`;
   return (
     <div className="space-y-4 border-t border-border pt-4">
@@ -1158,7 +1162,7 @@ function TeamStats({
             <dt className="text-xs text-muted">{c.label}</dt>
             <dd className="text-xl font-semibold tabular-nums">
               {c.value}
-              {/* The whole tile opens that part of the Team page. */}
+              {/* The whole tile opens where that role is set up (Team setup, or Volunteer Setup for Section Leads). */}
               <Link href={href(c.tab)} className="absolute inset-0 rounded-lg" aria-label={`${c.label}: ${c.value}`} />
             </dd>
           </div>

@@ -180,7 +180,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         id: "team",
         label: "Invite your team",
         hint: "Co-hosts and leads who help you run the day.",
-        href: `${base}/team`,
+        href: `${base}/edit?section=team`,
         done: f.team > 0,
         required: false,
         partial:
@@ -192,7 +192,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         id: "files",
         label: "Add maps or documents",
         hint: "Parking maps, packets, schedules.",
-        href: `${base}/edit?step=files`,
+        href: `${base}/edit?section=files`,
         done: f.files > 0,
         required: false,
       },
