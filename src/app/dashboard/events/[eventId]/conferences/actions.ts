@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { linkFrom } from "@/lib/meeting-link";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import {
@@ -204,7 +205,8 @@ export async function saveMeetingPlace(eventId: string, _prev: ActionState, form
   const video = modes.includes("video");
 
   const room = String(formData.get("room") ?? "").trim();
-  const link = String(formData.get("videoLink") ?? "").trim();
+  // A pasted Zoom invitation counts: keep just its link.
+  const link = linkFrom(String(formData.get("videoLink") ?? ""));
   const waitingRoom = formData.get("waitingRoom") === "on";
   const ownLink = video && formData.get("linkSource") === "own";
   const venueName = String(formData.get("venueName") ?? "").trim().slice(0, 120);

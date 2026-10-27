@@ -5,9 +5,10 @@ import { RequestAccess } from "@/components/request-access";
 import { requireUser } from "@/lib/auth";
 import { getMyOrganization } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
+import { invitedAs } from "@/lib/invited-as";
 import { OnboardingForm } from "../onboarding-form";
 
-export const metadata: Metadata = { title: "Set up your organization" };
+export const metadata: Metadata = { title: "Set up your account" };
 
 export default async function SetupPage() {
   const user = await requireUser();
@@ -26,12 +27,10 @@ export default async function SetupPage() {
   }
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Set up your organization</h1>
-      <p className="mt-2 leading-7 text-muted">
-        This is the group that hosts your contest. You can invite other organizers later.
-      </p>
+      <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Set up your account</h1>
+      <p className="mt-2 leading-7 text-muted">A few details, then you can create your first event. You can invite co-hosts later.</p>
       <Card className="mt-8">
-        <OnboardingForm />
+        <OnboardingForm {...(await invitedAs(user.email))} />
       </Card>
     </div>
   );

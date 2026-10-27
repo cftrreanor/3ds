@@ -10,6 +10,7 @@ import { freeStatus } from "@/lib/admin";
 import { brand } from "@/lib/brand";
 import { conferenceBookedCount } from "@/lib/conference-access";
 import { createClient } from "@/lib/supabase/server";
+import { invitedAs } from "@/lib/invited-as";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { DayStatusPill } from "@/components/day-status";
@@ -194,15 +195,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     return (
       <div className={`mx-auto ${mayHost ? "max-w-lg" : "max-w-2xl"}`}>
         <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">
-          {mayHost ? "Welcome. Let's set up your organization" : `Welcome to ${brand.name}`}
+          {mayHost ? "Welcome. Let's set up your account" : `Welcome to ${brand.name}`}
         </h1>
         {mayHost ? (
           <>
-            <p className="mt-2 leading-7 text-muted">
-              This is the group that hosts your events. You can invite other organizers later.
-            </p>
+            <p className="mt-2 leading-7 text-muted">A few details, then you can create your first event. You can invite co-hosts later.</p>
             <Card className="mt-8">
-              <OnboardingForm />
+              <OnboardingForm {...(await invitedAs(user.email))} />
             </Card>
           </>
         ) : (
@@ -589,7 +588,7 @@ function HostYourOwn({ invited }: { invited: boolean }) {
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
         {invited ? (
           <Link href="/dashboard/setup" className={button}>
-            Set up your organization
+            Set up your account
           </Link>
         ) : (
           <Link href="/#join" className={button}>
@@ -640,3 +639,4 @@ function PlanNotice({ org }: { org: Organization }) {
     </p>
   );
 }
+

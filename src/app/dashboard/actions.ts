@@ -84,7 +84,8 @@ async function notifyVolunteersOfChanges(shiftIds: string[]) {
 const orgSchema = z.object({
   fullName: text(120),
   phone: z.string().trim(),
-  orgName: text(120),
+  // Blank for someone on their own: their events go under their name.
+  orgName: z.string().trim().max(120, "Keep the name under 120 characters."),
   timezone,
 });
 
@@ -92,7 +93,8 @@ export async function createOrganization(_prev: ActionState, formData: FormData)
   const user = await requireUser();
   const parsed = orgSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
-  const { fullName, phone, orgName, timezone: tz } = parsed.data;
+  const { fullName, phone, timezone: tz } = parsed.data;
+  const orgName = parsed.data.orgName || fullName;
 
   const e164 = phone ? normalizePhone(phone) : null;
   if (phone && !e164) return { error: "Mobile phone: please enter a 10-digit US number." };
@@ -290,6 +292,13 @@ export async function setEventPublished(eventId: string, publish: boolean): Prom
   if (!data?.length) return { error: "Only the event's host can publish it." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
+}
+
+/** Publish from a setup page, then go to the event's page (with its public link) to share it. */
+export async function publishAndOpen(eventId: string): Promise<ActionState> {
+  const result = await setEventPublished(eventId, true);
+  if (result.error) return result;
+  redirect(`/dashboard/events/${eventId}?published=1`);
 }
 
 export async function setVolunteerSignupOpen(eventId: string, open: boolean): Promise<ActionState> {

@@ -70,7 +70,10 @@ const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Sectio
 export default async function EventPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]">) {
   const { eventId } = await params;
   // Back from demo mode (demo-actions backToMe).
-  const demoEnded = (await searchParams).demo === "ended";
+  const query = await searchParams;
+  const demoEnded = query.demo === "ended";
+  // Just published from Conference Setup.
+  const justPublished = query.published === "1";
   const user = await requireUser();
   const supabase = await createClient();
 
@@ -780,6 +783,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             : undefined
       }
     >
+      {justPublished && <SuccessToast message="Published. Your booking page is live; share its link below." />}
       {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useMemo, useOptimistic, useState } from "react";
+import { startTransition, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import { toast } from "@/components/toaster";
 import { Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
@@ -122,6 +122,21 @@ export function MeetingList({
     });
   }
   const [openTimes, setOpenTimes] = useState(true);
+  // "Print or copy" closes on a click anywhere else, or Escape (a tester's next click landed on the checkbox below it).
+  const menu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (e: Event) => {
+      const el = menu.current;
+      if (!el?.open) return;
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !el.contains(e.target as Node)) el.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, []);
   const q = query.trim().toLowerCase();
   const shown = useMemo(
     () =>
@@ -275,14 +290,16 @@ export function MeetingList({
               {met + noShows > 0 && ` · ${met} met · ${noShows} ${noShows === 1 ? "no-show" : "no-shows"}`}
             </span>
           </p>
-          <Input
-            type="search"
-            placeholder={meeting ? "Name or email" : "Child, parent, or email"}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="sm:max-w-xs print:hidden"
-            aria-label={meeting ? "Find someone" : "Find a family"}
-          />
+          <label className="flex w-full flex-col gap-1 text-sm font-semibold sm:w-auto sm:max-w-xs print:hidden">
+            Find a meeting
+            <Input
+              type="search"
+              placeholder={meeting ? "Search by name or email" : "Search by child, parent, or email"}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="font-normal"
+            />
+          </label>
         </div>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-5 text-sm print:hidden">
           {total === null ? (
@@ -294,7 +311,7 @@ export function MeetingList({
               Show open times and breaks
             </label>
           )}
-          <details className="group relative">
+          <details ref={menu} className="group relative">
             <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 font-medium text-brand hover:underline">
               Print or copy
               <span aria-hidden className="text-xs transition group-open:rotate-180">
@@ -348,6 +365,14 @@ export function MeetingList({
         )}
       </div>
 
+      {total !== null && !openTimes && !q && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-2 rounded-md bg-background px-3 py-2 text-sm text-muted print:hidden">
+          Open times and breaks are hidden.
+          <button type="button" onClick={() => setOpenTimes(true)} className="font-medium text-brand underline">
+            Show them
+          </button>
+        </p>
+      )}
       {shown.length === 0 ? (
         <p className="mt-6 text-muted">{q ? (meeting ? "No one matches that." : "No family matches that.") : "No meetings booked yet."}</p>
       ) : (

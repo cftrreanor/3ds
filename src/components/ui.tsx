@@ -20,8 +20,8 @@ export function Button({
         variant === "primary" && "bg-brand font-semibold text-brand-foreground hover:bg-brand-hover",
         variant === "secondary" && "border border-border bg-surface hover:border-brand/40 hover:bg-background",
         variant === "accent" && "bg-accent font-semibold text-accent-foreground hover:opacity-90",
-        variant === "go" && "bg-success font-semibold text-success-foreground hover:opacity-90",
-        variant === "warn" && "bg-danger font-semibold text-danger-foreground hover:opacity-90",
+        variant === "go" && "bg-success font-semibold text-success-foreground shadow-sm hover:shadow-md hover:brightness-90",
+        variant === "warn" && "bg-danger font-semibold text-danger-foreground shadow-sm hover:shadow-md hover:brightness-90",
         variant === "danger" && "border border-danger bg-surface font-semibold text-danger hover:bg-danger/5",
         variant === "ghost" && "text-muted hover:text-foreground",
         // A destructive action that shouldn't compete with the main one.
