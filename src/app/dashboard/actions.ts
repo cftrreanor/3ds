@@ -492,12 +492,18 @@ export async function renameStation(eventId: string, stationId: string, _prev: A
   await requireUser();
   const name = text(80).safeParse(formData.get("name") ?? "");
   if (!name.success) return { error: "Please enter the station's name." };
+  // Time slots or items to bring; the database only lets it change while the station is empty.
+  const kind = formData.get("signupKind");
   const supabase = await createClient();
-  const { data, error } = await supabase.from("stations").update({ name: name.data }).eq("id", stationId).select("id");
+  const { data, error } = await supabase
+    .from("stations")
+    .update({ name: name.data, ...(kind === "shifts" || kind === "items" ? { signup_kind: kind } : {}) })
+    .eq("id", stationId)
+    .select("id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "You don't have permission to do that." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `Renamed to “${name.data}”.` };
+  return { ok: true, message: `Saved “${name.data}”.` };
 }
 
 /** Moves a check-in station one place earlier or later in the band's path. */

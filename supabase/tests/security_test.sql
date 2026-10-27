@@ -6384,6 +6384,33 @@ do $$ begin
   exception when insufficient_privilege then null;
   end;
 end $$;
+-- A station switches between time slots and items only while it's empty;
+-- shifts never go in an items station.
+insert into public.stations (id, event_id, name) values
+  ('20000000-0000-0000-0000-0000000000f2', '10000000-0000-0000-0000-00000000000a', 'Bake Sale');
+update public.stations set signup_kind = 'items' where id = '20000000-0000-0000-0000-0000000000f2';
+update public.stations set signup_kind = 'shifts' where id = '20000000-0000-0000-0000-0000000000f2';
+do $$ begin
+  assert (select signup_kind from public.stations where id = '20000000-0000-0000-0000-0000000000f2') = 'shifts',
+    'an empty station switches kinds both ways';
+  begin
+    update public.stations set signup_kind = 'shifts' where id = '20000000-0000-0000-0000-0000000000f1';
+    raise exception 'FAIL: a station with items switched to time slots';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    update public.stations set signup_kind = 'items' where id = '20000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: a station with shifts switched to items';
+  exception when sqlstate 'P0001' then null;
+  end;
+  begin
+    insert into public.shifts (station_id, title, starts_at, ends_at, max_capacity)
+    values ('20000000-0000-0000-0000-0000000000f1', 'Sneaky', now() + interval '10 days', now() + interval '10 days 1 hour', 2);
+    raise exception 'FAIL: a shift went in an items station';
+  exception when sqlstate 'P0001' then null;
+  end;
+end $$;
+delete from public.stations where id = '20000000-0000-0000-0000-0000000000f2';
 -- A stranger can't add items to someone else's event.
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
 do $$ begin

@@ -383,46 +383,66 @@ const SIGNUP_KINDS = [
   { value: "items", label: "Items to bring", hint: "People sign up to bring something, like desserts or drinks" },
 ] as const;
 
-export function NewStationForm({ action }: { action: Action }) {
-  const [kind, setKind] = useState<"shifts" | "items">("shifts");
+type SignupKind = "shifts" | "items";
+
+/** Time slots or items to bring, as two big choices. */
+function SignupKindPicker({
+  value,
+  onChange,
+  disabled = false,
+  note,
+}: {
+  value: SignupKind;
+  onChange: (kind: SignupKind) => void;
+  disabled?: boolean;
+  note: string;
+}) {
   return (
-    <ActionForm action={action} className="space-y-3">
-      <fieldset>
-        <legend className="text-sm font-semibold">What do people sign up for?</legend>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {SIGNUP_KINDS.map((k) => (
-            <label
-              key={k.value}
-              className={`flex cursor-pointer gap-3 rounded-lg border p-3 ${kind === k.value ? "border-brand bg-brand-soft" : "border-field-border"}`}
-            >
-              <input
-                type="radio"
-                name="signupKind"
-                value={k.value}
-                checked={kind === k.value}
-                onChange={() => setKind(k.value)}
-                className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
-              />
-              <span>
-                <span className="block text-sm font-semibold">{k.label}</span>
-                <span className="block text-sm text-muted">{k.hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <Field
-          label="New station name"
-          hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : "e.g. Parking, Concessions, Ticket Table"}
-          className="flex-1"
-        >
-          <Input name="name" required maxLength={80} />
-        </Field>
-        <SubmitButton variant="go" pendingText="Adding…" className="sm:mb-7">
-          Add station
-        </SubmitButton>
+    <fieldset disabled={disabled}>
+      <legend className="text-sm font-semibold">What do people sign up for?</legend>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {SIGNUP_KINDS.map((k) => (
+          <label
+            key={k.value}
+            className={`flex gap-3 rounded-lg border p-3 ${disabled ? "opacity-60" : "cursor-pointer"} ${value === k.value ? "border-brand bg-brand-soft" : "border-field-border"}`}
+          >
+            <input
+              type="radio"
+              name="signupKind"
+              value={k.value}
+              checked={value === k.value}
+              onChange={() => onChange(k.value)}
+              className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
+            />
+            <span>
+              <span className="block text-sm font-semibold">{k.label}</span>
+              <span className="block text-sm text-muted">{k.hint}</span>
+            </span>
+          </label>
+        ))}
       </div>
+      <p className="mt-1.5 text-sm text-muted">{note}</p>
+    </fieldset>
+  );
+}
+
+/** "Time slots" or "Items to bring", for a station's row. */
+export const signupKindLabel = (kind: SignupKind) => SIGNUP_KINDS.find((k) => k.value === kind)!.label;
+
+export function NewStationForm({ action }: { action: Action }) {
+  const [kind, setKind] = useState<SignupKind>("shifts");
+  return (
+    <ActionForm action={action} className="space-y-4">
+      <Field
+        label="New station name"
+        hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : "e.g. Parking, Concessions, Ticket Table"}
+      >
+        <Input name="name" required maxLength={80} />
+      </Field>
+      <SignupKindPicker value={kind} onChange={setKind} note="You can change this later, until you add shifts or items." />
+      <SubmitButton variant="go" pendingText="Adding…">
+        Add station
+      </SubmitButton>
     </ActionForm>
   );
 }
@@ -505,6 +525,8 @@ function ItemFields({
  */
 export function StationRow({
   name,
+  kind,
+  kindLocked,
   leadNames,
   leadIds,
   leads,
@@ -515,6 +537,9 @@ export function StationRow({
   remove,
 }: {
   name: string;
+  kind: SignupKind;
+  /** Why the kind can't change right now (it has shifts or items, or it's a check-in stop); null if it can. */
+  kindLocked: string | null;
   leadNames: string[];
   leadIds: string[];
   leads: LeadOption[];
@@ -526,13 +551,16 @@ export function StationRow({
   remove: Action;
 }) {
   const [open, setOpen] = useState<"leads" | "rename" | null>(null);
+  const [newKind, setNewKind] = useState<SignupKind>(kind);
   const toggle = (which: "leads" | "rename") => setOpen(open === which ? null : which);
   return (
     <li className="px-3 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
           <p className="font-medium">{name}</p>
-          <p className="text-sm text-muted">{leadNames.length ? leadNames.join(", ") : `No ${leadWord.one} yet`}</p>
+          <p className="text-sm text-muted">
+            {signupKindLabel(kind)} · {leadNames.length ? leadNames.join(", ") : `No ${leadWord.one} yet`}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canAssign && (
@@ -541,7 +569,7 @@ export function StationRow({
             </Button>
           )}
           <Button type="button" variant="ghost" className="min-h-10 px-2 text-sm" onClick={() => toggle("rename")} aria-expanded={open === "rename"}>
-            Rename or delete
+            Edit or delete
           </Button>
         </div>
       </div>
@@ -572,10 +600,16 @@ export function StationRow({
       {/* Delete lives in here, out of the way, instead of a red button on every row. */}
       {open === "rename" && (
         <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
-          <ActionForm action={rename} className="flex flex-col gap-2 sm:flex-row sm:items-end" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
-            <Field label="Station name" className="flex-1">
+          <ActionForm action={rename} className="space-y-3" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
+            <Field label="Station name">
               <Input name="name" required maxLength={80} defaultValue={name} />
             </Field>
+            <SignupKindPicker
+              value={newKind}
+              onChange={setNewKind}
+              disabled={Boolean(kindLocked)}
+              note={kindLocked ?? "You can change this until you add shifts or items."}
+            />
             <div className="flex gap-2">
               <SubmitButton pendingText="Saving…">Save</SubmitButton>
               <Button type="button" variant="ghost" onClick={() => setOpen(null)}>

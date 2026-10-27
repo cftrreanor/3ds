@@ -10,6 +10,9 @@
 -- who's bringing what by first name, so people don't all bring brownies.
 --
 --   * stations.signup_kind: 'shifts' or 'items', set when the station is made.
+--     It can be changed while the station is empty (no shifts, no items);
+--     after that, the shifts or items have to be removed first. Shifts only
+--     go in a shifts station, and a check-in station stays a shifts station.
 --   * station_items: what a station needs, and how many are claimed so far
 --     (claimed_count, kept by triggers on item_signups; never set by hand).
 --   * item_signups: who's bringing what. Volunteer managers see them all; a
@@ -28,6 +31,45 @@
 alter table public.stations
   add column signup_kind text not null default 'shifts' check (signup_kind in ('shifts', 'items'));
 grant insert (signup_kind) on public.stations to authenticated;
+grant update (signup_kind) on public.stations to authenticated;
+
+-- Switching kinds only while the station is empty, so no one's sign-up is lost.
+create function public.stations_signup_kind_check()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.signup_kind = 'items' and new.checkpoint_kind is not null then
+    raise exception 'A check-in station takes time slots, not items to bring.' using errcode = 'P0001';
+  end if;
+  if tg_op = 'UPDATE' and new.signup_kind is distinct from old.signup_kind
+     and (exists (select 1 from shifts where station_id = new.id)
+          or exists (select 1 from station_items where station_id = new.id)) then
+    raise exception 'To change what people sign up for at "%", first delete its %.',
+      new.name, case when old.signup_kind = 'items' then 'items' else 'shifts' end using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function public.stations_signup_kind_check() from public, anon, authenticated;
+create trigger stations_signup_kind_check before insert or update of signup_kind, checkpoint_kind on public.stations
+  for each row execute function public.stations_signup_kind_check();
+
+-- Shifts (time slots) only go in a shifts station.
+create function public.shifts_station_kind_check()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if exists (select 1 from stations where id = new.station_id and signup_kind = 'items') then
+    raise exception 'This section is for items to bring, so it has no time slots.' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function public.shifts_station_kind_check() from public, anon, authenticated;
+create trigger shifts_station_kind_check before insert or update of station_id on public.shifts
+  for each row execute function public.shifts_station_kind_check();
 
 create table public.station_items (
   id             uuid primary key default gen_random_uuid(),

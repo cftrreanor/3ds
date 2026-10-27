@@ -278,6 +278,16 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 <StationRow
                   key={st.id}
                   name={st.name}
+                  kind={st.signup_kind ?? "shifts"}
+                  kindLocked={
+                    st.checkpoint_kind
+                      ? "A check-in station always takes time slots."
+                      : shifts.some((x) => x.station_id === st.id)
+                        ? "To switch to items to bring, first delete this station's shifts in step 2."
+                        : items.some((x) => x.station_id === st.id)
+                          ? "To switch to time slots, first delete this station's items in step 2."
+                          : null
+                  }
                   leadIds={st.lead_ids}
                   leadNames={st.lead_ids.map((id) => nameOf(id) ?? "Team member")}
                   leads={leadOptions}
