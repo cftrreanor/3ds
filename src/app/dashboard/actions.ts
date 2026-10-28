@@ -302,6 +302,15 @@ export async function publishAndOpen(eventId: string): Promise<ActionState> {
   redirect(`/dashboard/events/${eventId}?published=1`);
 }
 
+/** Volunteer Setup's one button: publish the event, open volunteer sign-ups, then go to the event's page. */
+export async function publishAndOpenSignups(eventId: string): Promise<ActionState> {
+  const result = await setEventPublished(eventId, true);
+  if (result.error) return result;
+  const opened = await setVolunteerSignupOpen(eventId, true);
+  if (opened.error) return opened;
+  redirect(`/dashboard/events/${eventId}?published=1`);
+}
+
 export async function setVolunteerSignupOpen(eventId: string, open: boolean): Promise<ActionState> {
   await requireUser();
   const supabase = await createClient();
