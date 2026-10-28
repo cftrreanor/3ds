@@ -25,6 +25,13 @@ export async function inviteMember(eventId: string, _prev: ActionState, formData
   return invite(eventId, parsed.data.email, parsed.data.role, parsed.data.stationId || null);
 }
 
+/** Volunteer Setup's Coordinators window: invite someone to lead this one sign-up. */
+export async function inviteCoordinator(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const email = inviteSchema.shape.email.safeParse(formData.get("email"));
+  if (!email.success) return { error: email.error.issues[0].message };
+  return invite(eventId, email.data, "section_lead", stationId);
+}
+
 /** Invite someone back to the role they were removed from. */
 export async function reinviteMember(eventId: string, removalId: string): Promise<ActionState> {
   await requireUser();

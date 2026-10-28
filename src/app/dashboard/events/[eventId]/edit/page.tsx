@@ -363,7 +363,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   ? "Co-hosts share your account: they can see your bookings, and reschedule or cancel meetings."
                   : `Everyone helping you run ${event.name}. ${leadWords(event.event_type).many} are invited in Volunteer Setup, next to the sign-ups they lead.`}
               </p>
-              <TeamRoles eventId={eventId} roles={conference ? ["hosts"] : ["hosts", "volunteer-leads"]} open={typeof tab === "string" ? tab : null} />
+              <TeamRoles eventId={eventId} roles={conference ? ["hosts"] : ["hosts", "volunteer-leads", "section-leads"]} open={typeof tab === "string" ? tab : null} />
             </div>
           )}
 

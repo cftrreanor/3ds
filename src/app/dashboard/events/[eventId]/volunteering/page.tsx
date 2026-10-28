@@ -11,15 +11,14 @@ import { eachDate, formatDate, formatTimeRange, utcToZonedDate } from "@/lib/tim
 import { importVolunteers } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields, type Choice } from "@/lib/imports";
-import { createStation, deleteStation, moveCheckpoint, renameStation, setStationLeads, setVolunteerSignupOpen } from "../../../actions";
-import { ActionButton, CopyLinkButton, NewStationForm, StationRow, type LeadOption } from "../forms";
+import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
+import { ActionButton, CopyLinkButton, NewStationForm, type LeadOption } from "../forms";
 import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
-import { TeamRoles } from "../team/team-roles";
 
 export const metadata: Metadata = { title: "Volunteer Setup" };
 
@@ -50,7 +49,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     : { data: [] };
   const locations = (roomData ?? []).map((r) => [r.name, r.note].filter(Boolean).join(" · "));
 
-  const [{ data: stationData, error: stationsError }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }] = await Promise.all([
+  const [{ data: stationData, error: stationsError }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }, { data: inviteData }] = await Promise.all([
     supabase
       .from("stations")
       .select(
@@ -74,6 +73,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           .eq("organization_id", event.organization_id)
           .order("created_at")
       : Promise.resolve({ data: [] }),
+    // Coordinators invited but not joined yet, shown on their sign-up.
+    supabase.from("invitations").select("email, station_id").eq("event_id", eventId).eq("role", "section_lead").is("accepted_at", null),
   ]);
   // Check-in stations first, in the band's order, matching the volunteer signup page.
   // The newest columns are missing until the database update is run.
@@ -111,8 +112,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = (hostData ?? []) as unknown as HostRow[];
 
-  // The open tab: ?station=<id>, "new" to add one, or the first station.
-  const current = stations.length === 0 ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
+  // The open tab: ?station=<id>, "new" to add one (also when there are none yet), or the first station.
+  const adding = tab === "new" || stations.length === 0;
+  const current = adding ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
   const currentItems = current ? items.filter((i) => i.station_id === current.id) : [];
   const itemSignups: ItemSignup[] | undefined =
@@ -134,8 +136,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           phone: r.volunteers?.phone ?? null,
         }))
       : undefined;
+  // Who's signed up, for organizers and the sign-up's own leads.
   const roster =
-    current && current.lead_ids.includes(user.id)
+    current && current.signup_kind !== "items"
       ? (((await supabase.rpc("station_roster", { p_station_id: current.id })).data ?? []) as RosterEntry[])
       : undefined;
 
@@ -179,8 +182,6 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       also: [sh.title, `${station} ${sh.title}`, `${station} ${time}`, `${sh.title} ${time}`, `${station} ${day}${time}`],
     };
   });
-  // Assigning leads waits until the team has Coordinators.
-  const hasSectionLeads = staffRows.some((r) => r.role === "section_lead");
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
 
   return (
@@ -260,62 +261,80 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         </div>
       </Card>
 
-      <section className="mt-10">
-        <h2 className="text-xl font-semibold">Volunteer sign-ups</h2>
-        <p className="mt-1 text-sm text-muted">
+      <section className="mt-10" aria-labelledby="signups-heading">
+        <h2 id="signups-heading" className="text-xl font-semibold">
+          Volunteer sign-ups
+        </h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
           Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items.
         </p>
-
-        <Card className="mt-4">
-          <h3 className="flex items-center gap-2 text-lg font-semibold">
-            <span className="flex size-7 items-center justify-center rounded-full bg-brand text-sm text-brand-foreground">1</span>
-            Create sign-ups
-          </h3>
-          <p className="mt-1 text-sm text-muted">Name each sign-up, then assign who leads it. You&apos;ll set up the rest in step 2.</p>
-          {stations.length > 0 && (
-            <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
-              {stations.map((st) => (
-                <StationRow
-                  key={st.id}
-                  name={st.name}
-                  kind={st.signup_kind ?? "shifts"}
-                  kindLocked={
-                    st.checkpoint_kind
-                      ? "A check-in stop always takes time slots."
-                      : shifts.some((x) => x.station_id === st.id)
-                        ? "To switch to items to bring, first delete this sign-up's shifts in step 2."
-                        : items.some((x) => x.station_id === st.id)
-                          ? "To switch to time slots, first delete this sign-up's items in step 2."
-                          : null
-                  }
-                  leadIds={st.lead_ids}
-                  leadNames={st.lead_ids.map((id) => nameOf(id) ?? "Team member")}
-                  leads={leadOptions}
-                  canAssign={hasSectionLeads}
-                  leadWord={leadWords(event.event_type)}
-                  setLeads={setStationLeads.bind(null, eventId, st.id)}
-                  rename={renameStation.bind(null, eventId, st.id)}
-                  remove={deleteStation.bind(null, eventId, st.id)}
-                />
-              ))}
-            </ul>
-          )}
-          {!hasSectionLeads && stations.length > 0 && (
-            <p className="mt-2 text-sm text-muted">
-              To assign {leadWords(event.event_type).many},{" "}
-              <a href="#section-leads" className="font-medium text-brand underline">
-                invite them below
-              </a>
-              .
-            </p>
-          )}
-          <div className="mt-4">
-            <NewStationForm action={createStation.bind(null, eventId)} />
+        <UnsavedChangesProvider
+          key={current?.id ?? "new"}
+          needsDetails={false}
+          needsShifts={false}
+        >
+          <StationTabs
+            tabs={stations.map((st) => {
+              const own = shifts.filter((x) => x.station_id === st.id);
+              const ownItems = items.filter((x) => x.station_id === st.id);
+              return {
+                id: st.id,
+                name: st.name,
+                href: tabHref(st.id),
+                active: current?.id === st.id,
+                configured: own.length + ownItems.length > 0,
+                items: st.signup_kind === "items",
+                filled: own.reduce((n, x) => n + x.registered_count, 0) + ownItems.reduce((n, x) => n + x.claimed_count, 0),
+                capacity: own.reduce((n, x) => n + x.max_capacity, 0) + ownItems.reduce((n, x) => n + x.needed, 0),
+              };
+            })}
+            add={{ href: tabHref("new"), active: adding }}
+          />
+          <div className="mt-6">
+            {current ? (
+              <StationPanel
+                // A fresh panel per station, so its forms never keep the previous tab's choices.
+                key={current.id}
+                eventId={eventId}
+                station={current}
+                items={currentItems}
+                itemSignups={itemSignups}
+                stationShifts={currentShifts}
+                event={event}
+                days={days}
+                windowLabel={windowLabel}
+                userId={user.id}
+                canManage
+                locations={locations}
+                zones={zones}
+                leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
+                roster={roster}
+                kindLocked={
+                  current.checkpoint_kind
+                    ? "A check-in stop always takes time slots."
+                    : current.signup_kind === "items"
+                      ? currentItems.length
+                        ? "To switch to time slots, first delete this sign-up's items."
+                        : null
+                      : currentShifts.length
+                        ? "To switch to items to bring, first delete this sign-up's time slots."
+                        : null
+                }
+                leadOptions={leadOptions}
+                pendingInvites={(inviteData ?? []).filter((inv) => inv.station_id === current.id).map((inv) => inv.email)}
+              />
+            ) : (
+              <Card>
+                <h3 className="text-lg font-semibold">{stations.length ? "Add a sign-up" : "Add your first sign-up"}</h3>
+                <p className="mt-1 mb-4 text-sm text-muted">Name it and choose its type. You&apos;ll add its details, Coordinators, and time slots or items next.</p>
+                <NewStationForm action={createStation.bind(null, eventId)} openTab />
+              </Card>
+            )}
           </div>
-        </Card>
+        </UnsavedChangesProvider>
 
         {hasBands(event.event_type) && (
-        <Card className="mt-4 p-4">
+        <Card className="mt-8 p-4">
           <h3 className="text-sm font-semibold">Band check-in order</h3>
           {checkpoints.length > 0 ? (
             <>
@@ -362,65 +381,6 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         </Card>
         )}
 
-        <div className="mt-8">
-          <h3 className="flex items-center gap-2 text-lg font-semibold">
-            <span className="flex size-7 items-center justify-center rounded-full bg-brand text-sm text-brand-foreground">2</span>
-            Set up each sign-up
-          </h3>
-          {current ? (
-            <UnsavedChangesProvider
-              key={current.id}
-              needsDetails={!current.details_saved_at}
-              needsShifts={current.signup_kind === "items" ? currentItems.length === 0 : currentShifts.length === 0}
-            >
-              <p className="mt-1 mb-4 text-sm text-muted">
-                Open each sign-up, then finish its details and shifts. A green check means it&apos;s ready.
-              </p>
-              <StationTabs
-                tabs={stations.map((st) => {
-                  const own = shifts.filter((x) => x.station_id === st.id);
-                  const ownItems = items.filter((x) => x.station_id === st.id);
-                  return {
-                    id: st.id,
-                    name: st.name,
-                    href: tabHref(st.id),
-                    active: current.id === st.id,
-                    configured: Boolean(st.details_saved_at) && own.length + ownItems.length > 0,
-                    filled: own.reduce((n, x) => n + x.registered_count, 0) + ownItems.reduce((n, x) => n + x.claimed_count, 0),
-                    capacity: own.reduce((n, x) => n + x.max_capacity, 0) + ownItems.reduce((n, x) => n + x.needed, 0),
-                  };
-                })}
-              />
-              <div className="mt-6">
-                <StationPanel
-                  // A fresh panel per station, so its forms never keep the previous tab's choices.
-                  key={current.id}
-                  eventId={eventId}
-                  station={current}
-                  items={currentItems}
-                  itemSignups={itemSignups}
-                  stationShifts={currentShifts}
-                  event={event}
-                  days={days}
-                  windowLabel={windowLabel}
-                  userId={user.id}
-                  canManage
-                  locations={locations}
-                  zones={zones}
-                  leadNames={current.lead_ids.map((id) => nameOf(id) ?? "Team member")}
-                  roster={roster}
-                />
-              </div>
-            </UnsavedChangesProvider>
-          ) : (
-            <p className="mt-1 text-sm text-muted">Add a sign-up in step 1 first.</p>
-          )}
-        </div>
-      </section>
-
-      {/* Coordinators run one sign-up each, so they're invited here, next to the stations. */}
-      <section className="mt-10" aria-label={leadWords(event.event_type).many}>
-        <TeamRoles eventId={eventId} roles={["section-leads"]} />
       </section>
 
       <section className="mt-10" aria-labelledby="import-heading">

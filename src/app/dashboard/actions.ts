@@ -405,7 +405,9 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `Added “${v.name}”. Set it up in step 2.` };
+  // Volunteer Setup's "+ Add sign-up" tab: straight on to the new sign-up's own tab.
+  if (formData.get("openTab")) redirect(`/dashboard/events/${eventId}/volunteering?station=${data.id}`);
+  return { ok: true, message: `Added “${v.name}”.` };
 }
 
 export async function updateStation(
@@ -438,7 +440,9 @@ export async function updateStation(
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
       ...zoneOf(formData),
-      // Marks "1. Sign-up details" done.
+      // Time slots or items to bring; the database only lets it change while the sign-up is empty.
+      ...(formData.get("signupKind") === "shifts" || formData.get("signupKind") === "items" ? { signup_kind: String(formData.get("signupKind")) } : {}),
+      // Marks the sign-up's details as saved.
       details_saved_at: new Date().toISOString(),
     })
     .eq("id", stationId);
@@ -473,37 +477,6 @@ async function syncStationLeads(
     if (error) return friendlyDbError(error);
   }
   return null;
-}
-
-/** Step 1, on a sign-up's row: who leads it. */
-export async function setStationLeads(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireUser();
-  const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
-  if (!leadIds.success) return { error: "Something went wrong with the leads. Please try again." };
-  const supabase = await createClient();
-  const leadError = await syncStationLeads(supabase, eventId, stationId, leadIds.data);
-  if (leadError) return { error: leadError };
-  revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: leadIds.data.length ? "Leads saved." : "Leads removed." };
-}
-
-/** Step 1, on a sign-up's row: its name. */
-export async function renameStation(eventId: string, stationId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireUser();
-  const name = text(80).safeParse(formData.get("name") ?? "");
-  if (!name.success) return { error: "Please enter the sign-up's name." };
-  // Time slots or items to bring; the database only lets it change while the station is empty.
-  const kind = formData.get("signupKind");
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("stations")
-    .update({ name: name.data, ...(kind === "shifts" || kind === "items" ? { signup_kind: kind } : {}) })
-    .eq("id", stationId)
-    .select("id");
-  if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "You don't have permission to do that." };
-  revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: `Saved “${name.data}”.` };
 }
 
 /** Moves a check-in station one place earlier or later in the band's path. */
@@ -701,7 +674,7 @@ export async function generateShifts(
   const { data: existing } = await supabase.from("shifts").select("id, registered_count").eq("station_id", stationId);
   if ((existing ?? []).some((s) => s.registered_count > 0)) {
     return {
-      error: "Volunteers have signed up for this sign-up's shifts, so auto create can't replace them. Edit them one at a time below, or create a single shift.",
+      error: "Volunteers have signed up for this sign-up's time slots, so filling the day can't replace them. Edit them one at a time, or add one shift.",
     };
   }
 
