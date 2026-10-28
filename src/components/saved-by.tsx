@@ -21,10 +21,22 @@ export function savedPhrase(save: EventSave, tz: string, now = new Date()) {
  * Volunteer Leads can see what someone else already did. Only shown when more
  * than one person manages the event (or someone else made the save).
  */
-export async function SavedBy({ eventId, area, className = "" }: { eventId: string; area: SaveArea | SaveArea[]; className?: string }) {
+export async function SavedBy({
+  eventId,
+  area,
+  label,
+  className = "",
+}: {
+  eventId: string;
+  area: SaveArea | readonly SaveArea[];
+  /** Said first, like "Last change". */
+  label?: string;
+  className?: string;
+}) {
   const { saves, tz } = await loadEventSaves(eventId);
   // Several parts (like "details" and "files" on one page): the latest of them.
-  const save = (Array.isArray(area) ? area : [area])
+  const areas: readonly SaveArea[] = typeof area === "string" ? [area] : area;
+  const save = areas
     .map((a) => saves[a])
     .filter((s): s is EventSave => Boolean(s))
     .sort((a, b) => b.savedAt.localeCompare(a.savedAt))[0];
@@ -35,7 +47,7 @@ export async function SavedBy({ eventId, area, className = "" }: { eventId: stri
         <circle cx="8" cy="8" r="6.25" />
         <path d="m5.5 8.2 1.7 1.7 3.3-3.6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span>{savedPhrase(save, tz)}</span>
+      <span>{label ? `${label}: ${savedPhrase(save, tz)}` : savedPhrase(save, tz)}</span>
     </p>
   );
 }

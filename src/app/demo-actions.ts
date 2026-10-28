@@ -73,7 +73,7 @@ export async function switchDemo(eventId: string, persona: string): Promise<Acti
       error: isSchemaError(joinError)
         ? NEEDS_UPDATE
         : joinError.message === "Add a classification to the event first"
-          ? "Add at least one classification to the event first (Edit details), so the demo band can register."
+          ? "Add at least one classification to the event first (Event settings), so the demo band can register."
           : "We couldn't add the demo person to this event. Please try again.",
     };
   }

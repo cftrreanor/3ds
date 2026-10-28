@@ -19,7 +19,7 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
   return (
     <>
       {/* Computer: beside the page, staying in view as you scroll. */}
-      <aside aria-label="Setup checklist" className="hidden lg:block">
+      <aside aria-label="Event setup checklist" className="hidden lg:block">
         <div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-card">
           {complete ? (
             // Everything's done: a small note, with the list a tap away.
@@ -49,7 +49,7 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
             className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-left"
           >
             <span className="min-w-0" aria-live="polite">
-              <span className="block text-xs text-muted">Setup checklist · {progress.label}</span>
+              <span className="block text-xs text-muted">Event setup · {progress.label}</span>
               <span className="block truncate text-sm font-semibold">{headline(checklist, celebrate)}</span>
             </span>
             <span aria-hidden className="text-lg text-brand">
@@ -249,7 +249,7 @@ function ChecklistDrawer({
   return (
     <dialog
       ref={drawer}
-      aria-label="Setup checklist"
+      aria-label="Event setup checklist"
       onClick={(e) => e.target === e.currentTarget && drawer.current?.close()}
       className={`mx-0 mt-auto mb-0 max-h-[85vh] w-full max-w-none overflow-y-auto rounded-t-2xl border border-border bg-surface p-0 text-foreground shadow-elevated backdrop:bg-[#071a31]/50 ${
         everywhere ? "sm:m-auto sm:max-w-md sm:rounded-2xl" : "lg:hidden"
@@ -268,25 +268,51 @@ function ChecklistDrawer({
   );
 }
 
+/** Steps done in event settings (the date and place, the team, maps and documents), listed in their own section. */
+const SETTINGS_STEPS = new Set(["details", "team", "files"]);
+
 function Steps({ checklist, justDone, onNavigate }: { checklist: SetupChecklist; justDone: Set<string>; onNavigate?: () => void }) {
   const { progress } = checklist;
   // The bars point to a step that's part-way first, so "Next" sits on the same one here.
   const props = { next: checklist.inProgress ?? checklist.next, justDone, onNavigate };
+  const setup = checklist.before.filter((st) => !SETTINGS_STEPS.has(st.id));
+  const settings = checklist.before.filter((st) => SETTINGS_STEPS.has(st.id));
   return (
     <div>
-      <h2 className="text-lg font-semibold">Setup checklist</h2>
+      {/* Two sections with the same heading: what's done on the event's pages, then what's done in event settings. */}
+      <h2 className="text-lg font-semibold">Event setup</h2>
       <p className="mt-1 text-sm text-muted">{progress.label}</p>
       <Segments segments={checklist.segments} className="mt-3" />
 
-      <Group title="Before you publish" steps={checklist.before} {...props} />
+      {setup.length > 0 && <Group title="Before you publish" steps={setup} {...props} />}
       {/* Publishing is the step between the two lists, not a list of its own. */}
       <ol className="mt-4 border-y border-border py-2">
         <Step step={checklist.publish} {...props} />
       </ol>
       {checklist.after.length > 0 && <Group title="After you publish" steps={checklist.after} {...props} />}
+
+      {settings.length > 0 && (
+        <div className="mt-5 border-t border-border pt-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-lg font-semibold">Event settings</h2>
+            <Link href={`/dashboard/events/${checklist.eventId}/edit`} onClick={onNavigate} className="shrink-0 text-sm font-medium text-brand underline-offset-4 hover:underline">
+              Open →
+            </Link>
+          </div>
+          {/* All shown, done or not: it's a short list, and the date and place may still be needed to publish. */}
+          <ol className="mt-2 space-y-1">
+            {settings.map((st) => (
+              <Step key={st.id} step={st} {...props} />
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }
+
+/** Settings steps sit apart from the main list, so the ones publishing waits on say so. */
+const NEEDED_PILL = new Set(["details"]);
 
 type StepProps = { next: SetupStep | null; justDone: Set<string>; onNavigate?: () => void };
 
@@ -390,9 +416,12 @@ function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & St
             <span className="sr-only">{st.done ? " (done)" : st.partial ? " (in progress)" : " (to do)"}</span>
           </span>
           {/* Pills on their own row, so they wrap inside the narrow sidebar instead of running past its edge. */}
-          {(isNext || (!st.required && !st.done)) && (
+          {(isNext || (!st.done && (!st.required || NEEDED_PILL.has(st.id)))) && (
             <span className="mt-1 flex flex-wrap gap-1.5">
               {isNext && <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold text-brand-foreground">Next</span>}
+              {st.required && !st.done && NEEDED_PILL.has(st.id) && (
+                <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning">Needed to publish</span>
+              )}
               {!st.required && !st.done && (
                 <span className="rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold text-muted ring-1 ring-border">
                   Optional

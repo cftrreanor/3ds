@@ -158,7 +158,7 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
 10. **Plain, matching names.** A page's title matches the card that links to it. Buttons say what
    they do ("Create shifts", "Open band registration"), never "Submit".
 
-## Event settings (Edit details)
+## Event settings (Event settings)
 
 An event's global settings live on one page with a section menu: down the side on wide
 screens, a row of tabs on phones. One section shows at a time, each with its own link

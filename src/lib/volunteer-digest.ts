@@ -84,7 +84,7 @@ export async function sendVolunteerDigests(admin: SupabaseClient, origin: string
       // One row per change, up to 30; the rest are on the Volunteers page.
       rows: changes.slice(0, 30),
       button: { label: "See all volunteers", url: `${origin}/dashboard/events/${eventId}/volunteers` },
-      footer: "You get this once a day, on days with changes, because you're set to get volunteer sign-ups for this event. Change it in Edit details → Email settings.",
+      footer: "You get this once a day, on days with changes, because you're set to get volunteer sign-ups for this event. Change it in Event settings → Email settings.",
     });
     for (const address of to) {
       if (await sendEmail({ to: address, subject: `Volunteer sign-ups: ${event.name}`, html, text, eventId })) sent++;

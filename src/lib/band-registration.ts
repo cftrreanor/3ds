@@ -89,7 +89,7 @@ export async function createRegistration(
         { title: "People", detail: `${v.student_count} ${group ? "participants" : "students"} · ${count(v.chaperone_count, "chaperone", "chaperones")}` },
       ],
       button: { label: `See all ${w.many}`, url: `${origin}/dashboard/events/${eventId}/bands` },
-      footer: "You get this because you're set to hear about registrations for this event. Change it in Edit details → Email settings.",
+      footer: "You get this because you're set to hear about registrations for this event. Change it in Event settings → Email settings.",
     });
     for (const to of organizers) {
       await sendEmail({ to, subject: `New ${w.one} registration: ${v.band_name}`, html: note.html, text: note.text, eventId });
