@@ -131,7 +131,7 @@ export function SignupForm({
             href={`/my?as=${encodeURIComponent(state.confirmed.email)}`}
             className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover"
           >
-            View my sign-ups
+            Go to My volunteering
           </Link>
           {/* A full reload brings back a fresh form with up-to-date open spots. */}
           <a

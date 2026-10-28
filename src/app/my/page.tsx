@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PublicNav } from "@/components/public-nav";
 import { EventBanners } from "@/components/event-banners";
 import { FileLinks } from "@/components/file-links";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -18,7 +19,7 @@ import { hasPass, readPass } from "@/lib/volunteer-pass";
 import { cancelMyItem, cancelMyShift } from "./actions";
 import { CancelItemButton, CancelShiftButton, EmailMyLinkForm, ForgetDeviceButton } from "./forms";
 
-export const metadata: Metadata = { title: "My sign-ups" };
+export const metadata: Metadata = { title: "My volunteering" };
 
 type AgendaRow = {
   assignment_id: string;
@@ -142,10 +143,9 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   return (
     <div className="flex flex-1 flex-col">
       <HeaderBar maxWidth="max-w-2xl">
+        {/* Volunteers' sign-ups never need signing out of here. */}
         {user ? (
-          <form action="/auth/signout" method="post">
-            <button className={headerLinkClass}>Sign out</button>
-          </form>
+          <PublicNav current="volunteering" />
         ) : (
           <Link href="/login" className={headerLinkClass}>
             Organizer sign in
@@ -154,7 +154,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       </HeaderBar>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My sign-ups</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My volunteering</h1>
         {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
         {shiftToday && <AutoRefresh status className="mt-1" />}
         {banners.length > 0 && (
@@ -173,10 +173,9 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           <Card className="mt-6 bg-brand-soft">
             <p className="font-medium">You signed up as {mismatch}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
-              This device is signed in as {user!.email}. Open the confirmation email we sent to {mismatch} and tap
-              its “View or cancel” button, or switch accounts.
+              To see those sign-ups here too, open the confirmation email we sent to {mismatch} and tap its “View or
+              cancel my sign-ups” button. You stay signed in as {user!.email}.
             </p>
-            <SwitchAccountButton email={mismatch} label={`Sign in as ${mismatch}`} />
           </Card>
         )}
 
@@ -359,19 +358,6 @@ function SignUpMoreLink({ slug, primary = false }: { slug: string; primary?: boo
     >
       Sign up for more
     </Link>
-  );
-}
-
-/** Signs out, then opens sign-in (pre-filled when we know the email) and returns here. */
-function SwitchAccountButton({ email, label }: { email?: string; label: string }) {
-  const next = `/login?next=/my${email ? `&email=${encodeURIComponent(email)}` : ""}`;
-  return (
-    <form action="/auth/signout" method="post" className="mt-3">
-      <input type="hidden" name="next" value={next} />
-      <button className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover">
-        {label}
-      </button>
-    </form>
   );
 }
 

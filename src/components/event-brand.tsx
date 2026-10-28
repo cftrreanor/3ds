@@ -1,4 +1,5 @@
 import { HeaderBar } from "@/components/logo";
+import { PublicNav } from "./public-nav";
 import { eventLogoUrl, loadEventBrand } from "@/lib/event-brand";
 
 /** The header bar on an event's public pages: our logo, then the account's logo when there is one. */
@@ -7,7 +8,7 @@ export async function EventHeaderBar({ slug, maxWidth = "max-w-2xl", children }:
   const src = eventLogoUrl(slug, logoPath);
   return (
     <HeaderBar maxWidth={maxWidth} href={`/e/${slug}`} eventLogo={src ? { src, alt: "Organizer logo" } : null}>
-      {children}
+      {children ?? <PublicNav />}
     </HeaderBar>
   );
 }
