@@ -45,8 +45,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
             <span className="sm:hidden">Events</span>
           </Link>
           {volunteers && (
-            <Link href="/my" className={headerLinkClass}>
-              My shifts
+            <Link href="/my" className={`${headerLinkClass} hidden sm:block`}>
+              My volunteering
             </Link>
           )}
           {tracking.length > 0 && (
@@ -64,6 +64,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           {/* Phones: Account and Sign out tuck into a menu. */}
           <div className="sm:hidden">
             <HeaderMenu>
+              {volunteers && (
+                <Link href="/my" className={MENU_ITEM}>
+                  My volunteering
+                </Link>
+              )}
               <Link href="/dashboard/account" className={MENU_ITEM}>
                 Account
               </Link>

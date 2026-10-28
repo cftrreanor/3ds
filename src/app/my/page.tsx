@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PublicNav } from "@/components/public-nav";
 import { EventBanners } from "@/components/event-banners";
 import { FileLinks } from "@/components/file-links";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -18,7 +19,7 @@ import { hasPass, readPass } from "@/lib/volunteer-pass";
 import { cancelMyItem, cancelMyShift } from "./actions";
 import { CancelItemButton, CancelShiftButton, EmailMyLinkForm, ForgetDeviceButton } from "./forms";
 
-export const metadata: Metadata = { title: "My sign-ups" };
+export const metadata: Metadata = { title: "My volunteering" };
 
 type AgendaRow = {
   assignment_id: string;
@@ -142,11 +143,9 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   return (
     <div className="flex flex-1 flex-col">
       <HeaderBar maxWidth="max-w-2xl">
-        {/* Signed in (an organizer): back to their events. Volunteers' sign-ups never need signing out of here. */}
+        {/* Volunteers' sign-ups never need signing out of here. */}
         {user ? (
-          <Link href="/dashboard" className={headerLinkClass}>
-            My events
-          </Link>
+          <PublicNav current="volunteering" />
         ) : (
           <Link href="/login" className={headerLinkClass}>
             Organizer sign in
@@ -155,7 +154,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       </HeaderBar>
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My sign-ups</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My volunteering</h1>
         {emails.length > 0 && <p className="mt-1 text-sm text-muted">{emails.join(", ")}</p>}
         {shiftToday && <AutoRefresh status className="mt-1" />}
         {banners.length > 0 && (
