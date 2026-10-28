@@ -54,8 +54,8 @@ const NOTES: Record<StationStep, { unsaved: string; todo: string }> = {
     todo: "Save this sign-up's details to finish this step before moving on.",
   },
   shifts: {
-    unsaved: "Create your shift before moving to another sign-up.",
-    todo: "Add at least one shift to finish this step before moving on.",
+    unsaved: "Add your time slot before moving to another sign-up.",
+    todo: "Add at least one time slot to finish this sign-up before moving on.",
   },
 };
 
@@ -96,14 +96,16 @@ export type StationTab = {
   name: string;
   href: string;
   active: boolean;
-  /** Details saved and at least one shift. */
+  /** Has at least one time slot or item. */
   configured: boolean;
+  /** Items to bring, not time slots. */
+  items?: boolean;
   filled: number;
   capacity: number;
 };
 
 /** The stations as tabs: a green check when one is set up, a yellow dot when it isn't yet. */
-export function StationTabs({ tabs }: { tabs: StationTab[] }) {
+export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: string; active: boolean } }) {
   const progress = useContext(Progress);
   return (
     <nav aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -145,11 +147,25 @@ export function StationTabs({ tabs }: { tabs: StationTab[] }) {
                 <span className="sr-only">{t.configured ? " (set up)" : " (not set up yet)"}</span>
               </span>
               <span className="text-xs font-normal tabular-nums text-muted">
-                {t.capacity ? `${t.filled}/${t.capacity} filled` : "No shifts"}
+                {t.capacity ? `${t.filled} of ${t.capacity} ${t.items ? "covered" : "filled"}` : t.items ? "No items yet" : "No time slots yet"}
               </span>
             </Link>
           </li>
         ))}
+        {add && (
+          <li>
+            <Link
+              href={add.href}
+              scroll={false}
+              aria-current={add.active ? "page" : undefined}
+              className={`-mb-px flex h-full items-center whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium ${
+                add.active ? "border-brand text-foreground" : "border-transparent text-brand hover:text-foreground"
+              }`}
+            >
+              + Add sign-up
+            </Link>
+          </li>
+        )}
       </ul>
     </nav>
   );

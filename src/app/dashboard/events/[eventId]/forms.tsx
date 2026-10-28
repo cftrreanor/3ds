@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { NumberInput } from "@/components/number-input";
 import { ZoneInput } from "@/components/zone-input";
 import { ActionForm } from "@/components/action-form";
@@ -38,10 +39,16 @@ export function StationForm({
   zones,
   leadLabel = "Coordinators",
   trackUnsaved,
+  kind: signupKind,
+  coordinators,
 }: {
   action: Action;
   initial?: StationValues;
   leads?: LeadOption[];
+  /** Time slots or items to bring, and why it can't change right now (null if it can). */
+  kind?: { value: SignupKind; locked: string | null };
+  /** Who leads it, picked from the team, with a window to invite someone new. */
+  coordinators?: { options: LeadOption[]; pending: string[]; invite: Action };
   submitLabel?: string;
   /** A band contest: sign-ups can be stops on the bands' check-in path. */
   bands?: boolean;
@@ -55,6 +62,7 @@ export function StationForm({
   trackUnsaved?: boolean;
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
+  const [signup, setSignup] = useState<SignupKind>(signupKind?.value ?? "shifts");
   const setEdited = useStepEdits(trackUnsaved ? "details" : undefined);
   const changed = useCallback(() => setEdited(true), [setEdited]);
   const saved = useCallback(() => setEdited(false), [setEdited]);
@@ -66,14 +74,26 @@ export function StationForm({
       onEdit={trackUnsaved ? changed : undefined}
       onSuccess={trackUnsaved ? saved : undefined}
     >
-      {trackUnsaved ? (
-        // Step 2: the name was set in step 1 (rename it there).
-        <input type="hidden" name="name" value={initial?.name ?? ""} />
-      ) : (
-        <Field label="Sign-up name" hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}>
-          <Input name="name" required defaultValue={initial?.name} />
-        </Field>
+      <Field
+        label="Sign-up name"
+        hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}
+        className={signupKind ? "sm:col-span-2" : undefined}
+      >
+        <Input name="name" required maxLength={80} defaultValue={initial?.name} />
+      </Field>
+      {signupKind && (
+        <div className="sm:col-span-2">
+          <SignupKindPicker
+            value={signup}
+            onChange={setSignup}
+            disabled={Boolean(signupKind.locked)}
+            note={signupKind.locked ?? "You can change this until you add time slots or items."}
+          />
+          {/* A locked choice still says what it is, so saving never changes it. */}
+          {signupKind.locked && <input type="hidden" name="signupKind" value={signup} />}
+        </div>
       )}
+      {signupKind && <h3 className="border-t border-border pt-4 text-base font-semibold sm:col-span-2">Sign-up details</h3>}
       {bands && (
       <Field
         label="Check-in stop?"
@@ -141,6 +161,7 @@ export function StationForm({
           <span className="block text-muted">No one under 18 can sign up for this sign-up&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
         </span>
       </label>
+      {coordinators && <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} {...coordinators} />}
       {leads && (
         <fieldset className="sm:col-span-2">
           <legend className="text-sm font-medium">{leadLabel}</legend>
@@ -204,8 +225,7 @@ export function GenerateShiftsForm({
   if (signedUp) {
     return (
       <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
-        Volunteers have signed up for this sign-up&apos;s shifts, so auto create can&apos;t replace them. Edit shifts one at a
-        time below, or create a single shift.
+        Volunteers have signed up for this sign-up&apos;s time slots, so filling the day can&apos;t replace them. Edit them one at a time above, or add one shift.
       </p>
     );
   }
@@ -343,8 +363,8 @@ export function BuildShifts({
   // Switching forms drops what was typed in the other one.
   const setEdited = useStepEdits("shifts");
   const options = [
-    { value: "auto", label: "Auto create shifts" },
-    { value: "single", label: "Create single shift" },
+    { value: "auto", label: "Fill the day with shifts" },
+    { value: "single", label: "Add one shift" },
   ] as const;
   return (
     <div className="space-y-4">
@@ -429,17 +449,18 @@ function SignupKindPicker({
 /** "Time slots" or "Items to bring", for a sign-up's row. */
 export const signupKindLabel = (kind: SignupKind) => SIGNUP_KINDS.find((k) => k.value === kind)!.label;
 
-export function NewStationForm({ action }: { action: Action }) {
+export function NewStationForm({ action, openTab = false }: { action: Action; /** Go to the new sign-up's tab once it's added. */ openTab?: boolean }) {
   const [kind, setKind] = useState<SignupKind>("shifts");
   return (
     <ActionForm action={action} className="space-y-4">
+      {openTab && <input type="hidden" name="openTab" value="1" />}
       <Field
-        label="New sign-up name"
+        label="Sign-up name"
         hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : "e.g. Parking, Concessions, Ticket Table"}
       >
         <Input name="name" required maxLength={80} />
       </Field>
-      <SignupKindPicker value={kind} onChange={setKind} note="You can change this later, until you add shifts or items." />
+      <SignupKindPicker value={kind} onChange={setKind} note="You can change this later, until you add time slots or items." />
       <SubmitButton variant="go" pendingText="Adding…">
         Add sign-up
       </SubmitButton>
@@ -447,7 +468,7 @@ export function NewStationForm({ action }: { action: Action }) {
   );
 }
 
-/** Items to bring: one row per item (Desserts, 6 needed), editable, and a form to add another. */
+/** Items to bring: one row per item (Desserts, 6 needed), edited right in the row, and a row to add another. */
 export function ItemsEditor({
   items,
   create,
@@ -457,178 +478,173 @@ export function ItemsEditor({
   create: Action;
 }) {
   return (
-    <div className="space-y-4">
-      {items.length > 0 && (
-        <ul className="divide-y divide-border rounded-lg border border-border">
-          {items.map((it) => (
-            <li key={it.id} className="px-3 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{it.name}</p>
-                  <p className="text-sm text-muted">
-                    {it.claimed_count} of {it.needed} signed up
-                  </p>
-                </div>
-                <DeleteButton
-                  action={it.remove}
-                  label={`Delete ${it.name}`}
-                  confirmMessage={`Delete “${it.name}”?`}
-                />
-              </div>
-              <details className="mt-1">
-                <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
-                  Edit item
-                </summary>
-                <ItemFields action={it.update} initial={it} submitLabel="Save item" />
-              </details>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div>
-        <p className="text-sm font-semibold">{items.length ? "Add another item" : "Add an item"}</p>
-        <ItemFields action={create} submitLabel="Add item" reset />
+    <div className="rounded-lg border border-border bg-background">
+      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_6rem_9rem] gap-3 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted sm:grid">
+        <span>Item</span>
+        <span>Needed</span>
+        <span>Signed up</span>
+        <span />
       </div>
+      <ul className="divide-y divide-border">
+        {items.map((it) => (
+          <li key={it.id} className="px-3 py-2.5">
+            <ActionForm
+              action={it.update}
+              resetOnSuccess={false}
+              className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]"
+            >
+              <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" />
+              <NumberInput name="needed" required defaultValue={it.needed} maxLength={3} aria-label={`How many ${it.name} needed`} />
+              <span className="text-sm tabular-nums text-muted">
+                {it.claimed_count >= it.needed ? <span className="font-medium text-success">Covered</span> : `${it.claimed_count} of ${it.needed}`}
+              </span>
+              <span className="flex items-center justify-end gap-1">
+                <SubmitButton variant="secondary" pendingText="Saving…" className="min-h-9 px-3 text-sm">
+                  Save
+                </SubmitButton>
+                <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
+              </span>
+            </ActionForm>
+          </li>
+        ))}
+        <li className="px-3 py-2.5">
+          <ActionForm action={create} resetOnSuccess className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]">
+            <Input name="name" required maxLength={100} placeholder={items.length ? "Add another item" : "Add an item, e.g. Desserts"} aria-label="New item" />
+            <NumberInput name="needed" required defaultValue={1} maxLength={3} aria-label="How many needed" />
+            <span className="hidden sm:block" />
+            <span className="flex justify-end">
+              <SubmitButton variant="go" pendingText="Adding…" className="min-h-9 px-4 text-sm">
+                Add
+              </SubmitButton>
+            </span>
+          </ActionForm>
+        </li>
+      </ul>
     </div>
   );
 }
 
-function ItemFields({
-  action,
-  initial,
-  submitLabel,
-  reset = false,
-}: {
-  action: Action;
-  initial?: { name: string; needed: number };
-  submitLabel: string;
-  reset?: boolean;
-}) {
-  return (
-    <ActionForm action={action} resetOnSuccess={reset} className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
-      <Field label="Item" hint="e.g. Desserts, Drinks, Paper plates" className="flex-1">
-        <Input name="name" required maxLength={100} defaultValue={initial?.name} />
-      </Field>
-      <Field label="How many needed" className="sm:w-40">
-        <NumberInput name="needed" required defaultValue={initial?.needed ?? 1} maxLength={3} />
-      </Field>
-      <SubmitButton variant={reset ? "go" : "primary"} className="sm:mb-7">
-        {submitLabel}
-      </SubmitButton>
-    </ActionForm>
-  );
-}
-
 /**
- * A sign-up's row in "1. Create stations": its leads, with a button to
- * assign them (once the team has leads to pick from), and a rename.
+ * A sign-up's Coordinators: who leads it, as chips, and "+ Add", which opens a
+ * window to pick people from the team or invite someone new by email (the
+ * invitation also shows in Event settings → Team). Picks are saved with the
+ * sign-up's Save button; an invitation goes out right away.
  */
-export function StationRow({
-  name,
-  kind,
-  kindLocked,
-  leadNames,
-  leadIds,
-  leads,
-  canAssign,
-  leadWord,
-  setLeads,
-  rename,
-  remove,
+function CoordinatorPicker({
+  label,
+  initial,
+  options,
+  pending,
+  invite,
+  onChange,
 }: {
-  name: string;
-  kind: SignupKind;
-  /** Why the kind can't change right now (it has shifts or items, or it's a check-in stop); null if it can. */
-  kindLocked: string | null;
-  leadNames: string[];
-  leadIds: string[];
-  leads: LeadOption[];
-  /** The team has Coordinators to assign. */
-  canAssign: boolean;
-  leadWord: { one: string; many: string };
-  setLeads: Action;
-  rename: Action;
-  remove: Action;
+  label: string;
+  initial: string[];
+  options: LeadOption[];
+  /** Emails invited to lead this sign-up who haven't accepted yet. */
+  pending: string[];
+  invite: Action;
+  onChange?: () => void;
 }) {
-  const [open, setOpen] = useState<"leads" | "rename" | null>(null);
-  const [newKind, setNewKind] = useState<SignupKind>(kind);
-  const toggle = (which: "leads" | "rename") => setOpen(open === which ? null : which);
+  const [picked, setPicked] = useState<string[]>(initial);
+  // The window is only on the page while it's open.
+  const [open, setOpen] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const nameOf = (id: string) => options.find((o) => o.id === id)?.label ?? "Team member";
+  const toggle = (id: string) => {
+    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    onChange?.();
+  };
+  // The window sits outside this form on the page, so typing in it doesn't count as editing the sign-up.
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   return (
-    <li className="px-3 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="min-w-0">
-          <p className="font-medium">{name}</p>
-          <p className="text-sm text-muted">
-            {signupKindLabel(kind)} · {leadNames.length ? leadNames.join(", ") : `No ${leadWord.one} yet`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canAssign && (
-            <Button type="button" variant={leadNames.length ? "secondary" : "primary"} className="min-h-10 text-sm" onClick={() => toggle("leads")} aria-expanded={open === "leads"}>
-              {leadNames.length ? `Change ${leadWord.many}` : `Assign a ${leadWord.one}`}
-            </Button>
-          )}
-          <Button type="button" variant="ghost" className="min-h-10 px-2 text-sm" onClick={() => toggle("rename")} aria-expanded={open === "rename"}>
-            Edit or delete
-          </Button>
-        </div>
+    <div className="sm:col-span-2">
+      <p className="text-sm font-medium">{label}</p>
+      <input type="hidden" name="leadsField" value="1" />
+      {picked.map((id) => (
+        <input key={id} type="hidden" name="leadIds" value={id} />
+      ))}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {picked.map((id) => (
+          <span key={id} className="inline-flex min-h-9 items-center gap-1 rounded-full border border-border bg-surface pl-3 text-sm">
+            {nameOf(id)}
+            <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${nameOf(id)}`} className="min-h-9 rounded-full px-2.5 text-muted hover:text-danger">
+              ×
+            </button>
+          </span>
+        ))}
+        {pending.map((email) => (
+          <span key={email} className="inline-flex min-h-9 items-center rounded-full border border-dashed border-border px-3 text-sm text-muted">
+            {email} · invited
+          </span>
+        ))}
+        <Button type="button" variant="secondary" className="min-h-9 px-3 text-sm" onClick={() => setOpen(true)}>
+          + Add
+        </Button>
       </div>
-      {open === "leads" && (
-        <ActionForm action={setLeads} className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
-          <fieldset>
-            <legend className="text-sm font-semibold">Who leads {name}?</legend>
-            <p className="mt-0.5 text-sm text-muted">Pick one or more, so there&apos;s a backup. Volunteers contact the first one picked.</p>
-            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-              {leads.map((l) => (
-                <label key={l.id} className="flex min-h-10 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-brand">
-                  <input type="checkbox" name="leadIds" value={l.id} defaultChecked={leadIds.includes(l.id)} className="h-5 w-5 shrink-0 accent-[var(--brand)]" />
-                  {l.label}
-                </label>
-              ))}
+      <p className="mt-1 text-sm text-muted">They see who&apos;s signed up, and volunteers&apos; phone numbers on event day. Volunteers contact the first one.</p>
+      {open &&
+        createPortal(
+          <dialog
+            ref={(el) => {
+              dialog.current = el;
+              if (el && !el.open) el.showModal();
+            }}
+            onClose={() => setOpen(false)}
+            aria-label={`Add ${label}`}
+            onClick={(e) => e.target === e.currentTarget && dialog.current?.close()}
+            onInput={stop}
+            onChange={stop}
+            onSubmit={stop}
+            className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl border border-border bg-surface p-0 text-foreground shadow-elevated backdrop:bg-[#071a31]/50"
+          >
+            <div className="space-y-6 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-lg font-semibold">Add {label}</h2>
+                <button type="button" onClick={() => dialog.current?.close()} className="min-h-10 rounded-md px-2 text-sm font-medium text-muted hover:text-foreground">
+                  Close
+                </button>
+              </div>
+              <section>
+                <h3 className="text-sm font-semibold">From your team</h3>
+                {options.length ? (
+                  <div className="mt-2 space-y-1.5">
+                    {options.map((o) => (
+                      <label key={o.id} className="flex min-h-10 items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm hover:border-brand">
+                        <input type="checkbox" checked={picked.includes(o.id)} onChange={() => toggle(o.id)} className="h-5 w-5 shrink-0 accent-[var(--brand)]" />
+                        {o.label}
+                      </label>
+                    ))}
+                    <p className="text-xs text-muted">Click Save sign-up afterward to keep these.</p>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-muted">No one on the team yet. Invite someone below.</p>
+                )}
+              </section>
+              <section className="border-t border-border pt-5">
+                <h3 className="text-sm font-semibold">Invite someone new</h3>
+                <p className="mt-0.5 text-sm text-muted">
+                  We email them an invitation. One tap accepts it, and they lead this sign-up. They also appear in Event settings → Team.
+                </p>
+                <ActionForm action={invite} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <Field label="Their email" className="flex-1">
+                    <Input name="email" type="email" inputMode="email" autoComplete="off" required />
+                  </Field>
+                  <SubmitButton pendingText="Sending…" className="sm:mb-0.5">
+                    Send invitation
+                  </SubmitButton>
+                </ActionForm>
+              </section>
+              <div className="flex justify-end">
+                <Button type="button" onClick={() => dialog.current?.close()}>
+                  Done
+                </Button>
+              </div>
             </div>
-          </fieldset>
-          <div className="flex flex-wrap gap-2">
-            <SubmitButton variant="go" pendingText="Saving…">
-              Save
-            </SubmitButton>
-            <Button type="button" variant="ghost" onClick={() => setOpen(null)}>
-              Cancel
-            </Button>
-          </div>
-        </ActionForm>
-      )}
-      {/* Delete lives in here, out of the way, instead of a red button on every row. */}
-      {open === "rename" && (
-        <div className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3">
-          <ActionForm action={rename} className="space-y-3" resetOnSuccess={false} onSuccess={() => setOpen(null)}>
-            <Field label="Sign-up name">
-              <Input name="name" required maxLength={80} defaultValue={name} />
-            </Field>
-            <SignupKindPicker
-              value={newKind}
-              onChange={setNewKind}
-              disabled={Boolean(kindLocked)}
-              note={kindLocked ?? "You can change this until you add shifts or items."}
-            />
-            <div className="flex gap-2">
-              <SubmitButton pendingText="Saving…">Save</SubmitButton>
-              <Button type="button" variant="ghost" onClick={() => setOpen(null)}>
-                Cancel
-              </Button>
-            </div>
-          </ActionForm>
-          <div className="border-t border-border pt-3">
-            <DeleteButton
-              action={remove}
-              label={`Delete sign-up ${name}`}
-              text="Delete sign-up"
-              destructive
-              confirmMessage={`Delete “${name}”? Its shifts are deleted too, and this can't be undone. (A sign-up with volunteers signed up can't be deleted.)`}
-            />
-          </div>
-        </div>
-      )}
-    </li>
+          </dialog>,
+          document.body,
+        )}
+    </div>
   );
 }
 
