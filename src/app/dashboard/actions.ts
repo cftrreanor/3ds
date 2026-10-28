@@ -405,9 +405,12 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  // Volunteer Setup's "+ Add sign-up" tab: straight on to the new sign-up's own tab.
-  if (formData.get("openTab")) redirect(`/dashboard/events/${eventId}/volunteering?station=${data.id}`);
-  return { ok: true, message: `Added “${v.name}”.` };
+  return {
+    ok: true,
+    message: `Added “${v.name}”.`,
+    // Volunteer Setup's "+ Add sign-up" tab: straight on to the new sign-up's own tab, without jumping to the top.
+    ...(formData.get("openTab") ? { goTo: `/dashboard/events/${eventId}/volunteering?station=${data.id}` } : {}),
+  };
 }
 
 export async function updateStation(
