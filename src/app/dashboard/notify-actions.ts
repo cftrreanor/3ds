@@ -5,6 +5,7 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { MAX_EXTRA_EMAILS, notifyKinds } from "@/lib/notify-kinds";
 import { isSchemaError } from "@/lib/schema-check";
+import { saveRow } from "@/lib/save-row";
 import { createClient } from "@/lib/supabase/server";
 
 const EMAIL = /^[^@\s<>",;]+@[^@\s<>",;]+\.[^@\s<>",;]+$/i;
@@ -47,10 +48,12 @@ export async function saveNotifyRecipients(eventId: string, _prev: ActionState, 
     return { error: "Pick at least one person to get bookings and their calendar invites." };
   }
 
-  const { data, error } = await supabase.from("event_notification_recipients").upsert(rows).select("event_id");
-  if (isSchemaError(error)) return { error: "This needs a database update first. Please write to us." };
-  if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "Only the event's hosts can change this." };
+  for (const { event_id, kind, ...values } of rows) {
+    const { saved, error } = await saveRow(supabase, "event_notification_recipients", { event_id, kind }, values);
+    if (isSchemaError(error)) return { error: "This needs a database update first. Please write to us." };
+    if (error) return { error: friendlyDbError(error) };
+    if (!saved) return { error: "Only the event's hosts can change this." };
+  }
   revalidatePath(`/dashboard/events/${eventId}/edit`);
   return { ok: true, message: "Saved. Each kind of email goes to the people you picked." };
 }
