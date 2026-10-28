@@ -96,13 +96,23 @@ export type StationTab = {
   name: string;
   href: string;
   active: boolean;
-  /** Has at least one time slot or item. */
+  /** Finished: saved with Save sign-up, not just saved for later. */
+  saved: boolean;
+  /** Finished, with at least one time slot or item. */
   configured: boolean;
   /** Items to bring, not time slots. */
   items?: boolean;
   filled: number;
   capacity: number;
 };
+
+/** What a tab says under its name: the first thing still to do, or how full it is. */
+function status(t: StationTab, unsaved: boolean) {
+  if (unsaved) return "Unsaved changes";
+  if (!t.saved) return "Draft, not finished";
+  if (!t.capacity) return t.items ? "No items yet" : "No time slots yet";
+  return `${t.filled} of ${t.capacity} ${t.items ? "covered" : "filled"}`;
+}
 
 /** The stations as tabs: a green check when one is set up, a yellow dot when it isn't yet. */
 export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: string; active: boolean } }) {
@@ -136,7 +146,7 @@ export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: s
               }`}
             >
               <span className="flex items-center gap-1.5 whitespace-nowrap">
-                {t.configured ? (
+                {t.configured && !(t.active && progress?.dirty.details) ? (
                   <span aria-hidden className="font-bold text-success">
                     ✓
                   </span>
@@ -144,10 +154,9 @@ export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: s
                   <span aria-hidden className="size-2.5 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
                 )}
                 {t.name}
-                <span className="sr-only">{t.configured ? " (set up)" : " (not set up yet)"}</span>
               </span>
               <span className="text-xs font-normal tabular-nums text-muted">
-                {t.capacity ? `${t.filled} of ${t.capacity} ${t.items ? "covered" : "filled"}` : t.items ? "No items yet" : "No time slots yet"}
+                {status(t, t.active && Boolean(progress?.dirty.details))}
               </span>
             </Link>
           </li>
