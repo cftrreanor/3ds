@@ -132,17 +132,12 @@ export async function TeamRoles({
     },
     "section-leads": {
       title: lead.many,
-      status:
-        unled.length > 0 ? (
-          <StepStatus done={false} todoLabel={`${plural(unled.length, "sign-up needs", "sign-ups need")} a lead`} />
-        ) : (
-          <StepStatus done={leads.length > 0} doneLabel={plural(leads.length, lead.one, lead.many)} todoLabel="Optional" />
-        ),
+      // Optional: a sign-up runs fine without one.
+      status: <StepStatus done={leads.length > 0} doneLabel={plural(leads.length, lead.one, lead.many)} todoLabel="Optional" />,
     },
   };
-  // A link here can name a role (?tab=section-leads); otherwise open the one still to do.
-  const openRole: TeamTab | null =
-    roles.find((r) => r === tabParam) ?? (unled.length > 0 && roles.includes("section-leads") ? "section-leads" : null);
+  // A link here can name a role (?tab=section-leads).
+  const openRole: TeamTab | null = roles.find((r) => r === tabParam) ?? null;
 
   return (
       <div className="flex flex-col gap-3">
@@ -240,7 +235,7 @@ export async function TeamRoles({
                     )}
                     {unled.length > 0 && (
                       <p className="mt-3 rounded-lg bg-brand-soft px-3 py-2 text-sm leading-6">
-                        <span className="font-medium">No lead yet:</span>{" "}
+                        <span className="font-medium">No {lead.one} yet (optional):</span>{" "}
                         {unled.map((s, i) => (
                           <span key={s.id}>
                             {i > 0 && ", "}
@@ -252,7 +247,7 @@ export async function TeamRoles({
                             </Link>
                           </span>
                         ))}
-                        . Invite someone below, or pick a lead in the station&apos;s settings.
+                        . To add one, invite someone below or pick from your team on the sign-up.
                       </p>
                     )}
                   </div>

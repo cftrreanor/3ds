@@ -78,7 +78,10 @@ export function StationForm({
   const saved = useCallback(() => {
     setDirty(false);
     setEdited(false);
-  }, [setEdited]);
+    // Saved from the footer: back up to the tabs, where the sign-up's status shows the change.
+    // (After the page has redrawn with the saved sign-up, so the scroll isn't cut short.)
+    if (trackUnsaved) setTimeout(() => document.getElementById("signups-heading")?.scrollIntoView({ block: "start" }), 50);
+  }, [setEdited, trackUnsaved]);
   return (
     <ActionForm
       id={trackUnsaved ? SIGNUP_FORM : undefined}
@@ -924,6 +927,7 @@ export function ActionButton({
   variant = "primary",
   confirmMessage,
   pendingText = "Saving…",
+  className,
 }: {
   action: Action;
   children: React.ReactNode;
@@ -931,12 +935,15 @@ export function ActionButton({
   variant?: "primary" | "secondary" | "go" | "stop" | "quiet-stop";
   confirmMessage?: string;
   pendingText?: string;
+  /** For the button itself (e.g. a smaller one in a row of links). */
+  className?: string;
 }) {
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="space-y-2" resetOnSuccess={false}>
       <SubmitButton
         variant={variant === "stop" ? "danger" : variant === "quiet-stop" ? "quiet-danger" : variant}
         pendingText={pendingText}
+        className={className}
       >
         {children}
       </SubmitButton>

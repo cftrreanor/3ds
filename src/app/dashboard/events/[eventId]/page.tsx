@@ -200,7 +200,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   // Team card: what needs doing, then who joined this past week.
   const openInvites = (invitations ?? []) as Invitation[];
   const expiredInvites = openInvites.filter((inv) => new Date(inv.expires_at) < new Date());
-  const unled = stations.filter((s) => s.lead_ids.length === 0);
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const joined = [
@@ -211,15 +210,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 3);
   const teamUpdates: TeamUpdate[] = [
-    ...(unled.length
-      ? [
-          {
-            tone: "warn" as const,
-            text: `${unled.length === 1 ? "1 sign-up needs" : `${unled.length} sign-ups need`} a ${leadWords(event.event_type).one}: ${unled.map((s) => s.name).join(", ")}`,
-            tab: "section-leads",
-          },
-        ]
-      : []),
+    // Coordinators are optional, so a sign-up without one isn't flagged here.
     ...(expiredInvites.length
       ? [
           {
