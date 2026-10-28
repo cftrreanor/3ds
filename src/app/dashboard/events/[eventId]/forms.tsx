@@ -278,24 +278,41 @@ function hasAnswers(form: HTMLFormElement) {
   );
 }
 
+/** Shift lengths offered, in minutes: 30 minutes to 6 hours, every half hour. */
+const SHIFT_LENGTHS = Array.from({ length: 12 }, (_, i) => (i + 1) * 30);
+
+/** 30 → "30 minutes", 90 → "1½ hours", 120 → "2 hours". */
+function lengthLabel(minutes: number) {
+  if (minutes < 60) return `${minutes} minutes`;
+  const hours = Math.floor(minutes / 60);
+  const half = minutes % 60 === 30 ? "½" : "";
+  return `${hours}${half} hour${hours === 1 && !half ? "" : "s"}`;
+}
+
 /**
- * "Auto create shifts": split each event day into equal shifts. Run again, it
+ * "Auto create shifts": split each event day into shifts of one length. Run again, it
  * replaces the sign-up's shifts, as long as nobody has signed up for them.
  */
 export function GenerateShiftsForm({
   action,
   windowLabel,
+  windowMinutes,
+  multiDay = false,
   existing = 0,
   signedUp = false,
 }: {
   action: Action;
   windowLabel: string;
+  /** How long the event day is, to say whether a length splits it evenly. */
+  windowMinutes?: number;
+  multiDay?: boolean;
   /** How many shifts the station has now. */
   existing?: number;
   /** Someone has signed up for one of them: auto create can't replace them. */
   signedUp?: boolean;
 }) {
   const setEdited = useStepEdits("shifts");
+  const [length, setLength] = useState(0);
   if (signedUp) {
     return (
       <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
@@ -311,7 +328,7 @@ export function GenerateShiftsForm({
       onEdit={(f) => setEdited(hasAnswers(f))}
     >
       <p className="text-sm text-muted">
-        Split the event day ({windowLabel}) into equal shifts for this sign-up.
+        Split the event day ({windowLabel}) into shifts for this sign-up.
         {existing > 0 && (
           <>
             {" "}
@@ -324,13 +341,13 @@ export function GenerateShiftsForm({
       </p>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Shift length">
-          <Select name="blockHours" defaultValue="" required>
+          <Select name="blockHours" defaultValue="" required onChange={(e) => setLength(Number(e.target.value) * 60)}>
             <option value="" disabled>
               Pick a length
             </option>
-            {[1, 2, 3, 4, 5, 6].map((h) => (
-              <option key={h} value={h}>
-                {h} hour{h > 1 ? "s" : ""}
+            {SHIFT_LENGTHS.map((m) => (
+              <option key={m} value={m / 60}>
+                {lengthLabel(m)}
               </option>
             ))}
           </Select>
@@ -339,11 +356,41 @@ export function GenerateShiftsForm({
           <NumberInput name="capacity" placeholder="e.g. 4" required />
         </Field>
       </div>
+      {windowMinutes != null && windowMinutes > 0 && length > 0 && (
+        <ShiftSplit windowMinutes={windowMinutes} length={length} multiDay={multiDay} />
+      )}
       <StepNotice step="shifts" />
       <SubmitButton variant="go" pendingText="Creating…">
         Create shifts
       </SubmitButton>
     </ActionForm>
+  );
+}
+
+/** What a shift length makes of the event day: how many shifts, and a callout when the last one comes out short. */
+function ShiftSplit({ windowMinutes, length, multiDay }: { windowMinutes: number; length: number; multiDay: boolean }) {
+  const count = Math.ceil(windowMinutes / length);
+  const last = windowMinutes - (count - 1) * length;
+  const perDay = multiDay ? " each day" : "";
+  if (last === length) {
+    return (
+      <p className="text-sm text-muted" aria-live="polite">
+        That makes {count} shift{count === 1 ? "" : "s"} of {lengthLabel(length)}
+        {perDay}, all the same length.
+      </p>
+    );
+  }
+  const even = SHIFT_LENGTHS.filter((m) => windowMinutes % m === 0).map(lengthLabel);
+  return (
+    <div role="status" className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2.5 text-sm">
+      <p className="font-semibold">These shifts won&apos;t be even</p>
+      <p className="mt-0.5">
+        The event day is {lengthLabel(windowMinutes)}. Shifts of {lengthLabel(length)} make {count - 1} shift{count - 1 === 1 ? "" : "s"} of that
+        length and a last one of only {lengthLabel(last)}
+        {perDay}.
+        {even.length > 0 && <> For even shifts, pick {new Intl.ListFormat("en", { type: "disjunction" }).format(even)}.</>}
+      </p>
+    </div>
   );
 }
 
@@ -421,6 +468,7 @@ export function BuildShifts({
   generate,
   create,
   windowLabel,
+  windowMinutes,
   days,
   existing = 0,
   signedUp = false,
@@ -428,6 +476,8 @@ export function BuildShifts({
   generate: Action;
   create: Action;
   windowLabel: string;
+  /** How long the event day is (for the even-shifts check). */
+  windowMinutes?: number;
   days: string[];
   /** The sign-up's shifts now, and whether anyone has signed up for one. */
   existing?: number;
@@ -462,7 +512,14 @@ export function BuildShifts({
         ))}
       </div>
       {mode === "auto" ? (
-        <GenerateShiftsForm action={generate} windowLabel={windowLabel} existing={existing} signedUp={signedUp} />
+        <GenerateShiftsForm
+          action={generate}
+          windowLabel={windowLabel}
+          windowMinutes={windowMinutes}
+          multiDay={days.length > 1}
+          existing={existing}
+          signedUp={signedUp}
+        />
       ) : (
         <ShiftForm action={create} days={days} />
       )}
