@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { createContext, use, useActionState, useEffect, useRef, useState, startTransition, type ReactNode } from "react";
 import { confirmDialog, confirmFromText, shareDialog } from "@/components/confirm-dialog";
 import type { ActionState } from "@/lib/action-state";
@@ -58,6 +59,7 @@ export function ActionForm({
   const [checked, setChecked] = useState<ActionState | null>(null);
   const shown = checked ?? state;
   const ref = useRef<HTMLFormElement>(null);
+  const router = useRouter();
   const onEditRef = useRef(onEdit);
   useEffect(() => {
     onEditRef.current = onEdit;
@@ -71,6 +73,8 @@ export function ActionForm({
       else if (state.message) toast(state.message);
       onSuccess?.();
       if (resetOnSuccess && ref.current) onEditRef.current?.(ref.current);
+      // A server redirect would jump to the top of the page; this stays put.
+      if (state.goTo) router.push(state.goTo, { scroll: false });
     }
     // Only when a new answer comes back.
     // eslint-disable-next-line react-hooks/exhaustive-deps

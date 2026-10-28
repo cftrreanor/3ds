@@ -7,6 +7,8 @@ export type ActionState = {
   message?: string;
   /** Per-field problems, keyed by the input's name, shown under each field. */
   fieldErrors?: Record<string, string>;
+  /** Open this page next, keeping the scroll position (e.g. a new tab right where the form was). */
+  goTo?: string;
   /** Something just went public: show its link to share (in place of the toast). */
   share?: Share;
 };
