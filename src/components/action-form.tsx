@@ -34,7 +34,10 @@ export function ActionForm({
   validate,
   noValidate,
   onEdit,
+  id,
 }: {
+  /** Lets a button outside the form (form={id}) submit it. */
+  id?: string;
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   children: ReactNode;
   className?: string;
@@ -88,6 +91,7 @@ export function ActionForm({
   return (
     <form
       ref={ref}
+      id={id}
       className={className}
       noValidate={noValidate}
       action={formAction}

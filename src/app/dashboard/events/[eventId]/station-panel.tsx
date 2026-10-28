@@ -160,6 +160,11 @@ export function StationPanel({
               coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
               trackUnsaved
               draft={!station.details_saved_at}
+              remaining={[
+                ...(station.details_saved_at ? [] : ["finish the details"]),
+                ...(itemsStation ? (items.length ? [] : ["add items to bring"]) : stationShifts.length ? [] : ["add time slots"]),
+                ...(station.lead_ids.length || pendingInvites.length ? [] : [`add a ${leadWords(event.event_type).one}`]),
+              ]}
             />
           </div>
           {itemsStation ? (
@@ -260,6 +265,10 @@ export function StationPanel({
             confirmMessage={`Delete “${station.name}”? Its time slots and items are deleted too, and this can't be undone. (A sign-up with people signed up can't be deleted.)`}
           />
         </div>
+      )}
+      {canManage && (
+        // The sign-up's footer (its save bar) renders here: pinned to the bottom of the screen until the card ends.
+        <div id="signup-bar" className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 mt-6 sm:-mx-6 sm:-mb-6" />
       )}
     </Card>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { NumberInput } from "@/components/number-input";
 import { ZoneInput } from "@/components/zone-input";
@@ -40,6 +40,7 @@ export function StationForm({
   leadLabel = "Coordinators",
   trackUnsaved,
   draft = false,
+  remaining = [],
   kind: signupKind,
   coordinators,
 }: {
@@ -63,6 +64,8 @@ export function StationForm({
   trackUnsaved?: boolean;
   /** Not finished yet: never saved with Save sign-up (offers Save for later too). */
   draft?: boolean;
+  /** What's still to do for this sign-up, shown in its save bar ("add items to bring"). */
+  remaining?: string[];
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
   const [signup, setSignup] = useState<SignupKind>(signupKind?.value ?? "shifts");
@@ -78,6 +81,7 @@ export function StationForm({
   }, [setEdited]);
   return (
     <ActionForm
+      id={trackUnsaved ? SIGNUP_FORM : undefined}
       action={action}
       className="grid gap-4 sm:grid-cols-2"
       resetOnSuccess={!initial}
@@ -200,37 +204,71 @@ export function StationForm({
         </fieldset>
       )}
       {trackUnsaved ? (
-        // Pinned to the bottom of the screen while this section is in view, and resting at its end, so it's
-        // never mistaken for saving the items or time slots below (they save in their own rows).
-        <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 space-y-2 border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.08)] sm:col-span-2 sm:mx-0 sm:rounded-lg sm:border-2 sm:px-4">
-          <StepNotice step="details" />
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className="flex w-full min-w-0 items-center gap-2 text-sm sm:w-auto sm:flex-1" aria-live="polite">
-              {dirty || draft ? (
-                <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
-              ) : (
-                <span aria-hidden className="font-bold text-success">
-                  ✓
-                </span>
-              )}
-              <span className="font-semibold">{dirty ? "Unsaved changes" : draft ? "Draft, not finished" : "All changes saved"}</span>
-            </p>
-            <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
-              {draft && (
-                <SubmitButton variant="secondary" name="intent" value="later" pendingText="Saving…">
-                  Save for later
-                </SubmitButton>
-              )}
-              <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
-            </div>
-          </div>
-        </div>
+        <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} />
       ) : (
         <div className="sm:col-span-2">
           <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
         </div>
       )}
     </ActionForm>
+  );
+}
+
+const SIGNUP_FORM = "signup-details";
+const noSubscribe = () => () => {};
+
+/**
+ * A sign-up's footer: pinned to the bottom of the screen for the whole sign-up (resting at the end of its card),
+ * saying what's left and saving its details form. Rendered into the card's #signup-bar slot.
+ */
+function SignupBar({ dirty, draft, remaining, submitLabel }: { dirty: boolean; draft: boolean; remaining: string[]; submitLabel: string }) {
+  const slot = useSyncExternalStore(
+    noSubscribe,
+    () => document.getElementById("signup-bar"),
+    () => null,
+  );
+  if (!slot) return null;
+  const left = remaining.length ? new Intl.ListFormat("en", { type: "conjunction" }).format(remaining) : "";
+  return createPortal(
+    <div className="space-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:px-6">
+      <StepNotice step="details" />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="flex w-full min-w-0 items-start gap-2 text-sm sm:w-auto sm:flex-1" aria-live="polite">
+          {dirty || remaining.length ? (
+            <span aria-hidden className="mt-1.5 size-2.5 shrink-0 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
+          ) : (
+            <span aria-hidden className="font-bold text-success">
+              ✓
+            </span>
+          )}
+          <span className="min-w-0">
+            {dirty ? (
+              <>
+                <span className="font-semibold">Unsaved changes</span>
+                {left && <span className="text-muted"> · Still to do: {left}</span>}
+              </>
+            ) : remaining.length ? (
+              <>
+                <span className="font-semibold">What&apos;s left:</span> {left[0].toUpperCase() + left.slice(1)}
+              </>
+            ) : (
+              <span className="font-semibold">Ready for sign-ups</span>
+            )}
+          </span>
+        </p>
+        <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+          {draft && (
+            <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…">
+              Save for later
+            </SubmitButton>
+          )}
+          <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
+            {submitLabel}
+          </SubmitButton>
+        </div>
+      </div>
+    </div>,
+    slot,
   );
 }
 

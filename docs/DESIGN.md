@@ -152,8 +152,8 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
    already signed up, refuse and say why.
 9. **Save with the boxes, publish in its own bar.** Save, Cancel and Update are plain buttons
    right under the boxes they save. The one exception is a long form with lists of its own below it
-   (a sign-up's tab in Volunteer Setup): its Save sits in a bar pinned to the bottom of the screen
-   only while that form's section is in view, with "Save for later" beside it until it's finished. Going live (Publish, Unpublish,
+   (a sign-up's tab in Volunteer Setup): a footer pinned to the bottom of the screen for the whole
+   sign-up says what's left and holds its Save, with "Save for later" beside it until it's finished. Going live (Publish, Unpublish,
    Reveal) is a separate, outlined bar that's always on screen: pinned under the page title on a
    computer, pinned to the bottom on a phone. While something is being edited its buttons wait
    ("Save or cancel your changes first, then publish.").
