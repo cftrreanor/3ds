@@ -62,7 +62,7 @@ export function StationForm({
   leadLabel?: string;
   /** On a sign-up's tab: warn before leaving with changes unsaved, and save from a bar pinned to the bottom of the section. */
   trackUnsaved?: boolean;
-  /** Not finished yet: never saved with Save sign-up (offers Save for later too). */
+  /** Not finished yet: never saved with Save sign-up. */
   draft?: boolean;
   /** What's still to do for this sign-up, shown in its save bar ("add items to bring"). */
   remaining?: string[];
@@ -257,11 +257,10 @@ function SignupBar({ dirty, draft, remaining, submitLabel }: { dirty: boolean; d
           </span>
         </p>
         <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
-          {draft && (
-            <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…">
-              Save for later
-            </SubmitButton>
-          )}
+          {/* Always there; usable once there's something to save. Keeps it without marking the sign-up finished. */}
+          <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…" disabled={!dirty && !draft}>
+            Save for later
+          </SubmitButton>
           <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
             {submitLabel}
           </SubmitButton>
