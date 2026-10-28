@@ -39,6 +39,7 @@ export function StationForm({
   zones,
   leadLabel = "Coordinators",
   trackUnsaved,
+  draft = false,
   kind: signupKind,
   coordinators,
 }: {
@@ -58,14 +59,23 @@ export function StationForm({
   zones?: readonly string[];
   /** What the sign-up's leads are called. */
   leadLabel?: string;
-  /** Step 2's "1. Sign-up details": warn before leaving the station with this unsaved or unfinished. */
+  /** On a sign-up's tab: warn before leaving with changes unsaved, and save from a bar pinned to the bottom of the section. */
   trackUnsaved?: boolean;
+  /** Not finished yet: never saved with Save sign-up (offers Save for later too). */
+  draft?: boolean;
 }) {
   const [kind, setKind] = useState<string>(initial?.checkpoint_kind ?? "");
   const [signup, setSignup] = useState<SignupKind>(signupKind?.value ?? "shifts");
   const setEdited = useStepEdits(trackUnsaved ? "details" : undefined);
-  const changed = useCallback(() => setEdited(true), [setEdited]);
-  const saved = useCallback(() => setEdited(false), [setEdited]);
+  const [dirty, setDirty] = useState(false);
+  const changed = useCallback(() => {
+    setDirty(true);
+    setEdited(true);
+  }, [setEdited]);
+  const saved = useCallback(() => {
+    setDirty(false);
+    setEdited(false);
+  }, [setEdited]);
   return (
     <ActionForm
       action={action}
@@ -189,10 +199,37 @@ export function StationForm({
           )}
         </fieldset>
       )}
-      <div className="space-y-3 sm:col-span-2">
-        {trackUnsaved && <StepNotice step="details" />}
-        <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
-      </div>
+      {trackUnsaved ? (
+        // Pinned to the bottom of the screen while this section is in view, and resting at its end, so it's
+        // never mistaken for saving the items or time slots below (they save in their own rows).
+        <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 space-y-2 border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.08)] sm:col-span-2 sm:mx-0 sm:rounded-lg sm:border-2 sm:px-4">
+          <StepNotice step="details" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="flex w-full min-w-0 items-center gap-2 text-sm sm:w-auto sm:flex-1" aria-live="polite">
+              {dirty || draft ? (
+                <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
+              ) : (
+                <span aria-hidden className="font-bold text-success">
+                  ✓
+                </span>
+              )}
+              <span className="font-semibold">{dirty ? "Unsaved changes" : draft ? "Draft, not finished" : "All changes saved"}</span>
+            </p>
+            <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+              {draft && (
+                <SubmitButton variant="secondary" name="intent" value="later" pendingText="Saving…">
+                  Save for later
+                </SubmitButton>
+              )}
+              <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="sm:col-span-2">
+          <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+        </div>
+      )}
     </ActionForm>
   );
 }

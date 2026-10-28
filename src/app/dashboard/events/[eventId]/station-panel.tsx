@@ -159,6 +159,7 @@ export function StationPanel({
               kind={{ value: station.signup_kind ?? "shifts", locked: kindLocked }}
               coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
               trackUnsaved
+              draft={!station.details_saved_at}
             />
           </div>
           {itemsStation ? (

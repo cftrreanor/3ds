@@ -442,8 +442,8 @@ export async function updateStation(
       ...zoneOf(formData),
       // Time slots or items to bring; the database only lets it change while the sign-up is empty.
       ...(formData.get("signupKind") === "shifts" || formData.get("signupKind") === "items" ? { signup_kind: String(formData.get("signupKind")) } : {}),
-      // Marks the sign-up's details as saved.
-      details_saved_at: new Date().toISOString(),
+      // Save sign-up marks it finished; Save for later keeps it a draft.
+      ...(formData.get("intent") === "later" ? {} : { details_saved_at: new Date().toISOString() }),
     })
     .eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
@@ -454,7 +454,7 @@ export async function updateStation(
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: "Sign-up saved." };
+  return { ok: true, message: formData.get("intent") === "later" ? "Saved as a draft. Finish it when you're ready." : "Sign-up saved." };
 }
 
 /** A sign-up's leads become exactly these: the newly ticked are added (in the order shown), the unticked removed. */
