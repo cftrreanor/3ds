@@ -22,6 +22,7 @@ export function NotifyForm({
   picked,
   extras: initialExtras,
   max,
+  bare = false,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   kinds: Kind[];
@@ -30,13 +31,15 @@ export function NotifyForm({
   picked: Partial<Record<NotifyKind, string[]>>;
   extras: { email: string; kinds: NotifyKind[] }[];
   max: number;
+  /** Just the fields, inside a form around it that saves them (the guided setup's Email settings step). */
+  bare?: boolean;
 }) {
   const [extras, setExtras] = useState<Extra[]>(() => initialExtras.map((x, i) => ({ key: i, ...x })));
   const [nextKey, setNextKey] = useState(initialExtras.length);
   const one = kinds.length === 1;
 
-  return (
-    <ActionForm action={action} resetOnSuccess={false} className="space-y-5">
+  const fields = (
+    <>
       <ul className="space-y-1 text-sm text-muted">
         {kinds.map((k) => (
           <li key={k.kind}>
@@ -102,7 +105,18 @@ export function NotifyForm({
           </Button>
         )}
       </fieldset>
-
+    </>
+  );
+  if (bare)
+    return (
+      <div className="space-y-5">
+        <input type="hidden" name="notifyForm" value="1" />
+        {fields}
+      </div>
+    );
+  return (
+    <ActionForm action={action} resetOnSuccess={false} className="space-y-5">
+      {fields}
       <SubmitButton>Save notifications</SubmitButton>
     </ActionForm>
   );

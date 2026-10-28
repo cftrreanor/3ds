@@ -182,8 +182,11 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
   if (error) return { error: friendlyDbError(error) };
 
   revalidatePath("/dashboard");
-  // Conferences and meetings go straight to their setup, where the day or weekly hours are set.
-  redirect(hasConferences(eventType as string) ? `/dashboard/events/${data.id}/conferences` : `/dashboard/events/${data.id}`);
+  // Conferences and meetings go straight to their setup, where the day or weekly hours are set; other
+  // events on to the rest of their guided setup (Event settings, a step at a time).
+  redirect(
+    hasConferences(eventType as string) ? `/dashboard/events/${data.id}/conferences` : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
+  );
 }
 
 export async function updateEvent(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -251,7 +254,9 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  redirect(`/dashboard/events/${eventId}`);
+  // In the guided setup, on to the next step.
+  const next = String(formData.get("next") ?? "");
+  redirect(next.startsWith(`/dashboard/events/${eventId}/edit?`) ? next : `/dashboard/events/${eventId}`);
 }
 
 /**

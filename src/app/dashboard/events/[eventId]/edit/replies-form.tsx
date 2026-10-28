@@ -12,12 +12,15 @@ export function RepliesForm({
   replies,
   replyTo,
   who,
+  bare = false,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   replies: boolean;
   replyTo: string;
   /** Who gets this event's emails: "Band directors and volunteers". */
   who: string;
+  /** Just the fields, inside a form around it that saves them (the guided setup's Email settings step). */
+  bare?: boolean;
 }) {
   const [on, setOn] = useState(replies);
   const options = [
@@ -32,8 +35,8 @@ export function RepliesForm({
       hint: "Emails come from a no-reply address. People reach you another way, like your event page.",
     },
   ];
-  return (
-    <ActionForm action={action} resetOnSuccess={false} className="space-y-4">
+  const fields = (
+    <>
       <fieldset className="space-y-2">
         <legend className="sr-only">Replies</legend>
         {options.map((o) => (
@@ -57,6 +60,12 @@ export function RepliesForm({
         ))}
       </fieldset>
       <ReplyToField defaultValue={replyTo} hidden={!on} />
+    </>
+  );
+  if (bare) return <div className="space-y-4">{fields}</div>;
+  return (
+    <ActionForm action={action} resetOnSuccess={false} className="space-y-4">
+      {fields}
       <SubmitButton>Save replies</SubmitButton>
     </ActionForm>
   );

@@ -9,6 +9,7 @@ import type { ActionState } from "@/lib/action-state";
 import Link from "next/link";
 import { US_TIMEZONES } from "@/lib/time";
 import { hasConferences, isMeeting } from "@/lib/event-types";
+import { SetupFooter } from "./setup-steps";
 
 export type EventFormValues = {
   name?: string;
@@ -33,6 +34,7 @@ export function EventForm({
   eventType,
   when,
   stickySave = false,
+  setup,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -49,6 +51,8 @@ export function EventForm({
   when?: { summary: string; href: string; setupName: string };
   /** Editing: Save sits in a footer pinned to the bottom of the screen until the form ends, saying whether anything's unsaved. */
   stickySave?: boolean;
+  /** A new event's guided setup: saving goes on to the `next` step (Event settings, ?setup=1). */
+  setup?: { next?: string; back?: string };
 }) {
   const [dirty, setDirty] = useState(false);
   // Venue search favors the part of the country in the event's time zone.
@@ -190,7 +194,12 @@ export function EventForm({
         </p>
       )}
 
-      {stickySave ? (
+      {setup ? (
+        <>
+          {setup.next && <input type="hidden" name="next" value={setup.next} />}
+          <SetupFooter back={setup.back} inCard submit={<SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>} />
+        </>
+      ) : stickySave ? (
         // The same footer as a sign-up in Volunteer Setup.
         <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:-mx-6 sm:-mb-6 sm:px-6">
           <p className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-live="polite">

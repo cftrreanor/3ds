@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { forgetEventSender } from "@/lib/event-sender";
 import { saveRow } from "@/lib/save-row";
 import { createClient } from "@/lib/supabase/server";
+import { saveNotifyRecipients } from "./notify-actions";
 
 const EMAIL = /^[^@\s<>",;]+@[^@\s<>",;]+\.[^@\s<>",;]+$/i;
 
@@ -33,4 +35,17 @@ export async function saveReplies(eventId: string, _prev: ActionState, formData:
   forgetEventSender(eventId);
   revalidatePath(`/dashboard/events/${eventId}/edit`);
   return { ok: true, message: replies ? `Saved. Replies go to ${replyTo}.` : "Saved. Emails won't take replies." };
+}
+
+/** A new event's guided setup, Email settings: replies and notifications saved by one Continue, then the `next` step. */
+export async function saveEmailSetup(eventId: string, next: string, prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (formData.has("replies")) {
+    const replies = await saveReplies(eventId, prev, formData);
+    if (replies.error) return replies;
+  }
+  if (formData.has("notifyForm")) {
+    const notify = await saveNotifyRecipients(eventId, prev, formData);
+    if (notify.error) return notify;
+  }
+  redirect(next);
 }

@@ -6,8 +6,9 @@ import { getMyOrganization } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
 import { createEvent } from "../../actions";
 import { EventForm } from "../_components/event-form";
+import { SetupHeader } from "../_components/setup-steps";
 import { EventTypeChoices } from "@/components/event-type-picker";
-import { eventTypeLabel, isEventType } from "@/lib/event-types";
+import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
 import { loadAccountPlan, startableTypes, typeWords } from "@/lib/plan";
 import { createClient } from "@/lib/supabase/server";
 
@@ -51,6 +52,38 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
     );
   }
 
+  const changeKind = !onlyOne && (
+    <Link href="/dashboard/events/new" className="font-medium text-brand underline-offset-4 hover:underline">
+      Change the kind of event
+    </Link>
+  );
+
+  // Most events: the first of the guided setup's steps (the rest are in Event settings, ?setup=1).
+  if (!hasConferences(type)) {
+    return (
+      <div className="mx-auto max-w-5xl">
+        <SetupHeader current="details" back={{ href: "/dashboard", label: "All events" }}>
+          {changeKind}
+        </SetupHeader>
+        <Card className="mt-6">
+          <h2 className="text-lg font-semibold">Event details</h2>
+          <p className="mt-1 text-sm text-muted">The name, dates, times, and venue everyone sees.</p>
+          <div className="mt-4">
+            <EventForm
+              action={createEvent}
+              organizationId={org.id}
+              eventType={type}
+              initial={{ timezone: org.default_timezone }}
+              venueSearchEnabled={isPlacesConfigured}
+              submitLabel="Save and continue"
+              setup={{}}
+            />
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl">
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
@@ -62,14 +95,8 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
       <p className="mt-2 leading-7 text-muted">
         {type === "conference"
           ? "Free during the pilot. Just a name for now. Next, you'll set your day or weekly hours and where you'll meet."
-          : type === "meeting"
-          ? "Just a name for now. Next, you'll set your day or weekly hours and where you'll meet."
-          : "Just the basics for now. You'll add sign-ups and volunteer shifts next."}{" "}
-        {!onlyOne && (
-          <Link href="/dashboard/events/new" className="font-medium text-brand underline-offset-4 hover:underline">
-            Change the kind of event
-          </Link>
-        )}
+          : "Just a name for now. Next, you'll set your day or weekly hours and where you'll meet."}{" "}
+        {changeKind}
       </p>
       <Card className="mt-8">
         <EventForm

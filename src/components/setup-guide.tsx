@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { currentChecklist } from "@/app/dashboard/events/[eventId]/setup-actions";
 import type { SetupChecklist, SetupStep } from "@/lib/setup-checklist";
@@ -137,7 +137,9 @@ export function SetupStrip({ eventId, initial }: { eventId: string; initial: Set
     setChecklist(initial);
   }
   const base = `/dashboard/events/${eventId}`;
-  const hidden = pathname === base || DAY_SCREENS.some((p) => pathname.startsWith(`${base}${p}`));
+  // The guided setup (Event settings, ?setup=1) has its own steps along the top.
+  const guided = useSearchParams().get("setup") === "1";
+  const hidden = guided || pathname === base || DAY_SCREENS.some((p) => pathname.startsWith(`${base}${p}`));
 
   // Each page change: read it again, so a step finished on the last page shows as done.
   useEffect(() => {
