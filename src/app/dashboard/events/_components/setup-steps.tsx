@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { SkipLink } from "./setup-skip";
+import { LeaveStepLink } from "./setup-leave";
 
 export type SetupStep = { id: string; label: string; optional?: boolean };
 
@@ -19,14 +19,29 @@ export function setupHref(eventId: string, step: string) {
 }
 
 /** "Set up your event", with how far along the steps it is. */
-export function SetupHeader({ current, back, children }: { current: string; back: { href: string; label: string }; children?: ReactNode }) {
+export function SetupHeader({
+  current,
+  back,
+  children,
+}: {
+  current: string;
+  /** `guard`: ask before leaving with unsaved changes ("Save and finish later"). */
+  back: { href: string; label: string; guard?: boolean };
+  children?: ReactNode;
+}) {
   const at = SETUP_STEPS.findIndex((s) => s.id === current);
   const step = SETUP_STEPS[at];
   return (
     <>
-      <Link href={back.href} className="text-sm text-muted hover:text-foreground">
-        ← {back.label}
-      </Link>
+      {back.guard ? (
+        <LeaveStepLink href={back.href} way="leave" className="text-sm text-muted hover:text-foreground">
+          ← {back.label}
+        </LeaveStepLink>
+      ) : (
+        <Link href={back.href} className="text-sm text-muted hover:text-foreground">
+          ← {back.label}
+        </Link>
+      )}
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Set up your event</h1>
       <p className="mt-2 text-sm text-muted">
         Step {at + 1} of {SETUP_STEPS.length}. Skip anything for now: it&apos;s all in Event settings later. Boxes marked * are required. {children}
@@ -87,13 +102,15 @@ export function SetupFooter({
       }`}
     >
       {back && (
-        <Link href={back} className={`${linkButton} text-muted hover:text-foreground`}>
+        <LeaveStepLink href={back} way="back" className={`${linkButton} text-muted hover:text-foreground`}>
           ← Back
-        </Link>
+        </LeaveStepLink>
       )}
       <span className="flex-1" />
       {skip && (
-        <SkipLink href={skip} className={`${linkButton} border border-border bg-surface hover:border-brand/40 hover:bg-background`} />
+        <LeaveStepLink href={skip} way="skip" className={`${linkButton} border border-border bg-surface hover:border-brand/40 hover:bg-background`}>
+          Skip for now
+        </LeaveStepLink>
       )}
       {next ? (
         <Link href={next.href} className={`${linkButton} bg-brand text-brand-foreground hover:bg-brand-hover`}>

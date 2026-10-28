@@ -47,5 +47,7 @@ export async function saveEmailSetup(eventId: string, next: string, prev: Action
     const notify = await saveNotifyRecipients(eventId, prev, formData);
     if (notify.error) return notify;
   }
-  redirect(next);
+  // Back or Save and finish later, pressed with changes: there instead of the next step.
+  const asked = String(formData.get("next") ?? "");
+  redirect(asked === `/dashboard/events/${eventId}` || asked.startsWith(`/dashboard/events/${eventId}/edit?`) ? asked : next);
 }

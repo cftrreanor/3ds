@@ -10,12 +10,31 @@ import { Button } from "@/components/ui";
 export const FORM_SAVED = "form-saved";
 export const FORM_FAILED = "form-failed";
 
+// Each way off a step: what the window's two buttons and its last sentence say.
+const WAYS = {
+  skip: { save: "Save and come back", discard: "Discard changes and skip", then: "Save it and come back to finish later, or skip without it." },
+  back: { save: "Save and go back", discard: "Discard changes and go back", then: "Save it before you go back, or go back without it." },
+  leave: { save: "Save and finish later", discard: "Discard changes and leave", then: "Save it and finish later, or leave without it." },
+};
+
 /**
- * The guided setup's "Skip for now". With nothing typed or changed on the
- * step, it just goes on. With changes not yet saved, it asks first: save them
- * and go on ("Save and come back"), or leave them ("Discard changes and skip").
+ * A way off a guided setup step (Skip for now, Back, Save and finish later).
+ * With nothing typed or changed on the step, it just goes. With changes not
+ * yet saved, it asks first: save them and go, or go without them. A form that
+ * moves on by itself once saved (it has a `next` box) is sent here instead.
  */
-export function SkipLink({ href, className }: { href: string; className: string }) {
+export function LeaveStepLink({
+  href,
+  way,
+  className,
+  children,
+}: {
+  href: string;
+  way: keyof typeof WAYS;
+  className: string;
+  children: React.ReactNode;
+}) {
+  const words = WAYS[way];
   const router = useRouter();
   const dirty = useRef(new Set<HTMLFormElement>());
   const [asking, setAsking] = useState(false);
@@ -63,6 +82,9 @@ export function SkipLink({ href, className }: { href: string; className: string 
         };
         form.addEventListener(FORM_SAVED, done);
         form.addEventListener(FORM_FAILED, done);
+        // A form that goes to the next step once saved goes where this link does instead.
+        const next = form.elements.namedItem("next");
+        if (next instanceof HTMLInputElement) next.value = href;
         form.requestSubmit();
       });
       // The form shows what went wrong.
@@ -86,7 +108,7 @@ export function SkipLink({ href, className }: { href: string; className: string 
           setAsking(true);
         }}
       >
-        Skip for now
+        {children}
       </Link>
       {asking &&
         createPortal(
@@ -97,21 +119,21 @@ export function SkipLink({ href, className }: { href: string; className: string 
             onCancel={(e) => saving && e.preventDefault()}
             onClose={() => setAsking(false)}
             onClick={(e) => e.target === e.currentTarget && !saving && setAsking(false)}
-            aria-labelledby="skip-title"
+            aria-labelledby="leave-step-title"
             className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-surface p-6 text-foreground shadow-elevated backdrop:bg-[#071a31]/50"
           >
-            <h2 id="skip-title" className="text-xl font-semibold">
+            <h2 id="leave-step-title" className="text-xl font-semibold">
               Save your changes first?
             </h2>
             <p className="mt-3 leading-7 text-muted">
-              You changed something on this step and didn&apos;t save it. Save it and come back to finish later, or skip without it.
+              You changed something on this step and didn&apos;t save it. {words.then}
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>button]:whitespace-nowrap">
-              <Button type="button" variant="secondary" disabled={saving} onClick={() => router.push(href)}>
-                Discard changes and skip
+              <Button type="button" variant="danger" disabled={saving} onClick={() => router.push(href)}>
+                {words.discard}
               </Button>
               <Button type="button" disabled={saving} aria-busy={saving} onClick={() => void saveAndGo()}>
-                {saving ? "Saving…" : "Save and come back"}
+                {saving ? "Saving…" : words.save}
               </Button>
             </div>
           </dialog>,

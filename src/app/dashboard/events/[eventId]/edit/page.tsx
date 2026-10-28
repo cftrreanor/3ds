@@ -250,7 +250,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
     <div className="mx-auto max-w-5xl" data-required-marks>
       {guided ? (
-        <SetupHeader current={section} back={{ href: `/dashboard/events/${eventId}`, label: "Save and finish later" }} />
+        <SetupHeader current={section} back={{ href: `/dashboard/events/${eventId}`, label: "Save and finish later", guard: true }} />
       ) : (
         <>
           <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
@@ -595,6 +595,8 @@ function EmailStep({
   if (!setup) return <>{children}</>;
   return (
     <ActionForm action={action} resetOnSuccess={false} className="space-y-6">
+      {/* Where to go once saved: the next step, or wherever Back or Save and finish later was pressed. */}
+      <input type="hidden" name="next" value="" />
       {children}
       <SetupFooter back={back} skip={skip} submit={<SubmitButton pendingText="Saving…">Continue</SubmitButton>} />
     </ActionForm>
