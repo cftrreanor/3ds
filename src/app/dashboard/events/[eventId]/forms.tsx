@@ -78,7 +78,10 @@ export function StationForm({
   const saved = useCallback(() => {
     setDirty(false);
     setEdited(false);
-  }, [setEdited]);
+    // Saved from the footer: back up to the tabs, where the sign-up's status shows the change.
+    // (After the page has redrawn with the saved sign-up, so the scroll isn't cut short.)
+    if (trackUnsaved) setTimeout(() => document.getElementById("signups-heading")?.scrollIntoView({ block: "start" }), 50);
+  }, [setEdited, trackUnsaved]);
   return (
     <ActionForm
       id={trackUnsaved ? SIGNUP_FORM : undefined}

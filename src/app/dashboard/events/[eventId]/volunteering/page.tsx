@@ -202,8 +202,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       </p>
 
       <Card className="mt-6">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1 space-y-4">
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={event.status === "published" && event.volunteer_signup_open ? "brand" : "neutral"}>
                 {event.status !== "published" ? "Event not published" : event.volunteer_signup_open ? "Signup open" : "Signup closed"}
@@ -237,6 +236,26 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   Print volunteer badges
                 </Link>
               </div>
+              {/* Tucked away to keep the top of the page short; open it to show or download the code. */}
+              <details className="group mt-2">
+                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground">
+                  <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
+                    ›
+                  </span>
+                  QR code
+                </summary>
+                <div className="mt-2 flex flex-col items-start gap-2">
+                  <div
+                    className="rounded-lg border border-border bg-white p-2"
+                    aria-label="QR code for the signup link"
+                    role="img"
+                    dangerouslySetInnerHTML={{ __html: qrSvg }}
+                  />
+                  <a href={qrPng} download={`${event.slug}-volunteer-qr.png`} className="inline-flex min-h-11 items-center text-xs font-medium text-brand underline-offset-4 hover:underline">
+                    Download QR code
+                  </a>
+                </div>
+              </details>
             </div>
             {event.status !== "published" ? (
               <p className="text-sm text-muted">Publish the event from its main page, then open signup here.</p>
@@ -252,18 +271,6 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               )
             )}
           </div>
-          <div className="flex flex-col items-center gap-2 self-center sm:self-start">
-            <div
-              className="rounded-lg border border-border bg-white p-2"
-              aria-label="QR code for the signup link"
-              role="img"
-              dangerouslySetInnerHTML={{ __html: qrSvg }}
-            />
-            <a href={qrPng} download={`${event.slug}-volunteer-qr.png`} className="inline-flex min-h-11 items-center text-xs font-medium text-brand underline-offset-4 hover:underline">
-              Download QR code
-            </a>
-          </div>
-        </div>
       </Card>
 
       <section className="mt-10" aria-labelledby="signups-heading">
