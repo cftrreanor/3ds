@@ -177,7 +177,6 @@ export function StationPanel({
               remaining={[
                 ...(station.details_saved_at ? [] : ["finish the details"]),
                 ...(itemsStation ? (items.length ? [] : ["add items to bring"]) : stationShifts.length ? [] : ["add time slots"]),
-                ...(station.lead_ids.length || pendingInvites.length ? [] : [`add a ${leadWords(event.event_type).one}`]),
               ]}
             />
           </div>

@@ -235,6 +235,16 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 >
                   Print volunteer badges
                 </Link>
+                {event.status === "published" && access.isHost && (
+                  <ActionButton
+                    action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
+                    variant={event.volunteer_signup_open ? "stop" : "go"}
+                    className="px-3! text-xs!"
+                    confirmMessage={event.volunteer_signup_open ? "Close volunteer signup? People won't be able to sign up for shifts." : undefined}
+                  >
+                    {event.volunteer_signup_open ? "Close volunteer signup" : "Open volunteer signup"}
+                  </ActionButton>
+                )}
               </div>
               {/* Tucked away to keep the top of the page short; open it to show or download the code. */}
               <details className="group mt-2">
@@ -257,19 +267,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 </div>
               </details>
             </div>
-            {event.status !== "published" ? (
-              <p className="text-sm text-muted">Publish the event from its main page, then open signup here.</p>
-            ) : (
-              access.isHost && (
-                <ActionButton
-                  action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
-                  variant={event.volunteer_signup_open ? "stop" : "go"}
-                  confirmMessage={event.volunteer_signup_open ? "Close volunteer signup? People won't be able to sign up for shifts." : undefined}
-                >
-                  {event.volunteer_signup_open ? "Close volunteer signup" : "Open volunteer signup"}
-                </ActionButton>
-              )
-            )}
+            {event.status !== "published" && <p className="text-sm text-muted">Publish the event from its main page, then open signup here.</p>}
           </div>
       </Card>
 

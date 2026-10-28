@@ -927,6 +927,7 @@ export function ActionButton({
   variant = "primary",
   confirmMessage,
   pendingText = "Saving…",
+  className,
 }: {
   action: Action;
   children: React.ReactNode;
@@ -934,12 +935,15 @@ export function ActionButton({
   variant?: "primary" | "secondary" | "go" | "stop" | "quiet-stop";
   confirmMessage?: string;
   pendingText?: string;
+  /** For the button itself (e.g. a smaller one in a row of links). */
+  className?: string;
 }) {
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="space-y-2" resetOnSuccess={false}>
       <SubmitButton
         variant={variant === "stop" ? "danger" : variant === "quiet-stop" ? "quiet-danger" : variant}
         pendingText={pendingText}
+        className={className}
       >
         {children}
       </SubmitButton>
