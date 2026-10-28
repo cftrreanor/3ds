@@ -80,6 +80,7 @@ export function StationPanel({
   event,
   days,
   windowLabel,
+  windowMinutes,
   userId,
   canManage,
   leadNames,
@@ -98,6 +99,8 @@ export function StationPanel({
   event: { timezone: string; starts_on: string; ends_on: string; event_type?: string };
   days: string[];
   windowLabel: string;
+  /** How long the event day is, in minutes. */
+  windowMinutes?: number;
   userId: string;
   canManage: boolean;
   leadNames: string[];
@@ -121,6 +124,17 @@ export function StationPanel({
   const itemsStation = station.signup_kind === "items";
   const tz = event.timezone;
   const multiDay = days.length > 1;
+  const buildShifts = (
+    <BuildShifts
+      generate={generateShifts.bind(null, eventId, station.id)}
+      create={createShift.bind(null, eventId, station.id)}
+      windowLabel={windowLabel}
+      windowMinutes={windowMinutes}
+      days={days}
+      existing={stationShifts.length}
+      signedUp={stationShifts.some((s) => s.registered_count > 0)}
+    />
+  );
   return (
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -192,16 +206,24 @@ export function StationPanel({
                 Time slots
               </h4>
               <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage />
-              <div className="mt-4">
-                <BuildShifts
-                  generate={generateShifts.bind(null, eventId, station.id)}
-                  create={createShift.bind(null, eventId, station.id)}
-                  windowLabel={windowLabel}
-                  days={days}
-                  existing={stationShifts.length}
-                  signedUp={stationShifts.some((s) => s.registered_count > 0)}
-                />
-              </div>
+              {stationShifts.length > 0 ? (
+                // Once it has time slots, redoing or adding them is tucked away so it doesn't pull focus.
+                <details className="group mt-3">
+                  <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground">
+                    <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
+                      ›
+                    </span>
+                    Redo or add shifts
+                  </summary>
+                  <div className="mt-2">
+                    {buildShifts}
+                  </div>
+                </details>
+              ) : (
+                <div className="mt-4">
+                  {buildShifts}
+                </div>
+              )}
             </section>
           )}
         </div>

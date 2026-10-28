@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { eachDate, formatDate, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { eachDate, formatDate, formatTimeRange, utcToZonedDate, utcToZonedTime } from "@/lib/time";
 import { importVolunteers } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields, type Choice } from "@/lib/imports";
@@ -145,6 +145,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
+  const minuteOfDay = (iso: string) => {
+    const [h, m] = utcToZonedTime(iso, tz).split(":").map(Number);
+    return h * 60 + m;
+  };
+  const windowMinutes = minuteOfDay(event.window_end) - minuteOfDay(event.window_start);
   const origin = await getOrigin();
   const signupUrl = `${origin}/e/${event.slug}/volunteer`;
   const [qrSvg, qrPng] = await Promise.all([
@@ -304,6 +309,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 event={event}
                 days={days}
                 windowLabel={windowLabel}
+                windowMinutes={windowMinutes}
                 userId={user.id}
                 canManage
                 locations={locations}

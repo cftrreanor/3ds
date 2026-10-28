@@ -136,6 +136,8 @@ export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: s
                 for (const step of holdBack) {
                   const el = document.getElementById(step === "details" ? "station-details" : "build-shifts") as HTMLDetailsElement | null;
                   if (el) el.open = true;
+                  // Including a tucked-away "Redo or add shifts".
+                  el?.querySelectorAll("details").forEach((d) => (d.open = true));
                 }
                 requestAnimationFrame(() =>
                   document.querySelector("[data-step-notice]")?.scrollIntoView({ behavior: "smooth", block: "center" }),

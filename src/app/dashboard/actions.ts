@@ -646,7 +646,8 @@ export async function createShift(
 }
 
 const generateSchema = z.object({
-  blockHours: z.coerce.number().int().min(1).max(12),
+  // Half-hour steps, 30 minutes to 12 hours.
+  blockHours: z.coerce.number().min(0.5).max(12).refine((h) => Number.isInteger(h * 2), "Pick a shift length in half hours."),
   capacity: z.coerce.number().int().min(1, "At least 1").max(500),
 });
 
