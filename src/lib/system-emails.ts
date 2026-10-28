@@ -482,7 +482,7 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
     key: "volunteer_link",
     group: "Volunteers",
     name: "Link to their shifts",
-    description: "Goes to a volunteer who asks for their shifts link from the My shifts page.",
+    description: "Goes to a volunteer who asks for their link from the My volunteering page.",
     fields: [{ key: "first_name", label: "Their first name", sample: "Sam" }],
     required: [],
     starting: {

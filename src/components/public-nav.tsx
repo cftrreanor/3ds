@@ -1,22 +1,17 @@
 import Link from "next/link";
 import { getUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { hasPass, readPass } from "@/lib/volunteer-pass";
+import { hasUpcomingVolunteering } from "@/lib/my-volunteering";
 import { headerLinkClass } from "./logo";
 
 /**
  * The top-right links on public pages and My volunteering: "My events" for a
- * signed-in organizer, and "My volunteering" for anyone with sign-ups (on this
- * device, or with the account they're signed in with). Nothing for anyone else.
+ * signed-in organizer, and "My volunteering" for anyone with volunteering still
+ * to come (on this device, or with the account they're signed in with).
+ * Nothing for anyone else.
  */
 export async function PublicNav({ current }: { current?: "volunteering" }) {
-  const [user, pass] = await Promise.all([getUser(), readPass()]);
-  let volunteers = current === "volunteering" || hasPass(pass);
-  if (!volunteers && user) {
-    const supabase = await createClient();
-    const [{ data: shifts }, { data: items }] = await Promise.all([supabase.rpc("my_agenda"), supabase.rpc("my_items")]);
-    volunteers = Boolean((shifts as unknown[] | null)?.length || (items as unknown[] | null)?.length);
-  }
+  const user = await getUser();
+  const volunteers = current === "volunteering" || (await hasUpcomingVolunteering(Boolean(user)));
   if (!user && !volunteers) return null;
   return (
     <>

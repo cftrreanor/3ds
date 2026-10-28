@@ -31,7 +31,7 @@ export async function liveEventBanners(eventId: string, audience: Exclude<EventA
 
 /**
  * Live volunteer banners for the events someone volunteers at. Volunteers
- * usually aren't signed in ("My shifts" knows them by their pass), so the
+ * usually aren't signed in ("My volunteering" knows them by their pass), so the
  * caller must already have worked out which events are theirs.
  */
 export async function liveVolunteerBanners(eventIds: string[]): Promise<EventBanner[]> {

@@ -53,7 +53,7 @@ export default async function AnnouncementsPage({ params }: PageProps<"/dashboar
     ...(hasEnsembles(event.event_type)
       ? [{ value: "band_directors", label: words.one === "group" ? "Group leads" : "Directors", where: `their ${words.one} page`, hostOnly: true }]
       : []),
-    { value: "volunteers", label: "Volunteers", where: "their My shifts page", hostOnly: false },
+    { value: "volunteers", label: "Volunteers", where: "their My volunteering page", hostOnly: false },
     { value: "section_leads", label: "Event team", where: "Volunteer Leads' and Coordinators' event pages", hostOnly: false },
   ];
   const audiences = all.filter((a) => access.isHost || !a.hostOnly);

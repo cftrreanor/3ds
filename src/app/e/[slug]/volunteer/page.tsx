@@ -151,7 +151,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
       <p className="mt-10 text-center text-sm text-muted">
         Already signed up?{" "}
         <Link href="/my" className="font-medium text-brand underline-offset-4 hover:underline">
-          View my sign-ups
+          Go to My volunteering
         </Link>
       </p>
     </main>
