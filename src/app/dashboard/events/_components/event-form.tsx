@@ -9,6 +9,7 @@ import type { ActionState } from "@/lib/action-state";
 import Link from "next/link";
 import { US_TIMEZONES } from "@/lib/time";
 import { hasConferences, isMeeting } from "@/lib/event-types";
+import { SetupFooter } from "./setup-steps";
 
 export type EventFormValues = {
   name?: string;
@@ -33,6 +34,7 @@ export function EventForm({
   eventType,
   when,
   stickySave = false,
+  setup,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -49,6 +51,8 @@ export function EventForm({
   when?: { summary: string; href: string; setupName: string };
   /** Editing: Save sits in a footer pinned to the bottom of the screen until the form ends, saying whether anything's unsaved. */
   stickySave?: boolean;
+  /** A new event's guided setup: saving goes on to the `next` step (Event settings, ?setup=1). */
+  setup?: { next?: string; back?: string };
 }) {
   const [dirty, setDirty] = useState(false);
   // Venue search favors the part of the country in the event's time zone.
@@ -105,18 +109,7 @@ export function EventForm({
           </>
         ) : (
           <>
-            <Field label="Start date">
-              <Input name="startsOn" type="date" required defaultValue={initial.startsOn} />
-            </Field>
-            <Field label="End date" hint="Same as the start date for a one-day event.">
-              <Input name="endsOn" type="date" required defaultValue={initial.endsOn} />
-            </Field>
-            <Field label="Gates open / first volunteers arrive">
-              <Input name="startTime" type="time" defaultValue={initial.startTime ?? "07:00"} required />
-            </Field>
-            <Field label="Everything wraps up">
-              <Input name="endTime" type="time" defaultValue={initial.endTime ?? "22:00"} required />
-            </Field>
+            <EventDates startsOn={initial.startsOn} endsOn={initial.endsOn} startTime={initial.startTime} endTime={initial.endTime} />
           </>
         )}
         <Field
@@ -128,7 +121,7 @@ export function EventForm({
           }
           className="sm:col-span-2"
         >
-          <Select name="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+          <Select name="timezone" required value={timezone} onChange={(e) => setTimezone(e.target.value)}>
             {US_TIMEZONES.map((tz) => (
               <option key={tz.value} value={tz.value}>
                 {tz.label}
@@ -190,7 +183,12 @@ export function EventForm({
         </p>
       )}
 
-      {stickySave ? (
+      {setup ? (
+        <>
+          {setup.next && <input type="hidden" name="next" value={setup.next} />}
+          <SetupFooter back={setup.back} inCard submit={<SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>} />
+        </>
+      ) : stickySave ? (
         // The same footer as a sign-up in Volunteer Setup.
         <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:-mx-6 sm:-mb-6 sm:px-6">
           <p className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-live="polite">
@@ -211,5 +209,74 @@ export function EventForm({
         <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
       )}
     </ActionForm>
+  );
+}
+
+/**
+ * The event's days and hours. Most events are one day: one Date, with "Lasts
+ * more than one day" for the rest. Until someone picks the last day, it
+ * follows the first; it's never before it.
+ */
+function EventDates({ startsOn, endsOn, startTime, endTime }: { startsOn?: string; endsOn?: string; startTime?: string; endTime?: string }) {
+  const [multi, setMulti] = useState(Boolean(startsOn && endsOn && endsOn !== startsOn));
+  const [start, setStart] = useState(startsOn ?? "");
+  const [end, setEnd] = useState(endsOn ?? startsOn ?? "");
+  // Picked by hand (or saved that way): stays put when the first day changes, unless that passes it.
+  const [endPicked, setEndPicked] = useState(multi);
+  return (
+    <>
+      <Field label={multi ? "Start date" : "Date"}>
+        <Input
+          name="startsOn"
+          type="date"
+          required
+          value={start}
+          onChange={(e) => {
+            const day = e.target.value;
+            setStart(day);
+            if (!endPicked || !end || end < day) setEnd(day);
+          }}
+        />
+      </Field>
+      {multi ? (
+        <Field label="End date" hint="Starts as the start date. Pick the last day.">
+          <Input
+            name="endsOn"
+            type="date"
+            required
+            min={start || undefined}
+            value={end}
+            onChange={(e) => {
+              const day = e.target.value;
+              setEndPicked(true);
+              setEnd(day && start && day < start ? start : day);
+            }}
+          />
+        </Field>
+      ) : (
+        // One day: it ends the day it starts.
+        <input type="hidden" name="endsOn" value={start} />
+      )}
+      <label className="-mt-1 flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
+        <input
+          type="checkbox"
+          checked={multi}
+          onChange={(e) => {
+            setMulti(e.target.checked);
+            // Starting over: the last day starts as the first.
+            setEndPicked(false);
+            setEnd(start);
+          }}
+          className="h-4 w-4 shrink-0 accent-[var(--brand)]"
+        />
+        Lasts more than one day
+      </label>
+      <Field label={multi ? "Gates open / first volunteers arrive (first day)" : "Gates open / first volunteers arrive"}>
+        <Input name="startTime" type="time" defaultValue={startTime ?? "07:00"} required />
+      </Field>
+      <Field label={multi ? "Everything wraps up (last day)" : "Everything wraps up"}>
+        <Input name="endTime" type="time" defaultValue={endTime ?? "22:00"} required />
+      </Field>
+    </>
   );
 }

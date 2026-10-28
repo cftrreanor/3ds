@@ -12,14 +12,14 @@ import { missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { brand as product } from "@/lib/brand";
 import { isSchemaError } from "@/lib/schema-check";
-import { saveReplies } from "../../../reply-actions";
+import { saveEmailSetup, saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
 import { saveNotifyRecipients } from "../../../notify-actions";
 import { NotifyForm, type TeamMember } from "./notify-form";
 import { MAX_EXTRA_EMAILS, notifyKinds, type NotifyKind } from "@/lib/notify-kinds";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
-import { deleteEvent, setEventPublished, setEventShowBrand, setEventType, updateEvent } from "../../../actions";
+import { deleteEvent, publishAndOpen, setEventPublished, setEventShowBrand, setEventType, updateEvent } from "../../../actions";
 import { DeleteEventButton } from "../delete-event";
 import { DemoStart } from "@/components/demo-switcher";
 import { personasFor } from "@/lib/demo";
@@ -30,6 +30,10 @@ import { asksChildName, loadConferenceSettings } from "@/lib/conference-settings
 import { weeklySummary } from "@/lib/conferences";
 import { displayTime } from "@/lib/schedule";
 import { EventForm } from "../../_components/event-form";
+import { SETUP_STEPS, SetupFooter, SetupHeader, setupHref } from "../../_components/setup-steps";
+import { ActionForm } from "@/components/action-form";
+import { SubmitButton } from "@/components/submit-button";
+import type { ActionState } from "@/lib/action-state";
 import { SavedBy } from "@/components/saved-by";
 import { LogoForm } from "@/components/logo-form";
 import { loadBrand } from "@/lib/badges";
@@ -58,11 +62,12 @@ const SWITCH_NOTE = {
  * Set up or edit an event's global settings: a section menu with one panel at
  * a time (?section=details, files, team, or emails). Type-specific setup
  * (bands, stations, conference times) stays on its own pages. Old ?step=
- * links still land in the right section.
+ * links still land in the right section. A new event's guided setup
+ * (?setup=1) walks through the same sections a step at a time.
  */
 export default async function EditEventPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/edit">) {
   const { eventId } = await params;
-  const { step, section: sectionParam, tab } = await searchParams;
+  const { step, section: sectionParam, tab, setup: setupParam } = await searchParams;
   const access = await getEventAccess(eventId);
   if (!access.isHost) redirect(`/dashboard/events/${eventId}`);
 
@@ -82,6 +87,18 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const fromStep: Record<string, Section> = { files: "files", kind: "details", replies: "emails", notifications: "emails" };
   const asked = ALL_SECTIONS.find((x) => x === sectionParam) ?? (typeof step === "string" ? fromStep[step] : undefined);
   const section: Section = asked && SECTIONS.includes(asked) ? asked : "details";
+  // The guided setup, step by step (conferences and meetings have their own setup page instead).
+  const guided = setupParam === "1" && !hasConferences(event.event_type);
+  const at = SETUP_STEPS.findIndex((s) => s.id === section);
+  const prevStep = guided && at > 0 ? setupHref(eventId, SETUP_STEPS[at - 1].id) : undefined;
+  const nextStep = guided && at < SETUP_STEPS.length - 1 ? setupHref(eventId, SETUP_STEPS[at + 1].id) : undefined;
+  const stepFooter = guided ? (
+    <SetupFooter
+      back={prevStep}
+      skip={nextStep}
+      next={nextStep ? { href: nextStep, label: "Continue" } : { href: `/dashboard/events/${eventId}`, label: "Go to my event" }}
+    />
+  ) : null;
   // The account's logo for volunteer badges lives with the other uploads, here.
   const badgesHere = !hasConferences(event.event_type);
   const askChildName = hasConferences(event.event_type) ? await asksChildName(supabase, eventId) : true;
@@ -230,14 +247,22 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const booking = bookingWords(event.event_type);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
-        ← Back to {event.name}
-      </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event Settings</h1>
-      <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
-      <div className="mt-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
-        <SettingsNav sections={sections} current={section} base={base} />
+    // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
+    <div className="mx-auto max-w-5xl" data-required-marks>
+      {guided ? (
+        <SetupHeader current={section} back={{ href: `/dashboard/events/${eventId}`, label: "Save and finish later", guard: true }} />
+      ) : (
+        <>
+          <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
+            ← Back to {event.name}
+          </Link>
+          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event Settings</h1>
+          <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
+          <p className="mt-1 text-sm text-muted">Boxes marked * are required.</p>
+        </>
+      )}
+      <div className={guided ? "mt-6" : "mt-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8"}>
+        {!guided && <SettingsNav sections={sections} current={section} base={base} />}
         <div id="settings-panel" className="min-w-0 space-y-6">
           {section === "details" && (
             <>
@@ -265,15 +290,17 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                     askChildName,
                   }}
                   venueSearchEnabled={isPlacesConfigured}
-                  submitLabel="Save changes"
+                  submitLabel={guided ? "Save and continue" : "Save changes"}
                   hasShifts={(count ?? 0) > 0}
                   eventType={event.event_type}
                   when={when}
-                  stickySave
+                  stickySave={!guided}
+                  setup={guided ? { next: nextStep } : undefined}
                 />
               </Panel>
 
-              {badgesHere && (
+              {/* The logo waits for Event settings, so the first step is just the details. */}
+              {badgesHere && !guided && (
                 <Panel id="logo" title="Logo and color">
                   <p className="text-sm text-muted">
                     One logo for your account, shown next to ours at the top of your public event pages and printed on volunteer
@@ -290,7 +317,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 </Panel>
               )}
               {/* Conferences don't set the logo here, but can switch off the one the account has. */}
-              {!badgesHere && hasBrand && (
+              {!badgesHere && hasBrand && !guided && (
                 <Panel id="logo" title="Your account's logo and color" intro="Set on your account's other events. You can leave them off this one.">
                   {brandSwitch}
                 </Panel>
@@ -318,6 +345,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
               />
             </Panel>
           )}
+          {section === "files" && stepFooter}
 
           {section === "team" && (
             <div>
@@ -328,11 +356,12 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   : `Everyone helping you run ${event.name}. ${leadWords(event.event_type).many} are invited in Volunteer Setup, next to the sign-ups they lead.`}
               </p>
               <TeamRoles eventId={eventId} roles={conference ? ["hosts"] : ["hosts", "volunteer-leads", "section-leads"]} open={typeof tab === "string" ? tab : null} />
+              {stepFooter}
             </div>
           )}
 
           {section === "emails" && (
-            <>
+            <EmailStep setup={guided} action={saveEmailSetup.bind(null, eventId, nextStep ?? `/dashboard/events/${eventId}`)} back={prevStep} skip={nextStep}>
               <Panel
                 title="Email replies"
                 intro={`Emails about this event show as from \u201c${senderName ? `${senderName} via ` : ""}${product.name}\u201d. Choose whether people can reply to them.`}
@@ -343,6 +372,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   </p>
                 ) : (
                   <RepliesForm
+                    bare={guided}
                     action={saveReplies.bind(null, eventId)}
                     replies={repliesOn}
                     replyTo={replyTo}
@@ -371,6 +401,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 ) : (
                   <>
                     <NotifyForm
+                      bare={guided}
                       action={saveNotifyRecipients.bind(null, eventId)}
                       kinds={kinds}
                       members={members}
@@ -380,7 +411,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                     />
                     <p className="mt-3 text-sm text-muted">
                       Someone missing?{" "}
-                      <Link href={`${base}?section=team`} className="font-medium text-brand underline">
+                      <Link href={guided ? setupHref(eventId, "team") : `${base}?section=team`} className="font-medium text-brand underline">
                         Add them in Team setup
                       </Link>
                       .
@@ -388,7 +419,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   </>
                 )}
               </Panel>
-            </>
+            </EmailStep>
           )}
 
           {section === "more" && (
@@ -398,10 +429,16 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 intro={
                   published
                     ? "Your event is live. Unpublishing hides its public pages and stops every sign-up and registration. Nobody is emailed, and you can publish again anytime."
-                    : "Your event isn't published yet. Publish it from the event page when you're ready."
+                    : guided
+                      ? "Ready for people to see it? Publish now and your event page goes live. You can also publish later from your event page."
+                      : "Your event isn't published yet. Publish it from the event page when you're ready."
                 }
               >
-                {published ? (
+                {!published && guided ? (
+                  <ActionButton action={publishAndOpen.bind(null, eventId)} variant="go" pendingText="Publishing…">
+                    Publish event
+                  </ActionButton>
+                ) : published ? (
                   <ActionButton
                     action={setEventPublished.bind(null, eventId, false)}
                     variant="stop"
@@ -454,7 +491,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 </div>
               </Panel>
 
-              {demo && (
+              {demo && !guided && (
                 <Panel title="Try it as someone else">
                   <div className="space-y-3">
                   <p className="text-sm leading-6 text-muted">
@@ -512,9 +549,13 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 </Panel>
               )}
 
-              <Panel title="Delete this event" intro="Removes the event and everything in it. This can't be undone.">
-                <DeleteEventButton name={event.name} action={deleteEvent.bind(null, eventId)} />
-              </Panel>
+              {guided ? (
+                stepFooter
+              ) : (
+                <Panel title="Delete this event" intro="Removes the event and everything in it. This can't be undone.">
+                  <DeleteEventButton name={event.name} action={deleteEvent.bind(null, eventId)} />
+                </Panel>
+              )}
             </>
           )}
         </div>
@@ -531,5 +572,33 @@ function Panel({ id, title, intro, children }: { id?: string; title: string; int
       {intro && <p className="mt-1 text-sm text-muted">{intro}</p>}
       <div className="mt-4">{children}</div>
     </Card>
+  );
+}
+
+/**
+ * Email settings: each form saves on its own, or in the guided setup, one form
+ * around both that Continue saves before the next step.
+ */
+function EmailStep({
+  setup,
+  action,
+  back,
+  skip,
+  children,
+}: {
+  setup: boolean;
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  back?: string;
+  skip?: string;
+  children: React.ReactNode;
+}) {
+  if (!setup) return <>{children}</>;
+  return (
+    <ActionForm action={action} resetOnSuccess={false} className="space-y-6">
+      {/* Where to go once saved: the next step, or wherever Back or Save and finish later was pressed. */}
+      <input type="hidden" name="next" value="" />
+      {children}
+      <SetupFooter back={back} skip={skip} submit={<SubmitButton pendingText="Saving…">Continue</SubmitButton>} />
+    </ActionForm>
   );
 }

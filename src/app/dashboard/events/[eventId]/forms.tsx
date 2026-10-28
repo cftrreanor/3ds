@@ -830,7 +830,7 @@ export function InviteForm({
       </Field>
       {roles.length > 1 ? (
         <Field label="Role">
-          <Select name="role" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
+          <Select name="role" required value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
             {roles.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}

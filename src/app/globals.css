@@ -224,6 +224,14 @@
 /* Required answers, on every form (components/required-fields.tsx): submit
    buttons look faded until the required boxes are filled in; tapping one
    early outlines each box still needed in red and says so under the form. */
+/* Event setup and Event settings ([data-required-marks]): a small asterisk
+   after the label of each box that has to be filled in, from its `required`. */
+[data-required-marks] label:has(:is(input, select, textarea):required) > [data-field-label]::after {
+  content: "*" / "";
+  margin-left: 0.2em;
+  font-weight: 400;
+}
+
 form [data-not-ready] {
   opacity: 0.5;
   cursor: not-allowed;
