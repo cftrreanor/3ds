@@ -454,7 +454,7 @@ export async function updateStation(
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: formData.get("intent") === "later" ? "Saved as a draft. Finish it when you're ready." : "Sign-up saved." };
+  return { ok: true, message: formData.get("intent") === "later" ? "Saved. Finish the rest when you're ready." : "Sign-up saved." };
 }
 
 /** A sign-up's leads become exactly these: the newly ticked are added (in the order shown), the unticked removed. */
