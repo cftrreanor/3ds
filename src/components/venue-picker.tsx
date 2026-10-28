@@ -202,6 +202,8 @@ function VenueSearch({
         <div className="relative">
           <Input
             role="combobox"
+            // A place is needed: picking one (or typing the address by hand) fills in the real fields.
+            required
             aria-expanded={showList}
             aria-controls={listId}
             aria-autocomplete="list"

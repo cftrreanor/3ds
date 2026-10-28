@@ -247,7 +247,8 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const booking = bookingWords(event.event_type);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
+    <div className="mx-auto max-w-5xl" data-required-marks>
       {guided ? (
         <SetupHeader current={section} back={{ href: `/dashboard/events/${eventId}`, label: "Save and finish later" }} />
       ) : (
@@ -257,6 +258,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           </Link>
           <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event Settings</h1>
           <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
+          <p className="mt-1 text-sm text-muted">Boxes marked * are required.</p>
         </>
       )}
       <div className={guided ? "mt-6" : "mt-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8"}>

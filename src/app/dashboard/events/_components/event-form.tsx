@@ -132,7 +132,7 @@ export function EventForm({
           }
           className="sm:col-span-2"
         >
-          <Select name="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+          <Select name="timezone" required value={timezone} onChange={(e) => setTimezone(e.target.value)}>
             {US_TIMEZONES.map((tz) => (
               <option key={tz.value} value={tz.value}>
                 {tz.label}

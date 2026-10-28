@@ -61,7 +61,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
   // Most events: the first of the guided setup's steps (the rest are in Event settings, ?setup=1).
   if (!hasConferences(type)) {
     return (
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-5xl" data-required-marks>
         <SetupHeader current="details" back={{ href: "/dashboard", label: "All events" }}>
           {changeKind}
         </SetupHeader>
@@ -85,7 +85,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl" data-required-marks>
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
         ← All events
       </Link>

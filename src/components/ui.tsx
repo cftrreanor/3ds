@@ -51,7 +51,10 @@ export function Field({
 }) {
   return (
     <label className={cx("flex flex-col gap-1.5", className)}>
-      <span className="text-sm font-semibold">{label}</span>
+      {/* data-field-label: where a required answer's asterisk goes (globals.css). */}
+      <span data-field-label className="text-sm font-semibold">
+        {label}
+      </span>
       {children}
       {hint && <span className="text-sm text-muted">{hint}</span>}
       {error && <FieldError id={errorId}>{error}</FieldError>}

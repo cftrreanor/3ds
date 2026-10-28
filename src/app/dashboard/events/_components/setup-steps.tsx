@@ -28,7 +28,7 @@ export function SetupHeader({ current, back, children }: { current: string; back
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Set up your event</h1>
       <p className="mt-2 text-sm text-muted">
-        Step {at + 1} of {SETUP_STEPS.length}. Skip anything for now: it&apos;s all in Event settings later. {children}
+        Step {at + 1} of {SETUP_STEPS.length}. Skip anything for now: it&apos;s all in Event settings later. Boxes marked * are required. {children}
       </p>
       <ol className="mt-5 grid grid-cols-5 gap-2" aria-label="Setup steps">
         {SETUP_STEPS.map((s, i) => {
