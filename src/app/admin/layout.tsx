@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SignOutButton } from "@/components/sign-out-button";
 import { Logo } from "@/components/logo";
 import { requirePlatformAdmin } from "@/lib/admin";
 import { ADMIN_TZ } from "@/lib/admin-crm";
@@ -53,9 +54,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
             <Link href="/dashboard" className="hover:text-white">
               My dashboard
             </Link>
-            <form action="/auth/signout" method="post">
-              <button className="hover:text-white">Sign out</button>
-            </form>
+            <SignOutButton className="hover:text-white" />
           </div>
         </div>
       </aside>
