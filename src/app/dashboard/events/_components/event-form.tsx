@@ -109,18 +109,7 @@ export function EventForm({
           </>
         ) : (
           <>
-            <Field label="Start date">
-              <Input name="startsOn" type="date" required defaultValue={initial.startsOn} />
-            </Field>
-            <Field label="End date" hint="Same as the start date for a one-day event.">
-              <Input name="endsOn" type="date" required defaultValue={initial.endsOn} />
-            </Field>
-            <Field label="Gates open / first volunteers arrive">
-              <Input name="startTime" type="time" defaultValue={initial.startTime ?? "07:00"} required />
-            </Field>
-            <Field label="Everything wraps up">
-              <Input name="endTime" type="time" defaultValue={initial.endTime ?? "22:00"} required />
-            </Field>
+            <EventDates startsOn={initial.startsOn} endsOn={initial.endsOn} startTime={initial.startTime} endTime={initial.endTime} />
           </>
         )}
         <Field
@@ -220,5 +209,74 @@ export function EventForm({
         <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
       )}
     </ActionForm>
+  );
+}
+
+/**
+ * The event's days and hours. Most events are one day: one Date, with "Lasts
+ * more than one day" for the rest. Until someone picks the last day, it
+ * follows the first; it's never before it.
+ */
+function EventDates({ startsOn, endsOn, startTime, endTime }: { startsOn?: string; endsOn?: string; startTime?: string; endTime?: string }) {
+  const [multi, setMulti] = useState(Boolean(startsOn && endsOn && endsOn !== startsOn));
+  const [start, setStart] = useState(startsOn ?? "");
+  const [end, setEnd] = useState(endsOn ?? startsOn ?? "");
+  // Picked by hand (or saved that way): stays put when the first day changes, unless that passes it.
+  const [endPicked, setEndPicked] = useState(multi);
+  return (
+    <>
+      <Field label={multi ? "Start date" : "Date"}>
+        <Input
+          name="startsOn"
+          type="date"
+          required
+          value={start}
+          onChange={(e) => {
+            const day = e.target.value;
+            setStart(day);
+            if (!endPicked || !end || end < day) setEnd(day);
+          }}
+        />
+      </Field>
+      {multi ? (
+        <Field label="End date" hint="Starts as the start date. Pick the last day.">
+          <Input
+            name="endsOn"
+            type="date"
+            required
+            min={start || undefined}
+            value={end}
+            onChange={(e) => {
+              const day = e.target.value;
+              setEndPicked(true);
+              setEnd(day && start && day < start ? start : day);
+            }}
+          />
+        </Field>
+      ) : (
+        // One day: it ends the day it starts.
+        <input type="hidden" name="endsOn" value={start} />
+      )}
+      <label className="-mt-1 flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
+        <input
+          type="checkbox"
+          checked={multi}
+          onChange={(e) => {
+            setMulti(e.target.checked);
+            // Starting over: the last day starts as the first.
+            setEndPicked(false);
+            setEnd(start);
+          }}
+          className="h-4 w-4 shrink-0 accent-[var(--brand)]"
+        />
+        Lasts more than one day
+      </label>
+      <Field label={multi ? "Gates open / first volunteers arrive (first day)" : "Gates open / first volunteers arrive"}>
+        <Input name="startTime" type="time" defaultValue={startTime ?? "07:00"} required />
+      </Field>
+      <Field label={multi ? "Everything wraps up (last day)" : "Everything wraps up"}>
+        <Input name="endTime" type="time" defaultValue={endTime ?? "22:00"} required />
+      </Field>
+    </>
   );
 }
