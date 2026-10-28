@@ -11,7 +11,7 @@ import { eachDate, formatDate, formatTimeRange, utcToZonedDate, utcToZonedTime }
 import { importVolunteers } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields, type Choice } from "@/lib/imports";
-import { createStation, moveCheckpoint, setVolunteerSignupOpen } from "../../../actions";
+import { createStation, moveCheckpoint, publishAndOpenSignups, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, NewStationForm, type LeadOption } from "../forms";
 import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
@@ -235,6 +235,17 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 >
                   Print volunteer badges
                 </Link>
+                {event.status !== "published" && access.isHost && (
+                  <ActionButton
+                    action={publishAndOpenSignups.bind(null, eventId)}
+                    variant="go"
+                    className="px-3! text-xs!"
+                    pendingText="Publishing…"
+                    confirmMessage="Publish the event and open volunteer sign-ups? Your event page goes live and people can start signing up."
+                  >
+                    Publish and open sign-ups
+                  </ActionButton>
+                )}
                 {event.status === "published" && access.isHost && (
                   <ActionButton
                     action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
@@ -267,7 +278,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 </div>
               </details>
             </div>
-            {event.status !== "published" && <p className="text-sm text-muted">Publish the event from its main page, then open signup here.</p>}
+            {event.status !== "published" && !access.isHost && (
+              <p className="text-sm text-muted">Sign-ups open once the event&apos;s host publishes it.</p>
+            )}
           </div>
       </Card>
 
