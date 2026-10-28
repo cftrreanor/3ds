@@ -142,10 +142,11 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   return (
     <div className="flex flex-1 flex-col">
       <HeaderBar maxWidth="max-w-2xl">
+        {/* Signed in (an organizer): back to their events. Volunteers' sign-ups never need signing out of here. */}
         {user ? (
-          <form action="/auth/signout" method="post">
-            <button className={headerLinkClass}>Sign out</button>
-          </form>
+          <Link href="/dashboard" className={headerLinkClass}>
+            My events
+          </Link>
         ) : (
           <Link href="/login" className={headerLinkClass}>
             Organizer sign in
@@ -173,10 +174,9 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           <Card className="mt-6 bg-brand-soft">
             <p className="font-medium">You signed up as {mismatch}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
-              This device is signed in as {user!.email}. Open the confirmation email we sent to {mismatch} and tap
-              its “View or cancel” button, or switch accounts.
+              To see those sign-ups here too, open the confirmation email we sent to {mismatch} and tap its “View or
+              cancel my sign-ups” button. You stay signed in as {user!.email}.
             </p>
-            <SwitchAccountButton email={mismatch} label={`Sign in as ${mismatch}`} />
           </Card>
         )}
 
@@ -359,19 +359,6 @@ function SignUpMoreLink({ slug, primary = false }: { slug: string; primary?: boo
     >
       Sign up for more
     </Link>
-  );
-}
-
-/** Signs out, then opens sign-in (pre-filled when we know the email) and returns here. */
-function SwitchAccountButton({ email, label }: { email?: string; label: string }) {
-  const next = `/login?next=/my${email ? `&email=${encodeURIComponent(email)}` : ""}`;
-  return (
-    <form action="/auth/signout" method="post" className="mt-3">
-      <input type="hidden" name="next" value={next} />
-      <button className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand-hover">
-        {label}
-      </button>
-    </form>
   );
 }
 
