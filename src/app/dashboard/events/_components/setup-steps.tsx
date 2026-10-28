@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SkipLink } from "./setup-skip";
 
 export type SetupStep = { id: string; label: string; optional?: boolean };
 
@@ -92,9 +93,7 @@ export function SetupFooter({
       )}
       <span className="flex-1" />
       {skip && (
-        <Link href={skip} className={`${linkButton} border border-border bg-surface hover:border-brand/40 hover:bg-background`}>
-          Skip for now
-        </Link>
+        <SkipLink href={skip} className={`${linkButton} border border-border bg-surface hover:border-brand/40 hover:bg-background`} />
       )}
       {next ? (
         <Link href={next.href} className={`${linkButton} bg-brand text-brand-foreground hover:bg-brand-hover`}>

@@ -167,25 +167,30 @@ function FileForm({
   const toDirectors = chosen.includes("directors") || chosen.includes("public");
   const toVolunteers = chosen.includes("volunteers") || chosen.includes("public");
 
-  async function submit(form: HTMLFormElement) {
+  /** True once it's saved. */
+  async function submit(form: HTMLFormElement): Promise<boolean> {
+    const fail = (message: string) => {
+      setError(message);
+      return false;
+    };
     setError(null);
     const data = new FormData(form);
     const picked = data.get("file");
     const upload = picked instanceof File && picked.size > 0 ? picked : null;
-    if (!file && !upload) return setError("Please choose a file to upload.");
+    if (!file && !upload) return fail("Please choose a file to upload.");
     let uploaded: UploadedFile | null = null;
     if (upload) {
-      if (!TYPES.includes(upload.type)) return setError("Please choose a PDF, JPG, or PNG file.");
-      if (upload.size > MAX) return setError("That file is over 10 MB. Try a smaller PDF or a photo.");
+      if (!TYPES.includes(upload.type)) return fail("Please choose a PDF, JPG, or PNG file.");
+      if (upload.size > MAX) return fail("That file is over 10 MB. Try a smaller PDF or a photo.");
       setStep("Uploading…");
       const ticket = await prepareUpload({ fileName: upload.name, contentType: upload.type, size: upload.size });
       if (ticket.error || !ticket.path || !ticket.url) {
         setStep(null);
-        return setError(ticket.error ?? "We couldn't start the upload. Please try again.");
+        return fail(ticket.error ?? "We couldn't start the upload. Please try again.");
       }
       if (!(await uploadToSignedUrl(ticket.url, upload))) {
         setStep(null);
-        return setError("The upload didn't go through. Check your connection and try again.");
+        return fail("The upload didn't go through. Check your connection and try again.");
       }
       uploaded = { path: ticket.path, fileName: upload.name, contentType: upload.type, size: upload.size };
     }
@@ -196,8 +201,9 @@ function FileForm({
     if (!hide) data.set("visibleFrom", "");
     const result = await saveFile(file?.id ?? null, uploaded, {}, data);
     setStep(null);
-    if (result.error) return setError(result.error);
+    if (result.error) return fail(result.error);
     onDone(result.message ?? null);
+    return true;
   }
 
   return (
@@ -205,11 +211,17 @@ function FileForm({
       className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
-        void submit(e.currentTarget).catch((err) => {
-          console.error("File upload failed", err);
-          setStep(null);
-          setError("Something went wrong. Please reload the page and try again.");
-        });
+        const form = e.currentTarget;
+        // Tells whoever's waiting on this save how it went (the guided setup's Skip for now).
+        const tell = (saved: boolean) => form.dispatchEvent(new Event(saved ? "form-saved" : "form-failed", { bubbles: true }));
+        void submit(form)
+          .then(tell)
+          .catch((err) => {
+            tell(false);
+            console.error("File upload failed", err);
+            setStep(null);
+            setError("Something went wrong. Please reload the page and try again.");
+          });
       }}
     >
       <p className="text-sm font-semibold">{file ? `Edit “${file.label}”` : "Add a map or document"}</p>

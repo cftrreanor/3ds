@@ -66,6 +66,8 @@ export function ActionForm({
   });
 
   useEffect(() => {
+    // For whoever's waiting on this save (the guided setup's Skip for now).
+    if (state.ok || state.error) ref.current?.dispatchEvent(new Event(state.ok ? "form-saved" : "form-failed", { bubbles: true }));
     if (state.ok) {
       if (resetOnSuccess) ref.current?.reset();
       // Something went public: show its link to share, not just a toast.
@@ -108,8 +110,10 @@ export function ActionForm({
         const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
         const problem = validate?.(data);
         setChecked(problem ?? null);
-        if (problem) return;
-        if (confirmMessage && !(await confirmDialog(confirmFromText(confirmMessage, confirmLabel ? { confirmLabel } : undefined)))) return;
+        const form = e.currentTarget;
+        const failed = () => void form.dispatchEvent(new Event("form-failed", { bubbles: true }));
+        if (problem) return failed();
+        if (confirmMessage && !(await confirmDialog(confirmFromText(confirmMessage, confirmLabel ? { confirmLabel } : undefined)))) return failed();
         startTransition(() => formAction(data));
       }}
     >
