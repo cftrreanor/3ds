@@ -203,8 +203,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const totalSlots = (shifts ?? []).reduce((n, s) => n + s.max_capacity, 0);
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = ((hostData ?? []) as unknown as HostRow[]).sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
-  const directors = staffRows.filter((s) => s.role === "volunteer_director");
-  const leads = staffRows.filter((s) => s.role === "section_lead");
   const stationName = (id: string | null) => stations.find((s) => s.id === id)?.name;
 
   // Team card: what needs doing, then who joined this past week.
@@ -660,7 +658,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 {!published ? "Event not published" : event.volunteer_signup_open ? "Signup open" : "Signup closed"}
               </Badge>
               <span className="text-sm text-muted">
-                {stations.length} station{stations.length === 1 ? "" : "s"} · {(shifts ?? []).length} shift
+                {stations.length} sign-up{stations.length === 1 ? "" : "s"} · {(shifts ?? []).length} shift
                 {(shifts ?? []).length === 1 ? "" : "s"}
               </span>
             </div>
@@ -679,51 +677,15 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </PageSection>
     ) : null;
 
-  const team =
-    access.canManage && !conferenceHere ? (
-      <PageSection id="team" title="Team" saved={<SavedBy eventId={eventId} area="team" />}>
-        <Card className="space-y-5">
-          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
-            <p className="text-sm leading-6 text-muted">Hosts, Volunteer Leads, and {words2.many}, and their invitations.</p>
-            <Link
-              href={access.isHost ? `/dashboard/events/${eventId}/edit?section=team` : `/dashboard/events/${eventId}/volunteering#section-leads`}
-              className={BTN_OUTLINE}
-            >
-              Manage team
-            </Link>
-          </div>
-          <TeamStats
-            eventId={eventId}
-            counts={[
-              ...(access.isHost ? [{ label: "Hosts", value: hosts.length, tab: "hosts" }] : []),
-              { label: "Volunteer Leads", value: directors.length, tab: "volunteer-leads" },
-              { label: words2.many, value: leads.length, tab: "section-leads" },
-              { label: "Waiting to accept", value: openInvites.length, tab: null },
-            ]}
-            // What needs fixing is in "Needs attention" at the top; here, who's joined.
-            updates={teamUpdates.filter((u) => u.tone === "good")}
-          />
-        </Card>
-      </PageSection>
-    ) : null;
-
+  // Hosts add and manage files in event settings; the rest of the team sees what's shared with them.
   const filesBlock =
-    !conferenceHere && (files.length > 0 || access.isHost) ? (
+    !conferenceHere && !access.isHost && files.length > 0 ? (
       <PageSection id="files" title="Maps & documents" saved={<SavedBy eventId={eventId} area="files" />}>
         <Card className="space-y-5">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <p className="text-sm leading-6 text-muted">
-              {files.length
-                ? `${files.length} ${files.length === 1 ? "file" : "files"} shared.`
-                : groupsHere
-                  ? `Share a ${bandsHere ? "stadium" : "building"} map, parking map, or director packet with the public, ${words.one} directors, volunteers, or your team.`
-                  : "Share a site map, parking map, or volunteer guide with the public, volunteers, or your team."}
+              {files.length} {files.length === 1 ? "file" : "files"} shared with you.
             </p>
-            {access.isHost && (
-              <Link href={`/dashboard/events/${eventId}/edit?section=files`} className={BTN_OUTLINE}>
-                {files.length ? "Manage maps & documents" : "Add a map or document"}
-              </Link>
-            )}
           </div>
           <FileLinks files={files} details={uploaded} />
         </Card>
@@ -763,16 +725,17 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </section>
     ) : null;
 
-  const blocks: Record<string, ReactNode> = { publish, attention: attentionBlock, day, signups, schedule, volunteers, team, files: filesBlock, share };
+  // The team is managed in event settings (Coordinators in Volunteer Setup), and what needs
+  // fixing there shows in "To do", so there's no Team card here.
+  const blocks: Record<string, ReactNode> = { publish, attention: attentionBlock, day, signups, schedule, volunteers, files: filesBlock, share };
   const order = dayFirst
-    ? ["day", "attention", "signups", "schedule", "volunteers", "team", "files", "publish", "share"]
-    : ["publish", "attention", "signups", "schedule", "volunteers", "day", "team", "files", "share"];
+    ? ["day", "attention", "signups", "schedule", "volunteers", "files", "publish", "share"]
+    : ["publish", "attention", "signups", "schedule", "volunteers", "day", "files", "share"];
   const labels: Record<string, string> = {
     day: dayTitle,
     signups: signupsLabel,
     schedule: roomsHere ? "Rooms" : "Schedule",
     volunteers: "Volunteers",
-    team: "Team",
     files: "Maps & documents",
     share: "Public page",
   };
@@ -1141,55 +1104,6 @@ function PublishPanel({
 }
 
 type TeamUpdate = { tone: "warn" | "good"; text: string; tab: string | null };
-
-/** The Team card's numbers and what's new or needs attention. */
-function TeamStats({
-  eventId,
-  counts,
-  updates,
-}: {
-  eventId: string;
-  counts: { label: string; value: number; tab: string | null }[];
-  updates: TeamUpdate[];
-}) {
-  // The team page sends each role to where it's set up now (Edit details → Team setup, or Volunteer Setup).
-  const href = (tab: string | null) => `/dashboard/events/${eventId}/team${tab ? `?tab=${tab}` : ""}`;
-  return (
-    <div className="space-y-4 border-t border-border pt-4">
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {counts.map((c) => (
-          <div key={c.label} className="relative rounded-lg bg-background px-3 py-2 hover:ring-1 hover:ring-border">
-            <dt className="text-xs text-muted">{c.label}</dt>
-            <dd className="text-xl font-semibold tabular-nums">
-              {c.value}
-              {/* The whole tile opens where that role is set up (Team setup, or Volunteer Setup for Coordinators). */}
-              <Link href={href(c.tab)} className="absolute inset-0 rounded-lg" aria-label={`${c.label}: ${c.value}`} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <div>
-        <h3 className="text-sm font-semibold">Updates</h3>
-        {updates.length > 0 ? (
-          <ul className="mt-2 space-y-1.5">
-            {updates.map((u) => (
-              <li key={u.text} className="flex gap-2 text-sm leading-6">
-                <span aria-hidden className={u.tone === "warn" ? "text-danger" : "text-success"}>
-                  {u.tone === "warn" ? "●" : "✓"}
-                </span>
-                <Link href={href(u.tab)} className="hover:underline underline-offset-4">
-                  {u.text}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-1 text-sm text-muted">Nothing new. Every sign-up has a lead and no invitations have expired.</p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function PublicPageCard({ url, published, slug, qr }: { url: string; published: boolean; slug: string; qr: [string, string] | null }) {
   const display = url.replace(/^https?:\/\//, "");
