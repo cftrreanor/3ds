@@ -211,9 +211,9 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const base = `/dashboard/events/${eventId}/edit`;
   const sections: SettingsSection[] = [
     { id: "details", label: "Event details", done: true, status: eventTypeLabel(event.event_type) },
-    ...(conference ? [] : [{ id: "files", label: "Maps & documents", done: files.length > 0, status: files.length ? `${files.length} ${files.length === 1 ? "file" : "files"}` : "Optional" }]),
     { id: "team", label: "Team setup", done: teamCount > 0, status: teamCount ? `${teamCount} ${teamCount === 1 ? "person" : "people"}` : "Optional" },
     { id: "emails", label: "Email settings", done: Boolean(replyRow || notifySaved), status: replyRow || notifySaved ? "Saved" : "Default" },
+    ...(conference ? [] : [{ id: "files", label: "Maps & documents", done: files.length > 0, status: files.length ? `${files.length} ${files.length === 1 ? "file" : "files"}` : "Optional" }]),
     { id: "more", label: "Publishing & more", done: event.status === "published", status: event.status === "published" ? "Live" : "Draft" },
   ];
   const published = event.status === "published";
@@ -269,6 +269,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   hasShifts={(count ?? 0) > 0}
                   eventType={event.event_type}
                   when={when}
+                  stickySave
                 />
               </Panel>
 
@@ -295,43 +296,6 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 </Panel>
               )}
 
-              <Panel id="kind" title="Kind of event" intro="What the event is for decides which pages and tools it has.">
-                <div className="space-y-3">
-                  <p>
-                    This is {isMeeting(event.event_type) ? "for " : "a "}<strong>{event.event_type === "conference" ? "parent-teacher conference" : eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
-                    <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
-                  </p>
-                  {hasConferences(event.event_type) ? (
-                    <p className="text-sm text-muted">
-                      {isMeeting(event.event_type) ? "Meetings stay meetings" : "A conference stays a conference"}. For another kind of event, create a new one.
-                    </p>
-                  ) : groupsHere && (bandCount ?? 0) > 0 ? (
-                    <p className="text-sm text-muted">
-                      {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
-                      {eventTypeLabel(event.event_type).toLowerCase()}.
-                    </p>
-                  ) : hasBooths(event.event_type) && (boothCount ?? 0) > 0 ? (
-                    <p className="text-sm text-muted">This fair has booths and partners, so it has to stay a school fair.</p>
-                  ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
-                    <p className="text-sm text-muted">
-                      {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
-                    </p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest") && !hasConferences(t.value)).map((t) => (
-                        <ActionButton
-                          key={t.value}
-                          action={setEventType.bind(null, eventId, t.value)}
-                          variant="secondary"
-                          confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value as keyof typeof SWITCH_NOTE]} Volunteers and shifts stay as they are.`}
-                        >
-                          Make it a {t.label.toLowerCase()}
-                        </ActionButton>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Panel>
             </>
           )}
 
@@ -450,6 +414,44 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                     Go to Publish
                   </Link>
                 )}
+              </Panel>
+
+              <Panel id="kind" title="Kind of event" intro="What the event is for decides which pages and tools it has.">
+                <div className="space-y-3">
+                  <p>
+                    This is {isMeeting(event.event_type) ? "for " : "a "}<strong>{event.event_type === "conference" ? "parent-teacher conference" : eventTypeLabel(event.event_type).toLowerCase()}</strong>.{" "}
+                    <span className="text-muted">{TYPE_SUMMARY[event.event_type as keyof typeof TYPE_SUMMARY] ?? TYPE_SUMMARY.band_contest}</span>
+                  </p>
+                  {hasConferences(event.event_type) ? (
+                    <p className="text-sm text-muted">
+                      {isMeeting(event.event_type) ? "Meetings stay meetings" : "A conference stays a conference"}. For another kind of event, create a new one.
+                    </p>
+                  ) : groupsHere && (bandCount ?? 0) > 0 ? (
+                    <p className="text-sm text-muted">
+                      {bandCount} {bandCount === 1 ? `${words.one} has` : `${words.many} have`} registered, so this has to stay a{" "}
+                      {eventTypeLabel(event.event_type).toLowerCase()}.
+                    </p>
+                  ) : hasBooths(event.event_type) && (boothCount ?? 0) > 0 ? (
+                    <p className="text-sm text-muted">This fair has booths and partners, so it has to stay a school fair.</p>
+                  ) : hasParents(event.event_type) && (parentCount ?? 0) > 0 ? (
+                    <p className="text-sm text-muted">
+                      {parentCount} parent{parentCount === 1 ? " has" : "s have"} registered, so this has to stay a school visitor event.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {EVENT_TYPES.filter((t) => t.value !== (event.event_type ?? "band_contest") && !hasConferences(t.value)).map((t) => (
+                        <ActionButton
+                          key={t.value}
+                          action={setEventType.bind(null, eventId, t.value)}
+                          variant="secondary"
+                          confirmMessage={`Make this a ${t.label.toLowerCase()}? ${SWITCH_NOTE[t.value as keyof typeof SWITCH_NOTE]} Volunteers and shifts stay as they are.`}
+                        >
+                          Make it a {t.label.toLowerCase()}
+                        </ActionButton>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Panel>
 
               {demo && (

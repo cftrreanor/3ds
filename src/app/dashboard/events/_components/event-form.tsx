@@ -32,6 +32,7 @@ export function EventForm({
   hasShifts = false,
   eventType,
   when,
+  stickySave = false,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -46,7 +47,10 @@ export function EventForm({
    * their setup page, the one place they're changed.
    */
   when?: { summary: string; href: string; setupName: string };
+  /** Editing: Save sits in a footer pinned to the bottom of the screen until the form ends, saying whether anything's unsaved. */
+  stickySave?: boolean;
 }) {
+  const [dirty, setDirty] = useState(false);
   // Venue search favors the part of the country in the event's time zone.
   const [timezone, setTimezone] = useState(initial.timezone);
   const conference = hasConferences(eventType);
@@ -54,7 +58,13 @@ export function EventForm({
   // A new conference or meeting starts a week out, 3–7 PM, until the first setup step sets the real day or weekly hours.
   const [placeholderDay] = useState(() => new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10));
   return (
-    <ActionForm action={action} className="space-y-6" resetOnSuccess={false}>
+    <ActionForm
+      action={action}
+      className="space-y-6"
+      resetOnSuccess={false}
+      onEdit={stickySave ? () => setDirty(true) : undefined}
+      onSuccess={stickySave ? () => setDirty(false) : undefined}
+    >
       <input type="hidden" name="organizationId" value={organizationId} />
       {eventType && <input type="hidden" name="eventType" value={eventType} />}
       <Field label="Event name">
@@ -180,7 +190,26 @@ export function EventForm({
         </p>
       )}
 
-      <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+      {stickySave ? (
+        // The same footer as a sign-up in Volunteer Setup.
+        <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:-mx-6 sm:-mb-6 sm:px-6">
+          <p className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-live="polite">
+            {dirty ? (
+              <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
+            ) : (
+              <span aria-hidden className="font-bold text-success">
+                ✓
+              </span>
+            )}
+            <span className="font-semibold">{dirty ? "Unsaved changes" : "All changes saved"}</span>
+          </p>
+          <SubmitButton pendingText="Saving…" disabled={!dirty}>
+            {submitLabel}
+          </SubmitButton>
+        </div>
+      ) : (
+        <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+      )}
     </ActionForm>
   );
 }
