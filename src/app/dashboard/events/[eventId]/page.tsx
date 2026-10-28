@@ -9,10 +9,9 @@ import { getEventAccess, getOrigin } from "@/lib/data";
 import QRCode from "qrcode";
 import { CopyLink } from "@/components/copy-link";
 import { ScrollTo } from "@/components/scroll-to";
-import { RememberedPanel } from "@/components/remembered-panel";
 import { missing } from "@/lib/schema-check";
 import { conferenceBookedCount } from "@/lib/conference-access";
-import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import {
   eachDate,
   formatDate,
@@ -26,16 +25,15 @@ import {
 import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
-import { deleteEvent, publishAndOpen, setEventPublished } from "../../actions";
-import { DeleteEventButton } from "./delete-event";
+import { publishAndOpen, setVolunteerSignupOpen } from "../../actions";
+import { setBandRegistrationOpen } from "../../band-actions";
+import { setParentRegistrationOpen } from "./parents/actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
-import { DemoStart } from "@/components/demo-switcher";
 import { EventBannerSlot } from "@/components/event-banner-slot";
 import { liveEventBanners } from "@/lib/event-banners";
 import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
-import { personasFor } from "@/lib/demo";
 import { bookingWords, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
 import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, weeklySummary } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
@@ -65,6 +63,9 @@ type Invitation = {
   token: string;
   expires_at: string;
 };
+
+/** Everything saved on the event, for the one "Last change" line under its name. */
+const SAVE_AREAS = ["details", "publish", "volunteers", "bands", "schedule", "parents", "booths", "conference", "team", "files", "announcements"] as const;
 
 const ROLE_LABEL = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator" } as const;
 
@@ -175,15 +176,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? (((await supabase.from("event_files").select("id, event_id, label, path, file_name, content_type, size_bytes, audiences, visible_from, uploaded_by, uploaded_at").eq("event_id", eventId).order("created_at")).data ?? []) as EventFile[])
     : await filesFor([eventId], ["public", "team"], () => tz);
   const uploaded = access.isHost ? await uploadedLines(files, tz) : undefined;
-  // Demo mode, for FieldCommand admins (src/lib/demo.ts).
-  const demo = (await supabase.rpc("is_platform_admin")).data
-    ? {
-        active: Boolean(
-          (await createAdminClient().from("demo_events").select("event_id").eq("owner_id", user.id).eq("event_id", eventId).maybeSingle())
-            .data,
-        ),
-      }
-    : null;
   const days = eachDate(event.starts_on, event.ends_on);
   const multiDay = days.length > 1;
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
@@ -285,15 +277,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       capacity: s.max_capacity,
     }));
 
-  // The public event page, with a QR code to download for flyers, emails and slides.
   const publicUrl = `${await getOrigin()}/e/${event.slug}`;
-  const publicQr =
-    event.status === "published"
-      ? await Promise.all([
-          QRCode.toString(publicUrl, { type: "svg", margin: 1, width: 112 }),
-          QRCode.toDataURL(publicUrl, { margin: 2, width: 1024 }),
-        ])
-      : null;
 
   // Conferences: meeting times and where they meet (hosts and the team can read them).
   const conference = conferenceHere
@@ -312,6 +296,66 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const published = event.status === "published";
   // On the day (and once it's over), what's happening comes first; before it, setup and publishing.
   const dayFirst = isEventDay || (past && published);
+
+  // Links to share: one row for each kind of person the event has a public page for, at the top
+  // once it's live. A page that isn't usable yet says why instead of offering a dead link.
+  const base = `/dashboard/events/${eventId}`;
+  const shareRows: ShareRow[] = [
+    groupsHere
+      ? {
+          who: "Spectators",
+          what: roomsHere ? "Room schedule and what's on now" : "Performance schedule and what's on now",
+          url: publicUrl,
+          on: event.performance_order_published,
+          off: "Shows the schedule once you publish it",
+          fix: { label: "Publish the schedule", href: `${base}/${roomsHere ? "rooms#order-heading" : "schedule"}` },
+        }
+      : conferenceHere
+        ? { who: booking.Bookers, what: "Book a time", url: publicUrl, on: true }
+        : hasBooths(event.event_type)
+          ? { who: "Everyone", what: "What's at the event: booths and partners", url: publicUrl, on: true }
+          : { who: "Everyone", what: "Event page: date, place, and maps", url: publicUrl, on: true },
+    ...(groupsHere
+      ? [
+          {
+            who: `${words.One} directors`,
+            what: "Registration",
+            url: `${publicUrl}/bands`,
+            on: event.band_registration_open,
+            off: "Registration is closed",
+            fix: { label: "Open it", href: `${base}/bands` },
+          },
+        ]
+      : []),
+    ...(parentsHere
+      ? [
+          {
+            who: "Parents",
+            what: "Registration",
+            url: `${publicUrl}/parents`,
+            on: !parentRegistrationClosed(event),
+            off: "Registration is closed",
+            fix: { label: "Open it", href: `${base}/parents` },
+          },
+        ]
+      : []),
+    ...(!conferenceHere && (stations.length > 0 || event.event_type === "volunteer")
+      ? [
+          {
+            who: "Volunteers",
+            what: event.event_type === "volunteer" ? "Sign-up: shifts and things to bring" : "Sign-up",
+            url: `${publicUrl}/volunteer`,
+            on: event.volunteer_signup_open,
+            off: "Sign-up is closed",
+            fix: { label: "Open it", href: `${base}/volunteering` },
+          },
+        ]
+      : []),
+  ];
+  const shareQrs =
+    published && access.canManage
+      ? await Promise.all(shareRows.map((r) => (r.on ? QRCode.toDataURL(r.url, { margin: 2, width: 1024 }) : Promise.resolve(null))))
+      : [];
   const daysToGo = Math.round((Date.parse(event.starts_on) - Date.parse(today)) / 864e5);
   const words2 = leadWords(event.event_type);
 
@@ -513,7 +557,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const conferenceReady = !!conference?.times_saved_at && (published || conferenceBooked > 0);
   const signups = conferenceHere ? (
     access.isHost ? (
-      <PageSection id="signups" title={booking.child ? "Conference setup" : "Meeting setup"} saved={<SavedBy eventId={eventId} area="conference" />}>
+      <PageSection id="signups" title={booking.child ? "Conference setup" : "Meeting setup"}>
         <Card className={isEventDay ? "border-brand" : ""}>
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <div className="space-y-1 text-sm leading-6">
@@ -554,7 +598,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </PageSection>
     ) : null
   ) : parentsHere ? (
-    <PageSection id="signups" title={access.isHost ? "Parent registration" : "Parent check-in"} saved={<SavedBy eventId={eventId} area="parents" />}>
+    <PageSection id="signups" title={access.isHost ? "Parent registration" : "Parent check-in"}>
       <Card className={isEventDay ? "border-brand" : ""}>
         {isEventDay && <AutoRefresh seconds={30} />}
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
@@ -586,10 +630,23 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           )}
         </div>
         {!doorLocked && parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
+        {access.isHost && published && !past && (
+          <div className="mt-5">
+            <OpenClose
+              on={event.parent_registration_open}
+              onText="Registration open"
+              offText="Registration closed"
+              action={setParentRegistrationOpen.bind(null, eventId, !event.parent_registration_open)}
+              openLabel="Open registration"
+              closeLabel="Close registration"
+              confirm="Close parent registration? Families can't register until you open it again."
+            />
+          </div>
+        )}
       </Card>
     </PageSection>
   ) : groupsHere ? (
-    <PageSection id="signups" title={access.isHost ? `${words.One} registration` : words.Many} saved={<SavedBy eventId={eventId} area="bands" />}>
+    <PageSection id="signups" title={access.isHost ? `${words.One} registration` : words.Many}>
       <Card className="space-y-5">
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
           <p className="text-sm leading-6">
@@ -618,10 +675,21 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           </div>
         </div>
         {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
+        {access.isHost && published && !past && (
+          <OpenClose
+            on={event.band_registration_open}
+            onText="Registration open"
+            offText="Registration closed"
+            action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
+            openLabel="Open registration"
+            closeLabel="Close registration"
+            confirm={`Close ${words.one} registration? Directors can't register new ${words.many} until you open it again.`}
+          />
+        )}
       </Card>
     </PageSection>
   ) : hasBooths(event.event_type) ? (
-    <PageSection id="signups" title="Booths & partners" saved={<SavedBy eventId={eventId} area="booths" />}>
+    <PageSection id="signups" title="Booths & partners">
       <BoothsCard eventId={eventId} isDay={isEventDay} />
     </PageSection>
   ) : null;
@@ -629,7 +697,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const schedule =
     groupsHere && access.isHost ? (
-      <PageSection id="schedule" title={roomsHere ? "Rooms and schedule" : "Performance schedule"} saved={<SavedBy eventId={eventId} area="schedule" />}>
+      <PageSection id="schedule" title={roomsHere ? "Rooms and schedule" : "Performance schedule"}>
         <Card className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={event.performance_order_published ? "success" : "neutral"}>
@@ -650,13 +718,16 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   const volunteers =
     access.canManage && !conferenceHere ? (
-      <PageSection id="volunteers" title="Volunteers" saved={<SavedBy eventId={eventId} area="volunteers" />}>
+      <PageSection id="volunteers" title="Volunteers">
         <Card className="space-y-5">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={published && event.volunteer_signup_open ? "brand" : "neutral"}>
-                {!published ? "Event not published" : event.volunteer_signup_open ? "Signup open" : "Signup closed"}
-              </Badge>
+              {/* Hosts get open/closed with its switch at the bottom of the card; everyone else, here. */}
+              {!(access.isHost && published && !past) && (
+                <Badge tone={published && event.volunteer_signup_open ? "success" : "neutral"}>
+                  {!published ? "Event not published" : event.volunteer_signup_open ? "Sign-up open" : "Sign-up closed"}
+                </Badge>
+              )}
               <span className="text-sm text-muted">
                 {stations.length} sign-up{stations.length === 1 ? "" : "s"} · {(shifts ?? []).length} shift
                 {(shifts ?? []).length === 1 ? "" : "s"}
@@ -673,6 +744,17 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             checkedIn={isEventDay ? checkedIn : null}
             needs={needsPeople}
           />
+          {access.isHost && published && !past && (
+            <OpenClose
+              on={event.volunteer_signup_open}
+              onText="Sign-up open"
+              offText="Sign-up closed"
+              action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
+              openLabel="Open sign-up"
+              closeLabel="Close sign-up"
+              confirm="Close volunteer sign-up? The sign-up page stops taking new volunteers. Everyone already signed up keeps their spot."
+            />
+          )}
         </Card>
       </PageSection>
     ) : null;
@@ -680,7 +762,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   // Hosts add and manage files in event settings; the rest of the team sees what's shared with them.
   const filesBlock =
     !conferenceHere && !access.isHost && files.length > 0 ? (
-      <PageSection id="files" title="Maps & documents" saved={<SavedBy eventId={eventId} area="files" />}>
+      <PageSection id="files" title="Maps & documents">
         <Card className="space-y-5">
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between [&>*:last-child]:shrink-0">
             <p className="text-sm leading-6 text-muted">
@@ -692,15 +774,25 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </PageSection>
     ) : null;
 
-  const share = (
-    <PageSection id="share" title="Public page">
-      <PublicPageCard url={publicUrl} published={published} slug={event.slug} qr={publicQr} />
-    </PageSection>
-  );
+  // Before publishing: what publishing does, and the button. (Once live, unpublishing is in event settings.)
+  const publish = setup && checklist && !published ? <PublishPanel facts={setup} remaining={checklist.remaining} /> : null;
 
-  const publish =
-    setup && checklist ? (
-      <PublishPanel facts={setup} remaining={checklist.remaining} share={{ url: publicUrl, qrPng: publicQr?.[1] ?? null, slug: event.slug, booking: conferenceHere }} />
+  // Still setting up: the one thing to do next, in the main column too.
+  const nextUpStep = checklist && !published ? (checklist.inProgress ?? checklist.next) : null;
+  const next =
+    nextUpStep && nextUpStep.id !== "publish" ? (
+      <Card className="mt-8 border-2 border-brand">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{nextUpStep.partial ? "Pick up where you left off" : "Next step"}</p>
+            <p className="mt-1 text-lg font-semibold">{nextUpStep.label}</p>
+            <p className="mt-0.5 text-sm text-muted">{nextUpStep.partial ? nextUpStep.partial.note : nextUpStep.hint}</p>
+          </div>
+          <Link href={nextUpStep.href} className={`${BTN} shrink-0`}>
+            {nextUpStep.partial ? "Continue" : "Start"} →
+          </Link>
+        </div>
+      </Card>
     ) : null;
 
   const attentionBlock =
@@ -727,17 +819,20 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   // The team is managed in event settings (Coordinators in Volunteer Setup), and what needs
   // fixing there shows in "To do", so there's no Team card here.
-  const blocks: Record<string, ReactNode> = { publish, attention: attentionBlock, day, signups, schedule, volunteers, files: filesBlock, share };
+  const blocks: Record<string, ReactNode> = { next, publish, attention: attentionBlock, day, signups, schedule, volunteers, files: filesBlock };
+  // Setting up: the next step, the areas, then publishing. Live: what needs doing, then the areas.
+  // On the day (and after): the day first.
   const order = dayFirst
-    ? ["day", "attention", "signups", "schedule", "volunteers", "files", "publish", "share"]
-    : ["publish", "attention", "signups", "schedule", "volunteers", "day", "files", "share"];
+    ? ["day", "attention", "signups", "schedule", "volunteers", "files"]
+    : published
+      ? ["attention", "signups", "schedule", "volunteers", "day", "files"]
+      : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
   const labels: Record<string, string> = {
     day: dayTitle,
     signups: signupsLabel,
     schedule: roomsHere ? "Rooms" : "Schedule",
     volunteers: "Volunteers",
     files: "Maps & documents",
-    share: "Public page",
   };
   const navLinks = order.filter((k) => labels[k] && blocks[k]).map((k) => ({ id: k, label: labels[k] }));
   const latest = announcements[0];
@@ -753,8 +848,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             : undefined
       }
     >
-      {justPublished && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; share its link below.`} />}
-      {justPublished && <ScrollTo id="publish" />}
+      {justPublished && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; the links to share are at the top.`} />}
+      {justPublished && <ScrollTo id="share" />}
       {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">
@@ -762,7 +857,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           ← All events
         </Link>
 
-        {/* Name and details on the left; Edit details top right. Deleting lives at the very bottom. */}
+        {/* Name and details on the left; Event settings top right (unpublishing, demo, and deleting live there too). */}
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">{event.name}</h1>
@@ -774,7 +869,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               {formatDateRange(event.starts_on, event.ends_on)} · {windowLabel}
             </p>
             <p className="mt-1 text-sm text-muted">All times are {zoneName(tz)}.</p>
-            <SavedBy eventId={eventId} area="details" className="mt-2" />
+            <SavedBy eventId={eventId} area={SAVE_AREAS} label="Last change" className="mt-2" />
             {event.venue_address && (
               <p className="mt-1 text-sm text-muted">
                 {[event.venue_name, event.venue_address].filter(Boolean).join(" · ")}
@@ -792,10 +887,12 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           </div>
           {access.isHost && (
             <Link href={`/dashboard/events/${eventId}/edit`} className={`${BTN_OUTLINE} shrink-0 self-start`}>
-              Edit details
+              Event settings
             </Link>
           )}
         </div>
+
+        {published && access.canManage && <ShareLinks rows={shareRows} qrs={shareQrs} slug={event.slug} canFix={access.isHost} />}
 
         {/* Hosts and Volunteer Leads posted these, so one line is enough; the rest of the team sees them in full. */}
         {access.canManage ? (
@@ -818,7 +915,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           <EventBannerSlot eventId={eventId} audience="section_leads" tz={tz} className="mt-6" />
         )}
 
-        {navLinks.length >= 3 && (
+        {navLinks.length >= 4 && (
           <nav aria-label="On this page" className="relative -mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
             <ul className="flex gap-2 whitespace-nowrap sm:flex-wrap">
               {navLinks.map((l) => (
@@ -839,75 +936,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           <Fragment key={k}>{blocks[k]}</Fragment>
         ))}
 
-        {demo && (
-          <PageSection id="demo" title="Demo this event">
-            <Card className="space-y-3">
-              <p className="text-sm leading-6 text-muted">
-                {conferenceHere
-                  ? booking.child
-                    ? "Show a teacher how conferences work, as the teacher or as a parent booking a time."
-                    : "Show how meetings work, as the host or as someone booking a time."
-                  : "See this event the way each person on it does, without switching emails."}
-              </p>
-              <details className="text-sm leading-6 text-muted">
-                <summary className="cursor-pointer font-medium text-foreground">How demo works</summary>
-                {conferenceHere ? (
-                  <div className="mt-2 space-y-2">
-                    <p>
-                      {booking.child ? (
-                        <>
-                          Tap <strong className="text-foreground">Host</strong> to see it as the teacher, or{" "}
-                          <strong className="text-foreground">Parent</strong> to see the booking page a family gets (publish the conference first).
-                        </>
-                      ) : (
-                        <>
-                          Tap <strong className="text-foreground">Host</strong> to see it as yourself, or{" "}
-                          <strong className="text-foreground">Guest</strong> to see the booking page people get (publish your meetings first).
-                        </>
-                      )}
-                      A bar at the top switches between them; <strong className="text-foreground">Back to me</strong> returns you here.
-                    </p>
-                    <p>
-                      The first time, about two of every three meeting times fill with sample {booking.child ? "families" : "people"} (up
-                      to eight). If there are no meeting times yet, sample ones are set up (15-minute meetings, their choice of how to
-                      meet, Room 214). Sample {booking.child ? "families" : "people"} never get emails, and <strong className="text-foreground">Remove demo people</strong> takes all of it back off.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-2 space-y-2">
-                    <p>
-                      Tap a role and this browser signs in as a demo person in that role: a co-host, a Volunteer Lead, a Coordinator (of
-                      the first stations),{groupsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift,
-                      or a parent looking at the public page. A bar at the top switches roles; <strong className="text-foreground">Back to me</strong>{" "}
-                      takes the demo people and sample data back off and returns you here, still signed in.
-                    </p>
-                    <p>
-                      The first time, the event fills with sample data for its kind: sign-ups and shifts with a dozen volunteers
-                      {bandsHere ? ", six bands" : groupsHere ? ", five groups and three rooms" : ""}
-                      {event.event_type === "school_visit" ? ", eight parent registrations" : ""}
-                      {event.event_type === "fair" ? ", eight booths across four zones" : ""}. Use a practice event: the demo people
-                      really are on it. Sample people never get emails, and <strong className="text-foreground">Remove demo people</strong>{" "}
-                      takes all of it back off.
-                    </p>
-                  </div>
-                )}
-              </details>
-              <DemoStart eventId={eventId} personas={personasFor(event.event_type)} active={demo.active} />
-            </Card>
-          </PageSection>
-        )}
-
-        {access.isHost && (
-          <section aria-labelledby="delete-heading" className="mt-14 border-t border-border pt-6">
-            <h2 id="delete-heading" className="text-sm font-semibold">
-              Delete this event
-            </h2>
-            <p className="mt-1 text-sm text-muted">Removes the event and everything in it. This can&apos;t be undone.</p>
-            <div className="mt-3">
-              <DeleteEventButton name={event.name} action={deleteEvent.bind(null, eventId)} />
-            </div>
-          </section>
-        )}
       </div>
     </div>
   );
@@ -930,129 +958,28 @@ function PageSection({ id, title, saved, children }: { id: string; title: string
 }
 
 /**
- * Publish or unpublish, with what that does in plain words, so hosts know
- * when they're ready and that nothing is sent or locked in.
+ * Publishing, with what that does in plain words, so hosts know when they're
+ * ready and that nothing is sent or locked in. (Unpublishing is in event settings.)
  */
 function PublishPanel({
   facts,
   remaining,
-  share,
 }: {
   facts: SetupFacts;
   remaining: ReturnType<typeof setupChecklist>["remaining"];
-  /** The public page (a conference's booking page), to share once it's live. */
-  share: { url: string; qrPng: string | null; slug: string; booking: boolean };
 }) {
-  const words = groupWords(facts.eventType);
-  if (facts.published) {
-    // Each thing people can use or see, whether it's on, and where to change it.
-    type Live = { label: string; on: boolean; onText: string; offText: string; href: string; note?: string; link?: string };
-    // A registration that's open has its own link to share.
-    const open = (label: string, on: boolean, href: string, path: string): Live => ({
-      label,
-      on,
-      onText: "Open",
-      offText: "Closed",
-      href,
-      link: `${share.url}/${path}`,
-    });
-    const shown = (label: string, on: boolean, href: string, note?: string): Live => ({
-      label,
-      on,
-      onText: "Viewable",
-      offText: "Not published",
-      href,
-      note,
-    });
-    const live: Live[] = [
-      ...(facts.stations > 0 || facts.eventType === "volunteer" ? [open("Volunteer sign-up", facts.volunteerSignupOpen, "volunteering", "volunteer")] : []),
-      ...(hasEnsembles(facts.eventType) ? [open(`${words.One} registration`, facts.bandRegistrationOpen, "bands", "bands")] : []),
-      ...(facts.eventType === "band_contest" ? [shown("Performance schedule", facts.scheduleShared, "schedule")] : []),
-      ...(facts.eventType === "band_contest" && facts.finalsSlots > 0
-        ? [
-            shown(
-              "Finals schedule",
-              facts.finalsPublished,
-              "schedule",
-              facts.finalsPublished && !facts.finalistsRevealed ? "Finalist names not revealed yet" : undefined,
-            ),
-          ]
-        : []),
-      ...(hasRooms(facts.eventType) ? [shown("Room schedule", facts.scheduleShared, "rooms#order-heading")] : []),
-      ...(hasParents(facts.eventType) ? [open("Parent registration", facts.parentRegistrationOpen, "parents", "parents")] : []),
-    ];
-    return (
-      <Card id="publish" className="mt-8 scroll-mt-6">
-        <h2 className="text-lg font-semibold">Your event is live</h2>
-        <SavedBy eventId={facts.eventId} area="publish" className="mt-1" />
-        <div className="mt-4 rounded-md border border-border bg-background p-3 text-sm leading-6">
-          <p className="font-semibold">Share your {share.booking ? "booking page" : "event page"}</p>
-          <p className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <a href={share.url} target="_blank" rel="noreferrer" className="break-all font-mono text-brand underline-offset-4 hover:underline">
-              {share.url.replace(/^https?:\/\//, "")} ↗
-            </a>
-            <CopyLink url={share.url} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline" />
-            {share.qrPng && (
-              <a
-                href={share.qrPng}
-                download={`${share.slug}-qr.png`}
-                className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline"
-              >
-                Download QR code
-              </a>
-            )}
-          </p>
-        </div>
-        <p className="mt-4 text-sm text-muted">Here&apos;s what people can use and see right now:</p>
-        {live.length > 0 && (
-          <ul className="mt-3 space-y-2 text-sm">
-            {live.map((l) => (
-              <li key={l.label} className="flex flex-wrap items-center gap-2">
-                <Badge tone={l.on ? "success" : "neutral"}>{l.on ? l.onText : l.offText}</Badge>
-                <span>{l.label}</span>
-                {l.note && <span className="text-muted">· {l.note}</span>}
-                <Link
-                  href={`/dashboard/events/${facts.eventId}/${l.href}`}
-                  className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline"
-                >
-                  {l.on ? "Manage" : l.offText === "Closed" ? "Open it" : "Publish it"}
-                </Link>
-                {l.on && l.link && (
-                  <CopyLink url={l.link} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline" />
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="mt-4 border-t border-border pt-4">
-          <ActionButton
-            action={setEventPublished.bind(null, facts.eventId, false)}
-            variant="quiet-stop"
-            confirmMessage="Unpublish? The public pages will be hidden and volunteer sign-up will close. You can publish again anytime."
-          >
-            Unpublish event
-          </ActionButton>
-        </div>
-      </Card>
-    );
-  }
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
       <h2 className="text-lg font-semibold">{remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
-      <SavedBy eventId={facts.eventId} area="publish" className="mt-1" />
       {remaining.length ? (
-        <div className="mt-3 rounded-md bg-warning-soft p-3 text-sm">
-          <p className="font-medium">We recommend finishing {remaining.length === 1 ? "this" : "these"} first:</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            {remaining.map((r) => (
-              <li key={r.id}>
-                <Link href={r.href} className="font-medium text-brand underline-offset-4 hover:underline">
-                  {r.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        // The checklist beside the page lists every step; here, just the first one left.
+        <p className="mt-2 text-sm">
+          <span className="text-muted">We recommend finishing {remaining.length === 1 ? "one more step" : `${remaining.length} more steps`} first, starting with </span>
+          <Link href={remaining[0].href} className="font-medium text-brand underline-offset-4 hover:underline">
+            {remaining[0].label}
+          </Link>
+          .
+        </p>
       ) : (
         <p className="mt-2 flex items-center gap-2 text-sm font-medium text-success">
           <span aria-hidden>✓</span> Everything your event needs is set up.
@@ -1105,49 +1032,116 @@ function PublishPanel({
 
 type TeamUpdate = { tone: "warn" | "good"; text: string; tab: string | null };
 
-function PublicPageCard({ url, published, slug, qr }: { url: string; published: boolean; slug: string; qr: [string, string] | null }) {
-  const display = url.replace(/^https?:\/\//, "");
-  if (!published || !qr) {
-    return (
-      <Card className="text-sm leading-6">
-        <p className="text-muted">
-          Goes live at <span className="font-mono text-foreground">{display}</span> when you publish, with a QR code to share.
-        </p>
-      </Card>
-    );
-  }
+type ShareRow = {
+  who: string;
+  what: string;
+  url: string;
+  on: boolean;
+  /** Why the page isn't usable yet, and where to change that. */
+  off?: string;
+  fix?: { label: string; href: string };
+};
+
+/**
+ * Links to share, at the top of a live event: every public page it has, one
+ * row per kind of person (spectators, directors, parents, volunteers), each
+ * with its link, Copy link, and a QR code to download.
+ */
+function ShareLinks({ rows, qrs, slug, canFix }: { rows: ShareRow[]; qrs: (string | null)[]; slug: string; canFix: boolean }) {
+  const linkClass = "inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline";
   return (
-    <RememberedPanel
-      id="public-page"
-      defaultOpen={false}
-      showLabel="Show QR code"
-      hideLabel="Hide QR code"
-      header={
-        <div className="text-sm leading-6">
-          <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <a href={url} target="_blank" rel="noreferrer" className="break-all font-mono text-brand underline-offset-4 hover:underline">
-              {display} ↗
-            </a>
-            <CopyLink url={url} className="font-medium text-brand underline-offset-4 hover:underline" />
-          </span>
-        </div>
-      }
-    >
-      <div className="flex flex-wrap items-center gap-4">
-        <div
-          className="shrink-0 rounded-md border border-border bg-white p-1"
-          aria-label="QR code for the public event page"
-          role="img"
-          dangerouslySetInnerHTML={{ __html: qr[0] }}
-        />
-        <div className="min-w-0 flex-1 space-y-2 text-sm leading-6">
-          <p className="text-muted">Share the link or QR code in emails, flyers, and slides.</p>
-          <a href={qr[1]} download={`${slug}-qr.png`} className="inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline">
-            Download QR code
-          </a>
-        </div>
+    <section id="share" aria-labelledby="share-heading" className="mt-6 scroll-mt-6 rounded-lg border border-border bg-surface">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-3">
+        <h2 id="share-heading" className="text-sm font-semibold">
+          Links to share
+        </h2>
+        <p className="hidden text-xs text-muted sm:block">Each opens a page anyone with the link can use</p>
       </div>
-    </RememberedPanel>
+      <ul className="divide-y divide-border">
+        {rows.map((r, i) => (
+          <li key={r.who} className="grid gap-x-4 gap-y-1 px-4 py-2.5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:items-center">
+            <p className="text-sm leading-5">
+              <span className="block font-semibold">{r.who}</span>
+              <span className="block text-xs text-muted">{r.what}</span>
+            </p>
+            {r.on ? (
+              <div className="flex min-w-0 flex-wrap items-center gap-x-4 text-sm sm:flex-nowrap">
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={r.url}
+                  className="min-w-0 max-w-full truncate font-mono text-[13px] text-brand underline underline-offset-4"
+                >
+                  {r.url.replace(/^https?:\/\//, "")} ↗
+                </a>
+                <span className="flex shrink-0 gap-x-4 whitespace-nowrap">
+                  <CopyLink url={r.url} className={linkClass} />
+                  {qrs[i] && (
+                    <a href={qrs[i]!} download={`${slug}-${r.url.split("/").pop()}-qr.png`} className={linkClass}>
+                      QR code
+                    </a>
+                  )}
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm leading-6">
+                <span className="block break-all font-mono text-[13px] text-muted">{r.url.replace(/^https?:\/\//, "")}</span>
+                <span className="text-muted">{r.off}</span>
+                {canFix && r.fix && (
+                  <>
+                    {" · "}
+                    <Link href={r.fix.href} className="font-medium text-brand underline-offset-4 hover:underline">
+                      {r.fix.label}
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** A card's open/closed line: where it stands, that the link is at the top, and the switch. */
+function OpenClose({
+  on,
+  onText,
+  offText,
+  action,
+  openLabel,
+  closeLabel,
+  confirm,
+}: {
+  on: boolean;
+  onText: string;
+  offText: string;
+  action: () => Promise<unknown>;
+  openLabel: string;
+  closeLabel: string;
+  confirm: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+      <p className="flex flex-wrap items-center gap-2 text-sm">
+        <Badge tone={on ? "success" : "neutral"}>{on ? onText : offText}</Badge>
+        {on && (
+          <a href="#share" className="text-muted underline-offset-4 hover:underline">
+            Link is in Links to share
+          </a>
+        )}
+      </p>
+      <ActionButton
+        action={action as never}
+        variant={on ? "quiet-stop" : "go"}
+        confirmMessage={on ? confirm : undefined}
+        pendingText={on ? "Closing…" : "Opening…"}
+      >
+        {on ? closeLabel : openLabel}
+      </ActionButton>
+    </div>
   );
 }
 

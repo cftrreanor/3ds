@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
 import { SettingsNav, type SettingsSection } from "./settings-nav";
 import { TeamRoles } from "../team/team-roles";
-import { EVENT_TYPES, eventTypeLabel, groupWords, leadWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, isMeeting } from "@/lib/event-types";
+import { EVENT_TYPES, bookingWords, eventTypeLabel, groupWords, leadWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, isMeeting } from "@/lib/event-types";
 import { ActionButton } from "../forms";
 import { getEventAccess } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
@@ -19,7 +19,11 @@ import { NotifyForm, type TeamMember } from "./notify-form";
 import { MAX_EXTRA_EMAILS, notifyKinds, type NotifyKind } from "@/lib/notify-kinds";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
-import { setEventShowBrand, setEventType, updateEvent } from "../../../actions";
+import { deleteEvent, setEventPublished, setEventShowBrand, setEventType, updateEvent } from "../../../actions";
+import { DeleteEventButton } from "../delete-event";
+import { DemoStart } from "@/components/demo-switcher";
+import { personasFor } from "@/lib/demo";
+import { requireUser } from "@/lib/auth";
 import { deleteFile, prepareUpload, saveFile } from "../../../file-actions";
 import { FilesManager } from "./files-manager";
 import { asksChildName, loadConferenceSettings } from "@/lib/conference-settings";
@@ -30,7 +34,7 @@ import { SavedBy } from "@/components/saved-by";
 import { LogoForm } from "@/components/logo-form";
 import { loadBrand } from "@/lib/badges";
 
-export const metadata: Metadata = { title: "Edit Event Details" };
+export const metadata: Metadata = { title: "Event Settings" };
 
 const TYPE_SUMMARY = {
   band_contest: "Bands register, get performance times, and are checked in on contest day, alongside your volunteers.",
@@ -71,7 +75,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
-  const ALL_SECTIONS = ["details", "files", "team", "emails"] as const;
+  const ALL_SECTIONS = ["details", "files", "team", "emails", "more"] as const;
   type Section = (typeof ALL_SECTIONS)[number];
   // Conferences and meetings share no maps or documents: their booking pages and emails have no place for them.
   const SECTIONS = ALL_SECTIONS.filter((x) => x !== "files" || !hasConferences(event.event_type));
@@ -210,15 +214,27 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     ...(conference ? [] : [{ id: "files", label: "Maps & documents", done: files.length > 0, status: files.length ? `${files.length} ${files.length === 1 ? "file" : "files"}` : "Optional" }]),
     { id: "team", label: "Team setup", done: teamCount > 0, status: teamCount ? `${teamCount} ${teamCount === 1 ? "person" : "people"}` : "Optional" },
     { id: "emails", label: "Email settings", done: Boolean(replyRow || notifySaved), status: replyRow || notifySaved ? "Saved" : "Default" },
+    { id: "more", label: "Publishing & more", done: event.status === "published", status: event.status === "published" ? "Live" : "Draft" },
   ];
   const published = event.status === "published";
+  // Demo mode, for FieldCommand admins (src/lib/demo.ts).
+  const demo =
+    section === "more" && (await supabase.rpc("is_platform_admin")).data
+      ? {
+          active: Boolean(
+            (await createAdminClient().from("demo_events").select("event_id").eq("owner_id", (await requireUser()).id).eq("event_id", eventId).maybeSingle()).data,
+          ),
+        }
+      : null;
+  const conferenceHere = conference;
+  const booking = bookingWords(event.event_type);
 
   return (
     <div className="mx-auto max-w-5xl">
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{published ? "Edit Event Details" : "Set Up Your Event"}</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event Settings</h1>
       <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
       <div className="mt-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
         <SettingsNav sections={sections} current={section} base={base} />
@@ -407,6 +423,95 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                     </p>
                   </>
                 )}
+              </Panel>
+            </>
+          )}
+
+          {section === "more" && (
+            <>
+              <Panel
+                title="Publishing"
+                intro={
+                  published
+                    ? "Your event is live. Unpublishing hides its public pages and stops every sign-up and registration. Nobody is emailed, and you can publish again anytime."
+                    : "Your event isn't published yet. Publish it from the event page when you're ready."
+                }
+              >
+                {published ? (
+                  <ActionButton
+                    action={setEventPublished.bind(null, eventId, false)}
+                    variant="stop"
+                    confirmMessage="Unpublish? The public pages will be hidden and volunteer sign-up will close. You can publish again anytime."
+                  >
+                    Unpublish event
+                  </ActionButton>
+                ) : (
+                  <Link href={`/dashboard/events/${eventId}#publish`} className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand">
+                    Go to Publish
+                  </Link>
+                )}
+              </Panel>
+
+              {demo && (
+                <Panel title="Try it as someone else">
+                  <div className="space-y-3">
+                  <p className="text-sm leading-6 text-muted">
+                    {conferenceHere
+                      ? booking.child
+                        ? "Show a teacher how conferences work, as the teacher or as a parent booking a time."
+                        : "Show how meetings work, as the host or as someone booking a time."
+                      : "See this event the way each person on it does, without switching emails."}
+                  </p>
+                  <details className="text-sm leading-6 text-muted">
+                    <summary className="cursor-pointer font-medium text-foreground">How demo works</summary>
+                    {conferenceHere ? (
+                      <div className="mt-2 space-y-2">
+                        <p>
+                          {booking.child ? (
+                            <>
+                              Tap <strong className="text-foreground">Host</strong> to see it as the teacher, or{" "}
+                              <strong className="text-foreground">Parent</strong> to see the booking page a family gets (publish the conference first).
+                            </>
+                          ) : (
+                            <>
+                              Tap <strong className="text-foreground">Host</strong> to see it as yourself, or{" "}
+                              <strong className="text-foreground">Guest</strong> to see the booking page people get (publish your meetings first).
+                            </>
+                          )}
+                          A bar at the top switches between them; <strong className="text-foreground">Back to me</strong> returns you here.
+                        </p>
+                        <p>
+                          The first time, about two of every three meeting times fill with sample {booking.child ? "families" : "people"} (up
+                          to eight). If there are no meeting times yet, sample ones are set up (15-minute meetings, their choice of how to
+                          meet, Room 214). Sample {booking.child ? "families" : "people"} never get emails, and <strong className="text-foreground">Remove demo people</strong> takes all of it back off.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        <p>
+                          Tap a role and this browser signs in as a demo person in that role: a co-host, a Volunteer Lead, a Coordinator (of
+                          the first stations),{groupsHere && <> the director of &ldquo;Demo High School&rdquo;,</>} a volunteer with a shift,
+                          or a parent looking at the public page. A bar at the top switches roles; <strong className="text-foreground">Back to me</strong>{" "}
+                          takes the demo people and sample data back off and returns you here, still signed in.
+                        </p>
+                        <p>
+                          The first time, the event fills with sample data for its kind: sign-ups and shifts with a dozen volunteers
+                          {bandsHere ? ", six bands" : groupsHere ? ", five groups and three rooms" : ""}
+                          {event.event_type === "school_visit" ? ", eight parent registrations" : ""}
+                          {event.event_type === "fair" ? ", eight booths across four zones" : ""}. Use a practice event: the demo people
+                          really are on it. Sample people never get emails, and <strong className="text-foreground">Remove demo people</strong>{" "}
+                          takes all of it back off.
+                        </p>
+                      </div>
+                    )}
+                  </details>
+                  <DemoStart eventId={eventId} personas={personasFor(event.event_type)} active={demo.active} />
+                  </div>
+                </Panel>
+              )}
+
+              <Panel title="Delete this event" intro="Removes the event and everything in it. This can't be undone.">
+                <DeleteEventButton name={event.name} action={deleteEvent.bind(null, eventId)} />
               </Panel>
             </>
           )}

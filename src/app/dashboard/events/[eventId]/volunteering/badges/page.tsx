@@ -147,7 +147,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
                 ))}
               </Select>
               <span className="mt-1 block text-xs font-normal text-muted">
-                {maps.length ? "From this event's Maps & documents." : "Upload a map in Maps & documents on Edit details to print it on the back."}
+                {maps.length ? "From this event's Maps & documents." : "Upload a map in Maps & documents in Event settings to print it on the back."}
               </span>
             </label>
             <div className="flex items-end sm:col-span-2">

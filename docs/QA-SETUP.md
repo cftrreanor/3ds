@@ -118,7 +118,7 @@ Every QA page has a **QA tools** button in the bottom-right corner. It opens:
 
 To see a different day (an event tomorrow, or happening right now), make the
 ready-made event that's dated that way, or change an event's date on its
-**Edit details** page.
+**Event settings** page.
 
 ---
 
