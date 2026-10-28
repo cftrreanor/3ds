@@ -21,7 +21,9 @@ export function HeaderMenu({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    // A window opened from the menu (Sign out's choices) isn't "outside": keep the menu, and so the window, open.
+    const away = (e: PointerEvent) =>
+      !ref.current?.contains(e.target as Node) && !(e.target as Element).closest?.("dialog") && setOpen(false);
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);

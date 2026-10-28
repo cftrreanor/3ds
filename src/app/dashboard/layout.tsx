@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DemoBar } from "@/components/demo-bar";
+import { SignOutButton } from "@/components/sign-out-button";
 import { HeaderMenu } from "@/components/header-menu";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PrintRecordNote } from "@/components/print-record-note";
@@ -58,18 +59,16 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <Link href="/dashboard/account" className={`${headerLinkClass} hidden sm:block`}>
             Account
           </Link>
-          <form action="/auth/signout" method="post" className="hidden sm:block">
-            <button className={headerLinkClass}>Sign out</button>
-          </form>
+          <div className="hidden sm:block">
+            <SignOutButton className={headerLinkClass} />
+          </div>
           {/* Phones: Account and Sign out tuck into a menu. */}
           <div className="sm:hidden">
             <HeaderMenu>
               <Link href="/dashboard/account" className={MENU_ITEM}>
                 Account
               </Link>
-              <form action="/auth/signout" method="post">
-                <button className={MENU_ITEM}>Sign out</button>
-              </form>
+              <SignOutButton className={MENU_ITEM} />
             </HeaderMenu>
           </div>
         </HeaderBar>
