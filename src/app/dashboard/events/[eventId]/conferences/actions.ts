@@ -116,9 +116,6 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
     if (!DATE.test(from) || !DATE.test(to)) return { error: "Pick your first and last day." };
     if (to < from) return { error: "Your last day has to be on or after your first day." };
     if (Date.parse(to) - Date.parse(from) > 366 * 86_400_000) return { error: "Weekly hours can run for up to a year. Pick an earlier last day." };
-    const closed = [...new Set(formData.getAll("closedDate").map(String).filter(Boolean))].sort();
-    if (closed.some((d) => !DATE.test(d))) return { error: "Pick a date for each day off, or remove it." };
-    if (closed.length > 60) return { error: "Add up to 60 days off." };
     const notice = Number(formData.get("minNotice"));
     const ahead = Number(formData.get("maxAhead"));
     if (!(NOTICE_HOURS as readonly number[]).includes(notice)) return { error: "Pick how much notice families give." };
@@ -129,7 +126,6 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
       ...common,
       schedule: "weekly",
       weekly_hours: sortWeekly(hours),
-      closed_dates: closed,
       min_notice_hours: notice,
       max_days_ahead: ahead,
     });
@@ -186,6 +182,22 @@ export async function saveMeetingTimes(eventId: string, _prev: ActionState, form
     };
   }
   return { ok: true, message: "Meeting times saved." };
+}
+
+/** Days off (weekly hours only): holidays and breaks when no meetings are booked. Saved on their own tab. */
+export async function saveDaysOff(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const closed = [...new Set(formData.getAll("closedDate").map(String).filter(Boolean))].sort();
+  if (closed.some((d) => !DATE.test(d))) return { error: "Pick a date for each day off, or remove it." };
+  if (closed.length > 60) return { error: "Add up to 60 days off." };
+  const supabase = await createClient();
+  const { settings, error: loadError } = await loadConferenceSettings(supabase, eventId);
+  if (loadError) return { error: "Only the host can change days off." };
+  if (settings.schedule !== "weekly") return { error: "Days off are for weekly hours. Save your weekly hours first." };
+  const error = await saveSettings(eventId, { closed_dates: closed });
+  if (error) return { error: friendlyDbError(error) };
+  refresh(eventId);
+  return { ok: true, message: "Days off saved." };
 }
 
 /**

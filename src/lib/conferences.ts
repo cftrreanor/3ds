@@ -204,26 +204,26 @@ export function meetingSummary(starts: string[], meetingMinutes: number) {
 }
 
 /**
- * What step 2 (where you'll meet) still needs (null when done). In person
+ * What the Where you'll meet tab still needs (null when done). In person
  * needs the school's address (kept on the event) and a room; video needs a
  * link pasted here with the waiting room ticked, unless the teacher sends
  * their own.
  */
 export function placeMissing(s: ConferenceSettings | null, venueAddress: string | null, eventType?: string | null): string | null {
   const modes = modesOf(s);
-  if (!s || !modes.length) return "Choose where you'll meet (step 2).";
-  if (modes.includes("in_person") && !venueAddress?.trim()) return eventType === "meeting" ? "Add the address (step 2)." : "Add your school's address (step 2).";
-  if (modes.includes("in_person") && !s.room?.trim()) return "Add your room and directions (step 2).";
-  if (modes.includes("video") && !s.own_link && !s.video_link) return "Add your meeting link (step 2).";
+  if (!s || !modes.length) return "Choose where you'll meet.";
+  if (modes.includes("in_person") && !venueAddress?.trim()) return eventType === "meeting" ? "Add the address." : "Add your school's address.";
+  if (modes.includes("in_person") && !s.room?.trim()) return "Add your room and directions.";
+  if (modes.includes("video") && !s.own_link && !s.video_link) return "Add your meeting link.";
   if (modes.includes("video") && !s.own_link && !s.waiting_room_confirmed)
-    return "Tick that your meeting has a waiting room and runs the whole time (step 2).";
+    return "Tick that your meeting has a waiting room and runs the whole time.";
   return null;
 }
 
 /** What's still needed before publishing, matching the database's check (null when ready). */
 export function notReady(s: ConferenceSettings | null, venueAddress: string | null, eventType?: string | null): string | null {
-  if (!s?.times_saved_at) return "Save your meeting times (step 1).";
-  if (s.schedule === "weekly" && !s.weekly_hours.length) return "Add your weekly hours (step 1).";
+  if (!s?.times_saved_at) return "Save your meeting times.";
+  if (s.schedule === "weekly" && !s.weekly_hours.length) return "Add your weekly hours.";
   return placeMissing(s, venueAddress, eventType);
 }
 

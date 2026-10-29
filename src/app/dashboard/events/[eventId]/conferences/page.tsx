@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SetupStep, StepStatus } from "@/components/setup-step";
+import QRCode from "qrcode";
+import { Badge, Card } from "@/components/ui";
 import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, placeMissing, weeklyMeetingCount, weeklySummary } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
-import { getEventAccess } from "@/lib/data";
+import { getEventAccess, getOrigin } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
 import { hasConferences, isMeeting } from "@/lib/event-types";
 import { displayTime } from "@/lib/schedule";
@@ -13,27 +14,30 @@ import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
 import { publishAndOpen, setEventPublished } from "../../../actions";
-import { ActionButton } from "../forms";
-import { saveMeetingPlace, saveMeetingTimes } from "./actions";
+import { ActionButton, CopyLinkButton } from "../forms";
+import { saveDaysOff, saveMeetingPlace, saveMeetingTimes } from "./actions";
 import { conferenceBookedCount } from "@/lib/conference-access";
-import { ConferencePublishBar, ConferenceSetup, MeetingPlaceForm, MeetingTimesForm } from "./conference-forms";
+import { ConferenceSetup, DaysOffForm, MeetingPlaceForm, MeetingTimesForm, PublishWhenSaved } from "./conference-forms";
+import { SetupTabs } from "../../_components/setup-tabs";
 import { SavedBy } from "@/components/saved-by";
 
 export const metadata: Metadata = { title: "Setup" };
 
 /**
- * A teacher sets up their parent-teacher conferences in steps (see "Setup
- * pages" in docs/DESIGN.md): 1. meeting times, 2. where they'll meet.
+ * A teacher sets up their parent-teacher conferences (or meetings), like Band
+ * Registration: a card with where it stands, the booking link, and Publish;
+ * then tabs for meeting times, where they'll meet, and (with weekly hours) days off.
  */
-export default async function ConferencesPage({ params }: PageProps<"/dashboard/events/[eventId]/conferences">) {
+export default async function ConferencesPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/conferences">) {
   const { eventId } = await params;
+  const { tab } = await searchParams;
   const access = await getEventAccess(eventId);
   if (!access.isHost) redirect(`/dashboard/events/${eventId}`);
 
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, organization_id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng")
+    .select("id, organization_id, slug, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -62,8 +66,27 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
   const weeklyIncluded = plan?.weekly_hours ?? true;
   const placeTodo = placeMissing(saved, event.venue_address, event.event_type);
 
+  const missingNow = notReady(saved, event.venue_address, event.event_type);
+  const blocked = missingNow ?? (typeof planReason === "string" ? planReason : null);
+  const daysOffHere = weekly;
+  const offCount = settings.closed_dates.length;
+  // The open tab: ?tab=, else what's still to do.
+  const tabs = ["times", "place", ...(daysOffHere ? ["daysoff"] : [])];
+  const current = tabs.find((t) => t === tab) ?? (!timesDone ? "times" : placeTodo ? "place" : "times");
+  const base = `/dashboard/events/${eventId}/conferences`;
+  // Where the missing piece is set up, for the note under the buttons.
+  const fixTab = !missingNow ? null : !timesDone || (weekly && !settings.weekly_hours.length) ? "times" : "place";
+  const bookingUrl = `${await getOrigin()}/e/${event.slug}/book`;
+  const [qrSvg, qrPng] = await Promise.all([
+    QRCode.toString(bookingUrl, { type: "svg", margin: 1, width: 160 }),
+    QRCode.toDataURL(bookingUrl, { margin: 2, width: 1024 }),
+  ]);
+  const smallButton = "inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background";
+  const count = weekly ? `${perWeek} ${perWeek === 1 ? "meeting" : "meetings"} each week` : meetingSummary(starts, settings.meeting_minutes);
+
   return (
-    <div className="mx-auto max-w-3xl">
+    // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
+    <div className="mx-auto max-w-3xl" data-required-marks>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
@@ -77,83 +100,171 @@ export default async function ConferencesPage({ params }: PageProps<"/dashboard/
       </p>
 
       <ConferenceSetup>
-        <ConferencePublishBar
-          published={published}
-          meeting={meeting}
-          missing={
-            notReady(saved, event.venue_address, event.event_type) ?? (typeof planReason === "string" ? planReason : null)
-          }
-        >
-          {published ? (
-            <ActionButton
-              action={setEventPublished.bind(null, eventId, false)}
-              variant="stop"
-              pendingText="Unpublishing…"
-              confirmMessage={`Unpublish your ${meeting ? "meetings" : "conference"}? Your public page will be hidden. You can publish again anytime.`}
-            >
-              Unpublish
-            </ActionButton>
-          ) : (
-            <ActionButton
-              action={publishAndOpen.bind(null, eventId)}
-              variant="go"
-              pendingText="Publishing…"
-            >
-              Publish
-            </ActionButton>
-          )}
-        </ConferencePublishBar>
+        {/* Where it stands, the booking link, and Publish. */}
+        <Card className="mt-6">
+          <p className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge tone={published ? "live" : "neutral"}>{published ? "Published" : "Not published"}</Badge>
+            <span className="text-muted">
+              {timesDone ? count : "No meeting times yet"}
+              {published && timesDone ? ` · ${booked} booked` : ""}
+            </span>
+          </p>
+          <div className="mt-4">
+            <p className="text-sm font-medium">Booking link</p>
+            <p className="mt-1 break-all text-sm text-muted">{bookingUrl}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <CopyLinkButton url={bookingUrl} label="Copy link" />
+              <a href={`/e/${event.slug}/book`} target="_blank" className={smallButton}>
+                Preview page
+              </a>
+              <Link href={`${base}/meetings`} className={smallButton}>
+                Meetings list
+              </Link>
+              <PublishWhenSaved>
+                {published ? (
+                  <ActionButton
+                    action={setEventPublished.bind(null, eventId, false)}
+                    variant="stop"
+                    className="px-3! text-xs!"
+                    pendingText="Unpublishing…"
+                    confirmMessage={`Unpublish your ${meeting ? "meetings" : "conference"}? Your public page will be hidden. You can publish again anytime.`}
+                  >
+                    Unpublish
+                  </ActionButton>
+                ) : (
+                  !blocked && (
+                    <ActionButton action={publishAndOpen.bind(null, eventId)} variant="go" className="px-3! text-xs!" pendingText="Publishing…">
+                      Publish
+                    </ActionButton>
+                  )
+                )}
+              </PublishWhenSaved>
+            </div>
+            {!published && blocked && (
+              <p className="mt-3 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm">
+                To publish: {blocked}{" "}
+                {fixTab && fixTab !== current && (
+                  <Link href={`${base}?tab=${fixTab}`} scroll={false} className="font-medium underline">
+                    {fixTab === "times" ? "Go to Meeting times" : "Go to Where you'll meet"}
+                  </Link>
+                )}
+              </p>
+            )}
+            {/* Tucked away to keep the top of the page short; open it to show or download the code. */}
+            <details className="group mt-1">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground">
+                <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
+                  ›
+                </span>
+                QR code
+              </summary>
+              <div className="mt-2 flex flex-col items-start gap-2">
+                <div
+                  className="rounded-lg border border-border bg-white p-2"
+                  aria-label="QR code for the booking link"
+                  role="img"
+                  dangerouslySetInnerHTML={{ __html: qrSvg }}
+                />
+                <a href={qrPng} download={`${event.slug}-booking-qr.png`} className="inline-flex min-h-11 items-center text-xs font-medium text-brand underline-offset-4 hover:underline">
+                  Download QR code
+                </a>
+              </div>
+            </details>
+          </div>
+        </Card>
 
-        <SetupStep
-          id="times"
-          title="1. Meeting times"
-          status={
-            <StepStatus
-              done={timesDone}
-              doneLabel={weekly ? `Every week · ${perWeek} ${perWeek === 1 ? "meeting" : "meetings"} each week` : meetingSummary(starts, settings.meeting_minutes)}
-            />
-          }
-          open={!timesDone}
-          intro={`One day or the same times every week, how long each meeting is, and any breaks. Your hours are cut into meetings ${who} can book.`}
-        >
-          <MeetingTimesForm
-            action={saveMeetingTimes.bind(null, eventId)}
-            initial={settings}
-            date={event.starts_on}
-            endDate={event.ends_on}
-            start={start}
-            end={end}
-            booked={booked}
-            weeklyIncluded={weeklyIncluded}
-            planName={plan?.active_name ?? null}
-            meeting={meeting}
+        <div className="mt-10">
+          <SetupTabs
+            label={meeting ? "Meeting setup" : "Conference setup"}
+            tabs={[
+              {
+                key: "times",
+                label: "Meeting times",
+                status: timesDone ? (weekly ? `Every week · ${perWeek} ${perWeek === 1 ? "meeting" : "meetings"}` : count) : "Needs to be done",
+                mark: timesDone ? "done" : "todo",
+                href: `${base}?tab=times`,
+                active: current === "times",
+              },
+              {
+                key: "place",
+                label: "Where you'll meet",
+                status: placeTodo ? "Needs to be done" : (modesLabel(modesOf(settings)) ?? "Done"),
+                mark: placeTodo ? "todo" : "done",
+                href: `${base}?tab=place`,
+                active: current === "place",
+              },
+              // Days off are only for weekly hours: a one-day conference has none.
+              ...(daysOffHere
+                ? [
+                    {
+                      key: "daysoff",
+                      label: "Days off",
+                      status: offCount ? `${offCount} ${offCount === 1 ? "day off" : "days off"}` : "Optional",
+                      mark: offCount ? ("done" as const) : undefined,
+                      href: `${base}?tab=daysoff`,
+                      active: current === "daysoff",
+                    },
+                  ]
+                : []),
+            ]}
           />
-        </SetupStep>
-
-        <SetupStep
-          id="place"
-          title="2. Where you'll meet"
-          status={<StepStatus done={!placeTodo} doneLabel={modesLabel(modesOf(settings)) ?? "Done"} />}
-          open={timesDone && Boolean(placeTodo)}
-          intro={`Your room, a video link, phone calls, or any mix. ${meeting ? "People" : "Families"} wait until you're ready for them, or you call them.`}
-        >
-          <MeetingPlaceForm
-            action={saveMeetingPlace.bind(null, eventId)}
-            initial={settings}
-            hours={hours}
-            venue={{
-              name: event.venue_name,
-              address: event.venue_address,
-              placeId: event.venue_place_id,
-              lat: event.venue_lat,
-              lng: event.venue_lng,
-            }}
-            venueSearchEnabled={isPlacesConfigured}
-            timezone={tz}
-            meeting={meeting}
-            lastRoom={settings.room ? null : await lastRoom(supabase, event.organization_id, eventId)}
-          />
-        </SetupStep>
+          <Card className="mt-6">
+            {current === "times" && (
+              <>
+                <h2 className="text-lg font-semibold">Meeting times</h2>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  One day or the same times every week, how long each meeting is, and any breaks. Your hours are cut into meetings {who} can book.
+                </p>
+                <MeetingTimesForm
+                  action={saveMeetingTimes.bind(null, eventId)}
+                  initial={settings}
+                  date={event.starts_on}
+                  endDate={event.ends_on}
+                  start={start}
+                  end={end}
+                  booked={booked}
+                  weeklyIncluded={weeklyIncluded}
+                  planName={plan?.active_name ?? null}
+                  meeting={meeting}
+                />
+              </>
+            )}
+            {current === "place" && (
+              <>
+                <h2 className="text-lg font-semibold">Where you&apos;ll meet</h2>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  Your room, a video link, phone calls, or any mix. {meeting ? "People" : "Families"} wait until you&apos;re ready for them, or you call them.
+                </p>
+                <MeetingPlaceForm
+                  action={saveMeetingPlace.bind(null, eventId)}
+                  initial={settings}
+                  hours={hours}
+                  venue={{
+                    name: event.venue_name,
+                    address: event.venue_address,
+                    placeId: event.venue_place_id,
+                    lat: event.venue_lat,
+                    lng: event.venue_lng,
+                  }}
+                  venueSearchEnabled={isPlacesConfigured}
+                  timezone={tz}
+                  meeting={meeting}
+                  lastRoom={settings.room ? null : await lastRoom(supabase, event.organization_id, eventId)}
+                  saved={!placeTodo}
+                />
+              </>
+            )}
+            {current === "daysoff" && (
+              <>
+                <h2 className="text-lg font-semibold">Days off</h2>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  Optional. Holidays, field trips, or a break like winter break. No meetings are booked on them. Leave Through blank for a single day.
+                </p>
+                <DaysOffForm action={saveDaysOff.bind(null, eventId)} closedDates={settings.closed_dates} meeting={meeting} />
+              </>
+            )}
+          </Card>
+        </div>
       </ConferenceSetup>
     </div>
   );

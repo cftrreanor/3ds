@@ -1,9 +1,8 @@
 "use client";
 
-import { createContext, use, useState, type ReactNode } from "react";
+import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react";
 import { linkFrom, passcodeFrom } from "@/lib/meeting-link";
 import { ActionForm } from "@/components/action-form";
-import { PublishBar, PublishLine } from "@/components/publish-bar";
 import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Field, Input, Select, Textarea } from "@/components/ui";
@@ -36,18 +35,18 @@ import { formatDate } from "@/lib/time";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
-// Which steps have unsaved changes: publishing waits until they're saved or
+// Which tabs have unsaved changes: publishing waits until they're saved or
 // cancelled (see "Setup pages" in docs/DESIGN.md).
 const Editing = createContext<{ editing: string[]; set: (id: string, on: boolean) => void }>({ editing: [], set: () => {} });
 
-/** The setup steps and their publish bar, sharing which steps are being edited. */
+/** The setup tabs and the Publish button, sharing which tabs are being edited. */
 export function ConferenceSetup({ children }: { children: ReactNode }) {
   const [editing, setEditing] = useState<string[]>([]);
   const set = (id: string, on: boolean) =>
     setEditing((ids) => (on ? (ids.includes(id) ? ids : [...ids, id]) : ids.filter((x) => x !== id)));
   return (
     <Editing value={{ editing, set }}>
-      <div className="mt-6 flex flex-col gap-3">{children}</div>
+      {children}
     </Editing>
   );
 }
@@ -57,46 +56,56 @@ function useEditing(id: string) {
   return [editing.includes(id), (on: boolean) => set(id, on)] as const;
 }
 
-/** Publish or unpublish the conference; waits while a step has unsaved changes. */
-export function ConferencePublishBar({
-  published,
-  missing,
-  meeting = false,
-  children,
-}: {
-  published: boolean;
-  meeting?: boolean;
-  /** What's still needed before publishing, or null when ready. */
-  missing: string | null;
-  /** The Publish / Unpublish button. */
-  children?: ReactNode;
-}) {
+/** The Publish / Unpublish button, or, while a tab has unsaved changes, a note to save them first. */
+export function PublishWhenSaved({ children }: { children: ReactNode }) {
   const { editing } = use(Editing);
-  const busy = editing.length > 0;
-  return (
-    <PublishBar>
-      <PublishLine
-        label={meeting ? "Meetings" : "Conference"}
-        on={published}
-        status={published ? "Published: your public page is online" : missing ? `Not published. ${missing}` : "Not published"}
-      >
-        {!busy && (published || !missing) ? children : null}
-      </PublishLine>
-      {busy && <p className="text-sm text-muted">Save or cancel your changes first, then publish.</p>}
-    </PublishBar>
-  );
+  return editing.length ? <p className="text-sm text-muted">Save or cancel your changes first, then publish.</p> : <>{children}</>;
 }
 
-/** Save and Cancel under a step's boxes; Cancel shows only once something has changed. */
-function SaveCancel({ editing, onCancel, label, disabled }: { editing: boolean; onCancel: () => void; label: string; disabled?: boolean }) {
+/**
+ * The Save bar pinned to the bottom of the screen until the tab's card ends,
+ * saying whether anything's unsaved. Cancel shows only once something has changed.
+ */
+function SaveCancel({
+  editing,
+  onCancel,
+  label,
+  disabled,
+  saved = true,
+}: {
+  editing: boolean;
+  onCancel: () => void;
+  label: string;
+  disabled?: boolean;
+  /** Saved at least once (a new conference's steps start "Not saved yet"). */
+  saved?: boolean;
+}) {
+  // Something changed (typing, or a button like Remove): leaving the tab asks first (setup-leave.tsx).
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (editing) bar.current?.closest("form")?.dispatchEvent(new Event("change", { bubbles: true }));
+  }, [editing]);
   return (
-    <div className="flex flex-wrap gap-2">
-      <SubmitButton disabled={disabled}>{label}</SubmitButton>
+    <div
+      ref={bar}
+      className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:-mx-6 sm:-mb-6 sm:px-6"
+    >
+      <p className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-live="polite">
+        {editing || !saved ? (
+          <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
+        ) : (
+          <span aria-hidden className="font-bold text-success">
+            ✓
+          </span>
+        )}
+        <span className="font-semibold">{editing ? "Unsaved changes" : saved ? "All changes saved" : "Not saved yet"}</span>
+      </p>
       {editing && (
-        <Button type="button" variant="secondary" onClick={onCancel}>
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
       )}
+      <SubmitButton disabled={disabled || (saved && !editing)}>{label}</SubmitButton>
     </div>
   );
 }
@@ -182,8 +191,6 @@ function TimesForm({
   );
   // Weekly hours as days that share the same times; each picked day is saved as its own block.
   const [groups, setGroups] = useState<GroupDraft[]>(() => groupWeekly(initial.weekly_hours).map((g, i) => ({ key: i, ...g })));
-  // Days off as runs of dates (a single day, or a break like Dec 21 – Jan 4).
-  const [daysOff, setDaysOff] = useState<DaysOffDraft[]>(() => dateRuns(initial.closed_dates).map((r, i) => ({ key: i, ...r })));
   const [nextKey, setNextKey] = useState(100);
   const newKey = () => {
     setNextKey((k) => k + 1);
@@ -203,7 +210,6 @@ function TimesForm({
   const starts = meetingStarts(from, to, lengths);
   const weeklyHours = groups.flatMap((g) => (g.start && g.end && g.end > g.start ? g.days.map((day) => ({ day, start: g.start, end: g.end })) : []));
   const perWeek = weeklyMeetingCount(weeklyHours, lengths);
-  const offDates = [...new Set(daysOff.flatMap((d) => datesBetween(d.from, d.to)))];
   const changeGroup = (key: number, patch: Partial<GroupDraft>) => setGroups((gs) => gs.map((g) => (g.key === key ? { ...g, ...patch } : g)));
   const change = (key: number, patch: Partial<BreakDraft>) => setBreaks((bs) => bs.map((b) => (b.key === key ? { ...b, ...patch } : b)));
 
@@ -354,63 +360,6 @@ function TimesForm({
                 + Add different hours
               </Button>
             )}
-          </fieldset>
-
-          <fieldset>
-            <legend className="text-sm font-semibold">Days off</legend>
-            <p className="text-sm text-muted">
-              Holidays, field trips, or a break like winter break. No meetings are booked on them. Leave the last day blank for a single day.
-            </p>
-            {daysOff.length > 0 && (
-              <ul className="mt-3 space-y-3">
-                {daysOff.map((d) => (
-                  <li key={d.key} className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[10rem_10rem_auto]">
-                    <Field label="Day off">
-                      <Input
-                        type="date"
-                        required
-                        value={d.from}
-                        onChange={(e) => setDaysOff((ds) => ds.map((x) => (x.key === d.key ? { ...x, from: e.target.value } : x)))}
-                      />
-                    </Field>
-                    <Field label="Through (optional)">
-                      <Input
-                        type="date"
-                        min={d.from}
-                        value={d.to === d.from ? "" : d.to}
-                        onChange={(e) => setDaysOff((ds) => ds.map((x) => (x.key === d.key ? { ...x, to: e.target.value } : x)))}
-                      />
-                    </Field>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      className="col-span-2 sm:col-span-1"
-                      onClick={() => {
-                        setDaysOff((ds) => ds.filter((x) => x.key !== d.key));
-                        setEditing(true);
-                      }}
-                    >
-                      Remove Day Off
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {offDates.map((date) => (
-              <input key={date} type="hidden" name="closedDate" value={date} />
-            ))}
-            {offDates.length > 60 && <p className="mt-2 text-sm font-semibold text-danger">Add up to 60 days off in all.</p>}
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-3"
-              onClick={() => {
-                setDaysOff((ds) => [...ds, { key: newKey(), from: "", to: "" }]);
-                setEditing(true);
-              }}
-            >
-              + Add a day off
-            </Button>
           </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -584,7 +533,106 @@ function TimesForm({
         )}
       </div>
 
-      <SaveCancel editing={editing} onCancel={onCancel} label="Save meeting times" />
+      <SaveCancel editing={editing} onCancel={onCancel} label="Save meeting times" saved={Boolean(initial.times_saved_at)} />
+    </ActionForm>
+  );
+}
+
+/** Days off, with weekly hours: holidays, field trips, or a break like winter break. Saved on their own tab. */
+export function DaysOffForm({ action, closedDates, meeting }: { action: Action; closedDates: string[]; meeting?: boolean }) {
+  const [version, setVersion] = useState(0);
+  const [editing, setEditing] = useEditing("daysoff");
+  return (
+    <DaysOffFields
+      key={version}
+      action={action}
+      closedDates={closedDates}
+      meeting={meeting}
+      editing={editing}
+      setEditing={setEditing}
+      onCancel={() => {
+        setVersion((v) => v + 1);
+        setEditing(false);
+      }}
+    />
+  );
+}
+
+function DaysOffFields({
+  action,
+  closedDates,
+  meeting,
+  editing,
+  setEditing,
+  onCancel,
+}: {
+  action: Action;
+  closedDates: string[];
+  meeting?: boolean;
+  editing: boolean;
+  setEditing: (on: boolean) => void;
+  onCancel: () => void;
+}) {
+  const w = whoBooks(meeting);
+  // Days off as runs of dates (a single day, or a break like Dec 21 – Jan 4).
+  const [daysOff, setDaysOff] = useState<DaysOffDraft[]>(() => dateRuns(closedDates).map((r, i) => ({ key: i, ...r })));
+  const [nextKey, setNextKey] = useState(100);
+  const offDates = [...new Set(daysOff.flatMap((d) => datesBetween(d.from, d.to)))];
+  return (
+    <ActionForm action={action} resetOnSuccess={false} className="space-y-4" onEdit={() => setEditing(true)} onSuccess={() => setEditing(false)}>
+      {daysOff.length > 0 ? (
+        <ul className="space-y-3">
+          {daysOff.map((d) => (
+            <li key={d.key} className="grid grid-cols-2 items-end gap-3 rounded-lg border border-border p-3 sm:grid-cols-[10rem_10rem_auto]">
+              <Field label="Day off">
+                <Input
+                  type="date"
+                  required
+                  value={d.from}
+                  onChange={(e) => setDaysOff((ds) => ds.map((x) => (x.key === d.key ? { ...x, from: e.target.value } : x)))}
+                />
+              </Field>
+              <Field label="Through (optional)">
+                <Input
+                  type="date"
+                  min={d.from}
+                  value={d.to === d.from ? "" : d.to}
+                  onChange={(e) => setDaysOff((ds) => ds.map((x) => (x.key === d.key ? { ...x, to: e.target.value } : x)))}
+                />
+              </Field>
+              <Button
+                type="button"
+                variant="danger"
+                className="col-span-2 sm:col-span-1"
+                onClick={() => {
+                  setDaysOff((ds) => ds.filter((x) => x.key !== d.key));
+                  setEditing(true);
+                }}
+              >
+                Remove Day Off
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted">No days off yet. {w.Families} can book any week you meet.</p>
+      )}
+      {offDates.map((date) => (
+        <input key={date} type="hidden" name="closedDate" value={date} />
+      ))}
+      {offDates.length > 60 && <p className="text-sm font-semibold text-danger">Add up to 60 days off in all.</p>}
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => {
+          setDaysOff((ds) => [...ds, { key: nextKey, from: "", to: "" }]);
+          setNextKey((k) => k + 1);
+          setEditing(true);
+        }}
+      >
+        + Add a day off
+      </Button>
+      <SaveCancel editing={editing} onCancel={onCancel} label="Save days off" />
     </ActionForm>
   );
 }
@@ -602,6 +650,8 @@ type PlaceProps = {
   meeting?: boolean;
   /** The room and directions from their last conference or meeting, to start from when this one has none yet. */
   lastRoom?: string | null;
+  /** Everything this needs is saved (nothing left to fill in before publishing). */
+  saved?: boolean;
 };
 
 /** Step 2: in person, video (one meeting with a waiting room for the whole time), or the family's choice. */
@@ -634,6 +684,7 @@ function PlaceForm({
   setEditing,
   onCancel,
   lastRoom,
+  saved,
 }: PlaceProps & { editing: boolean; setEditing: (on: boolean) => void; onCancel: () => void }) {
   const w = whoBooks(meeting);
   const [modes, setModes] = useState<Mode[]>(modesOf(initial));
@@ -847,7 +898,7 @@ function PlaceForm({
         </div>
       )}
 
-      <SaveCancel editing={editing} onCancel={onCancel} label="Save" disabled={!modes.length} />
+      <SaveCancel editing={editing} onCancel={onCancel} label="Save" disabled={!modes.length} saved={saved} />
     </ActionForm>
   );
 }
