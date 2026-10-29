@@ -21,7 +21,8 @@ const FROM_ADDRESS = FROM.match(/<([^>]+)>/)?.[1] ?? FROM;
  */
 function fromWithName(name: string | null | undefined) {
   const clean = (name ?? "").replace(/["\\<>\r\n]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
-  return clean ? `"${clean} via ${brand.name}" <${FROM_ADDRESS}>` : FROM;
+  // An organization named like us (our own test accounts) just sends as us, not "Field Command Events via Field Command Events".
+  return clean && clean.toLowerCase() !== brand.name.toLowerCase() ? `"${clean} via ${brand.name}" <${FROM_ADDRESS}>` : FROM;
 }
 
 /** The From and Reply-To for an email: the event's organizer when there's an event. */
