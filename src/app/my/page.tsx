@@ -16,8 +16,9 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { formatDate, formatTime, formatTimeRange, utcToZonedDate } from "@/lib/time";
 import { icsDownloadUrl } from "@/lib/volunteer-emails";
 import { hasPass, readPass } from "@/lib/volunteer-pass";
-import { cancelMyItem, cancelMyShift } from "./actions";
-import { CancelItemButton, CancelShiftButton, EmailMyLinkForm, ForgetDeviceButton } from "./forms";
+import { ineligibleReason } from "@/lib/group-signup";
+import { cancelMyItem, cancelMyShift, swapMyShift } from "./actions";
+import { CancelItemButton, CancelShiftButton, EmailMyLinkForm, ForgetDeviceButton, SwitchShiftForm } from "./forms";
 
 export const metadata: Metadata = { title: "My volunteering" };
 
@@ -60,7 +61,7 @@ type ItemRow = {
 };
 
 export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
-  const { as, link } = await searchParams;
+  const { as, link, go } = await searchParams;
   // "as" is the email someone just signed up with (from the confirmation screen).
   const signedUpAs = typeof as === "string" && as.includes("@") ? as.trim().toLowerCase() : undefined;
   const [user, pass] = await Promise.all([getUser(), readPass()]);
@@ -134,6 +135,59 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   const signupLinks = new Map((openEvents ?? []).map((e) => [e.id, { slug: e.slug as string, name: e.name as string }]));
   const eventsWithoutShifts = [...signupLinks.entries()].filter(([id]) => !byEvent.has(id) && !itemsByEvent.has(id));
 
+  // Shifts each one could switch to: open spots, allowed for their age, in an event still taking sign-ups (pass holders only).
+  const switchable = hasPass(pass) ? upcoming.filter((r) => !r.checked_in_at && signupLinks.has(r.event_id)) : [];
+  const switchTo = new Map<string, { id: string; label: string }[]>();
+  if (switchable.length) {
+    const admin = createAdminClient();
+    const [{ data: who }, { data: openShifts }] = await Promise.all([
+      admin.from("volunteer_assignments").select("id, volunteer_id, volunteers(minor, age)").in("id", switchable.map((r) => r.assignment_id)),
+      admin
+        .from("shifts")
+        .select("id, event_id, title, starts_at, ends_at, max_capacity, registered_count, adults_only, min_age, stations(name, adults_only, signup_kind)")
+        .in("event_id", [...new Set(switchable.map((r) => r.event_id))])
+        .gt("starts_at", new Date().toISOString())
+        .order("starts_at"),
+    ]);
+    type Who = { id: string; volunteer_id: string; volunteers: { minor: boolean; age: number | null } | null };
+    const people = new Map(((who ?? []) as unknown as Who[]).map((w) => [w.id, w]));
+    const { data: theirs } = await admin
+      .from("volunteer_assignments")
+      .select("volunteer_id, shift_id")
+      .in("volunteer_id", [...new Set([...people.values()].map((w) => w.volunteer_id))]);
+    type Open = {
+      id: string;
+      event_id: string;
+      title: string;
+      starts_at: string;
+      ends_at: string;
+      max_capacity: number;
+      registered_count: number;
+      adults_only?: boolean;
+      min_age?: number | null;
+      stations: { name: string; adults_only: boolean } | null;
+    };
+    for (const r of switchable) {
+      const w = people.get(r.assignment_id);
+      if (!w) continue;
+      const taken = new Set((theirs ?? []).filter((t) => t.volunteer_id === w.volunteer_id).map((t) => t.shift_id as string));
+      const options = ((openShifts ?? []) as unknown as Open[])
+        .filter((s) => s.event_id === r.event_id && !taken.has(s.id) && s.registered_count < s.max_capacity)
+        .filter(
+          (s) =>
+            !ineligibleReason(
+              { minor: Boolean(w.volunteers?.minor), age: w.volunteers?.age ?? null },
+              { adultsOnly: Boolean(s.adults_only || s.stations?.adults_only), minAge: s.min_age ?? null },
+            ),
+        )
+        .map((s) => ({
+          id: s.id,
+          label: `${s.stations?.name ?? s.title}: ${formatDate(utcToZonedDate(s.starts_at, r.timezone), { year: undefined })}, ${formatTimeRange(s.starts_at, s.ends_at, r.timezone)}`,
+        }));
+      if (options.length) switchTo.set(r.assignment_id, options);
+    }
+  }
+
   const mismatch =
     user && signedUpAs && signedUpAs !== user.email.toLowerCase() && ![...rows, ...items].some((r) => r.volunteer_email === signedUpAs)
       ? signedUpAs
@@ -161,6 +215,16 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
           <div className="mt-6">
             <EventBanners banners={banners} />
           </div>
+        )}
+
+        {(go === "change" || go === "cancel") && rows.length > 0 && (
+          <Card className="mt-6 bg-brand-soft">
+            <p className="text-sm">
+              {go === "change"
+                ? "To change your sign-up, tap “Switch to another time” on the shift below."
+                : "To cancel your sign-up, tap “Cancel this shift” on the shift below."}
+            </p>
+          </Card>
         )}
 
         {link === "invalid" && (
@@ -245,7 +309,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
                   <ul className="mt-2 space-y-3">
                     {shifts.map((r) => (
                       <li key={r.assignment_id}>
-                        <ShiftCard row={r} origin={origin} />
+                        <ShiftCard row={r} origin={origin} switchTo={switchTo.get(r.assignment_id)} openSwitch={go === "change"} />
                       </li>
                     ))}
                   </ul>
@@ -279,7 +343,18 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   );
 }
 
-function ShiftCard({ row: r, origin }: { row: AgendaRow; origin: string }) {
+function ShiftCard({
+  row: r,
+  origin,
+  switchTo,
+  openSwitch,
+}: {
+  row: AgendaRow;
+  origin: string;
+  /** Shifts they could switch to instead. */
+  switchTo?: { id: string; label: string }[];
+  openSwitch?: boolean;
+}) {
   const tz = r.timezone;
   const google = googleCalendarUrl({
     timezone: tz,
@@ -344,6 +419,7 @@ function ShiftCard({ row: r, origin }: { row: AgendaRow; origin: string }) {
         <span className="text-sm text-muted">{r.checked_in_at ? "✓ Checked in" : ""}</span>
         {!r.checked_in_at && <CancelShiftButton action={cancelMyShift.bind(null, r.assignment_id)} label={r.station_name} />}
       </div>
+      {switchTo && <SwitchShiftForm action={swapMyShift.bind(null, r.assignment_id)} options={switchTo} open={openSwitch} />}
     </Card>
   );
 }

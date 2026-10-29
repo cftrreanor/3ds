@@ -6,7 +6,7 @@ import { Card } from "@/components/ui";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
-import { signUpVolunteer } from "./actions";
+import { currentSpots, signUpVolunteer } from "./actions";
 import { eventPhase, sortStations } from "@/lib/contest-day";
 import { hasBooths, leadWords } from "@/lib/event-types";
 import { SignupForm, type PublicStation } from "./signup-form";
@@ -43,7 +43,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
       .order("created_at"),
     supabase
       .from("shifts")
-      .select("id, station_id, title, description, starts_at, ends_at, max_capacity, registered_count")
+      // Every column: adults_only and min_age arrive with the 20270102000000 update, and the page works without them.
+      .select("*")
       .eq("event_id", event.id)
       .gt("ends_at", new Date().toISOString())
       .order("starts_at"),
@@ -68,6 +69,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
           description: s.description,
           when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}`,
           spotsLeft: s.max_capacity - s.registered_count,
+          adultsOnly: st.adults_only || Boolean((s as { adults_only?: boolean }).adults_only),
+          minAge: (s as { min_age?: number | null }).min_age ?? null,
         })),
       items: (items ?? [])
         .filter((i) => i.station_id === st.id)
@@ -141,6 +144,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
         ) : (
           <SignupForm
             action={signUpVolunteer.bind(null, event.id)}
+            spots={currentSpots.bind(null, event.id)}
             stations={publicStations}
             disabled={!isOpen}
             lead={leadWords(event.event_type).one}
