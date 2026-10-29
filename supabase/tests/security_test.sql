@@ -6786,4 +6786,49 @@ delete from public.volunteer_dropped_shifts;
 
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
+-- ---------------------------------------------------------------------------
+-- Feedback (20270103000000): only the server saves it, only platform admins read it.
+-- ---------------------------------------------------------------------------
+set role service_role;
+insert into public.feedback (kind, message, page, sender_hash, email)
+values ('bug', 'The Save button did nothing.', '/e/future/volunteer', 'abc', 'sam@example.com');
+reset role;
+set role anon;
+do $$ begin
+  begin
+    insert into public.feedback (kind, message, page, sender_hash) values ('idea', 'Spam', '/', 'x');
+    raise exception 'FAIL: the public saved feedback directly';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.feedback;
+    raise exception 'FAIL: the public read feedback';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.feedback), 'a host can''t read anyone''s feedback';
+  begin
+    insert into public.feedback (kind, message, page, sender_hash) values ('idea', 'Sneaky', '/', 'x');
+    raise exception 'FAIL: a signed-in user saved feedback directly';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert (select count(*) from public.feedback) = 1, 'a platform admin reads feedback';
+end $$;
+reset role;
+delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
+delete from public.feedback;
+do $$ begin
+  assert not (select public from storage.buckets where id = 'feedback-screenshots'), 'feedback screenshots are private';
+end $$;
+
 \echo 'All database security tests passed.'
