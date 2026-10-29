@@ -14,6 +14,7 @@ import { brand as product } from "@/lib/brand";
 import { isSchemaError } from "@/lib/schema-check";
 import { saveEmailSetup, saveReplies } from "../../../reply-actions";
 import { RepliesForm } from "./replies-form";
+import { senderName } from "@/lib/sender-name";
 import { saveNotifyRecipients } from "../../../notify-actions";
 import { NotifyForm, type TeamMember } from "./notify-form";
 import { MAX_EXTRA_EMAILS, notifyKinds, type NotifyKind } from "@/lib/notify-kinds";
@@ -152,12 +153,12 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     supabase.from("parent_registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId),
     supabase.from("fair_booths").select("id", { count: "exact", head: true }).eq("event_id", eventId),
   ]);
-  // Email replies: who the emails show as from, and where replies go (lib/event-sender).
+  // Email settings: who the emails come from, and where replies go (lib/event-sender).
   const admin = createAdminClient();
   const [{ data: replyRow, error: replyError }, { data: creator }, { data: org }] = await Promise.all([
-    supabase.from("event_email_settings").select("replies, reply_to").eq("event_id", eventId).maybeSingle(),
+    supabase.from("event_email_settings").select("replies, reply_to, sender_id").eq("event_id", eventId).maybeSingle(),
     event.created_by ? admin.from("profiles").select("full_name, email").eq("id", event.created_by).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("organizations").select("name").eq("id", event.organization_id).maybeSingle(),
+    supabase.from("organizations").select("name, account_kind, school").eq("id", event.organization_id).maybeSingle(),
   ]);
   const conference = hasConferences(event.event_type);
   // Notifications: each kind of email the event sends its organizers, and who gets it.
@@ -199,11 +200,28 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     kinds: kinds.map((k) => k.kind).filter((k) => savedKinds.get(k)?.extra_emails.includes(email)),
   }));
   const notifySaved = savedKinds.size > 0;
-  // An organization named like the product sends as the product alone (lib/email.ts), not "X via X".
-  const namedSender = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
-  const senderName = namedSender.toLowerCase() === product.name.toLowerCase() ? "" : namedSender;
+  // Who emails can come from: the account's hosts, each with how the emails would show ("Becca Smith, Boosters via …").
+  const senders = ((memberRows ?? []) as unknown as PersonRow[])
+    .map((m) => {
+      const shown = senderName({
+        person: m.profiles?.full_name,
+        organization: org?.name,
+        school: org?.account_kind === "teacher" ? org.school : null,
+      });
+      return {
+        id: m.user_id,
+        label: `${m.profiles?.full_name?.trim() || m.profiles?.email || "Someone on your team"} (${m.role === "owner" ? "Account Host" : "Co-host"})`,
+        email: m.profiles?.email ?? null,
+        shownAs: `${shown ? `${shown} via ` : ""}${product.name}`,
+        owner: m.role === "owner",
+      };
+    })
+    .sort((a, b) => Number(b.owner) - Number(a.owner));
+  // Not chosen yet: whoever created the event.
+  const savedSender = (replyRow as { sender_id?: string | null } | null)?.sender_id;
+  const sender = senders.find((x) => x.id === (savedSender ?? event.created_by)) ?? senders[0];
   const repliesOn = replyRow ? replyRow.replies : true;
-  const replyTo = replyRow?.reply_to || (creator?.email as string | undefined) || "";
+  const replyTo = replyRow?.reply_to || sender?.email || (creator?.email as string | undefined) || "";
   const repliesUnavailable = isSchemaError(replyError);
   const bandsHere = hasBands(event.event_type);
   const groupsHere = hasEnsembles(event.event_type);
@@ -365,12 +383,12 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           {section === "emails" && (
             <EmailStep setup={guided} action={saveEmailSetup.bind(null, eventId, nextStep ?? `/dashboard/events/${eventId}`)} back={prevStep} skip={nextStep}>
               <Panel
-                title="Email replies"
-                intro={`Emails about this event show as from \u201c${senderName ? `${senderName} via ` : ""}${product.name}\u201d. Choose whether people can reply to them.`}
+                title="Who emails come from"
+                intro="Everyone who gets an email about this event sees this name. Pick who it's from, and whether people can reply."
               >
                 {repliesUnavailable ? (
                   <p className="text-sm text-muted">
-                    A database update is needed before replies can be set up. See “Applying database updates” in the setup guide.
+                    A database update is needed before this can be set up. See “Applying database updates” in the setup guide.
                   </p>
                 ) : (
                   <RepliesForm
@@ -378,6 +396,8 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                     action={saveReplies.bind(null, eventId)}
                     replies={repliesOn}
                     replyTo={replyTo}
+                    senders={senders.map(({ id, label, shownAs }) => ({ id, label, shownAs }))}
+                    sender={sender?.id ?? null}
                     who={
                       conference
                         ? "Families"

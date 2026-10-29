@@ -5264,6 +5264,24 @@ do $$ begin
   assert (select reply_to from public.event_email_settings where event_id = '10000000-0000-0000-0000-00000000000a') = 'info@boosters.org',
          'the Volunteer Lead''s change didn''t apply';
 end $$;
+-- Who emails come from: one of the account's hosts, never anyone else.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  update public.event_email_settings set sender_id = '00000000-0000-0000-0000-000000000001'
+   where event_id = '10000000-0000-0000-0000-00000000000a';
+  assert (select sender_id from public.event_email_settings where event_id = '10000000-0000-0000-0000-00000000000a')
+         = '00000000-0000-0000-0000-000000000001', 'a host names themself as who emails come from';
+  begin
+    -- The Volunteer Lead is on the event's team but isn't one of the account's hosts.
+    update public.event_email_settings set sender_id = '00000000-0000-0000-0000-000000000002'
+     where event_id = '10000000-0000-0000-0000-00000000000a';
+    raise exception 'FAIL: emails were set to come from someone who isn''t a host';
+  exception when raise_exception then
+    if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+end $$;
+reset role;
 set role anon;
 do $$ begin
   begin

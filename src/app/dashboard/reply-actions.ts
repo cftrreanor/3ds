@@ -10,7 +10,7 @@ import { saveNotifyRecipients } from "./notify-actions";
 
 const EMAIL = /^[^@\s<>",;]+@[^@\s<>",;]+\.[^@\s<>",;]+$/i;
 
-/** Edit details → Email replies: whether replies to this event's emails go somewhere, and where. */
+/** Email settings → Who emails come from: the person they're from, and whether replies go somewhere, and where. */
 export async function saveReplies(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const replies = formData.get("replies") === "on";
   const replyTo = String(formData.get("replyTo") ?? "").trim().toLowerCase();
@@ -18,6 +18,9 @@ export async function saveReplies(eventId: string, _prev: ActionState, formData:
   if (replies && (!EMAIL.test(replyTo) || replyTo.length > 254)) {
     return { error: "That email doesn't look right.", fieldErrors: { replyTo: "Check the email" } };
   }
+  // Who the emails come from (one of the account's hosts; the database checks).
+  const sender = formData.has("sender") ? String(formData.get("sender") ?? "") : undefined;
+  if (sender !== undefined && sender && !/^[0-9a-f-]{36}$/i.test(sender)) return { error: "Pick who the emails come from." };
   const supabase = await createClient();
   const { saved, error } = await saveRow(
     supabase,
@@ -27,6 +30,7 @@ export async function saveReplies(eventId: string, _prev: ActionState, formData:
       replies,
       // Kept when replies are off, so turning them back on remembers it.
       reply_to: replyTo || null,
+      ...(sender !== undefined ? { sender_id: sender || null } : {}),
       updated_at: new Date().toISOString(),
     },
   );

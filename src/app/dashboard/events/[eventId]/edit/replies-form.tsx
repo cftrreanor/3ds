@@ -3,15 +3,17 @@
 import { useState } from "react";
 import { ActionForm, useFieldErrors } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
-import { Field, Input } from "@/components/ui";
+import { Field, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 
-/** Edit details → Email replies: on (to an address) or off. */
+/** Email settings → Who emails come from: the person they're from, and replies on (to an address) or off. */
 export function RepliesForm({
   action,
   replies,
   replyTo,
   who,
+  senders = [],
+  sender = null,
   bare = false,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -19,10 +21,16 @@ export function RepliesForm({
   replyTo: string;
   /** Who gets this event's emails: "Band directors and volunteers". */
   who: string;
+  /** The account's hosts, each with how the emails would show ("Becca Smith, Boosters via Field Command Events"). */
+  senders?: { id: string; label: string; shownAs: string }[];
+  /** Who they come from now. */
+  sender?: string | null;
   /** Just the fields, inside a form around it that saves them (the guided setup's Email settings step). */
   bare?: boolean;
 }) {
   const [on, setOn] = useState(replies);
+  const [from, setFrom] = useState(sender ?? senders[0]?.id ?? "");
+  const shownAs = senders.find((x) => x.id === from)?.shownAs;
   const options = [
     {
       value: true,
@@ -37,8 +45,26 @@ export function RepliesForm({
   ];
   const fields = (
     <>
+      {senders.length > 0 && (
+        <div className="space-y-2">
+          <Field label="Emails come from" hint="Their name goes first, then who they're with. Only hosts and co-hosts are listed.">
+            <Select name="sender" required value={from} onChange={(e) => setFrom(e.target.value)}>
+              {senders.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {shownAs && (
+            <p className="rounded-md bg-brand-soft px-3 py-2 text-sm">
+              Shows as <span className="font-semibold">{shownAs}</span>
+            </p>
+          )}
+        </div>
+      )}
       <fieldset className="space-y-2">
-        <legend className="sr-only">Replies</legend>
+        <legend className="text-sm font-semibold">Replies</legend>
         {options.map((o) => (
           <label
             key={o.label}
@@ -66,7 +92,7 @@ export function RepliesForm({
   return (
     <ActionForm action={action} resetOnSuccess={false} className="space-y-4">
       {fields}
-      <SubmitButton>Save replies</SubmitButton>
+      <SubmitButton>Save</SubmitButton>
     </ActionForm>
   );
 }
