@@ -124,7 +124,8 @@ export function SignupForm({
 
   if (state.confirmed) return <Confirmed confirmed={state.confirmed} pathname={pathname} />;
 
-  const progress = (
+  // The group's count shows once someone's been added.
+  const progress = people.length > 0 && (
     <p className="flex items-center gap-2 rounded-md bg-brand-soft px-3 py-2 text-sm font-semibold" aria-live="polite">
       <span aria-hidden className="flex gap-1">
         {Array.from({ length: MAX_OTHERS + 1 }, (_, n) => (
