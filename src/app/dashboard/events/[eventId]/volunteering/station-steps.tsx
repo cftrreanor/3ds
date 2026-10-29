@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { useTabInView } from "@/components/use-tab-in-view";
 
 /** The two steps inside each sign-up. */
 export type StationStep = "details" | "shifts";
@@ -115,10 +116,35 @@ function status(t: StationTab, unsaved: boolean) {
 }
 
 /** The stations as tabs: a green check when one is set up, a yellow dot when it isn't yet. */
-export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: string; active: boolean } }) {
+export function StationTabs({
+  tabs,
+  add,
+  extra = [],
+}: {
+  tabs: StationTab[];
+  add?: { href: string; active: boolean };
+  /** Tabs after the sign-ups, set a little apart: Import volunteers, Check-in order. */
+  extra?: { key: string; label: string; status: string; href: string; active: boolean }[];
+}) {
   const progress = useContext(Progress);
+  const row = useTabInView<HTMLElement>([...tabs.map((t) => t.active), add?.active, ...extra.map((t) => t.active)].join());
+  // Leaving a sign-up with something unsaved or unfinished: stay, open those steps and point at the first note.
+  const guard = (e: React.MouseEvent, href: string, active: boolean) => {
+    if (!progress || active) return;
+    const holdBack = (["details", "shifts"] as const).filter((s) => progress.dirty[s] || progress.needs[s]);
+    if (holdBack.length === 0) return;
+    e.preventDefault();
+    progress.setLeaving(href);
+    for (const step of holdBack) {
+      const el = document.getElementById(step === "details" ? "station-details" : "build-shifts") as HTMLDetailsElement | null;
+      if (el) el.open = true;
+      // Including a tucked-away "Redo or add shifts".
+      el?.querySelectorAll("details").forEach((d) => (d.open = true));
+    }
+    requestAnimationFrame(() => document.querySelector("[data-step-notice]")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  };
   return (
-    <nav aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav ref={row} aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-border">
         {tabs.map((t) => (
           <li key={t.id}>
@@ -126,23 +152,7 @@ export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: s
               href={t.href}
               scroll={false}
               aria-current={t.active ? "page" : undefined}
-              onClick={(e) => {
-                if (!progress || t.active) return;
-                const holdBack = (["details", "shifts"] as const).filter((s) => progress.dirty[s] || progress.needs[s]);
-                if (holdBack.length === 0) return;
-                // Something unsaved or unfinished: stay, open those steps and point at the first note.
-                e.preventDefault();
-                progress.setLeaving(t.href);
-                for (const step of holdBack) {
-                  const el = document.getElementById(step === "details" ? "station-details" : "build-shifts") as HTMLDetailsElement | null;
-                  if (el) el.open = true;
-                  // Including a tucked-away "Redo or add shifts".
-                  el?.querySelectorAll("details").forEach((d) => (d.open = true));
-                }
-                requestAnimationFrame(() =>
-                  document.querySelector("[data-step-notice]")?.scrollIntoView({ behavior: "smooth", block: "center" }),
-                );
-              }}
+              onClick={(e) => guard(e, t.href, t.active)}
               className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
                 t.active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
               }`}
@@ -177,6 +187,22 @@ export function StationTabs({ tabs, add }: { tabs: StationTab[]; add?: { href: s
             </Link>
           </li>
         )}
+        {extra.map((t, i) => (
+          <li key={t.key} className={i === 0 ? "ml-2 border-l border-border pl-2" : undefined}>
+            <Link
+              href={t.href}
+              scroll={false}
+              aria-current={t.active ? "page" : undefined}
+              onClick={(e) => guard(e, t.href, t.active)}
+              className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
+                t.active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
+              }`}
+            >
+              <span className="whitespace-nowrap">{t.label}</span>
+              <span className="text-xs font-normal text-muted">{t.status}</span>
+            </Link>
+          </li>
+        ))}
       </ul>
     </nav>
   );

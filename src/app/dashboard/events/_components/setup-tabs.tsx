@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabInView } from "@/components/use-tab-in-view";
 import { LeaveStepLink } from "./setup-leave";
 
 export type SetupTab = {
@@ -27,8 +28,9 @@ export function SetupTabs({
   /** What the window says: "invite" for a half-typed invitation (Team setup). */
   way?: "tab" | "invite";
 }) {
+  const row = useTabInView<HTMLElement>(tabs.find((t) => t.active)?.key);
   return (
-    <nav aria-label={label} className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav ref={row} aria-label={label} className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-border">
         {tabs.map((t) => (
           <li key={t.key}>
