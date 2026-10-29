@@ -44,7 +44,8 @@ const collected = [
   },
   {
     event: "Volunteer events",
-    students: "Under-18 helpers: first name and last initial only, signed up by a parent or guardian",
+    students:
+      "Under-18 helpers: first name and last initial, age (to match shifts with a minimum age), and an optional email address and phone number, signed up by a parent or guardian. A record of the guardian's confirmation (who confirmed, when, and the exact words) is kept permanently",
     adults: "Volunteers' names, email addresses, and phone numbers, and shift check-in times",
   },
   { event: "School fairs", students: "None", adults: "Booth partners' contact name, email address, and phone number" },

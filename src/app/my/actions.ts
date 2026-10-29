@@ -10,8 +10,8 @@ import { getOrigin } from "@/lib/data";
 import { emailLayout, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
-import { formatDateRange } from "@/lib/time";
-import { loadCalendarEntries, sendCancellation } from "@/lib/volunteer-emails";
+import { formatDate, formatDateRange, formatTimeRange, utcToZonedDate } from "@/lib/time";
+import { loadCalendarEntries, sendBookerHeadsUp, sendCancellation, sendShiftSwitched } from "@/lib/volunteer-emails";
 import { forgetPass, hasPass, readPass } from "@/lib/volunteer-pass";
 
 /**
@@ -20,6 +20,7 @@ import { forgetPass, hasPass, readPass } from "@/lib/volunteer-pass";
  */
 export async function cancelMyShift(assignmentId: string): Promise<ActionState> {
   const [entry] = await loadCalendarEntries([assignmentId]);
+  const booker = await whoBookedThem(assignmentId);
   const { data: link } = await createAdminClient()
     .from("volunteer_assignments")
     .select("volunteers(events(slug, status, volunteer_signup_open))")
@@ -52,8 +53,71 @@ export async function cancelMyShift(assignmentId: string): Promise<ActionState> 
     const origin = await getOrigin();
     after(() => sendCancellation(entry, entry.timezone, origin, signupPath ? `${origin}${signupPath}` : null));
   }
+  if (booker) {
+    const what = await shiftLabel(booker.shiftId);
+    after(() => sendBookerHeadsUp(booker.booker, booker.who, { kind: "canceled", shift: what }, booker.event));
+  }
   revalidatePath("/my");
   return { ok: true };
+}
+
+/**
+ * Switch one of my shifts to another time or station, with this device's
+ * pass. The new shift is checked like a sign-up (spots, ages, overlaps); the
+ * calendar invite moves with it.
+ */
+export async function swapMyShift(assignmentId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const shiftId = String(formData.get("shiftId") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(shiftId)) return { error: "Pick a shift to switch to." };
+  const pass = await readPass();
+  if (!hasPass(pass)) return { error: "To switch shifts, open the link in your email on this device." };
+  const booker = await whoBookedThem(assignmentId);
+  const { data, error } = await createAdminClient().rpc("swap_shift_with_pass", {
+    p_assignment_id: assignmentId,
+    p_new_shift_id: shiftId,
+    p_volunteer_tokens: pass.v,
+    p_assignment_tokens: pass.a,
+  });
+  if (error) return { error: friendlyDbError(error) };
+  if (data !== true) return { error: "This device doesn't have access to that shift anymore. Use the link in your email." };
+
+  const origin = await getOrigin();
+  const [entry] = await loadCalendarEntries([assignmentId], true);
+  if (entry) after(() => sendShiftSwitched(entry, entry.timezone, origin));
+  if (booker) {
+    const [from, to] = await Promise.all([shiftLabel(booker.shiftId), shiftLabel(shiftId)]);
+    after(() => sendBookerHeadsUp(booker.booker, booker.who, { kind: "switched", from, to }, booker.event));
+  }
+  revalidatePath("/my");
+  return { ok: true };
+}
+
+/** For someone another person signed up: who that was (to tell them of a change), and the shift as it is now. */
+async function whoBookedThem(assignmentId: string) {
+  const admin = createAdminClient();
+  const { data: a } = await admin
+    .from("volunteer_assignments")
+    .select("shift_id, volunteers(id, full_name, contact_id, events(id, name))")
+    .eq("id", assignmentId)
+    .maybeSingle();
+  const v = a?.volunteers as unknown as { id: string; full_name: string; contact_id: string | null; events: { id: string; name: string } | null } | null;
+  if (!a || !v?.contact_id || !v.events) return null;
+  const { data: booker } = await admin.from("volunteers").select("full_name, email").eq("id", v.contact_id).maybeSingle();
+  if (!booker?.email) return null;
+  return { shiftId: a.shift_id as string, who: v.full_name, booker: { name: booker.full_name, email: booker.email }, event: v.events };
+}
+
+/** "Concessions, 6:00 PM – 8:00 PM CDT" */
+async function shiftLabel(shiftId: string) {
+  const { data } = await createAdminClient()
+    .from("shifts")
+    .select("starts_at, ends_at, stations(name), events(timezone)")
+    .eq("id", shiftId)
+    .maybeSingle();
+  if (!data) return "a shift";
+  const tz = (data.events as unknown as { timezone: string } | null)?.timezone ?? "America/Chicago";
+  const station = (data.stations as unknown as { name: string } | null)?.name ?? "Shift";
+  return `${station}, ${formatDate(utcToZonedDate(data.starts_at, tz), { year: undefined })}, ${formatTimeRange(data.starts_at, data.ends_at, tz)}`;
 }
 
 /** Cancel something I signed up to bring: with this device's pass, or signed in. */

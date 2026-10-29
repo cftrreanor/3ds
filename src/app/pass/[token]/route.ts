@@ -16,7 +16,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (data) {
       const slug = (data.events as unknown as { slug: string } | null)?.slug;
       await addToPass({ v: [token], e: slug ? [slug] : [] });
-      return NextResponse.redirect(new URL("/my", request.nextUrl.origin));
+      // "Change my sign-up" and "Cancel my sign-up" (from a sign-up someone else made for them) say what to tap next.
+      const go = request.nextUrl.searchParams.get("go");
+      return NextResponse.redirect(new URL(go === "change" || go === "cancel" ? `/my?go=${go}` : "/my", request.nextUrl.origin));
     }
   }
   return NextResponse.redirect(new URL("/my?link=invalid", request.nextUrl.origin));

@@ -5,7 +5,7 @@ import { buildIcs, googleCalendarUrl, type IcsEvent } from "@/lib/ics";
 import { formatPhone } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/server";
 import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
-import { formatDate, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
+import { formatDate, formatTime, formatTimeRange, utcToZonedDate, zoneName } from "@/lib/time";
 
 /** One signup, with everything needed for its email and calendar invite. */
 export type CalendarEntry = {
@@ -106,18 +106,28 @@ export type ItemLine = { name: string; station: string; note: string | null };
 
 const itemRow = (it: ItemLine) => ({ title: `Bringing: ${it.name}`, detail: [it.station, it.note].filter(Boolean).join(" · ") });
 
+/** Someone the booker signed up, with their shifts ("Concessions: 6:00 PM – 8:00 PM CDT"). */
+export type GroupLine = { name: string; shifts: string[] };
+
+const groupParagraph = (group: GroupLine[]) =>
+  group.length ? [`You also signed up ${group.length === 1 ? "1 other person" : `${group.length} other people`}. Anyone with an email gets their own confirmation.`] : [];
+const groupRow = (g: GroupLine) => ({ title: g.name, detail: g.shifts.join("; ") });
+
 /** Who signed up, for a confirmation with only items (no shifts to read it from). */
 export type SignupPerson = { name: string; email: string; accessToken: string; eventId: string; eventName: string; venueName: string | null };
 
-/** The confirmation when someone signed up only to bring things. */
-async function sendItemsConfirmation(items: ItemLine[], person: SignupPerson, origin: string) {
+/** The confirmation when someone signed up only to bring things (or only added other people this time). */
+async function sendItemsConfirmation(items: ItemLine[], person: SignupPerson, origin: string, group: GroupLine[] = []) {
   const { html, text } = emailLayout({
     heading: `You're signed up for ${person.eventName}`,
     paragraphs: [
-      `Thanks, ${person.name.split(" ")[0]}. Here's what you're bringing${person.venueName ? ` to ${person.venueName}` : ""}.`,
+      items.length
+        ? `Thanks, ${person.name.split(" ")[0]}. Here's what you're bringing${person.venueName ? ` to ${person.venueName}` : ""}.`
+        : `Thanks, ${person.name.split(" ")[0]}. Here's who you signed up.`,
+      ...groupParagraph(group),
       "We'll send a reminder the day before.",
     ],
-    rows: items.map(itemRow),
+    rows: [...items.map(itemRow), ...group.map(groupRow)],
     button: { label: "View or cancel my sign-ups", url: manageUrl(origin, { access_token: person.accessToken }) },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}. This link is just for you; anyone you forward it to can view and cancel your sign-ups.`,
   });
@@ -155,8 +165,10 @@ export async function sendSignupConfirmation(
   items: ItemLine[] = [],
   /** Who signed up, for a confirmation with only items. */
   person?: SignupPerson,
+  /** Everyone else they signed up, each on their own shifts. */
+  group: GroupLine[] = [],
 ) {
-  if (entries.length === 0) return items.length && person ? sendItemsConfirmation(items, person, origin) : false;
+  if (entries.length === 0) return (items.length || group.length) && person ? sendItemsConfirmation(items, person, origin, group) : false;
   const first = entries[0];
   const single = entries.length === 1;
   const custom = customWords("volunteer_signup", await loadSystemEmail("volunteer_signup"), volunteerVars(first));
@@ -167,11 +179,12 @@ export async function sendSignupConfirmation(
         `Thanks, ${first.volunteer_name.split(" ")[0]}. Here ${single ? "is your shift" : "are your shifts"}${first.venue_name ? ` at ${first.venue_name}` : ""}.`,
       ]),
       ...(others.length ? [`Also signed up for ${single ? "this shift" : "these shifts"}: ${others.join(", ")}.`] : []),
+      ...groupParagraph(group),
       single
         ? CALENDAR_TIP
         : "Each shift gets its own email with a calendar invite, which keeps your calendar up to date if anything changes.",
     ],
-    rows: [...entries.map((e) => shiftRow(e, tz, origin, multiDay)), ...items.map(itemRow)],
+    rows: [...entries.map((e) => shiftRow(e, tz, origin, multiDay)), ...items.map(itemRow), ...group.map(groupRow)],
     button: { label: custom?.button || "View or cancel my shifts", url: manageUrl(origin, first) },
     footer: `You're receiving this because you signed up to volunteer through ${brand.name}. This link is just for you; anyone you forward it to can view and cancel your shifts.`,
   });
@@ -203,6 +216,97 @@ export async function sendSignupConfirmation(
     }
   }
   return sent;
+}
+
+/**
+ * To someone the booker signed up: "Hi Bob, Judy signed you up to help with
+ * Setting Up Chairs at 5:00 PM on Saturday, November 14." Their own private
+ * link lets them see, switch, or cancel only their own shifts. One shift
+ * rides with its calendar invite.
+ */
+export async function sendAddedToGroup(entries: CalendarEntry[], bookerFirstName: string, tz: string, origin: string) {
+  const mine = entries.filter((e) => e.volunteer_email);
+  if (!mine.length) return false;
+  const first = mine[0];
+  const day = formatDate(utcToZonedDate(first.starts_at, tz), { weekday: "long", month: "long", year: undefined });
+  const what =
+    mine.length === 1
+      ? `${first.station_name} at ${formatTime(first.starts_at, tz)} on ${day}`
+      : `${mine.length} shifts at ${first.event_name}, starting with ${first.station_name} at ${formatTime(first.starts_at, tz)} on ${day}`;
+  const link = manageUrl(origin, first);
+  const { html, text } = emailLayout({
+    heading: `You're signed up for ${first.event_name}`,
+    paragraphs: [
+      `Hi ${first.volunteer_name.split(" ")[0]}, ${bookerFirstName} signed you up to help with ${what}.`,
+      "Can't make it, or need a different time? Use the links below. Only you can change or cancel your spot with them.",
+    ],
+    rows: mine.map((e) => ({
+      ...shiftRow(e, tz, origin, true),
+      linksLabel: undefined,
+      links: [
+        { label: "Change my sign-up", url: `${link}?go=change` },
+        { label: "Cancel my sign-up", url: `${link}?go=cancel` },
+      ],
+    })),
+    button: { label: "View my sign-up", url: link },
+    footer: `You're receiving this because ${bookerFirstName} signed you up to volunteer through ${brand.name}. This link is just for you; anyone you forward it to can change and cancel your sign-up.`,
+  });
+  return sendEmail({
+    to: first.volunteer_email,
+    eventId: first.event_id,
+    subject: `${bookerFirstName} signed you up: ${first.event_name}`,
+    html,
+    text,
+    ...(mine.length === 1 ? { invite: invite("REQUEST", first, origin) } : {}),
+  });
+}
+
+/** A volunteer switched one of their shifts: the new details, and their calendar invite moves with it. */
+export async function sendShiftSwitched(e: CalendarEntry, tz: string, origin: string) {
+  const { html, text } = emailLayout({
+    heading: "You switched shifts",
+    paragraphs: [
+      `Hi ${e.volunteer_name.split(" ")[0]}, you're now signed up for ${e.station_name} at ${e.event_name}.`,
+      "If you added our calendar invite, it updates automatically. If you added a copy to another calendar, please update it yourself.",
+    ],
+    rows: [shiftRow(e, tz, origin, false)],
+    button: { label: "View or change my shifts", url: manageUrl(origin, e) },
+  });
+  return sendEmail({
+    to: e.volunteer_email,
+    eventId: e.event_id,
+    subject: `Switched: your shift at ${e.event_name}`,
+    html,
+    text,
+    invite: invite("REQUEST", e, origin),
+  });
+}
+
+/** To the booker, when someone they signed up switches or cancels a shift. */
+export async function sendBookerHeadsUp(
+  booker: { name: string; email: string },
+  who: string,
+  change: { kind: "switched"; from: string; to: string } | { kind: "canceled"; shift: string },
+  event: { id: string; name: string },
+) {
+  const first = booker.name.split(/\s+/)[0];
+  const { html, text } = emailLayout({
+    heading: change.kind === "switched" ? `${who} switched shifts` : `${who} canceled a shift`,
+    paragraphs: [
+      change.kind === "switched"
+        ? `Hi ${first}, ${who}, who you signed up for ${event.name}, switched from ${change.from} to ${change.to}.`
+        : `Hi ${first}, ${who}, who you signed up for ${event.name}, is no longer signed up for ${change.shift}.`,
+      "Just letting you know. There's nothing you need to do.",
+    ],
+    footer: `You're receiving this because you signed ${who} up to volunteer through ${brand.name}.`,
+  });
+  return sendEmail({
+    to: booker.email,
+    eventId: event.id,
+    subject: change.kind === "switched" ? `${who} switched shifts: ${event.name}` : `${who} canceled: ${event.name}`,
+    html,
+    text,
+  });
 }
 
 /** The day before: a volunteer's shifts tomorrow, where to report and who their lead is. */
