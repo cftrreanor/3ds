@@ -16,6 +16,7 @@ import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { createRegistration } from "@/lib/band-registration";
+import { setEventPublished } from "./actions";
 import { formatDate, formatTime, utcToZonedDate, zoneAbbreviation, zonedToUtc } from "@/lib/time";
 
 // ---------------------------------------------------------------------------
@@ -199,6 +200,17 @@ async function updateEventRow(eventId: string, values: Record<string, unknown>):
 export async function setBandRegistrationOpen(eventId: string, open: boolean) {
   const result = await updateEventRow(eventId, { band_registration_open: open });
   return result.error || !open ? result : registrationShare(eventId);
+}
+
+/**
+ * Band Registration's one button before the event is live: publish it and open
+ * registration, then the link to send directors, on the Registered bands tab.
+ */
+export async function publishAndOpenBandRegistration(eventId: string): Promise<ActionState> {
+  const published = await setEventPublished(eventId, true);
+  if (published.error) return published;
+  const opened = await setBandRegistrationOpen(eventId, true);
+  return opened.error ? opened : { ...opened, goTo: `/dashboard/events/${eventId}/bands?tab=bands` };
 }
 
 /** Registration just opened: the link to send directors. */

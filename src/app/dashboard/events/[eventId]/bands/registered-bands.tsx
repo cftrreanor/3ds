@@ -201,19 +201,3 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
     </div>
   );
 }
-
-/** A link to a folded setup step on this page that unfolds it on the way. */
-export function OpenStepLink({ step, children }: { step: string; children: React.ReactNode }) {
-  return (
-    <a
-      href={`#${step}`}
-      className="text-brand"
-      onClick={() => {
-        const el = document.getElementById(step);
-        if (el instanceof HTMLDetailsElement) el.open = true;
-      }}
-    >
-      {children}
-    </a>
-  );
-}

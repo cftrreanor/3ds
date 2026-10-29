@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { reopenBandRegistration, setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
-import { Badge } from "@/components/ui";
-import { SetupStep, StepStatus } from "@/components/setup-step";
+import QRCode from "qrcode";
+import { publishAndOpenBandRegistration, reopenBandRegistration, setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
+import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
 import { importBandPrefills } from "@/app/dashboard/import-actions";
@@ -20,13 +20,21 @@ import { formatDate, utcToZonedDate } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
 import { BandSettingsForm } from "./settings-form";
 import { SavedBy } from "@/components/saved-by";
-import { OpenStepLink, RegisteredBands } from "./registered-bands";
+import { RegisteredBands } from "./registered-bands";
+import { SetupTabs } from "../../_components/setup-tabs";
 import { ReopenRegistration } from "./reopen-registration";
 
 export const metadata: Metadata = { title: "Registration" };
 
-export default async function BandsPage({ params }: PageProps<"/dashboard/events/[eventId]/bands">) {
+/**
+ * Band (or group) Registration, like Volunteer Setup: a card with where
+ * registration stands, its link, and the one button for what's next; then
+ * tabs: Registered bands (once registration has opened), Registration
+ * settings, and Invite directors.
+ */
+export default async function BandsPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/bands">) {
   const { eventId } = await params;
+  const { tab } = await searchParams;
   const access = await getEventAccess(eventId);
   // Volunteer and Coordinators get the read-only schedule instead.
   if (!access.isHost) redirect(`/dashboard/events/${eventId}/schedule`);
@@ -100,218 +108,232 @@ export default async function BandsPage({ params }: PageProps<"/dashboard/events
 
 
 
-  // The steps, in order. Inviting directors is optional, so it never holds the others back.
-  // (The performance schedule has its own page: Performance Schedule Setup.)
   const settingsDone = Boolean(contact);
   const published = event.status === "published";
   const invitesSent = (inviteData ?? []).length > 0;
-  const toInvite = directors.some((d) => !d.registered && !d.invited);
-  // Registration counts as dealt with once it's open, or it closed after directors registered.
-  const registrationDone = regOpen || pastDeadline || bands.length > 0;
-  // Open the first step that still needs doing; the rest stay folded. Inviting is
-  // optional, so it stays folded once directors are registering on their own.
-  const openStep = !settingsDone ? 1 : !registrationDone ? 2 : regOpen && toInvite && bands.length === 0 ? 3 : 0;
-  const registrationStatus = regOpen ? (
-    <StepStatus done doneLabel="Open" />
-  ) : (
-    <StepStatus
-      done={false}
-      todoLabel={pastDeadline ? "Closed: deadline passed" : bands.length > 0 ? "Closed" : !published ? "Publish the event first" : "Needs to be done"}
-    />
-  );
-
+  // Registered bands shows once registration has opened (or closed after it did): before that there's nothing to see.
+  const showBands = regOpen || pastDeadline || bands.length > 0;
   // Directors who were emailed an invitation and haven't registered yet.
   const invitedWaiting = directors.filter((d) => d.invited && !d.registered).length;
-  const registered = (
-    <div className="mt-8">
-      <RegisteredBands
-        bands={bands}
-        classifications={event.classifications}
-        words={w}
-        groups={roomsHere}
-        fileName={`${event.name.replace(/[^\w -]+/g, "").trim() || "registrations"} ${w.many}.csv`}
-      />
-    </div>
-  );
+
+  // The open tab: ?tab=, else the bands once there are any to show, else the settings.
+  const tabs = [...(showBands ? ["bands"] : []), "settings", "invite"] as const;
+  const current = tabs.find((t) => t === tab) ?? (showBands ? "bands" : "settings");
+  const base = `/dashboard/events/${eventId}/bands`;
+  const [qrSvg, qrPng] = await Promise.all([
+    QRCode.toString(registrationUrl, { type: "svg", margin: 1, width: 160 }),
+    QRCode.toDataURL(registrationUrl, { margin: 2, width: 1024 }),
+  ]);
+  const smallButton = "inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background";
 
   return (
-    <div>
+    // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
+    <div data-required-marks>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{w.One} Registration</h1>
       <SavedBy eventId={eventId} area="bands" className="mt-2" />
-      {/* Once registration is set up: its state and the switch, always in view. */}
-      {registrationDone && (
-        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-border bg-surface px-4 py-3">
-          <div className="min-w-0 flex-1 space-y-1">
+
+      {/* Where registration stands, its link, and the one button for what's next. */}
+      <Card className="mt-6">
+        <div className="space-y-4">
+          <div className="space-y-1">
             <p className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge tone={regOpen ? "live" : "off"}>Registration {regOpen ? "open" : "closed"}</Badge>
+              <Badge tone={!published ? "neutral" : regOpen ? "live" : "off"}>
+                {!published ? "Event not published" : regOpen ? "Registration open" : "Registration closed"}
+              </Badge>
               <span className="text-muted">
-                {regOpen && event.band_registration_deadline
-                  ? `Closes at the end of ${formatDate(event.band_registration_deadline)}`
-                  : pastDeadline
-                    ? `The deadline (${formatDate(event.band_registration_deadline!)}) has passed.`
-                    : regOpen
-                      ? "No deadline set"
-                      : null}
+                {[
+                  showBands ? `${bands.length} ${bands.length === 1 ? w.one : w.many} registered` : null,
+                  regOpen && event.band_registration_deadline
+                    ? `Closes at the end of ${formatDate(event.band_registration_deadline)}`
+                    : pastDeadline
+                      ? `The deadline (${formatDate(event.band_registration_deadline!)}) has passed`
+                      : regOpen
+                        ? "No deadline set"
+                        : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </p>
             {invitedWaiting > 0 && (
               <p className="text-sm">
-                <OpenStepLink step="invite-directors">
+                <Link href={`${base}?tab=invite`} scroll={false} className="font-medium text-brand underline-offset-4 hover:underline">
                   {invitedWaiting} invited {invitedWaiting === 1 ? "director hasn't" : "directors haven't"} registered yet
-                </OpenStepLink>
+                </Link>
               </p>
             )}
           </div>
-          {/* With the reopen form showing, the buttons take their own row. */}
-          <div className="flex flex-wrap items-center gap-2 has-[form]:basis-full">
-            <CopyLinkButton url={registrationUrl} label="Copy registration link" />
-            {published && !pastDeadline && (
-              <ActionButton
-                action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
-                variant={event.band_registration_open ? "stop" : "go"}
-                confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
-              >
-                {event.band_registration_open ? "Close registration" : "Open registration"}
-              </ActionButton>
-            )}
-            {published && pastDeadline && (
-              <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {registrationDone && registered}
-
-      {registrationDone && (
-        <h2 className="mt-12 text-xl font-semibold" id="setup-heading">
-          Registration setup
-        </h2>
-      )}
-      <div className={`${registrationDone ? "mt-4" : "mt-6"} flex flex-col gap-3`}>
-        <SetupStep
-          id="registration-settings"
-          title="1. Registration settings"
-          status={<StepStatus done={settingsDone} />}
-          open={openStep === 1}
-          intro={`What directors see and agree to when they register. Save to finish this step.`}
-        >
-          <BandSettingsForm
-            action={updateBandSettings.bind(null, eventId)}
-            chaperoneLimit={event.chaperone_limit}
-            classifications={event.classifications}
-            deadline={event.band_registration_deadline ?? ""}
-            directorInfo={event.director_info ?? ""}
-            contact={{
-              name: contact?.name || profile?.full_name || "",
-              phone: formatPhone(contact ? contactPhone : profile?.phone),
-              email: contact?.email || user.email || "",
-            }}
-            contactSaved={Boolean(contact)}
-            one={w.one}
-          />
-        </SetupStep>
-
-        <SetupStep
-          id="open-registration"
-          title="2. Open registration"
-          status={registrationStatus}
-          open={openStep === 2}
-          intro={`Share the link with ${w.one} directors, then open registration so they can sign up.`}
-        >
-          <div className="space-y-4">
-            {!published && (
-              <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm">
-                Publish the event from its main page first, then open registration here.
-              </p>
-            )}
-            {published && !settingsDone && !regOpen && (
-              <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm">
-                Save your registration settings (step 1) first, so directors see the right classifications and information.
-              </p>
-            )}
-            {event.band_registration_deadline && (
-              <p className="text-sm text-muted">
-                {pastDeadline
-                  ? `The deadline (${formatDate(event.band_registration_deadline)}) has passed. Reopen with a new deadline below.`
-                  : `Closes automatically at the end of ${formatDate(event.band_registration_deadline)}.`}
-              </p>
-            )}
-            <div>
-              <p className="text-sm font-medium">Link for {w.one} directors</p>
-              <p className="mt-1 break-all text-sm text-muted">{registrationUrl}</p>
-              <div className="mt-2">
-                <CopyLinkButton url={registrationUrl} label="Copy link" />
-              </div>
-              <p className="mt-2 text-sm text-muted">
-                Directors who use this link confirm their email with a code after they fill in the form. Directors you{" "}
-                <OpenStepLink step="invite-directors">invite by email</OpenStepLink> register with one tap, with no code.
-              </p>
-            </div>
-            {published && !pastDeadline && (
-              <ActionButton
-                action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
-                variant={event.band_registration_open ? "stop" : "go"}
-                confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
-              >
-                {event.band_registration_open ? `Close ${w.one} registration` : `Open ${w.one} registration`}
-              </ActionButton>
-            )}
-            {published && pastDeadline && (
-              <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />
-            )}
-          </div>
-        </SetupStep>
-
-        <SetupStep
-          id="invite-directors"
-          title="3. Invite directors"
-          status={<StepStatus done={invitesSent} doneLabel="Invitations sent" todoLabel="Optional" />}
-          open={openStep === 3}
-          intro={`Bring in ${w.many} you already work with, and email their directors an invitation to register.`}
-        >
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-semibold">Import from a spreadsheet</h3>
-              <p className="mt-1 mb-3 text-sm text-muted">
-                Each director&apos;s details are saved for them. Nobody is registered yet: invite the directors below, and
-                each one checks their details and registers.
-              </p>
-              <SpreadsheetImport
-                kind="bands"
-                fields={importFields("bands", { words: w, trucks: !roomsHere })}
-                choices={{ classification: event.classifications.map((c: string) => ({ value: c, label: c })) }}
-                chaperoneLimit={event.chaperone_limit}
-                noun={{ one: w.one, many: w.many }}
-                templateName={`${w.one}-registrations.csv`}
-                action={importBandPrefills.bind(null, eventId)}
-              />
-            </div>
-            <div>
-              <h3 className="font-semibold">Send invitations</h3>
-              {directors.length > 0 ? (
-                <>
-                  <p className="mt-1 mb-3 text-sm text-muted">
-                    {imported.size > 0 ? "Directors from your spreadsheet" : "Directors who registered at your earlier events"}
-                    {imported.size > 0 && !roomsHere && pastDirectors.length > 0 ? " and your earlier events" : ""}. Their
-                    {` ${w.one}`}&apos;s details are saved, so registering only takes a moment.
-                  </p>
-                  <InvitePastBands directors={directors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} one={w.one} />
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-muted">
-                  Directors from your spreadsheet{roomsHere ? "" : " and your earlier events"} show up here to invite.
-                </p>
+          {!settingsDone && !regOpen && (
+            <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm">
+              Save your{" "}
+              <Link href={`${base}?tab=settings`} scroll={false} className="font-medium underline">
+                registration settings
+              </Link>{" "}
+              first, so directors see the right classifications and information.
+            </p>
+          )}
+          <div>
+            <p className="text-sm font-medium">Registration link</p>
+            <p className="mt-1 break-all text-sm text-muted">{registrationUrl}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <CopyLinkButton url={registrationUrl} label="Copy link" />
+              <a href={`/e/${event.slug}/bands`} target="_blank" className={smallButton}>
+                Preview page
+              </a>
+              {!published && (
+                <ActionButton
+                  action={publishAndOpenBandRegistration.bind(null, eventId)}
+                  variant="go"
+                  className="px-3! text-xs!"
+                  pendingText="Publishing…"
+                  confirmMessage={`Publish the event and open ${w.one} registration? Your event page goes live and directors can start registering.`}
+                >
+                  Publish and open registration
+                </ActionButton>
+              )}
+              {published && !pastDeadline && (
+                <ActionButton
+                  action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
+                  variant={event.band_registration_open ? "stop" : "go"}
+                  className="px-3! text-xs!"
+                  confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
+                >
+                  {event.band_registration_open ? "Close registration" : "Open registration"}
+                </ActionButton>
               )}
             </div>
+            {published && pastDeadline && (
+              <div className="mt-3">
+                <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />
+              </div>
+            )}
+            <p className="mt-2 text-sm text-muted">
+              Directors who use this link confirm their email with a code after they fill in the form. Directors you{" "}
+              <Link href={`${base}?tab=invite`} scroll={false} className="font-medium text-brand underline-offset-4 hover:underline">
+                invite by email
+              </Link>{" "}
+              register with one tap, with no code.
+            </p>
+            {/* Tucked away to keep the top of the page short; open it to show or download the code. */}
+            <details className="group mt-1">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground">
+                <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
+                  ›
+                </span>
+                QR code
+              </summary>
+              <div className="mt-2 flex flex-col items-start gap-2">
+                <div
+                  className="rounded-lg border border-border bg-white p-2"
+                  aria-label="QR code for the registration link"
+                  role="img"
+                  dangerouslySetInnerHTML={{ __html: qrSvg }}
+                />
+                <a href={qrPng} download={`${event.slug}-${w.one}-registration-qr.png`} className="inline-flex min-h-11 items-center text-xs font-medium text-brand underline-offset-4 hover:underline">
+                  Download QR code
+                </a>
+              </div>
+            </details>
           </div>
-        </SetupStep>
-      </div>
+        </div>
+      </Card>
 
-      {!registrationDone && <div className="mt-10">{registered}</div>}
+      <div className="mt-10">
+        <SetupTabs
+          label={`${w.One} registration`}
+          tabs={[
+            ...(showBands
+              ? [{ key: "bands", label: `Registered ${w.many}`, status: `${bands.length} ${bands.length === 1 ? w.one : w.many}`, href: `${base}?tab=bands`, active: current === "bands" }]
+              : []),
+            {
+              key: "settings",
+              label: "Registration settings",
+              status: settingsDone ? "Saved" : "Needs to be done",
+              mark: settingsDone ? ("done" as const) : ("todo" as const),
+              href: `${base}?tab=settings`,
+              active: current === "settings",
+            },
+            { key: "invite", label: "Invite directors", status: invitesSent ? "Invitations sent" : "Optional", href: `${base}?tab=invite`, active: current === "invite" },
+          ]}
+        />
+        <div className="mt-6">
+          {current === "bands" && (
+            <RegisteredBands
+              bands={bands}
+              classifications={event.classifications}
+              words={w}
+              groups={roomsHere}
+              fileName={`${event.name.replace(/[^\w -]+/g, "").trim() || "registrations"} ${w.many}.csv`}
+            />
+          )}
+          {current === "settings" && (
+            <Card>
+              <h2 className="text-lg font-semibold">Registration settings</h2>
+              <p className="mt-1 mb-4 text-sm text-muted">What directors see and agree to when they register.</p>
+              <BandSettingsForm
+                action={updateBandSettings.bind(null, eventId)}
+                chaperoneLimit={event.chaperone_limit}
+                classifications={event.classifications}
+                deadline={event.band_registration_deadline ?? ""}
+                directorInfo={event.director_info ?? ""}
+                contact={{
+                  name: contact?.name || profile?.full_name || "",
+                  phone: formatPhone(contact ? contactPhone : profile?.phone),
+                  email: contact?.email || user.email || "",
+                }}
+                contactSaved={settingsDone}
+                one={w.one}
+              />
+            </Card>
+          )}
+          {current === "invite" && (
+            <Card>
+              <h2 className="text-lg font-semibold">Invite directors</h2>
+              <p className="mt-1 mb-6 text-sm text-muted">
+                Optional. Bring in {w.many} you already work with, and email their directors an invitation to register.
+              </p>
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold">Import from a spreadsheet</h3>
+                  <p className="mt-1 mb-3 text-sm text-muted">
+                    Each director&apos;s details are saved for them. Nobody is registered yet: invite the directors below, and
+                    each one checks their details and registers.
+                  </p>
+                  <SpreadsheetImport
+                    kind="bands"
+                    fields={importFields("bands", { words: w, trucks: !roomsHere })}
+                    choices={{ classification: event.classifications.map((c: string) => ({ value: c, label: c })) }}
+                    chaperoneLimit={event.chaperone_limit}
+                    noun={{ one: w.one, many: w.many }}
+                    templateName={`${w.one}-registrations.csv`}
+                    action={importBandPrefills.bind(null, eventId)}
+                  />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Send invitations</h3>
+                  {directors.length > 0 ? (
+                    <>
+                      <p className="mt-1 mb-3 text-sm text-muted">
+                        {imported.size > 0 ? "Directors from your spreadsheet" : "Directors who registered at your earlier events"}
+                        {imported.size > 0 && !roomsHere && pastDirectors.length > 0 ? " and your earlier events" : ""}. Their
+                        {` ${w.one}`}&apos;s details are saved, so registering only takes a moment.
+                      </p>
+                      <InvitePastBands directors={directors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} one={w.one} />
+                    </>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted">
+                      Directors from your spreadsheet{roomsHere ? "" : " and your earlier events"} show up here to invite.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
