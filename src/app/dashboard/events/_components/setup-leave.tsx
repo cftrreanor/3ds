@@ -26,6 +26,13 @@ const WAYS = {
     then: "Save it before you switch zones, or switch without it.",
     changed: "You changed a booth or zone here and didn't save it.",
   },
+  // Team setup's role tabs, with an invitation typed but not sent.
+  invite: {
+    save: "Send and switch",
+    discard: "Switch without sending",
+    then: "Send it before you switch tabs, or switch without it.",
+    changed: "You started an invitation here and didn't send it.",
+  },
   skip: { save: "Save and come back", discard: "Discard changes and skip", then: "Save it and come back to finish later, or skip without it." },
   back: { save: "Save and go back", discard: "Discard changes and go back", then: "Save it before you go back, or go back without it." },
   leave: { save: "Save and finish later", discard: "Discard changes and leave", then: "Save it and finish later, or leave without it." },

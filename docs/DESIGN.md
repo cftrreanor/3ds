@@ -170,8 +170,9 @@ is called "Set Up Your Event"; after, "Edit Event Details".
 
 - **Event details**: name, dates, venue, the logo and color, and the kind of event.
 - **Maps & documents**.
-- **Team setup**: co-hosts and Volunteer Leads. Coordinators are invited in Volunteer Setup,
-  next to the stations they lead.
+- **Team setup**: one tab per role (Co-hosts, Volunteer Leads, Coordinators), each with a ✓ and
+  how many people. Leaving a tab with an invitation typed but not sent asks first. Coordinators
+  can also be picked on each sign-up in Volunteer Setup.
 - **Email settings**: where replies go, and who gets notifications.
 
 Type-specific setup (bands, stations and shifts, conference times) stays on its own pages.

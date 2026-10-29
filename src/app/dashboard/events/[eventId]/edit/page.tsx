@@ -375,9 +375,11 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
               <p className="mb-4 mt-1 text-sm text-muted">
                 {conference
                   ? "Co-hosts share your account: they can see your bookings, and reschedule or cancel meetings."
-                  : `Everyone helping you run ${event.name}. ${leadWords(event.event_type).many} are invited in Volunteer Setup, next to the sign-ups they lead.`}
+                  : `Everyone helping you run ${event.name}, one tab per role. ${leadWords(event.event_type).many} can also be added from each sign-up in Volunteer Setup.`}
               </p>
-              <TeamRoles eventId={eventId} roles={conference ? ["hosts"] : ["hosts", "volunteer-leads", "section-leads"]} open={typeof tab === "string" ? tab : null} />
+              <TeamRoles eventId={eventId} roles={conference ? ["hosts"] : ["hosts", "volunteer-leads", "section-leads"]} open={typeof tab === "string" ? tab : null}
+                href={(t) => `${guided ? setupHref(eventId, "team") : `/dashboard/events/${eventId}/edit?section=team`}&tab=${t}`}
+              />
               {stepFooter}
             </div>
           )}

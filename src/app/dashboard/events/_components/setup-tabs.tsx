@@ -17,7 +17,16 @@ export type SetupTab = {
  * A setup page's tabs, like the sign-up tabs in Volunteer Setup. Leaving a tab
  * with something half-edited asks first (the same window as the setup steps).
  */
-export function SetupTabs({ label, tabs }: { label: string; tabs: SetupTab[] }) {
+export function SetupTabs({
+  label,
+  tabs,
+  way = "tab",
+}: {
+  label: string;
+  tabs: SetupTab[];
+  /** What the window says: "invite" for a half-typed invitation (Team setup). */
+  way?: "tab" | "invite";
+}) {
   return (
     <nav aria-label={label} className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-border">
@@ -25,7 +34,7 @@ export function SetupTabs({ label, tabs }: { label: string; tabs: SetupTab[] }) 
           <li key={t.key}>
             <LeaveStepLink
               href={t.href}
-              way="tab"
+              way={way}
               scroll={false}
               current={t.active}
               className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
