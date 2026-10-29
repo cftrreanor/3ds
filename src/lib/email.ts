@@ -15,8 +15,8 @@ const FROM = process.env.EMAIL_FROM ?? `${brand.name} <no-reply@fieldcommandeven
 const FROM_ADDRESS = FROM.match(/<([^>]+)>/)?.[1] ?? FROM;
 
 /**
- * "Lone Star Band Boosters via Field Command Events" <no-reply@…>: the
- * organizer's name on our own address (email apps reject mail that claims
+ * "Becca Smith, Lone Star Band Boosters via Field Command Events" <no-reply@…>:
+ * the organizer's name (lib/sender-name.ts) on our own address (email apps reject mail that claims
  * someone else's domain). Quotes, angle brackets and line breaks are dropped.
  */
 function fromWithName(name: string | null | undefined) {
