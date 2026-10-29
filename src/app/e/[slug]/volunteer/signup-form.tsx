@@ -206,7 +206,9 @@ export function SignupForm({
           </Field>
           {p.minor && (
             <Field label="How old are they?" hint="Some shifts have a minimum age.">
-              <NumberInput value={p.age} onChange={(e) => setPerson(i, { age: e.target.value })} required maxLength={2} className="w-24" />
+              <div className="w-24">
+                <NumberInput value={p.age} onChange={(e) => setPerson(i, { age: e.target.value })} required maxLength={2} />
+              </div>
             </Field>
           )}
           <Field label="Their email (optional)" hint="We'll send them their own confirmation, with a link to change or cancel their spot.">
@@ -644,7 +646,9 @@ function BookerStep({
           </Field>
           {me.minor && (
             <Field label="How old are you?" hint="Some shifts have a minimum age.">
-              <NumberInput value={me.age} onChange={(e) => set({ age: e.target.value })} required maxLength={2} className="w-24" />
+              <div className="w-24">
+                <NumberInput value={me.age} onChange={(e) => set({ age: e.target.value })} required maxLength={2} />
+              </div>
             </Field>
           )}
           <Field label={me.minor ? "Parent or guardian's email" : "Email"} hint="We'll send the confirmation here.">

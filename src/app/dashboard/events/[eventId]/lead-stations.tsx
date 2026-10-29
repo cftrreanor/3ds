@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { VolunteerTags } from "@/components/volunteer-tags";
 
 export type LeadVolunteer = {
   assignmentId: string;
@@ -12,6 +13,8 @@ export type LeadVolunteer = {
   minor: boolean;
   /** Who signed them up, if someone else did. */
   signedUpBy: string | null;
+  /** A minor whose parent or guardian confirmed at sign-up. */
+  guardianConfirmed?: boolean;
 };
 
 export type LeadShift = {
@@ -148,13 +151,9 @@ export function LeadStations({
                       <div className="min-w-0">
                         <p className="truncate font-medium">
                           {v.name}
-                          {v.minor && (
-                            <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">
-                              Under 18
-                            </span>
-                          )}
+                          <VolunteerTags minor={v.minor} guardianConfirmed={v.guardianConfirmed} />
                         </p>
-                        {v.signedUpBy && <p className="truncate text-xs text-muted">With {v.signedUpBy}</p>}
+                        {v.signedUpBy && <p className="truncate text-xs text-muted">Booked by {v.signedUpBy}</p>}
                         {v.phone && (
                           <p className="text-sm">
                             {v.minor && <span className="text-muted">Guardian: </span>}

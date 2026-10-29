@@ -26,20 +26,38 @@ export async function notificationEmails(
   kind: NotifyKind,
   fallback: () => Promise<string[]> | string[] = () => [],
 ): Promise<string[]> {
+  const people = await notificationPeople(eventId, kind);
+  if (!people) return dedupe(await fallback());
+  return people.map((p) => p.email);
+}
+
+/**
+ * Who gets one kind of email, as people: team members (with their user id,
+ * for their own choices) and other addresses (no user id). Null when the
+ * hosts haven't picked anyone for that kind yet.
+ */
+export async function notificationPeople(eventId: string, kind: NotifyKind): Promise<{ userId: string | null; email: string }[] | null> {
   const saved = (await loadNotifyRecipients(eventId)).get(kind);
-  if (!saved) return dedupe(await fallback());
+  if (!saved) return null;
   const admin = createAdminClient();
   const { data: event } = await admin.from("events").select("organization_id").eq("id", eventId).maybeSingle();
   const ids = saved.memberIds;
   const [{ data: hosts }, { data: leads }] =
     event && ids.length
       ? await Promise.all([
-          admin.from("organization_members").select("profiles(email)").eq("organization_id", event.organization_id).in("user_id", ids),
-          admin.from("event_staff").select("profiles(email)").eq("event_id", eventId).eq("role", "volunteer_director").in("user_id", ids),
+          admin.from("organization_members").select("user_id, profiles(email)").eq("organization_id", event.organization_id).in("user_id", ids),
+          admin.from("event_staff").select("user_id, profiles(email)").eq("event_id", eventId).eq("role", "volunteer_director").in("user_id", ids),
         ])
       : [{ data: [] }, { data: [] }];
-  const team = [...(hosts ?? []), ...(leads ?? [])].map((m) => (m as unknown as { profiles: { email: string | null } | null }).profiles?.email);
-  return dedupe([...team, ...saved.extraEmails]);
+  type Member = { user_id: string; profiles: { email: string | null } | null };
+  const team = ([...(hosts ?? []), ...(leads ?? [])] as unknown as Member[]).map((m) => ({ userId: m.user_id, email: m.profiles?.email }));
+  const seen = new Set<string>();
+  return [...team, ...saved.extraEmails.map((email) => ({ userId: null, email }))].filter((p): p is { userId: string | null; email: string } => {
+    const key = p.email?.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function dedupe(emails: (string | null | undefined)[]) {

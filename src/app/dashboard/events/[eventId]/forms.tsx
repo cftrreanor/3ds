@@ -397,7 +397,16 @@ function ShiftSplit({ windowMinutes, length, multiDay }: { windowMinutes: number
   );
 }
 
-type ShiftValues = { title: string; day: string; startTime: string; endTime: string; capacity: number; description: string | null };
+type ShiftValues = {
+  title: string;
+  day: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  description: string | null;
+  adultsOnly?: boolean;
+  minAge?: number | null;
+};
 
 export function ShiftForm({
   action,
@@ -456,6 +465,7 @@ export function ShiftForm({
           <Textarea name="description" defaultValue={initial.description ?? ""} />
         </Field>
       )}
+      <AgeRules adultsOnly={initial?.adultsOnly ?? false} minAge={initial?.minAge ?? null} />
       <div className="space-y-3 sm:col-span-2">
         {!initial && <StepNotice step="shifts" />}
         <SubmitButton variant={initial ? "primary" : "go"} pendingText="Saving…">
@@ -463,6 +473,34 @@ export function ShiftForm({
         </SubmitButton>
       </div>
     </ActionForm>
+  );
+}
+
+/** Who can take a time slot: everyone, adults only, or under-18s from a minimum age. */
+function AgeRules({ adultsOnly: savedAdults, minAge }: { adultsOnly: boolean; minAge: number | null }) {
+  const [adults, setAdults] = useState(savedAdults);
+  return (
+    <fieldset className="space-y-2 sm:col-span-2">
+      <legend className="text-sm font-semibold">Who can sign up</legend>
+      {(savedAdults || minAge != null) && <input type="hidden" name="hadAgeRules" value="1" />}
+      <label className="flex min-h-11 items-center gap-3 text-sm">
+        <input
+          type="checkbox"
+          name="adultsOnly"
+          checked={adults}
+          onChange={(e) => setAdults(e.target.checked)}
+          className="h-5 w-5 accent-[var(--brand)]"
+        />
+        Adults only (18+)
+      </label>
+      {!adults && (
+        <Field label="Minimum age for under-18s" hint="Optional. Leave blank for any age. Younger volunteers see this time slot greyed out.">
+          <div className="w-24">
+            <NumberInput name="minAge" defaultValue={minAge ?? ""} maxLength={2} placeholder="e.g. 14" />
+          </div>
+        </Field>
+      )}
+    </fieldset>
   );
 }
 

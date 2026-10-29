@@ -19,6 +19,16 @@ export function notifyKinds(eventType: string | null | undefined): { kind: Notif
           { kind: "band_withdrew" as const, label: `${w.One} withdrawals`, hint: `When a ${w.one} withdraws` },
         ]
       : []),
-    { kind: "volunteer_digest", label: "Volunteer sign-ups", hint: "A daily summary of new sign-ups and cancellations, on days with changes" },
+    { kind: "volunteer_digest", label: "Volunteer sign-ups", hint: "A daily summary of new sign-ups, changes, and cancellations, on days with any" },
   ];
 }
+
+/** What a daily volunteer summary can include; each person picks (volunteer_digest_prefs). */
+export const DIGEST_PARTS = [
+  { key: "new_bookings", label: "New bookings" },
+  { key: "changes", label: "Changes (station or time swaps)" },
+  { key: "cancellations", label: "Cancellations" },
+] as const;
+export type DigestPart = (typeof DIGEST_PARTS)[number]["key"];
+export type DigestPrefs = Record<DigestPart, boolean>;
+export const ALL_DIGEST: DigestPrefs = { new_bookings: true, changes: true, cancellations: true };

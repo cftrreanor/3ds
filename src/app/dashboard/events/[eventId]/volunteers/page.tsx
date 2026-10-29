@@ -20,6 +20,7 @@ type Row = {
   shift_id: string;
   checked_in_at: string | null;
   volunteers: {
+    id: string;
     full_name: string;
     email: string | null;
     phone: string | null;
@@ -43,7 +44,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
     .maybeSingle();
   if (!event) missing();
 
-  const [{ data: stationData }, { data: shiftData }, { data: rowData }] = await Promise.all([
+  const [{ data: stationData }, { data: shiftData }, { data: rowData }, { data: consentData }] = await Promise.all([
     supabase
       .from("stations")
       .select("id, name, checkpoint_kind, checkpoint_order, adults_only")
@@ -53,9 +54,12 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
     supabase.from("shifts").select("id, station_id, title, starts_at, ends_at, max_capacity").eq("event_id", eventId).order("starts_at"),
     supabase
       .from("volunteer_assignments")
-      .select("id, shift_id, checked_in_at, volunteers(full_name, email, phone, walk_up, minor, contact:volunteers!contact_id(full_name)), shifts!inner(event_id)")
+      .select("id, shift_id, checked_in_at, volunteers(id, full_name, email, phone, walk_up, minor, contact:volunteers!contact_id(full_name)), shifts!inner(event_id)")
       .eq("shifts.event_id", eventId),
+    // Minors whose parent or guardian confirmed at sign-up (none before the 20270102000000 update).
+    supabase.from("minor_consents").select("volunteer_id").eq("event_id", eventId),
   ]);
+  const confirmed = new Set((consentData ?? []).map((c) => c.volunteer_id as string));
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
@@ -101,6 +105,7 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
               walkUp: r.volunteers!.walk_up,
               minor: r.volunteers!.minor,
               signedUpBy: r.volunteers!.contact?.full_name ?? null,
+              guardianConfirmed: confirmed.has(r.volunteers!.id),
               checkedIn: Boolean(r.checked_in_at),
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),

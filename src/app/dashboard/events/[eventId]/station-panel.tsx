@@ -1,4 +1,5 @@
 import { Badge, Card } from "@/components/ui";
+import { VolunteerTags } from "@/components/volunteer-tags";
 import { kindLabel, type CheckpointKind } from "@/lib/contest-day";
 import { hasBands, leadWords } from "@/lib/event-types";
 import { formatPhone } from "@/lib/phone";
@@ -27,6 +28,9 @@ export type Shift = {
   ends_at: string;
   max_capacity: number;
   registered_count: number;
+  /** Who can take it (after the 20270102000000 update). */
+  adults_only?: boolean;
+  min_age?: number | null;
 };
 
 export type Station = {
@@ -66,6 +70,8 @@ export type RosterEntry = {
   minor?: boolean;
   /** Who signed them up, if someone else did. */
   signed_up_by?: string | null;
+  /** A minor whose parent or guardian confirmed at sign-up (after the 20270102000000 update). */
+  guardian_confirmed?: boolean;
 };
 
 /**
@@ -256,8 +262,12 @@ export function StationPanel({
                   return (
                     <li key={v.assignment_id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{v.volunteer_name}</p>
+                        <p className="text-sm font-medium">
+                          {v.volunteer_name}
+                          <VolunteerTags minor={v.minor} guardianConfirmed={v.guardian_confirmed} />
+                        </p>
                         {shift && <p className="truncate text-sm text-muted">{formatTimeRange(shift.starts_at, shift.ends_at, tz)}</p>}
+                        {v.signed_up_by && <p className="truncate text-sm text-muted">Booked by {v.signed_up_by}</p>}
                         {v.phone && (
                           <a href={`tel:${v.phone}`} className="text-sm font-medium text-brand hover:underline">
                             {formatPhone(v.phone)}
@@ -318,7 +328,14 @@ function ShiftList({
         <li key={s.id} className="px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{s.title}</p>
+              <p className="truncate text-sm font-medium">
+                {s.title}
+                {(s.adults_only || s.min_age) && (
+                  <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">
+                    {s.adults_only ? "Adults only" : `Ages ${s.min_age}+`}
+                  </span>
+                )}
+              </p>
               <p className="text-sm text-muted">
                 {multiDay && `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · `}
                 {formatTimeRange(s.starts_at, s.ends_at, tz)}
@@ -351,6 +368,8 @@ function ShiftList({
                     endTime: utcToZonedTime(s.ends_at, tz),
                     capacity: s.max_capacity,
                     description: s.description,
+                    adultsOnly: s.adults_only ?? false,
+                    minAge: s.min_age ?? null,
                   }}
                 />
               </div>

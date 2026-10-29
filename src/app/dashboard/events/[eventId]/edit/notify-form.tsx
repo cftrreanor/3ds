@@ -5,7 +5,8 @@ import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import type { NotifyKind } from "@/lib/notify-kinds";
+import { DIGEST_OFF_CONFIRM, DigestChoices } from "@/components/digest-choices";
+import { ALL_DIGEST, type DigestPrefs, type NotifyKind } from "@/lib/notify-kinds";
 
 export type TeamMember = { id: string; name: string; email: string | null; role: string };
 type Kind = { kind: NotifyKind; label: string; hint: string };
@@ -23,6 +24,8 @@ export function NotifyForm({
   extras: initialExtras,
   max,
   bare = false,
+  digestPrefs = {},
+  meId,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   kinds: Kind[];
@@ -33,7 +36,20 @@ export function NotifyForm({
   max: number;
   /** Just the fields, inside a form around it that saves them (the guided setup's Email settings step). */
   bare?: boolean;
+  /** What each person's daily volunteer summary includes (no entry: everything). */
+  digestPrefs?: Record<string, DigestPrefs>;
+  /** The person saving: only they're warned when turning their own summary off. */
+  meId?: string;
 }) {
+  // Who gets the volunteer summary, and what each person's includes.
+  const hasDigest = kinds.some((k) => k.kind === "volunteer_digest");
+  const [digestOn, setDigestOn] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(members.map((m) => [m.id, picked.volunteer_digest?.includes(m.id) ?? false])),
+  );
+  const [parts, setParts] = useState<Record<string, DigestPrefs>>(() =>
+    Object.fromEntries(members.map((m) => [m.id, digestPrefs[m.id] ?? ALL_DIGEST])),
+  );
+  const myOff = Boolean(meId && digestOn[meId] && parts[meId] && !Object.values(parts[meId]).some(Boolean));
   const [extras, setExtras] = useState<Extra[]>(() => initialExtras.map((x, i) => ({ key: i, ...x })));
   const [nextKey, setNextKey] = useState(initialExtras.length);
   const one = kinds.length === 1;
@@ -58,7 +74,29 @@ export function NotifyForm({
                 <span className="text-muted">· {m.role}</span>
                 <span className="w-full break-all text-muted">{m.email ?? "No email on file"}</span>
               </div>
-              <KindChecks kinds={kinds} name={(k) => k} value={m.id} checked={(k) => picked[k]?.includes(m.id) ?? false} disabled={!m.email} one={one} who={m.name} />
+              <KindChecks
+                kinds={kinds}
+                name={(k) => k}
+                value={m.id}
+                checked={(k) => picked[k]?.includes(m.id) ?? false}
+                disabled={!m.email}
+                one={one}
+                who={m.name}
+                onToggle={(k, on) => k === "volunteer_digest" && setDigestOn((prev) => ({ ...prev, [m.id]: on }))}
+              />
+              {hasDigest && !bare && digestOn[m.id] && (
+                <div className="mt-1 border-t border-border pt-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    {m.id === meId ? "Your" : "Their"} volunteer summary includes
+                  </p>
+                  <DigestChoices
+                    name={`digest-${m.id}`}
+                    value={parts[m.id]}
+                    onChange={(next) => setParts((prev) => ({ ...prev, [m.id]: next }))}
+                    who={m.name}
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -115,7 +153,14 @@ export function NotifyForm({
       </div>
     );
   return (
-    <ActionForm action={action} resetOnSuccess={false} className="space-y-5">
+    <ActionForm
+      action={action}
+      resetOnSuccess={false}
+      className="space-y-5"
+      confirmMessage={myOff ? DIGEST_OFF_CONFIRM : undefined}
+      confirmLabel={myOff ? "Turn it off" : undefined}
+    >
+      {hasDigest && <input type="hidden" name="digestChoices" value="1" />}
       {fields}
       <SubmitButton>Save notifications</SubmitButton>
     </ActionForm>
@@ -131,6 +176,7 @@ function KindChecks({
   disabled,
   one,
   who,
+  onToggle,
 }: {
   kinds: Kind[];
   name: (kind: NotifyKind) => string;
@@ -139,6 +185,8 @@ function KindChecks({
   disabled?: boolean;
   one: boolean;
   who: string;
+  /** Told when a tick changes. */
+  onToggle?: (kind: NotifyKind, on: boolean) => void;
 }) {
   return (
     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
@@ -150,6 +198,7 @@ function KindChecks({
             value={value ?? k.kind}
             defaultChecked={checked(k.kind)}
             disabled={disabled}
+            onChange={(e) => onToggle?.(k.kind, e.target.checked)}
             aria-label={one ? `${who} gets ${k.label.toLowerCase()}` : undefined}
             className="h-4 w-4 shrink-0 accent-[var(--brand)]"
           />
