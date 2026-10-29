@@ -6570,6 +6570,220 @@ delete from public.stations where id = '20000000-0000-0000-0000-0000000000f1';
 delete from public.volunteers where email = 'pat.potluck@example.com';
 delete from public.volunteer_dropped_shifts where item_id is not null;
 
+-- ---------------------------------------------------------------------------
+-- Group sign-ups (20270102000000): each person on their own shifts, adults-only
+-- shifts and minimum ages, capacity counting everyone, the guardian's
+-- permanent confirmation, switching shifts, and summary choices.
+-- ---------------------------------------------------------------------------
+set role service_role;
+do $$
+declare
+  day     timestamptz := date_trunc('day', now() + interval '14 days');
+  consent text := 'I confirm I am this volunteer''s parent or legal guardian, or have their permission to sign them up.';
+  r       jsonb;
+  judy    uuid;
+  maya    uuid;
+  bob     uuid;
+  tickets uuid := '9a000000-0000-0000-0000-000000000004';
+begin
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity, adults_only, min_age) values
+    ('9a000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-00000000000a', 'Chairs', day + interval '17 hours', day + interval '18 hours', 3, false, null),
+    ('9a000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-00000000000a', 'Concessions', day + interval '18 hours', day + interval '20 hours', 1, false, null),
+    ('9a000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-00000000000a', 'Parking', day + interval '15 hours', day + interval '16 hours', 5, true, null),
+    ('9a000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-00000000000a', 'Tickets', day + interval '20 hours', day + interval '21 hours', 5, false, 16);
+
+  -- Who can take which shift.
+  assert public.shift_ineligible('9a000000-0000-0000-0000-000000000003', false, null) is null, 'adults can take adults-only shifts';
+  assert public.shift_ineligible('9a000000-0000-0000-0000-000000000003', true, 17) = 'Adults only', 'minors can''t take adults-only shifts';
+  assert public.shift_ineligible(tickets, true, 15) = 'Ages 16 and up', 'a 15-year-old is too young for a 16-and-up shift';
+  assert public.shift_ineligible(tickets, true, 16) is null, 'a 16-year-old can take it';
+  assert public.shift_ineligible(tickets, true, null) = 'Ages 16 and up', 'a minor with no age can''t take a shift with a minimum age';
+  assert public.shift_ineligible(tickets, false, null) is null, 'an adult can take a shift with a minimum age';
+  assert public.shift_ineligible('9a000000-0000-0000-0000-000000000001', true, 10) is null, 'anyone can take an open shift';
+
+  -- A minor in the group needs the guardian's confirmation; nothing is saved without it.
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'Judy Ortiz', 'judy.o@example.com', '+15125550190',
+      array['9a000000-0000-0000-0000-000000000001']::uuid[], false, null, '[]',
+      '[{"name": "Maya Ortiz", "minor": true, "age": 15, "shift_ids": ["9a000000-0000-0000-0000-000000000001"]}]', null);
+    raise exception 'FAIL: signed up a minor without the guardian''s confirmation';
+  exception when sqlstate 'P0006' then null;
+  end;
+  assert not exists (select 1 from public.volunteers where email = 'judy.o@example.com'), 'no confirmation saves nothing';
+
+  -- A 15-year-old can't be put on a 16-and-up shift, or an adults-only one.
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'Judy Ortiz', 'judy.o@example.com', '+15125550190',
+      array['9a000000-0000-0000-0000-000000000001']::uuid[], false, null, '[]',
+      '[{"name": "Maya Ortiz", "minor": true, "age": 15, "shift_ids": ["9a000000-0000-0000-0000-000000000004"]}]', consent);
+    raise exception 'FAIL: a 15-year-old took a 16-and-up shift';
+  exception when sqlstate 'P0005' then null;
+  end;
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'Judy Ortiz', 'judy.o@example.com', '+15125550190',
+      array['9a000000-0000-0000-0000-000000000001']::uuid[], false, null, '[]',
+      '[{"name": "Maya Ortiz", "minor": true, "age": 17, "shift_ids": ["9a000000-0000-0000-0000-000000000003"]}]', consent);
+    raise exception 'FAIL: a minor took an adults-only shift';
+  exception when sqlstate 'P0005' then null;
+  end;
+  assert not exists (select 1 from public.volunteers where email = 'judy.o@example.com'), 'a refused person saves no one in the group';
+  assert (select registered_count from public.shifts where id = '9a000000-0000-0000-0000-000000000001') = 0, 'and takes no spots';
+
+  -- Up to 6 other people.
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'Judy Ortiz', 'judy.o@example.com', '+15125550190',
+      array['9a000000-0000-0000-0000-000000000001']::uuid[], false, null, '[]',
+      (select jsonb_agg(jsonb_build_object('name', 'Helper ' || n, 'minor', false, 'shift_ids', jsonb_build_array('9a000000-0000-0000-0000-000000000003')))
+         from generate_series(1, 7) n), null);
+    raise exception 'FAIL: added 7 other people';
+  exception when sqlstate 'P0001' then null;
+  end;
+
+  -- Judy, her daughter Maya (15) on the same shift, and her neighbor Bob on another.
+  r := public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'Judy Ortiz', 'judy.o@example.com', '+15125550190',
+    array['9a000000-0000-0000-0000-000000000001']::uuid[], false, null, '[]',
+    '[{"name": "Maya Ortiz", "minor": true, "age": 15, "shift_ids": ["9a000000-0000-0000-0000-000000000001"]},
+      {"name": "Bob Lee", "minor": false, "email": "Bob.Lee@example.com", "phone": "+15125550191", "shift_ids": ["9a000000-0000-0000-0000-000000000002"]}]',
+    consent);
+  judy := (r ->> 'booker')::uuid;
+  maya := (r -> 'people' ->> 0)::uuid;
+  bob := (r -> 'people' ->> 1)::uuid;
+  assert (select registered_count from public.shifts where id = '9a000000-0000-0000-0000-000000000001') = 2, 'Judy and Maya each take a spot';
+  assert (select registered_count from public.shifts where id = '9a000000-0000-0000-0000-000000000002') = 1, 'Bob takes his own';
+  assert (select contact_id = judy and minor and age = 15 and full_name = 'Maya O.' and email is null and phone = '+15125550190'
+            from public.volunteers where id = maya), 'Maya is booked by Judy, kept as "Maya O." with her age, reached through Judy';
+  assert (select contact_id = judy and email = 'bob.lee@example.com' and phone = '+15125550191' from public.volunteers where id = bob),
+         'Bob is booked by Judy, with his own email and phone';
+  assert (select access_token from public.volunteers where id = bob) <> (select access_token from public.volunteers where id = judy),
+         'Bob has his own private link';
+  assert (select count(*) from public.minor_consents where volunteer_id = maya) = 1, 'the guardian''s confirmation is kept for Maya';
+  assert (select booker_name = 'Judy Ortiz' and booker_email = 'judy.o@example.com' and minor_name = 'Maya O.' and wording = consent
+                 and timezone is not null and consented_at is not null
+            from public.minor_consents where volunteer_id = maya), 'with who confirmed, when, and the exact words';
+  assert not exists (select 1 from public.minor_consents where volunteer_id in (judy, bob)), 'adults get no confirmation record';
+
+  -- A full shift refuses the whole group, and each person counts toward the spots.
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'Ann Ash', 'ann@example.com', '+15125550192',
+      array['9a000000-0000-0000-0000-000000000003']::uuid[], false, null, '[]',
+      '[{"name": "Al Ash", "minor": false, "shift_ids": ["9a000000-0000-0000-0000-000000000002"]}]', null);
+    raise exception 'FAIL: booked a full shift';
+  exception when sqlstate 'P0002' then null;
+  end;
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'Ann Ash', 'ann@example.com', '+15125550192',
+      array['9a000000-0000-0000-0000-000000000001']::uuid[], false, null, '[]',
+      '[{"name": "Al Ash", "minor": false, "shift_ids": ["9a000000-0000-0000-0000-000000000001"]}]', null);
+    raise exception 'FAIL: two people took the last spot';
+  exception when sqlstate 'P0002' then null;
+  end;
+  assert not exists (select 1 from public.volunteers where email = 'ann@example.com'), 'a refused group saves no one';
+  assert (select registered_count from public.shifts where id = '9a000000-0000-0000-0000-000000000001') = 2, 'and takes no spots';
+
+  -- The confirmation can never be changed or deleted.
+  begin
+    update public.minor_consents set wording = 'Something else entirely, edited later.' where volunteer_id = maya;
+    raise exception 'FAIL: edited a guardian''s confirmation';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    delete from public.minor_consents where volunteer_id = maya;
+    raise exception 'FAIL: deleted a guardian''s confirmation';
+  exception when insufficient_privilege then null;
+  end;
+
+  -- Bob switches to Tickets with his own link; his old spot opens up and the summary hears of it.
+  assert not public.swap_shift_with_pass((select id from public.volunteer_assignments where volunteer_id = bob), tickets,
+           array[(select access_token from public.volunteers where id = judy)], '{}'),
+         'Judy''s link can''t switch Bob''s shift';
+  assert public.swap_shift_with_pass((select id from public.volunteer_assignments where volunteer_id = bob), tickets,
+           array[(select access_token from public.volunteers where id = bob)], '{}'),
+         'Bob switches his shift with his link';
+  assert (select registered_count from public.shifts where id = '9a000000-0000-0000-0000-000000000002') = 0, 'Concessions has a spot again';
+  assert (select registered_count from public.shifts where id = tickets) = 1, 'Tickets has Bob';
+  assert exists (select 1 from public.volunteer_changes where volunteer_id = bob and to_shift_id = tickets), 'the switch is noted for the summary';
+  -- Maya can't switch to a shift she's too young for.
+  begin
+    perform public.swap_shift_with_pass((select id from public.volunteer_assignments where volunteer_id = maya), tickets,
+              array[(select access_token from public.volunteers where id = maya)], '{}');
+    raise exception 'FAIL: a 15-year-old switched to a 16-and-up shift';
+  exception when sqlstate 'P0005' then null;
+  end;
+end $$;
+reset role;
+
+-- No one but the server signs up a group.
+set role anon;
+do $$ begin
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-00000000000a', 'X', 'x@example.com', '1', array[]::uuid[]);
+    raise exception 'FAIL: the public called sign_up_group directly';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.minor_consents;
+    raise exception 'FAIL: the public read guardian confirmations';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+-- The event team sees the confirmation (and the roster marks it); a stranger doesn't.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  assert (select count(*) from public.minor_consents where minor_name = 'Maya O.') = 1, 'a Volunteer Lead sees the guardian''s confirmation';
+  assert (select guardian_confirmed and signed_up_by = 'Judy Ortiz'
+            from public.station_roster('20000000-0000-0000-0000-00000000000a') where volunteer_name = 'Maya O.'),
+         'the roster shows Maya was booked by Judy, with her guardian''s confirmation';
+  assert (select not guardian_confirmed from public.station_roster('20000000-0000-0000-0000-00000000000a') where volunteer_name = 'Bob Lee'),
+         'adults show no guardian marker';
+  begin
+    update public.minor_consents set wording = 'Changed by a Volunteer Lead, not allowed.';
+    raise exception 'FAIL: a Volunteer Lead edited a guardian''s confirmation';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.minor_consents), 'a stranger sees no guardian confirmations';
+end $$;
+
+-- Summary choices: your own, on an event you run volunteers for; hosts set anyone's.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  insert into public.volunteer_digest_prefs (event_id, user_id, new_bookings, changes, cancellations)
+  values ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000002', false, true, true);
+  begin
+    insert into public.volunteer_digest_prefs (event_id, user_id, new_bookings, changes, cancellations)
+    values ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001', false, false, false);
+    raise exception 'FAIL: a Volunteer Lead set a host''s summary choices';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  begin
+    insert into public.volunteer_digest_prefs (event_id, user_id) values ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000006');
+    raise exception 'FAIL: a stranger added summary choices to someone else''s event';
+  exception when insufficient_privilege then null;
+  end;
+  assert not exists (select 1 from public.volunteer_digest_prefs), 'a stranger sees no summary choices';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  update public.volunteer_digest_prefs set new_bookings = true
+   where event_id = '10000000-0000-0000-0000-00000000000a' and user_id = '00000000-0000-0000-0000-000000000002';
+  assert (select new_bookings from public.volunteer_digest_prefs where user_id = '00000000-0000-0000-0000-000000000002'),
+         'a host can change a Volunteer Lead''s summary choices';
+end $$;
+reset role;
+delete from public.volunteer_digest_prefs;
+delete from public.volunteers where email in ('judy.o@example.com', 'bob.lee@example.com') or full_name = 'Maya O.';
+delete from public.shifts where id::text like '9a000000-%';
+delete from public.volunteer_changes;
+delete from public.volunteer_dropped_shifts;
+
 delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'
