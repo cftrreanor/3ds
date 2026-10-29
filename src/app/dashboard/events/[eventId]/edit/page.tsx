@@ -199,7 +199,9 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     kinds: kinds.map((k) => k.kind).filter((k) => savedKinds.get(k)?.extra_emails.includes(email)),
   }));
   const notifySaved = savedKinds.size > 0;
-  const senderName = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
+  // An organization named like the product sends as the product alone (lib/email.ts), not "X via X".
+  const namedSender = (conference ? creator?.full_name?.trim() : org?.name?.trim()) || org?.name?.trim() || "";
+  const senderName = namedSender.toLowerCase() === product.name.toLowerCase() ? "" : namedSender;
   const repliesOn = replyRow ? replyRow.replies : true;
   const replyTo = replyRow?.reply_to || (creator?.email as string | undefined) || "";
   const repliesUnavailable = isSchemaError(replyError);
