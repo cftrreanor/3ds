@@ -7,6 +7,8 @@ import { isPlacesConfigured } from "@/lib/places";
 import { createEvent } from "../../actions";
 import { EventForm } from "../_components/event-form";
 import { SetupHeader } from "../_components/setup-steps";
+import { SetupLogo } from "../_components/setup-logo";
+import { loadBrand } from "@/lib/badges";
 import { EventTypeChoices } from "@/components/event-type-picker";
 import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
 import { loadAccountPlan, startableTypes, typeWords } from "@/lib/plan";
@@ -60,6 +62,10 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
 
   // Most events: the first of the guided setup's steps (the rest are in Event settings, ?setup=1).
   if (!hasConferences(type)) {
+    // The account's logo and color, for an Account Host to set from the start.
+    const supabase = await createClient();
+    const { data: isAdmin } = await supabase.rpc("is_org_admin", { org: org.id });
+    const brand = isAdmin ? await loadBrand(org.id) : null;
     return (
       <div className="mx-auto max-w-5xl" data-required-marks>
         <SetupHeader current="details" back={{ href: "/dashboard", label: "All events" }}>
@@ -77,6 +83,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
               venueSearchEnabled={isPlacesConfigured}
               submitLabel="Save and continue"
               setup={{}}
+              extra={brand && <SetupLogo eventId={null} logo={brand.logo} color={brand.color} />}
             />
           </div>
         </Card>

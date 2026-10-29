@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Select } from "@/components/ui";
@@ -35,6 +35,7 @@ export function EventForm({
   when,
   stickySave = false,
   setup,
+  extra,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -53,6 +54,8 @@ export function EventForm({
   stickySave?: boolean;
   /** A new event's guided setup: saving goes on to the `next` step (Event settings, ?setup=1). */
   setup?: { next?: string; back?: string };
+  /** More to set up on this step, just above the Save button (the logo and color, which save on their own). */
+  extra?: ReactNode;
 }) {
   const [dirty, setDirty] = useState(false);
   // Venue search favors the part of the country in the event's time zone.
@@ -182,6 +185,8 @@ export function EventForm({
           names and parents&apos; notes are seen only by you and are permanently deleted 30 days after the conference.
         </p>
       )}
+
+      {extra}
 
       {setup ? (
         <>

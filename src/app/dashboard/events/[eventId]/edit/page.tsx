@@ -37,6 +37,7 @@ import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/action-state";
 import { SavedBy } from "@/components/saved-by";
 import { LogoForm } from "@/components/logo-form";
+import { SetupLogo } from "../../_components/setup-logo";
 import { loadBrand } from "@/lib/badges";
 
 export const metadata: Metadata = { title: "Event Settings" };
@@ -316,10 +317,11 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   when={when}
                   stickySave={!guided}
                   setup={guided ? { next: nextStep } : undefined}
+                  extra={guided && badgesHere ? <SetupLogo eventId={eventId} logo={brand.logo} color={brand.color} /> : undefined}
                 />
               </Panel>
 
-              {/* The logo waits for Event settings, so the first step is just the details. */}
+              {/* In the guided setup, the logo sits in the details step's own box, above Save and continue. */}
               {badgesHere && !guided && (
                 <Panel id="logo" title="Logo and color">
                   <p className="text-sm text-muted">

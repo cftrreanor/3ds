@@ -4,11 +4,22 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { LOGO_BUCKET, LOGO_TYPES, MAX_LOGO_BYTES } from "@/lib/badges";
 import { isHexColor } from "@/lib/brand-color";
+import { getMyOrganization } from "@/lib/data";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
-/** The event's account, if the person signed in is one of its hosts. */
-async function hostAccount(eventId: string) {
+/**
+ * The event's account, if the person signed in is one of its hosts. Without
+ * an event yet (a new event's first step): their own account, if they're one
+ * of its Account Hosts.
+ */
+async function hostAccount(eventId: string | null) {
   const supabase = await createClient();
+  if (!eventId) {
+    const org = await getMyOrganization();
+    if (!org) return null;
+    const { data: isAdmin } = await supabase.rpc("is_org_admin", { org: org.id });
+    return isAdmin ? org.id : null;
+  }
   const [{ data: event }, { data: isHost }] = await Promise.all([
     supabase.from("events").select("organization_id").eq("id", eventId).maybeSingle(),
     supabase.rpc("is_event_admin", { ev: eventId }),
@@ -21,7 +32,7 @@ async function hostAccount(eventId: string) {
  * folder. The browser sends the image straight to storage.
  */
 export async function prepareLogoUpload(
-  eventId: string,
+  eventId: string | null,
   file: { contentType: string; size: number },
 ): Promise<{ error?: string; path?: string; url?: string }> {
   await requireUser();
@@ -39,7 +50,7 @@ export async function prepareLogoUpload(
 }
 
 /** Step 2: use the uploaded image (or, with null, remove the logo). The old image is deleted. */
-export async function saveLogo(eventId: string, path: string | null): Promise<{ error?: string }> {
+export async function saveLogo(eventId: string | null, path: string | null): Promise<{ error?: string }> {
   await requireUser();
   const org = await hostAccount(eventId);
   if (!org) return { error: "Only hosts can change the logo." };
@@ -51,12 +62,12 @@ export async function saveLogo(eventId: string, path: string | null): Promise<{ 
     return { error: "We couldn't save the logo. Please try again." };
   }
   if (old && old !== path) await createAdminClient().storage.from(LOGO_BUCKET).remove([old as string]);
-  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  revalidatePath(eventId ? `/dashboard/events/${eventId}` : "/dashboard/events/new", "layout");
   return {};
 }
 
 /** The account's color (from the logo, or picked by the host); null goes back to none. */
-export async function saveBrandColor(eventId: string, color: string | null): Promise<{ error?: string }> {
+export async function saveBrandColor(eventId: string | null, color: string | null): Promise<{ error?: string }> {
   await requireUser();
   if (color !== null && !isHexColor(color)) return { error: "Please pick a color." };
   const org = await hostAccount(eventId);
@@ -67,6 +78,6 @@ export async function saveBrandColor(eventId: string, color: string | null): Pro
     console.error("set_org_brand_color failed", error);
     return { error: "We couldn't save the color. Please try again." };
   }
-  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  revalidatePath(eventId ? `/dashboard/events/${eventId}` : "/dashboard/events/new", "layout");
   return {};
 }
