@@ -37,44 +37,36 @@ export async function setParentRegistrationOpen(eventId: string, open: boolean):
   };
 }
 
-/** Hosts pick when parent registration closes on its own (in the event's time zone), or clear it. */
-export async function setParentRegistrationClosesAt(
-  eventId: string,
-  timezone: string,
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+/**
+ * Registration settings, saved together: when registration closes on its own
+ * (blank for never; in the event's time zone) and whether parents who didn't
+ * register can still come.
+ */
+export async function saveParentSettings(eventId: string, timezone: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const date = String(formData.get("date") ?? "").trim();
   const time = String(formData.get("time") ?? "").trim();
-  const clear = formData.get("clear") === "1";
+  const walkIns = formData.get("walkIns") === "yes";
+  const supabase = await createClient();
+  const { data: event } = await supabase.from("events").select("parent_registration_closes_at").eq("id", eventId).maybeSingle();
+  if (!event) return { error: "Only the event's host can change this." };
   let closesAt: string | null = null;
-  if (!clear) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return { error: "Pick a date and a time." };
+  if (date || time) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return { error: "Pick a date and a time, or leave both blank." };
     const at = zonedToUtc(date, time, timezone);
     if (Number.isNaN(at.getTime())) return { error: "Pick a date and a time." };
-    if (at <= new Date()) return { error: "Pick a time that hasn't passed yet." };
     closesAt = at.toISOString();
+    // A closing time that's already passed can stay as it is, but not be newly picked.
+    const unchanged = event.parent_registration_closes_at && new Date(event.parent_registration_closes_at).getTime() === at.getTime();
+    if (!unchanged && at <= new Date()) return { error: "Pick a closing time that hasn't passed yet." };
   }
-  const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
-    .update({ parent_registration_closes_at: closesAt })
+    .update({ parent_registration_closes_at: closesAt, parent_walk_ins_allowed: walkIns })
     .eq("id", eventId)
     .select("id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "Only the event's host can change this." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: closesAt ? "Saved. Registration will close on its own then." : "Removed. Registration stays open until you close it." };
-}
-
-/** Hosts say whether parents who didn't register can still come (with a photo ID). */
-export async function setParentWalkInsAllowed(eventId: string, allowed: boolean): Promise<ActionState> {
-  await requireUser();
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("events").update({ parent_walk_ins_allowed: allowed }).eq("id", eventId).select("id");
-  if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "Only the event's host can change this." };
-  revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true };
+  return { ok: true, message: "Registration settings saved." };
 }

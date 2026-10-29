@@ -523,7 +523,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   {/* One main button on the day (the check-in most used), the rest outlined. */}
                   {[
                     // Visitor days: the parent door is the main check-in.
-                    parentsHere && !doorLocked && { href: `/dashboard/events/${eventId}/parents#door-check-in`, label: "Parent door check-in" },
+                    parentsHere && !doorLocked && { href: `/dashboard/events/${eventId}/parents/check-in`, label: "Parent door check-in" },
                     access.canManage && { href: `/dashboard/events/${eventId}/volunteers`, label: "Volunteer Check-in" },
                     myStations.length > 0 && { href: `/dashboard/events/${eventId}/contest-day`, label: "What I lead" },
                     hasBooths(event.event_type) && { href: `/dashboard/events/${eventId}/booths`, label: "Partner check-in" },
@@ -615,9 +615,17 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             </p>
           </div>
           {!doorLocked && (
-            <Link href={`/dashboard/events/${eventId}/parents`} className={BTN_OUTLINE}>
-              {access.isHost ? "Registration & door check-in" : "Open door check-in"}
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              {access.isHost && (
+                <Link href={`/dashboard/events/${eventId}/parents`} className={BTN_OUTLINE}>
+                  Parent Registration
+                </Link>
+              )}
+              {/* Door check-in is its own page, like volunteer check-in. */}
+              <Link href={`/dashboard/events/${eventId}/parents/check-in`} className={BTN_OUTLINE}>
+                {access.isHost ? "Check-in" : "Open door check-in"}
+              </Link>
+            </div>
           )}
         </div>
         {!doorLocked && parentNumbers.families > 0 && <ParentNumbers stats={parentNumbers} eventDay={isEventDay} />}
