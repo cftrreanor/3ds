@@ -15,9 +15,10 @@ const MAX = 2 * 1024 * 1024;
 /**
  * The account's logo and color (one for every event): upload, replace, or
  * remove the logo, and pick the color. A new logo sets the color to the
- * logo's main color; the host can change it. Hosts only.
+ * logo's main color; the host can change it. Hosts only. No `eventId` on a
+ * new event's first step, before the event exists: it's the host's own account.
  */
-export function LogoForm({ eventId, logo, color }: { eventId: string; logo: string | null; color: string | null }) {
+export function LogoForm({ eventId, logo, color }: { eventId: string | null; logo: string | null; color: string | null }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
