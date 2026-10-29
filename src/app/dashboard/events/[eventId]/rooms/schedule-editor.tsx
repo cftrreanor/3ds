@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { markChanged, markSaved, SaveFooter } from "./save-footer";
 import { NumberInput } from "@/components/number-input";
 import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
@@ -54,6 +55,13 @@ export function ScheduleEditor({
   const [emailChanges, setEmailChanges] = useState(true);
   const [state, setState] = useState<ActionState>({});
   const [pending, start] = useTransition();
+  const [dirty, setDirty] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
+  // Every change goes through here: the footer says it's unsaved, and leaving the tab asks first.
+  const touch = () => {
+    setDirty(true);
+    markChanged(form);
+  };
 
   const path = pathRooms(rooms);
   const unsaved = initialOrder.length !== order.length || order.some((o, i) => initialOrder[i]?.bandId !== o.bandId);
@@ -67,19 +75,24 @@ export function ScheduleEditor({
   );
   const overlong = tooLongRooms(rooms, iv);
 
-  const set = (i: number, patch: Partial<GroupPlan>) => setOrder((list) => list.map((o, j) => (j === i ? { ...o, ...patch } : o)));
-  const move = (i: number, by: number) =>
+  const set = (i: number, patch: Partial<GroupPlan>) => {
+    setOrder((list) => list.map((o, j) => (j === i ? { ...o, ...patch } : o)));
+    touch();
+  };
+  const move = (i: number, by: number) => {
     setOrder((list) => {
       const next = [...list];
       const [o] = next.splice(i, 1);
       next.splice(i + by, 0, o);
       return next;
     });
+    touch();
+  };
 
   if (!path.length) {
     return (
       <Card>
-        <p className="text-muted">Add the rooms every group visits (above) first; then put the groups in order here.</p>
+        <p className="text-muted">Add the rooms every group visits in the Rooms tab first; then put the groups in order here.</p>
       </Card>
     );
   }
@@ -91,12 +104,34 @@ export function ScheduleEditor({
     );
   }
 
+  const onSave = () =>
+    start(async () => {
+      const r = await save({
+        date,
+        time,
+        interval: iv,
+        passing: pass,
+        order: order.map((o) => ({ bandId: o.bandId, skipped: o.skipped.filter((id) => roomName.has(id)), extraMinutes: o.extraMinutes })),
+        emailChanges,
+      });
+      setState(r);
+      if (r.ok) setDirty(false);
+      markSaved(form, Boolean(r.ok));
+    });
+
   return (
-    <div className="space-y-4">
+    <form
+      ref={form}
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave();
+      }}
+    >
       <Card className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-4">
           <Field label="Day">
-            <Select value={date} onChange={(e) => setDate(e.target.value)}>
+            <Select value={date} onChange={(e) => (setDate(e.target.value), touch())}>
               {days.map((d) => (
                 <option key={d} value={d}>
                   {formatDate(d, { year: undefined })}
@@ -105,13 +140,13 @@ export function ScheduleEditor({
             </Select>
           </Field>
           <Field label="First group starts">
-            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            <Input type="time" value={time} onChange={(e) => (setTime(e.target.value), touch())} />
           </Field>
           <Field label="Minutes between groups">
-            <NumberInput value={interval} onChange={(e) => setIntervalMinutes(e.target.value)} maxLength={3} />
+            <NumberInput value={interval} onChange={(e) => (setIntervalMinutes(e.target.value), touch())} maxLength={3} />
           </Field>
           <Field label="Passing time (minutes)" hint="Walking between rooms.">
-            <NumberInput value={passing} onChange={(e) => setPassing(e.target.value)} maxLength={2} />
+            <NumberInput value={passing} onChange={(e) => (setPassing(e.target.value), touch())} maxLength={2} />
           </Field>
         </div>
         <p className="text-sm text-muted">
@@ -203,38 +238,16 @@ export function ScheduleEditor({
         })}
       </ol>
 
-      <div className="space-y-2 border-t border-border pt-3">
-        <FormMessage error={state.error} success={state.ok ? state.message : null} />
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                setState(
-                  await save({
-                    date,
-                    time,
-                    interval: iv,
-                    passing: pass,
-                    order: order.map((o) => ({ bandId: o.bandId, skipped: o.skipped.filter((id) => roomName.has(id)), extraMinutes: o.extraMinutes })),
-                    emailChanges,
-                  }),
-                );
-              })
-            }
-          >
-            {pending ? "Saving…" : "Save schedule"}
-          </Button>
-          {posted && (
-            <label className="flex min-h-11 items-center gap-2 text-sm">
-              <input type="checkbox" checked={emailChanges} onChange={(e) => setEmailChanges(e.target.checked)} className="h-5 w-5 accent-[var(--brand)]" />
-              Email directors whose times change
-            </label>
-          )}
-          {unsaved && !pending && <span className="text-sm text-muted">New groups aren&apos;t scheduled until you save.</span>}
-        </div>
-      </div>
-    </div>
+      <FormMessage error={state.error} success={state.ok && !dirty ? state.message : null} />
+      <SaveFooter dirty={dirty || unsaved} saved={initialOrder.length > 0} pending={pending} label="Save schedule" inCard={false}>
+        {posted && (
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input type="checkbox" checked={emailChanges} onChange={(e) => setEmailChanges(e.target.checked)} className="h-5 w-5 accent-[var(--brand)]" />
+            Email directors whose times change
+          </label>
+        )}
+      </SaveFooter>
+      {unsaved && !pending && <p className="text-sm text-muted">New groups aren&apos;t scheduled until you save.</p>}
+    </form>
   );
 }

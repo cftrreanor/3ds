@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RoomSchedule, type ScheduleSlot } from "@/components/room-schedule";
 import { PublishBar, PublishLine } from "@/components/publish-bar";
-import { SetupStep, StepStatus } from "@/components/setup-step";
 import { Card } from "@/components/ui";
 import { getEventAccess } from "@/lib/data";
 import { hasRooms } from "@/lib/event-types";
@@ -17,6 +16,7 @@ import { saveRooms, saveRoomSchedule, setRoomSchedulePosted } from "./actions";
 import { RoomsEditor } from "./rooms-editor";
 import { ScheduleEditor, type ScheduleGroup } from "./schedule-editor";
 import { SavedBy } from "@/components/saved-by";
+import { SetupTabs } from "../../_components/setup-tabs";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/rooms">): Promise<Metadata> {
   const { eventId } = await params;
@@ -24,11 +24,13 @@ export async function generateMetadata({ params }: PageProps<"/dashboard/events/
 }
 
 /**
- * Group events. Hosts: Rooms & Schedule Setup, as setup steps with a publish
- * bar (see "Setup pages" in docs/DESIGN.md). The team: the schedule.
+ * Group events. Hosts: Rooms & Schedule Setup, like Volunteer Setup and Band
+ * Registration: the publish bar, then tabs for the rooms, the group order and
+ * times, and the saved schedule room by room. The team: the schedule.
  */
-export default async function RoomsPage({ params }: PageProps<"/dashboard/events/[eventId]/rooms">) {
+export default async function RoomsPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/rooms">) {
   const { eventId } = await params;
+  const { tab } = await searchParams;
   const supabase = await createClient();
   const [{ data: event }, access, { data: onTeam }] = await Promise.all([
     supabase
@@ -83,8 +85,29 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
     extraMinutes: o.extra_minutes_before,
   }));
 
+  // Hosts: a tab per part, opening on what's still to do. ?tab= picks one.
+  const base = `/dashboard/events/${eventId}/rooms`;
+  const current =
+    tab === "rooms" || tab === "order" || tab === "schedule" ? tab : !roomsDone ? "rooms" : slots.length === 0 ? "order" : "schedule";
+  const board = (
+    <section aria-labelledby="board-heading">
+      <h2 id="board-heading" className={access.isHost ? "text-lg font-semibold" : "text-xl font-semibold"}>
+        {access.isHost ? "Saved schedule, room by room" : "Schedule, room by room"}
+      </h2>
+      {rooms.length === 0 ? (
+        <Card className="mt-4">
+          <p className="text-muted">{access.isHost ? "No rooms yet. Add them in the Rooms tab." : "The organizer hasn't set up the rooms yet."}</p>
+        </Card>
+      ) : (
+        <div className="mt-4">
+          <RoomSchedule rooms={rooms} slots={slots} timezone={tz} live={isEventDay} />
+        </div>
+      )}
+    </section>
+  );
+
   return (
-    <div>
+    <div data-required-marks>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
@@ -142,65 +165,85 @@ export default async function RoomsPage({ params }: PageProps<"/dashboard/events
               )}
             </PublishLine>
           </PublishBar>
-
-          <SetupStep
-            id="rooms"
-            title="1. Rooms"
-            status={<StepStatus done={roomsDone} doneLabel={`${rooms.length} ${rooms.length === 1 ? "room" : "rooms"}`} />}
-            open={!roomsDone}
-            intro="The rooms groups visit, in the order they visit them. Everything is at the event's address; use the note for a room number or directions inside the building."
-          >
-            <RoomsEditor key={rooms.map((r) => `${r.id}:${r.path_order}:${r.minutes}`).join(",")} rooms={rooms} save={saveRooms.bind(null, eventId)} />
-          </SetupStep>
-
-          <SetupStep
-            id="group-order"
-            title="2. Group order & times"
-            status={
-              <StepStatus
-                done={slots.length > 0}
-                doneLabel="Saved"
-                todoLabel={!roomsDone ? "Set up rooms first" : groups.length === 0 ? "Waiting for groups to register" : "Needs to be done"}
-              />
-            }
-            open={roomsDone && slots.length === 0}
-            intro="Every group follows the path in order. Groups start one gap apart, so a room is never double-booked. Directors' scheduling conflicts are marked ⚠️. Post it from the outlined bar: each director is emailed their group's times."
-          >
-            <ScheduleEditor
-              key={`${order.map((o) => `${o.bandId}:${o.extraMinutes}`).join(",")}|${start}|${bands.length}|${rooms.length}`}
-              groups={groups}
-              rooms={rooms}
-              initialOrder={order}
-              initialDate={utcToZonedDate(start, tz)}
-              initialTime={utcToZonedTime(start, tz)}
-              initialInterval={event.room_interval_minutes}
-              initialPassing={event.room_passing_minutes}
-              days={days}
-              timezone={tz}
-              zoneLabel={zoneName(tz)}
-              posted={event.performance_order_published}
-              save={saveRoomSchedule.bind(null, eventId)}
-            />
-          </SetupStep>
         </div>
       )}
 
-      <section className="mt-10" aria-labelledby="board-heading">
-        <h2 id="board-heading" className="text-xl font-semibold">
-          {access.isHost ? "Saved schedule, room by room" : "Schedule, room by room"}
-        </h2>
-        {rooms.length === 0 ? (
-          <Card className="mt-4">
-            <p className="text-muted">
-              {access.isHost ? "No rooms yet. Add them in step 1 above." : "The organizer hasn't set up the rooms yet."}
-            </p>
-          </Card>
-        ) : (
-          <div className="mt-4">
-            <RoomSchedule rooms={rooms} slots={slots} timezone={tz} live={isEventDay} />
+      {access.isHost && (
+        <div className="mt-10">
+          <SetupTabs
+            label="Rooms and schedule"
+            tabs={[
+              {
+                key: "rooms",
+                label: "Rooms",
+                status: roomsDone ? `${rooms.length} ${rooms.length === 1 ? "room" : "rooms"}` : "Needs to be done",
+                mark: roomsDone ? "done" : "todo",
+                href: `${base}?tab=rooms`,
+                active: current === "rooms",
+              },
+              {
+                key: "order",
+                label: "Group order & times",
+                status: slots.length > 0 ? "Saved" : !roomsDone ? "Set up rooms first" : groups.length === 0 ? "Waiting for groups" : "Needs to be done",
+                mark: slots.length > 0 ? "done" : "todo",
+                href: `${base}?tab=order`,
+                active: current === "order",
+              },
+              {
+                key: "schedule",
+                label: "Room by room",
+                status: event.performance_order_published ? "Posted" : slots.length > 0 ? "Not posted" : "Nothing saved yet",
+                href: `${base}?tab=schedule`,
+                active: current === "schedule",
+              },
+            ]}
+          />
+          <div className="mt-6">
+            {current === "rooms" && (
+              <section aria-labelledby="rooms-heading">
+                <h2 id="rooms-heading" className="text-lg font-semibold">
+                  Rooms
+                </h2>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  The rooms groups visit, in the order they visit them. Everything is at the event&apos;s address; use the note for
+                  a room number or directions inside the building.
+                </p>
+                <RoomsEditor key={rooms.map((r) => `${r.id}:${r.path_order}:${r.minutes}`).join(",")} rooms={rooms} save={saveRooms.bind(null, eventId)} />
+              </section>
+            )}
+            {current === "order" && (
+              <section aria-labelledby="order-heading">
+                <h2 id="order-heading" className="text-lg font-semibold">
+                  Group order & times
+                </h2>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  Every group follows the path in order. Groups start one gap apart, so a room is never double-booked.
+                  Directors&apos; scheduling conflicts are marked ⚠️. Post it from the outlined bar: each director is emailed
+                  their group&apos;s times.
+                </p>
+                <ScheduleEditor
+                  key={`${order.map((o) => `${o.bandId}:${o.extraMinutes}`).join(",")}|${start}|${bands.length}|${rooms.length}`}
+                  groups={groups}
+                  rooms={rooms}
+                  initialOrder={order}
+                  initialDate={utcToZonedDate(start, tz)}
+                  initialTime={utcToZonedTime(start, tz)}
+                  initialInterval={event.room_interval_minutes}
+                  initialPassing={event.room_passing_minutes}
+                  days={days}
+                  timezone={tz}
+                  zoneLabel={zoneName(tz)}
+                  posted={event.performance_order_published}
+                  save={saveRoomSchedule.bind(null, eventId)}
+                />
+              </section>
+            )}
+            {current === "schedule" && board}
           </div>
-        )}
-      </section>
+        </div>
+      )}
+
+      {!access.isHost && <div className="mt-10">{board}</div>}
     </div>
   );
 }

@@ -13,6 +13,7 @@ export type ScheduleSlot = {
 
 /**
  * A group event's schedule, room by room: who's in each room and when.
+ * The rooms every group visits are numbered in the order they visit them.
  * On the day, each room shows who's in it now and who's next.
  */
 export function RoomSchedule({
@@ -34,58 +35,79 @@ export function RoomSchedule({
   const path = rooms.filter((r) => r.path_order != null).sort((a, b) => a.path_order! - b.path_order!);
   const multiDay = new Set(slots.map((s) => utcToZonedDate(s.starts_at, timezone))).size > 1;
   return (
-    <div className={`grid gap-4 ${columns === 2 ? "lg:grid-cols-2" : ""}`}>
-      {path.map((room) => {
-        const list = slots.filter((s) => s.room_id === room.id).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
-        const current = live ? list.find((s) => new Date(s.starts_at).getTime() <= now && now < new Date(s.ends_at).getTime()) : undefined;
-        const next = live ? list.find((s) => new Date(s.starts_at).getTime() > now) : undefined;
-        return (
-          <Card key={room.id} className="p-4">
-            <h3 className="text-lg font-semibold">{room.name}</h3>
-            {room.note && <p className="text-sm text-muted">{room.note}</p>}
-            {live && (current || next) && (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {current && <NowNext label="Now" slot={current} timezone={timezone} />}
-                {next && <NowNext label="Up next" slot={next} timezone={timezone} />}
+    <div className="space-y-3">
+      {path.length > 1 && (
+        <p className="text-sm text-muted">
+          Every group visits the rooms in this order: {path.map((r, i) => `${i + 1}. ${r.name}`).join(", then ")}.
+        </p>
+      )}
+      <div className={`grid gap-4 ${columns === 2 ? "lg:grid-cols-2" : ""}`}>
+        {path.map((room, i) => {
+          const list = slots.filter((s) => s.room_id === room.id).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+          const current = live ? list.find((s) => new Date(s.starts_at).getTime() <= now && now < new Date(s.ends_at).getTime()) : undefined;
+          const next = live ? list.find((s) => new Date(s.starts_at).getTime() > now) : undefined;
+          return (
+            <Card key={room.id} className="p-4">
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-brand-foreground"
+                >
+                  {i + 1}
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-semibold">
+                    <span className="sr-only">Room {i + 1}: </span>
+                    {room.name}
+                  </h3>
+                  {room.note && <p className="text-sm text-muted">{room.note}</p>}
+                </div>
               </div>
-            )}
-            {list.length === 0 ? (
-              <p className="mt-3 text-sm text-muted">No groups scheduled here yet.</p>
-            ) : (
-              <ol className="mt-3 divide-y divide-border">
-                {list.map((s) => {
-                  const done = live && new Date(s.ends_at).getTime() <= now;
-                  const isNow = s === current;
-                  return (
-                    <li key={`${s.room_id}-${s.starts_at}-${s.band_name}`} className={`flex gap-3 py-2 text-sm ${done ? "text-muted" : ""}`}>
-                      <span className="w-28 shrink-0 tabular-nums">
-                        {multiDay && `${formatDate(utcToZonedDate(s.starts_at, timezone), { year: undefined, weekday: undefined })} `}
-                        {formatTime(s.starts_at, timezone)}
-                      </span>
-                      <span className="min-w-0">
-                        <span className={isNow ? "font-semibold text-brand" : "font-medium"}>{s.band_name}</span>
-                        <span className="text-muted">
-                          {" "}
-                          · {s.school_name}
-                          {s.classification ? ` · ${s.classification}` : ""}
+              {live && (current || next) && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {current && <NowNext label="Now" slot={current} timezone={timezone} />}
+                  {next && <NowNext label="Up next" slot={next} timezone={timezone} />}
+                </div>
+              )}
+              {list.length === 0 ? (
+                <p className="mt-3 text-sm text-muted">No groups scheduled here yet.</p>
+              ) : (
+                <ol className="mt-3 divide-y divide-border">
+                  {list.map((s) => {
+                    const done = live && new Date(s.ends_at).getTime() <= now;
+                    const isNow = s === current;
+                    return (
+                      <li key={`${s.room_id}-${s.starts_at}-${s.band_name}`} className={`flex gap-3 py-2 text-sm ${done ? "text-muted" : ""}`}>
+                        <span className="w-28 shrink-0 tabular-nums">
+                          {multiDay && `${formatDate(utcToZonedDate(s.starts_at, timezone), { year: undefined, weekday: undefined })} `}
+                          {formatTime(s.starts_at, timezone)}
                         </span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </Card>
-        );
-      })}
-      {rooms
-        .filter((r) => r.path_order == null)
-        .map((room) => (
-          <Card key={room.id} className="p-4">
-            <h3 className="font-semibold">{room.name}</h3>
-            {room.note && <p className="text-sm text-muted">{room.note}</p>}
-          </Card>
-        ))}
+                        <span className="min-w-0">
+                          <span className={isNow ? "font-semibold text-brand" : "font-medium"}>{s.band_name}</span>
+                          <span className="text-muted">
+                            {" "}
+                            · {s.school_name}
+                            {s.classification ? ` · ${s.classification}` : ""}
+                          </span>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </Card>
+          );
+        })}
+        {rooms
+          .filter((r) => r.path_order == null)
+          .map((room) => (
+            <Card key={room.id} className="p-4">
+              <h3 className="font-semibold">{room.name}</h3>
+              {room.note && <p className="text-sm text-muted">{room.note}</p>}
+              <p className="mt-1 text-sm text-muted">Not on each group&apos;s schedule.</p>
+            </Card>
+          ))}
+      </div>
     </div>
   );
 }
