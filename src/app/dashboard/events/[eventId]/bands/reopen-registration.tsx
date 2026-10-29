@@ -9,6 +9,8 @@ import type { ActionState } from "@/lib/action-state";
 /**
  * After the deadline passed: reopen registration with a new deadline (or
  * none), for a host who closed it too early or is giving directors more time.
+ * Sits in the registration card's button row; the new-deadline box opens on
+ * its own line under the row, with its own Save and reopen button.
  */
 export function ReopenRegistration({
   action,
@@ -19,25 +21,26 @@ export function ReopenRegistration({
   today: string;
 }) {
   const [open, setOpen] = useState(false);
-  if (!open)
-    return (
-      <Button type="button" variant="go" onClick={() => setOpen(true)}>
+  return (
+    <>
+      <Button type="button" variant="go" className="px-3! text-xs!" aria-expanded={open} onClick={() => setOpen(!open)}>
         Reopen registration
       </Button>
-    );
-  return (
-    <ActionForm action={action} className="flex w-full flex-wrap items-end gap-3" onSuccess={() => setOpen(false)}>
-      <Field label="New deadline" hint="Leave blank for no deadline. Registration closes at the end of this day.">
-        <Input type="date" name="deadline" min={today} />
-      </Field>
-      <div className="flex gap-2 pb-0.5">
-        <SubmitButton variant="go" pendingText="Reopening…">
-          Reopen registration
-        </SubmitButton>
-        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
-    </ActionForm>
+      {open && (
+        <ActionForm action={action} className="mt-1 basis-full space-y-3 rounded-lg border border-border bg-background p-4" onSuccess={() => setOpen(false)}>
+          <Field label="New deadline" hint="Leave blank for no deadline. Registration closes at the end of this day." className="max-w-xs">
+            <Input type="date" name="deadline" min={today} />
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <SubmitButton variant="go" pendingText="Reopening…">
+              Save and reopen
+            </SubmitButton>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </ActionForm>
+      )}
+    </>
   );
 }

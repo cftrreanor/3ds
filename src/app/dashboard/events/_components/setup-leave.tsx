@@ -12,6 +12,13 @@ export const FORM_FAILED = "form-failed";
 
 // Each way off a step: what the window's two buttons and its last sentence say.
 const WAYS = {
+  // A setup page's tabs (Band Registration), with something half-edited.
+  tab: {
+    save: "Save and switch",
+    discard: "Discard changes and switch",
+    then: "Save it before you switch tabs, or switch without it.",
+    changed: "You changed something here and didn't save it.",
+  },
   // Booths & Partners: another zone's tab, with a booth half-edited.
   zone: {
     save: "Save and switch",
