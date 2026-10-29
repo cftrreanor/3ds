@@ -190,7 +190,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
 
   return (
-    <div>
+    // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
+    <div data-required-marks>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>

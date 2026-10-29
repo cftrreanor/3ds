@@ -11,6 +11,9 @@ const text = (formData: FormData, key: string, max: number) => {
   return v || null;
 };
 
+/** Booths & Partners, with a zone's tab open. */
+const zoneTab = (eventId: string, zone: string) => `/dashboard/events/${eventId}/booths?zone=${encodeURIComponent(zone)}`;
+
 const refresh = (eventId: string, slug?: string | null) => {
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   if (slug) revalidatePath(`/e/${slug}`);
@@ -29,6 +32,9 @@ export async function saveBooth(eventId: string, boothId: string | null, _prev: 
   const rawPhone = text(formData, "contactPhone", 30);
   const phone = rawPhone ? normalizePhone(rawPhone) : null;
   if (rawPhone && !phone) return { error: "That phone number doesn't look right." };
+
+  // Every booth goes in a zone: it's how the public page groups them.
+  if (!text(formData, "zone", 60)) return { error: "Pick a zone for it.", fieldErrors: { zone: "Pick a zone" } };
 
   const row = {
     title,
@@ -81,27 +87,40 @@ export async function addZone(eventId: string, name: string | null, _prev?: Acti
   if (error) return { error: friendlyDbError(error) };
   const { data: event } = await supabase.from("events").select("slug").eq("id", eventId).maybeSingle();
   refresh(eventId, event?.slug);
-  return { ok: true, message: `Added ${zone}.` };
+  // On to the new zone's tab, to add its booths.
+  return { ok: true, message: `Added ${zone}.`, goTo: zoneTab(eventId, zone) };
 }
 
 /** Rename a zone; its booths and stations move with it. */
 export async function renameZone(eventId: string, oldName: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const supabase = await createClient();
-  const { error } = await supabase.rpc("rename_fair_zone", { p_event: eventId, p_old: oldName, p_new: String(formData.get("name") ?? "") });
+  const name = String(formData.get("name") ?? "").trim();
+  const { error } = await supabase.rpc("rename_fair_zone", { p_event: eventId, p_old: oldName, p_new: name });
   if (error) return { error: friendlyDbError(error) };
   const { data: event } = await supabase.from("events").select("slug").eq("id", eventId).maybeSingle();
   refresh(eventId, event?.slug);
-  return { ok: true, message: "Zone renamed." };
+  return { ok: true, message: "Zone renamed.", goTo: zoneTab(eventId, name) };
 }
 
-/** Delete a zone; its booths and stations stay, with no zone. */
-export async function deleteZone(eventId: string, name: string): Promise<ActionState> {
+/**
+ * Delete a zone. Its booths (and stations) move to another zone first, or,
+ * with `moveTo` null, its booths are deleted with it, so none is left without a zone.
+ */
+export async function deleteZone(eventId: string, name: string, moveTo: string | null): Promise<ActionState> {
   await requireUser();
   const supabase = await createClient();
+  const moved = moveTo
+    ? await Promise.all([
+        supabase.from("fair_booths").update({ zone: moveTo }).eq("event_id", eventId).eq("zone", name),
+        supabase.from("stations").update({ zone: moveTo }).eq("event_id", eventId).eq("zone", name),
+      ])
+    : [await supabase.from("fair_booths").delete().eq("event_id", eventId).eq("zone", name)];
+  const failed = moved.find((r) => r.error)?.error;
+  if (failed) return { error: friendlyDbError(failed) };
   const { error } = await supabase.rpc("delete_fair_zone", { p_event: eventId, p_name: name });
   if (error) return { error: friendlyDbError(error) };
   const { data: event } = await supabase.from("events").select("slug").eq("id", eventId).maybeSingle();
   refresh(eventId, event?.slug);
-  return { ok: true, message: `Deleted ${name}.` };
+  return { ok: true, message: `Deleted ${name}.`, goTo: moveTo ? zoneTab(eventId, moveTo) : `/dashboard/events/${eventId}/booths` };
 }
