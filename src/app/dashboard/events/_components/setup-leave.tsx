@@ -12,6 +12,13 @@ export const FORM_FAILED = "form-failed";
 
 // Each way off a step: what the window's two buttons and its last sentence say.
 const WAYS = {
+  // Booths & Partners: another zone's tab, with a booth half-edited.
+  zone: {
+    save: "Save and switch",
+    discard: "Discard changes and switch",
+    then: "Save it before you switch zones, or switch without it.",
+    changed: "You changed a booth or zone here and didn't save it.",
+  },
   skip: { save: "Save and come back", discard: "Discard changes and skip", then: "Save it and come back to finish later, or skip without it." },
   back: { save: "Save and go back", discard: "Discard changes and go back", then: "Save it before you go back, or go back without it." },
   leave: { save: "Save and finish later", discard: "Discard changes and leave", then: "Save it and finish later, or leave without it." },
@@ -28,11 +35,17 @@ export function LeaveStepLink({
   way,
   className,
   children,
+  scroll,
+  current,
 }: {
   href: string;
   way: keyof typeof WAYS;
   className: string;
   children: React.ReactNode;
+  /** false: keep the scroll position (a row of tabs). */
+  scroll?: boolean;
+  /** aria-current, for a tab. */
+  current?: boolean;
 }) {
   const words = WAYS[way];
   const router = useRouter();
@@ -94,13 +107,22 @@ export function LeaveStepLink({
         return;
       }
     }
-    router.push(href);
+    go();
+  };
+
+  // Close the window too: the link stays on screen when only the page's search changes (a zone's tab).
+  const go = () => {
+    setSaving(false);
+    setAsking(false);
+    router.push(href, { scroll: scroll ?? true });
   };
 
   return (
     <>
       <Link
         href={href}
+        scroll={scroll}
+        aria-current={current ? "page" : undefined}
         className={className}
         onClick={(e) => {
           if (!unsaved().length || e.metaKey || e.ctrlKey) return;
@@ -126,10 +148,10 @@ export function LeaveStepLink({
               Save your changes first?
             </h2>
             <p className="mt-3 leading-7 text-muted">
-              You changed something on this step and didn&apos;t save it. {words.then}
+              {"changed" in words ? words.changed : "You changed something on this step and didn't save it."} {words.then}
             </p>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>button]:whitespace-nowrap">
-              <Button type="button" variant="danger" disabled={saving} onClick={() => router.push(href)}>
+              <Button type="button" variant="danger" disabled={saving} onClick={go}>
                 {words.discard}
               </Button>
               <Button type="button" disabled={saving} aria-busy={saving} onClick={() => void saveAndGo()}>
