@@ -21,7 +21,7 @@ export function ReopenRegistration({
   const [open, setOpen] = useState(false);
   if (!open)
     return (
-      <Button type="button" variant="go" onClick={() => setOpen(true)}>
+      <Button type="button" variant="go" className="px-3! text-xs!" onClick={() => setOpen(true)}>
         Reopen registration
       </Button>
     );

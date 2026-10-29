@@ -204,12 +204,9 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                   {event.band_registration_open ? "Close registration" : "Open registration"}
                 </ActionButton>
               )}
+              {/* Opens a new-deadline box, which takes its own line. */}
+              {published && pastDeadline && <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />}
             </div>
-            {published && pastDeadline && (
-              <div className="mt-3">
-                <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />
-              </div>
-            )}
             <p className="mt-2 text-sm text-muted">
               Directors who use this link confirm their email with a code after they fill in the form. Directors you{" "}
               <Link href={`${base}?tab=invite`} scroll={false} className="font-medium text-brand underline-offset-4 hover:underline">
