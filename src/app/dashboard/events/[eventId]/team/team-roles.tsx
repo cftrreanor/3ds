@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { SetupStep, StepStatus } from "@/components/setup-step";
+import { SetupTabs } from "../../_components/setup-tabs";
+import { Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
@@ -37,20 +38,22 @@ export type TeamTab = "hosts" | "volunteer-leads" | "section-leads";
 const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 
 /**
- * The team, one numbered setup step per role (see "Setup pages" in
- * docs/DESIGN.md): co-hosts and Volunteer Leads in Edit details → Team, and
- * Coordinators in Volunteer Setup, next to the sign-ups they lead.
+ * The team, one tab per role (see "Setup pages" in docs/DESIGN.md): co-hosts,
+ * Volunteer Leads, and Coordinators in Edit details → Team setup.
  */
 export async function TeamRoles({
   eventId,
   roles: asked,
   open: tabParam,
+  href,
 }: {
   eventId: string;
-  /** The roles to show, in order (each one a numbered step). */
+  /** The roles to show, in order (one tab each). */
   roles: TeamTab[];
-  /** The role to open (from a link); otherwise the one still to do. */
+  /** The role to open (from a link); otherwise the first. */
   open?: string | null;
+  /** Where a role's tab goes. */
+  href: (tab: TeamTab) => string;
 }) {
   const access = await getEventAccess(eventId);
   // Only hosts manage co-hosts and Volunteer Leads; Volunteer Leads manage Coordinators.
@@ -121,30 +124,36 @@ export async function TeamRoles({
   };
   const coHosts = hosts.filter((h) => h.role === "admin").length;
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-  const steps: Record<TeamTab, { title: string; status: React.ReactNode }> = {
-    hosts: {
-      title: "Co-hosts",
-      status: <StepStatus done={coHosts > 0} doneLabel={plural(coHosts, "co-host", "co-hosts")} todoLabel="Optional" />,
-    },
-    "volunteer-leads": {
-      title: "Volunteer Leads",
-      status: <StepStatus done={directors.length > 0} doneLabel={plural(directors.length, "Volunteer Lead", "Volunteer Leads")} todoLabel="Optional" />,
-    },
-    "section-leads": {
-      title: lead.many,
-      // Optional: a sign-up runs fine without one.
-      status: <StepStatus done={leads.length > 0} doneLabel={plural(leads.length, lead.one, lead.many)} todoLabel="Optional" />,
-    },
+  const count = { hosts: coHosts, "volunteer-leads": directors.length, "section-leads": leads.length };
+  const steps: Record<TeamTab, { title: string; status: string }> = {
+    hosts: { title: "Co-hosts", status: plural(coHosts, "co-host", "co-hosts") },
+    "volunteer-leads": { title: "Volunteer Leads", status: plural(directors.length, "Volunteer Lead", "Volunteer Leads") },
+    // Optional: a sign-up runs fine without one.
+    "section-leads": { title: lead.many, status: plural(leads.length, lead.one, lead.many) },
   };
   // A link here can name a role (?tab=section-leads).
-  const openRole: TeamTab | null = roles.find((r) => r === tabParam) ?? null;
+  const active: TeamTab = roles.find((r) => r === tabParam) ?? roles[0];
 
   return (
-      <div className="flex flex-col gap-3">
-        {roles.map((tab, i) => {
+      <div className="flex flex-col gap-4">
+        {roles.length > 1 && (
+          <SetupTabs
+            label="Team roles"
+            way="invite"
+            tabs={roles.map((r) => ({
+              key: r,
+              label: steps[r].title,
+              status: count[r] ? steps[r].status : "Optional",
+              mark: count[r] ? "done" : undefined,
+              href: href(r),
+              active: r === active,
+            }))}
+          />
+        )}
+        {[active].map((tab) => {
           const { pending, removed, canInvite, roleName } = roleInfo(tab);
           return (
-            <SetupStep key={tab} id={tab} title={roles.length > 1 ? `${i + 1}. ${steps[tab].title}` : steps[tab].title} status={steps[tab].status} open={openRole === tab}>
+            <Card key={tab} id={tab}>
               <div className="space-y-6">
                 {tab === "hosts" && (
                   <div>
@@ -351,7 +360,7 @@ export async function TeamRoles({
                   </section>
                 )}
               </div>
-            </SetupStep>
+            </Card>
           );
         })}
       </div>
