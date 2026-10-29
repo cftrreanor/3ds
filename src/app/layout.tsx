@@ -8,6 +8,7 @@ import { Toaster } from "@/components/toaster";
 import { RequiredFields } from "@/components/required-fields";
 import { QaBar } from "@/components/qa-bar";
 import { SiteMetrics } from "@/components/site-metrics";
+import { FeedbackButton } from "@/components/feedback-button";
 
 // The design system's faces: Inter (variable, so the in-between 460/540 weights
 // render) for everything, JetBrains Mono for codes.
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Toaster />
         <DialogHost />
         <RequiredFields />
+        <FeedbackButton />
       </body>
     </html>
   );

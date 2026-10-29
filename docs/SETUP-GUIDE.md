@@ -172,6 +172,7 @@ first, and each runs once. Running an old one again will error (harmless, but co
 | `20261231000000_items_to_bring.sql` | **Items to bring**: any volunteer station can be a list of things to bring (sides, desserts, drinks) instead of time slots, with how many of each you need (a station can switch between the two until it has shifts or items). People sign up for shifts and items on the same page, add a short note ("Brownies"), and see who else is bringing what (first names only). Item sign-ups are in the confirmation email, the day-before reminder, "My sign-ups", and the daily summary. | ✅ run |
 | `20270101000000_email_sender_person.sql` | **Emails come from a person**: event emails show as from a person and who they're with, like "Becca Smith, Cedar Ridge Band Boosters via Field Command Events". Under Event settings → Email settings, hosts pick which of the account's hosts or co-hosts emails come from (the event's creator to start). Only the account's hosts can be picked. | ✅ run |
 | `20270102000000_group_signup.sql` | **Signing up a group**: one person can sign up themselves and up to 6 others, each on their own shifts. Shifts can be adults only or have a minimum age, and a minor's age is kept so it can be checked. A guardian's confirmation for each minor is kept permanently and can't be changed. Volunteers can switch a shift with their own link. Each person picks what their daily volunteer summary includes. | ⬜ not yet |
+| `20270103000000_feedback.sql` | **Feedback from any page**: a place to keep what people send from the Feedback button (the message, page, browser, and an optional screenshot in a private folder). Only our server saves it and only platform admins can read it, in Admin → Feedback. | ⬜ not yet |
 
 ## Pilot requests
 
@@ -333,6 +334,39 @@ forms to send emails to people who didn't ask. It's on whenever both keys below 
 
 If Cloudflare is ever unreachable, the forms keep working (and Sentry sends an alert), so
 families are never locked out on event day. To turn it off, delete either key and redeploy.
+
+---
+
+## Feedback button (GitHub issues)
+Every page has a **Feedback** button on its right edge. Anyone can use it, signed in or
+not. Each message:
+1. is saved, and shows up in **Admin → Feedback** (with its screenshot, if any),
+2. emails the support inbox and every platform admin right away,
+3. sends the person a "We got your feedback" copy, if we have their email, and
+4. opens a GitHub issue labeled `feedback` plus `bug`, `idea`, or `question`. The issue has
+   the message, the page, and the person's role, but never their name, email, or screenshot.
+
+Steps 1 to 3 work as soon as the `20270103000000_feedback.sql` update is run. Step 4 needs a
+GitHub key that can only create issues in this one repository:
+
+1. On GitHub, open your profile picture → **Settings** → **Developer settings** →
+   **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+   - **Token name:** `Field Command feedback`
+   - **Expiration:** 1 year (put a reminder in your calendar to make a new one)
+   - **Repository access:** **Only select repositories** → pick **3ds**
+   - **Permissions** → **Repository permissions** → **Issues** → **Read and write**.
+     Leave everything else as **No access**.
+   - **Generate token**, then copy it. GitHub shows it only once.
+2. In **Vercel → Settings → Environment Variables**, add
+   `GITHUB_FEEDBACK_TOKEN` = the token (type **Secret**). Don't paste it anywhere else,
+   including chats.
+3. **Deployments → ⋯ → Redeploy.**
+4. **Check it:** send yourself feedback from any page. Within a minute you should get the
+   email, and a new issue should appear on GitHub under **Issues**.
+
+If the key expires or is removed, feedback still saves and emails you; the email says the
+GitHub issue wasn't created. The `feedback`, `bug`, `idea`, and `question` labels are created
+the first time; if GitHub refuses, the issue opens without them.
 
 ---
 
