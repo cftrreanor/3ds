@@ -43,7 +43,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
       .order("created_at"),
     supabase
       .from("shifts")
-      .select("id, station_id, title, description, starts_at, ends_at, max_capacity, registered_count, adults_only, min_age")
+      // Every column: adults_only and min_age arrive with the 20270102000000 update, and the page works without them.
+      .select("*")
       .eq("event_id", event.id)
       .gt("ends_at", new Date().toISOString())
       .order("starts_at"),
