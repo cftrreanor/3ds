@@ -21,6 +21,11 @@ export function ineligibleReason(
   return null;
 }
 
+/** Whether two shifts' times overlap. Back-to-back shifts (one ends at 11:00, the next starts at 11:00) don't. */
+export function shiftsOverlap(a: { startsAt: string; endsAt: string }, b: { startsAt: string; endsAt: string }) {
+  return Date.parse(a.startsAt) < Date.parse(b.endsAt) && Date.parse(b.startsAt) < Date.parse(a.endsAt);
+}
+
 /** "You + 2 others · 4 spots left", or "You + 6 others · Group full". */
 export function groupProgress(others: number) {
   const who = others === 0 ? "Just you" : `You + ${others} other${others === 1 ? "" : "s"}`;
