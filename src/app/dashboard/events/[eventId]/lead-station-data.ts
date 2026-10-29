@@ -71,6 +71,7 @@ export async function loadLeadStations(
             checkedIn: Boolean(v.checked_in_at),
             minor: Boolean(v.minor),
             signedUpBy: v.signed_up_by ?? null,
+            guardianConfirmed: Boolean(v.guardian_confirmed),
           })),
       })),
   }));

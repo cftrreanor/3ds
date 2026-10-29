@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
-import { MAX_EXTRA_EMAILS, notifyKinds } from "@/lib/notify-kinds";
+import { DIGEST_PARTS, MAX_EXTRA_EMAILS, notifyKinds } from "@/lib/notify-kinds";
 import { isSchemaError } from "@/lib/schema-check";
 import { saveRow } from "@/lib/save-row";
 import { createClient } from "@/lib/supabase/server";
@@ -54,6 +54,40 @@ export async function saveNotifyRecipients(eventId: string, _prev: ActionState, 
     if (error) return { error: friendlyDbError(error) };
     if (!saved) return { error: "Only the event's hosts can change this." };
   }
+
+  // What each person's daily volunteer summary includes (sent with the form outside the guided setup).
+  const digest = rows.find((r) => r.kind === "volunteer_digest");
+  if (digest && formData.has("digestChoices")) {
+    for (const userId of digest.member_ids) {
+      const picked = formData.getAll(`digest-${userId}`).map(String);
+      const { error } = await supabase.from("volunteer_digest_prefs").upsert(
+        { event_id: eventId, user_id: userId, ...digestValues(picked), updated_at: new Date().toISOString() },
+        { onConflict: "event_id,user_id" },
+      );
+      if (error && !isSchemaError(error)) return { error: friendlyDbError(error) };
+    }
+  }
   revalidatePath(`/dashboard/events/${eventId}/edit`);
   return { ok: true, message: "Saved. Each kind of email goes to the people you picked." };
+}
+
+/** Volunteer Setup → Your daily volunteer summary: what your own summary includes. */
+export async function saveMyDigestPrefs(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const picked = formData.getAll("digest").map(String);
+  const { error } = await supabase
+    .from("volunteer_digest_prefs")
+    .upsert({ event_id: eventId, user_id: user.id, ...digestValues(picked), updated_at: new Date().toISOString() }, { onConflict: "event_id,user_id" });
+  if (isSchemaError(error)) return { error: "This needs a database update first. Please write to us." };
+  if (error) return { error: error.code === "42501" ? "Only the event's hosts and Volunteer Leads can change this." : friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}/volunteering`);
+  return {
+    ok: true,
+    message: picked.length ? "Saved. Your daily summary includes what you ticked." : "Saved. You won't get volunteer summary emails for this event.",
+  };
+}
+
+function digestValues(picked: string[]) {
+  return Object.fromEntries(DIGEST_PARTS.map((p) => [p.key, picked.includes(p.key)])) as Record<(typeof DIGEST_PARTS)[number]["key"], boolean>;
 }

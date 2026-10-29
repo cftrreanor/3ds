@@ -4,6 +4,11 @@ import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
+import { isSchemaError } from "@/lib/schema-check";
+import { ALL_DIGEST, type DigestPrefs } from "@/lib/notify-kinds";
+import { loadNotifyRecipients } from "@/lib/notify-recipients";
+import { saveMyDigestPrefs } from "../../../notify-actions";
+import { DigestCard } from "./digest-card";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
@@ -60,7 +65,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       .order("created_at"),
     supabase
       .from("shifts")
-      .select("id, station_id, title, description, starts_at, ends_at, max_capacity, registered_count")
+      // Every column: adults_only and min_age arrive with the 20270102000000 update.
+      .select("*")
       .eq("event_id", eventId)
       .order("starts_at"),
     supabase.from("event_staff").select("user_id, role, profiles(full_name, email)").eq("event_id", eventId),
@@ -190,6 +196,15 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     };
   });
   const tabHref = (id: string) => `/dashboard/events/${eventId}/volunteering?station=${id}`;
+
+  // Your own daily volunteer summary: whether the hosts picked you, and what it includes (after the 20270102000000 update).
+  const [digestPicked, { data: myDigest, error: digestError }] = await Promise.all([
+    loadNotifyRecipients(eventId).then((m) => m.get("volunteer_digest")),
+    supabase.from("volunteer_digest_prefs").select("new_bookings, changes, cancellations").eq("event_id", eventId).eq("user_id", user.id).maybeSingle(),
+  ]);
+  const digest = isSchemaError(digestError)
+    ? null
+    : { receiving: Boolean(digestPicked?.memberIds.includes(user.id)), prefs: (myDigest as DigestPrefs | null) ?? ALL_DIGEST };
 
   return (
     // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
@@ -449,6 +464,16 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           </div>
         </UnsavedChangesProvider>
       </section>
+      {digest && (
+        <section className="mt-8">
+          <DigestCard
+            action={saveMyDigestPrefs.bind(null, eventId)}
+            prefs={digest.prefs}
+            receiving={digest.receiving}
+            hostsLink={access.isHost ? `/dashboard/events/${eventId}/edit?section=emails#notifications` : undefined}
+          />
+        </section>
+      )}
     </div>
   );
 }

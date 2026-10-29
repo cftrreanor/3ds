@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Button, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { confirmDialog } from "@/components/confirm-dialog";
+import { VolunteerTags } from "@/components/volunteer-tags";
 
 export type DeskVolunteer = {
   assignmentId: string;
@@ -18,6 +19,8 @@ export type DeskVolunteer = {
   minor: boolean;
   /** Who signed them up, if someone else did. */
   signedUpBy: string | null;
+  /** A minor whose parent or guardian confirmed at sign-up. */
+  guardianConfirmed?: boolean;
   checkedIn: boolean;
 };
 
@@ -472,10 +475,10 @@ function VolunteerRow({
       <div className="min-w-0">
         <p className="truncate font-medium">
           {v.name}
-          {v.minor && <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">Under 18</span>}
+          <VolunteerTags minor={v.minor} guardianConfirmed={v.guardianConfirmed} />
           {v.walkUp && <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold">Walk-up</span>}
         </p>
-        {v.signedUpBy && <p className="truncate text-xs text-muted">With {v.signedUpBy}</p>}
+        {v.signedUpBy && <p className="truncate text-xs text-muted">Booked by {v.signedUpBy}</p>}
         {detail && <p className="truncate text-sm text-muted">{detail}</p>}
         <p className="truncate text-sm text-muted">
           {v.phone && (

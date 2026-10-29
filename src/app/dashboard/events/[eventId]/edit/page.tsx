@@ -17,7 +17,7 @@ import { RepliesForm } from "./replies-form";
 import { senderName } from "@/lib/sender-name";
 import { saveNotifyRecipients } from "../../../notify-actions";
 import { NotifyForm, type TeamMember } from "./notify-form";
-import { MAX_EXTRA_EMAILS, notifyKinds, type NotifyKind } from "@/lib/notify-kinds";
+import { MAX_EXTRA_EMAILS, notifyKinds, type DigestPrefs, type NotifyKind } from "@/lib/notify-kinds";
 import { AUDIENCES, fileHref, fileMeta, isShowing, uploadedLines, type EventFile } from "@/lib/event-files";
 import { formatDate, formatDateRange, utcToZonedTime, zoneName } from "@/lib/time";
 import { deleteEvent, publishAndOpen, setEventPublished, setEventShowBrand, setEventType, updateEvent } from "../../../actions";
@@ -201,6 +201,14 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     kinds: kinds.map((k) => k.kind).filter((k) => savedKinds.get(k)?.extra_emails.includes(email)),
   }));
   const notifySaved = savedKinds.size > 0;
+  // What each person's daily volunteer summary includes (none saved before the 20270102000000 update).
+  const [me, { data: digestRows }] = await Promise.all([
+    requireUser(),
+    supabase.from("volunteer_digest_prefs").select("user_id, new_bookings, changes, cancellations").eq("event_id", eventId),
+  ]);
+  const digestPrefs = Object.fromEntries(
+    ((digestRows ?? []) as ({ user_id: string } & DigestPrefs)[]).map(({ user_id, ...p }) => [user_id, p]),
+  );
   // Who emails can come from: the account's hosts, each with how the emails would show ("Becca Smith, Boosters via …").
   const senders = ((memberRows ?? []) as unknown as PersonRow[])
     .map((m) => {
@@ -434,6 +442,8 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                       picked={notifyPicked}
                       extras={notifyExtras}
                       max={MAX_EXTRA_EMAILS}
+                      digestPrefs={digestPrefs}
+                      meId={me.id}
                     />
                     <p className="mt-3 text-sm text-muted">
                       Someone missing?{" "}

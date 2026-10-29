@@ -627,6 +627,13 @@ const shiftSchema = z
     endTime: time,
     capacity: z.coerce.number().int().min(1, "At least 1").max(500),
     description: optionalText(2000),
+    // Who can take it (20270102000000_group_signup.sql): adults only, or under-18s from an age.
+    adultsOnly: z.preprocess((v) => v === "on", z.boolean()),
+    hadAgeRules: z.preprocess((v) => v === "1", z.boolean()),
+    minAge: z.preprocess(
+      (v) => (v === "" || v == null ? null : Number(v)),
+      z.number().int().min(5, "Minimum age: 5 to 17, or leave it blank").max(17, "Minimum age: 5 to 17, or leave it blank").nullable(),
+    ),
   })
   .refine((v) => v.endTime > v.startTime, { message: "End time must be after the start time", path: ["endTime"] });
 
@@ -655,6 +662,7 @@ export async function createShift(
     starts_at: zonedToUtc(v.day, v.startTime, event.timezone).toISOString(),
     ends_at: zonedToUtc(v.day, v.endTime, event.timezone).toISOString(),
     max_capacity: v.capacity,
+    ...ageRules(v),
   });
   if (error) return { error: friendlyDbError(error) };
 
@@ -731,6 +739,15 @@ export async function generateShifts(
   return { ok: true, message: replaced ? `Replaced this sign-up's shifts with ${made}.` : `Added ${made}.` };
 }
 
+/**
+ * A time slot's age rules. Sent only when there are rules to save or clear,
+ * so time slots still save before the 20270102000000 database update.
+ */
+function ageRules(v: { adultsOnly: boolean; minAge: number | null; hadAgeRules?: boolean }) {
+  if (!v.adultsOnly && v.minAge == null && !v.hadAgeRules) return {};
+  return { adults_only: v.adultsOnly, min_age: v.adultsOnly ? null : v.minAge };
+}
+
 function shiftTitle(start: Date, tz: string) {
   const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hourCycle: "h23" }).format(start));
   return hour < 12 ? "Morning shift" : hour < 17 ? "Afternoon shift" : "Evening shift";
@@ -767,6 +784,7 @@ export async function updateShift(
       starts_at: startsAt,
       ends_at: endsAt,
       max_capacity: v.capacity,
+      ...ageRules(v),
     })
     .eq("id", shiftId);
   if (error) return { error: friendlyDbError(error) };
