@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { PublishBar, PublishLine } from "@/components/publish-bar";
-import { SetupStep, StepStatus } from "@/components/setup-step";
 import type { ChangedBands, ScheduleSaveState } from "@/app/dashboard/band-actions";
 import { NumberInput } from "@/components/number-input";
 import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
@@ -124,16 +124,13 @@ export function ScheduleBuilder({
   // and warm-up location back, in the new order. null = nothing to update.
   const [before, setBefore] = useState<{ ids: string[]; slots: Times[] } | null>(null);
 
-  // The steps: 1. Breaks (optional), 2. Preliminaries, 3. Finals (optional).
-  // Only the step still to do starts open; after that each stays as the host leaves it.
-  const [startOpen] = useState(() => {
-    const anyTimes = initialBands.some((b) => b.perform);
-    return {
-      breaks: initialBreaks.length === 0 && !anyTimes,
-      prelims: !orderPublished,
-      finals: orderPublished && initialFinals.length > 0 && !finalistsRevealed,
-    };
-  });
+  // The tabs: Preliminaries and Finals (optional), each with the day's breaks. The page
+  // opens on what's still to do: the finals once the preliminaries are out.
+  const [tab, setTab] = useState<Tab>(() =>
+    orderPublished && initialFinals.length > 0 && !finalistsRevealed ? "finals" : "prelims",
+  );
+  // A tab picked while something was half-edited: the window asking to save first, then where to go.
+  const [leaving, setLeaving] = useState<{ to: Tab; saving: boolean } | null>(null);
   const roundEditing = editing?.kind === "prelims" || editing?.kind === "finals";
   const breaks = roundEditing ? breaksWork : saved.breaks;
   const breaksEditable = editing === null || roundEditing;
@@ -154,6 +151,9 @@ export function ScheduleBuilder({
   };
   const cancel = async () => {
     if (dirty && !(await confirmDialog({ title: "Discard the changes you haven't saved?", confirmLabel: "Discard changes", cancelLabel: "Keep editing", danger: true }))) return;
+    discard();
+  };
+  const discard = () => {
     setBands(saved.bands);
     setFinals(saved.finals);
     setReadyText(saved.readyText);
@@ -189,10 +189,13 @@ export function ScheduleBuilder({
       })),
     });
 
-  /** Save the whole schedule (atomic), then go back to viewing. */
+  /** Save the whole schedule (atomic), then go back to viewing (or on to the tab the host picked). */
   const persist = (x: Snapshot, then?: () => Promise<ActionState>) =>
     startTransition(async () => {
       const { changed, ...r } = await save(toJson(x));
+      // Saving on the way to another tab: go there once it's saved, or stay to show what went wrong.
+      const to = leaving?.to;
+      setLeaving(null);
       setResult(r.ok && then ? await then() : r);
       if (changed) {
         // Keep collecting across saves until the host sends or dismisses.
@@ -202,6 +205,7 @@ export function ScheduleBuilder({
         }));
       }
       if (!r.ok) return;
+      if (to) setTab(to);
       setSaved(x);
       setBands(x.bands);
       setFinals(x.finals);
@@ -213,6 +217,14 @@ export function ScheduleBuilder({
       setDirty(false);
       setEditing(null);
     });
+
+  /** Another tab: straight there, unless something here is changed and not saved. */
+  const pickTab = (to: Tab) => {
+    if (to === tab) return;
+    if (editing && dirty) return setLeaving({ to, saving: false });
+    if (editing) discard();
+    setTab(to);
+  };
 
   const onSave = (then?: () => Promise<ActionState>) => {
     if (!editing) return;
@@ -548,211 +560,244 @@ export function ScheduleBuilder({
     </Button>
   );
   const timed = saved.bands.filter((b) => b.perform).length;
+  // The day's breaks, in both tabs: they apply to the preliminaries and the finals.
+  const breaksList = (
+    <BreaksList
+      breaks={breaks}
+      canEdit={breaksEditable}
+      openKey={breakOpenKey("list")}
+      adding={editing?.kind === "break" && editing.isNew ? editing.draft : null}
+      breakEditor={breakEditor}
+      onOpen={(key) => openBreak(key, "list")}
+      onAdd={addBreak}
+    />
+  );
 
   return (
     // The publish bar: pinned under the title on a computer, to the bottom on a
     // phone. Save and Cancel sit with whatever is being edited.
     <div className="flex flex-col gap-3">
-      <BreaksPanel
-        open={startOpen.breaks}
-        breaks={breaks}
-        canEdit={breaksEditable}
-        openKey={breakOpenKey("list")}
-        adding={editing?.kind === "break" && editing.isNew ? editing.draft : null}
-        breakEditor={breakEditor}
-        onOpen={(key) => openBreak(key, "list")}
-        onAdd={addBreak}
-      />
-
-      <SetupStep
-        id="preliminaries"
-        title="2. Preliminaries"
-        status={
-          <StepStatus
-            done={orderPublished}
-            doneLabel="Published"
-            todoLabel={timed === saved.bands.length ? "Ready to publish" : "Needs to be done"}
-          />
-        }
-        open={startOpen.prelims}
-        intro="Put the bands in order and give each a time. Publish from the outlined bar: each director is emailed their times."
-      >
+      <div>
+        <ScheduleTabs
+          tabs={[
+            {
+              key: "prelims",
+              label: "Preliminaries",
+              status: orderPublished ? "Published" : timed === saved.bands.length ? "Ready to publish" : "Needs to be done",
+              mark: orderPublished ? "done" : "todo",
+            },
+            {
+              key: "finals",
+              label: "Finals",
+              status:
+                saved.finals.length === 0 ? "Optional" : finalistsRevealed ? "Finalists revealed" : finalsPublished ? "Published" : "Not published",
+              mark: saved.finals.length === 0 ? undefined : finalsPublished ? "done" : "todo",
+            },
+          ]}
+          current={tab}
+          onPick={pickTab}
+        />
+        <div className="mt-6">
+          {tab === "prelims" && (
+            <TabPanel
+              title="Preliminaries"
+              intro="Put the bands in order and give each a time. Publish from the outlined bar: each director is emailed their times."
+              breaks={breaksList}
+            >
         <div className="space-y-4">
-          {editing?.kind !== "prelims" && (
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-muted">
-                {timed} of {saved.bands.length} bands have a time
-              </span>
-              {editButton("Edit preliminaries", () => start({ kind: "prelims" }))}
-            </div>
-          )}
-          {editing?.kind === "prelims" ? (
-            <>
-              <AutoFill
-                title="Fill in times automatically"
-                noun={bands.length === 1 ? "band" : "bands"}
-                count={bands.length}
-                days={days}
-                defaultDay={days[0]}
-                defaultFirst="09:00"
-                zoneLabel={zoneLabel}
-                breaks={breaks}
-                readyText={readyText}
-                readyHint="Same for every band in the preliminaries, 0 to 60."
-                onReadyText={(v) => {
-                  setReadyText(v);
-                  touched();
-                }}
-                onFill={(times) => {
-                  setBands(bands.map((b, i) => ({ ...b, ...times[i] })));
-                  setBefore(null);
-                  touched();
-                }}
-                extraAction={updateButton}
-              />
-              <ol className="space-y-3">
-                {bands.map((b, i) => (
-                  <BreakDividers
-                    key={b.id}
+                {editing?.kind !== "prelims" && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-sm text-muted">
+                      {timed} of {saved.bands.length} bands have a time
+                    </span>
+                    {editButton("Edit preliminaries", () => start({ kind: "prelims" }))}
+                  </div>
+                )}
+                {editing?.kind === "prelims" ? (
+                  <>
+                    <AutoFill
+                      title="Fill in times automatically"
+                      noun={bands.length === 1 ? "band" : "bands"}
+                      count={bands.length}
+                      days={days}
+                      defaultDay={days[0]}
+                      defaultFirst="09:00"
+                      zoneLabel={zoneLabel}
+                      breaks={breaks}
+                      readyText={readyText}
+                      readyHint="Same for every band in the preliminaries, 0 to 60."
+                      onReadyText={(v) => {
+                        setReadyText(v);
+                        touched();
+                      }}
+                      onFill={(times) => {
+                        setBands(bands.map((b, i) => ({ ...b, ...times[i] })));
+                        setBefore(null);
+                        touched();
+                      }}
+                      extraAction={updateButton}
+                    />
+                    <ol className="space-y-3">
+                      {bands.map((b, i) => (
+                        <BreakDividers
+                          key={b.id}
+                          breaks={breaks}
+                          prev={bands[i - 1]}
+                          cur={b}
+                          onOpenBreak={(key) => openBreak(key, "order")}
+                          openBreakKey={breakOpenKey("order")}
+                          breakEditor={breakEditor}
+                        >
+                          <li className="rounded-xl border border-border bg-surface p-4">
+                            <div className="flex items-start gap-3">
+                              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-semibold text-brand-foreground">
+                                {i + 1}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold">{b.name}</p>
+                                <p className="text-sm text-muted">
+                                  {b.school} · {b.classification}
+                                </p>
+                                {b.conflicts && <p className="mt-1 text-sm">⚠️ {b.conflicts}</p>}
+                              </div>
+                              <div className="flex shrink-0 flex-col gap-1">
+                                <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${b.name} earlier`}>
+                                  ↑
+                                </Button>
+                                <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, 1)} disabled={i === bands.length - 1} aria-label={`Move ${b.name} later`}>
+                                  ↓
+                                </Button>
+                              </div>
+                            </div>
+                            <TimesEditor
+                              value={b}
+                              days={days}
+                              breaks={breaks}
+                              readyMinutes={readyMinutes}
+                              onChange={(patch) => {
+                                setBands(bands.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+                                touched();
+                              }}
+                            />
+                          </li>
+                        </BreakDividers>
+                      ))}
+                    </ol>
+                    {editActions()}
+                  </>
+                ) : (
+                  <RoundRows
+                    rows={orderRows}
                     breaks={breaks}
-                    prev={bands[i - 1]}
-                    cur={b}
+                    readyMinutes={readyMinutes}
+                    days={days}
+                    editIndex={editing?.kind === "row" && editing.round === "order" ? editing.index : null}
+                    rowEditor={rowEditorFor("order", saved.bands)}
+                    canEdit={!busy}
+                    onEditRow={(i) => editRow("order", i)}
                     onOpenBreak={(key) => openBreak(key, "order")}
                     openBreakKey={breakOpenKey("order")}
                     breakEditor={breakEditor}
-                  >
-                    <li className="rounded-xl border border-border bg-surface p-4">
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-semibold text-brand-foreground">
-                          {i + 1}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold">{b.name}</p>
-                          <p className="text-sm text-muted">
-                            {b.school} · {b.classification}
-                          </p>
-                          {b.conflicts && <p className="mt-1 text-sm">⚠️ {b.conflicts}</p>}
-                        </div>
-                        <div className="flex shrink-0 flex-col gap-1">
-                          <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${b.name} earlier`}>
-                            ↑
-                          </Button>
-                          <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, 1)} disabled={i === bands.length - 1} aria-label={`Move ${b.name} later`}>
-                            ↓
-                          </Button>
-                        </div>
-                      </div>
-                      <TimesEditor
-                        value={b}
-                        days={days}
-                        breaks={breaks}
-                        readyMinutes={readyMinutes}
-                        onChange={(patch) => {
-                          setBands(bands.map((x, k) => (k === i ? { ...x, ...patch } : x)));
-                          touched();
-                        }}
-                      />
-                    </li>
-                  </BreakDividers>
-                ))}
-              </ol>
-              {editActions()}
-            </>
-          ) : (
-            <RoundRows
-              rows={orderRows}
-              breaks={breaks}
-              readyMinutes={readyMinutes}
-              days={days}
-              editIndex={editing?.kind === "row" && editing.round === "order" ? editing.index : null}
-              rowEditor={rowEditorFor("order", saved.bands)}
-              canEdit={!busy}
-              onEditRow={(i) => editRow("order", i)}
-              onOpenBreak={(key) => openBreak(key, "order")}
-              openBreakKey={breakOpenKey("order")}
-              breakEditor={breakEditor}
-            />
+                  />
+                )}
+              </div>
+            </TabPanel>
           )}
-        </div>
-      </SetupStep>
-
-      <SetupStep
-        id="finals"
-        title="3. Finals"
-        status={
-          saved.finals.length === 0 ? (
-            <StepStatus done={false} todoLabel="Optional" />
-          ) : (
-            <StepStatus
-              done={finalsPublished}
-              doneLabel={finalistsRevealed ? "Finalists revealed" : "Published"}
-              todoLabel="Not published"
-            />
-          )
-        }
-        open={startOpen.finals}
-        intro="If the contest has a finals round, set up its time slots now and pick the finalists once results are in."
-      >
+          {tab === "finals" && (
+            <TabPanel
+              title="Finals"
+              intro="If the contest has a finals round, set up its time slots now and pick the finalists once results are in."
+              breaks={breaksList}
+            >
         <div className="space-y-4">
-          {saved.finals.length > 0 && editing?.kind !== "finals" && (
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-muted">
-                {picked} of {saved.finals.length} finalists picked
-                {finalsPublished && !finalistsRevealed ? " · names not revealed yet" : ""}
-              </span>
-              {editButton("Edit finals", () => start({ kind: "finals" }))}
-            </div>
-          )}
-          {editing?.kind === "finals" ? (
-            <>
-            <FinalsEditor
-              finals={finals}
-              bands={saved.bands}
-              days={days}
-              zoneLabel={zoneLabel}
-              breaks={breaks}
-              readyText={finalsReadyText}
-              readyMinutes={finalsReadyMinutes}
-              onReadyText={(v) => {
-                setFinalsReadyText(v);
-                touched();
-              }}
-              onChange={(next) => {
-                setFinals(next);
-                touched();
-              }}
-              onOpenBreak={(key) => openBreak(key, "finals")}
-              openBreakKey={breakOpenKey("finals")}
-              breakEditor={breakEditor}
-              published={finalsPublished}
-              revealed={finalistsRevealed}
-            />
-            {editActions()}
-            </>
-          ) : saved.finals.length === 0 ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm text-muted">Does this contest have a finals round?</p>
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => start({ kind: "finals" })}>
-                Set up finals
-              </Button>
-            </div>
-          ) : (
-            <RoundRows
-              rows={finalsRows}
-              breaks={breaks}
-              readyMinutes={finalsReadyMinutes}
-              days={days}
-              editIndex={editing?.kind === "row" && editing.round === "finals" ? editing.index : null}
-              rowEditor={rowEditorFor("finals", saved.finals)}
-              canEdit={!busy}
-              onEditRow={(i) => editRow("finals", i)}
-              onOpenBreak={(key) => openBreak(key, "finals")}
-              openBreakKey={breakOpenKey("finals")}
-              breakEditor={breakEditor}
-            />
+                {saved.finals.length > 0 && editing?.kind !== "finals" && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-sm text-muted">
+                      {picked} of {saved.finals.length} finalists picked
+                      {finalsPublished && !finalistsRevealed ? " · names not revealed yet" : ""}
+                    </span>
+                    {editButton("Edit finals", () => start({ kind: "finals" }))}
+                  </div>
+                )}
+                {editing?.kind === "finals" ? (
+                  <>
+                  <FinalsEditor
+                    finals={finals}
+                    bands={saved.bands}
+                    days={days}
+                    zoneLabel={zoneLabel}
+                    breaks={breaks}
+                    readyText={finalsReadyText}
+                    readyMinutes={finalsReadyMinutes}
+                    onReadyText={(v) => {
+                      setFinalsReadyText(v);
+                      touched();
+                    }}
+                    onChange={(next) => {
+                      setFinals(next);
+                      touched();
+                    }}
+                    onOpenBreak={(key) => openBreak(key, "finals")}
+                    openBreakKey={breakOpenKey("finals")}
+                    breakEditor={breakEditor}
+                    published={finalsPublished}
+                    revealed={finalistsRevealed}
+                  />
+                  {editActions()}
+                  </>
+                ) : saved.finals.length === 0 ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-muted">Does this contest have a finals round?</p>
+                    <Button type="button" variant="secondary" disabled={busy} onClick={() => start({ kind: "finals" })}>
+                      Set up finals
+                    </Button>
+                  </div>
+                ) : (
+                  <RoundRows
+                    rows={finalsRows}
+                    breaks={breaks}
+                    readyMinutes={finalsReadyMinutes}
+                    days={days}
+                    editIndex={editing?.kind === "row" && editing.round === "finals" ? editing.index : null}
+                    rowEditor={rowEditorFor("finals", saved.finals)}
+                    canEdit={!busy}
+                    onEditRow={(i) => editRow("finals", i)}
+                    onOpenBreak={(key) => openBreak(key, "finals")}
+                    openBreakKey={breakOpenKey("finals")}
+                    breakEditor={breakEditor}
+                  />
+                )}
+              </div>
+            </TabPanel>
           )}
         </div>
-      </SetupStep>
+      </div>
+
+      {leaving && (
+        <SwitchTabDialog
+          saving={leaving.saving || pending}
+          onClose={() => setLeaving(null)}
+          onDiscard={() => {
+            discard();
+            setTab(leaving.to);
+            setLeaving(null);
+          }}
+          onSave={async () => {
+            if (
+              revealing &&
+              !(await confirmDialog({
+                title: `Show ${revealing} more finalist name${revealing === 1 ? "" : "s"}?`,
+                message: "Finalists are revealed, so saving shows them on the public schedule right away, and directors can see it.",
+                confirmLabel: "Save",
+                danger: true,
+              }))
+            )
+              return setLeaving(null);
+            setLeaving({ ...leaving, saving: true });
+            onSave();
+          }}
+        />
+      )}
 
       <PublishBar>
         {changes && (
@@ -894,8 +939,7 @@ function saveLabel(e: NonNullable<Editing>) {
 }
 
 /** Breaks apply to the whole contest day: preliminaries and finals. */
-function BreaksPanel({
-  open,
+function BreaksList({
   breaks,
   canEdit,
   openKey,
@@ -904,7 +948,6 @@ function BreaksPanel({
   onOpen,
   onAdd,
 }: {
-  open: boolean;
   breaks: BreakDraft[];
   canEdit: boolean;
   openKey: number | null;
@@ -915,46 +958,130 @@ function BreaksPanel({
 }) {
   const sorted = [...breaks].sort((a, b) => (a.day + a.start).localeCompare(b.day + b.start));
   return (
-    <SetupStep
-      id="breaks"
-      title="1. Breaks"
-      status={
-        <StepStatus done={breaks.length > 0} doneLabel={`${breaks.length} break${breaks.length === 1 ? "" : "s"}`} todoLabel="Optional" />
-      }
-      open={open}
-      intro="Lunch, judges' breaks, awards, for the whole day. Filling in times skips over them, and they show between bands. Tap a break to change it."
-    >
-      <div className="space-y-3">
-        {sorted.length > 0 && (
-          <ul className="space-y-2">
-            {sorted.map((b) => (
-              <li key={b.key}>
-                <button
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() => onOpen(b.key)}
-                  className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm disabled:cursor-default ${openKey === b.key ? "border-brand" : "border-border hover:border-brand"}`}
-                >
-                  <span aria-hidden="true">☕</span>
-                  <span className="flex-1 font-medium">{b.label || "Break"}</span>
-                  <span className="tabular-nums text-muted">
-                    {formatDate(b.day, { year: undefined, weekday: undefined })} · {breakRange(b)}
+    <div className="space-y-3">
+      {sorted.length > 0 && (
+        <ul className="space-y-2">
+          {sorted.map((b) => (
+            <li key={b.key}>
+              <button
+                type="button"
+                disabled={!canEdit}
+                onClick={() => onOpen(b.key)}
+                className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm disabled:cursor-default ${openKey === b.key ? "border-brand" : "border-border hover:border-brand"}`}
+              >
+                <span aria-hidden="true">☕</span>
+                <span className="flex-1 font-medium">{b.label || "Break"}</span>
+                <span className="tabular-nums text-muted">
+                  {formatDate(b.day, { year: undefined, weekday: undefined })} · {breakRange(b)}
+                </span>
+              </button>
+              {openKey === b.key && breakEditor}
+            </li>
+          ))}
+        </ul>
+      )}
+      {adding ? (
+        breakEditor
+      ) : (
+        <Button type="button" variant="secondary" disabled={!canEdit} onClick={onAdd}>
+          + Add a break
+        </Button>
+      )}
+    </div>
+  );
+}
+
+type Tab = "prelims" | "finals";
+
+/** The schedule's tabs, like the tabs on Volunteer Setup and Band Registration. */
+function ScheduleTabs({
+  tabs,
+  current,
+  onPick,
+}: {
+  tabs: { key: Tab; label: string; status: string; mark?: "done" | "todo" }[];
+  current: Tab;
+  onPick: (tab: Tab) => void;
+}) {
+  return (
+    <nav aria-label="Schedule" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <ul className="flex min-w-max gap-1 border-b border-border">
+        {tabs.map((t) => (
+          <li key={t.key}>
+            <button
+              type="button"
+              aria-current={t.key === current ? "page" : undefined}
+              onClick={() => onPick(t.key)}
+              className={`-mb-px flex cursor-pointer flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
+                t.key === current ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
+              }`}
+            >
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
+                {t.mark === "done" && (
+                  <span aria-hidden className="font-bold text-success">
+                    ✓
                   </span>
-                </button>
-                {openKey === b.key && breakEditor}
-              </li>
-            ))}
-          </ul>
-        )}
-        {adding ? (
-          breakEditor
-        ) : (
-          <Button type="button" variant="secondary" disabled={!canEdit} onClick={onAdd}>
-            + Add a break
-          </Button>
-        )}
+                )}
+                {t.mark === "todo" && <span aria-hidden className="size-2.5 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />}
+                {t.label}
+              </span>
+              <span className="text-xs font-normal text-muted">{t.status}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/** One tab's card: its title, what it's for, the day's breaks, and the round. */
+function TabPanel({ title, intro, breaks, children }: { title: string; intro: string; breaks: ReactNode; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4 sm:p-6">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="mt-1 mb-4 text-sm text-muted">{intro}</p>
+      <div className="mb-5 border-b border-border pb-5">
+        <h3 className="font-semibold">Breaks</h3>
+        <p className="mt-1 mb-3 text-sm text-muted">
+          Lunch, judges&apos; breaks, awards, for the whole day: the same breaks show in the preliminaries and the finals.
+          Filling in times skips over them. Tap a break to change it.
+        </p>
+        {breaks}
       </div>
-    </SetupStep>
+      {children}
+    </section>
+  );
+}
+
+/** Another tab, with something here changed and not saved: save it first, or switch without it. */
+function SwitchTabDialog({ saving, onClose, onDiscard, onSave }: { saving: boolean; onClose: () => void; onDiscard: () => void; onSave: () => void }) {
+  return createPortal(
+    <dialog
+      ref={(d) => {
+        if (d && !d.open) d.showModal();
+      }}
+      onCancel={(e) => saving && e.preventDefault()}
+      onClose={onClose}
+      onClick={(e) => e.target === e.currentTarget && !saving && onClose()}
+      aria-labelledby="switch-tab-title"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-surface p-6 text-foreground shadow-elevated backdrop:bg-[#071a31]/50"
+    >
+      <h2 id="switch-tab-title" className="text-xl font-semibold">
+        Save your changes first?
+      </h2>
+      <p className="mt-3 leading-7 text-muted">
+        You changed something here and didn&apos;t save it. Save it before you switch tabs, or switch without it.
+      </p>
+      <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>button]:whitespace-nowrap">
+        <Button type="button" variant="danger" disabled={saving} onClick={onDiscard}>
+          Discard changes and switch
+        </Button>
+        <Button type="button" disabled={saving} aria-busy={saving} onClick={onSave}>
+          {saving ? "Saving…" : "Save and switch"}
+        </Button>
+      </div>
+    </dialog>,
+    document.body,
   );
 }
 
