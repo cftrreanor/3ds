@@ -124,7 +124,7 @@ export function ScheduleBuilder({
   // and warm-up location back, in the new order. null = nothing to update.
   const [before, setBefore] = useState<{ ids: string[]; slots: Times[] } | null>(null);
 
-  // The tabs: Preliminaries, Finals (optional), Breaks (optional). The page
+  // The tabs: Preliminaries and Finals (optional), each with the day's breaks. The page
   // opens on what's still to do: the finals once the preliminaries are out.
   const [tab, setTab] = useState<Tab>(() =>
     orderPublished && initialFinals.length > 0 && !finalistsRevealed ? "finals" : "prelims",
@@ -560,6 +560,18 @@ export function ScheduleBuilder({
     </Button>
   );
   const timed = saved.bands.filter((b) => b.perform).length;
+  // The day's breaks, in both tabs: they apply to the preliminaries and the finals.
+  const breaksList = (
+    <BreaksList
+      breaks={breaks}
+      canEdit={breaksEditable}
+      openKey={breakOpenKey("list")}
+      adding={editing?.kind === "break" && editing.isNew ? editing.draft : null}
+      breakEditor={breakEditor}
+      onOpen={(key) => openBreak(key, "list")}
+      onAdd={addBreak}
+    />
+  );
 
   return (
     // The publish bar: pinned under the title on a computer, to the bottom on a
@@ -581,19 +593,17 @@ export function ScheduleBuilder({
                 saved.finals.length === 0 ? "Optional" : finalistsRevealed ? "Finalists revealed" : finalsPublished ? "Published" : "Not published",
               mark: saved.finals.length === 0 ? undefined : finalsPublished ? "done" : "todo",
             },
-            {
-              key: "breaks",
-              label: "Breaks",
-              status: saved.breaks.length ? `${saved.breaks.length} break${saved.breaks.length === 1 ? "" : "s"}` : "Optional",
-              mark: saved.breaks.length ? "done" : undefined,
-            },
           ]}
           current={tab}
           onPick={pickTab}
         />
         <div className="mt-6">
           {tab === "prelims" && (
-            <TabPanel title="Preliminaries" intro="Put the bands in order and give each a time. Publish from the outlined bar: each director is emailed their times.">
+            <TabPanel
+              title="Preliminaries"
+              intro="Put the bands in order and give each a time. Publish from the outlined bar: each director is emailed their times."
+              breaks={breaksList}
+            >
         <div className="space-y-4">
                 {editing?.kind !== "prelims" && (
                   <div className="flex flex-wrap items-center gap-3">
@@ -694,7 +704,11 @@ export function ScheduleBuilder({
             </TabPanel>
           )}
           {tab === "finals" && (
-            <TabPanel title="Finals" intro="If the contest has a finals round, set up its time slots now and pick the finalists once results are in.">
+            <TabPanel
+              title="Finals"
+              intro="If the contest has a finals round, set up its time slots now and pick the finalists once results are in."
+              breaks={breaksList}
+            >
         <div className="space-y-4">
                 {saved.finals.length > 0 && editing?.kind !== "finals" && (
                   <div className="flex flex-wrap items-center gap-3">
@@ -754,22 +768,6 @@ export function ScheduleBuilder({
                   />
                 )}
               </div>
-            </TabPanel>
-          )}
-          {tab === "breaks" && (
-            <TabPanel
-              title="Breaks"
-              intro="Lunch, judges' breaks, awards, for the whole day. Filling in times skips over them, and they show between bands. Tap a break to change it."
-            >
-              <BreaksList
-                breaks={breaks}
-                canEdit={breaksEditable}
-                openKey={breakOpenKey("list")}
-                adding={editing?.kind === "break" && editing.isNew ? editing.draft : null}
-                breakEditor={breakEditor}
-                onOpen={(key) => openBreak(key, "list")}
-                onAdd={addBreak}
-              />
             </TabPanel>
           )}
         </div>
@@ -993,7 +991,7 @@ function BreaksList({
   );
 }
 
-type Tab = "prelims" | "finals" | "breaks";
+type Tab = "prelims" | "finals";
 
 /** The schedule's tabs, like the tabs on Volunteer Setup and Band Registration. */
 function ScheduleTabs({
@@ -1036,12 +1034,20 @@ function ScheduleTabs({
   );
 }
 
-/** One tab's card: its title, what it's for, and its contents. */
-function TabPanel({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
+/** One tab's card: its title, what it's for, the day's breaks, and the round. */
+function TabPanel({ title, intro, breaks, children }: { title: string; intro: string; breaks: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-lg border border-border bg-surface p-4 sm:p-6">
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="mt-1 mb-4 text-sm text-muted">{intro}</p>
+      <div className="mb-5 border-b border-border pb-5">
+        <h3 className="font-semibold">Breaks</h3>
+        <p className="mt-1 mb-3 text-sm text-muted">
+          Lunch, judges&apos; breaks, awards, for the whole day: the same breaks show in the preliminaries and the finals.
+          Filling in times skips over them. Tap a break to change it.
+        </p>
+        {breaks}
+      </div>
       {children}
     </section>
   );
