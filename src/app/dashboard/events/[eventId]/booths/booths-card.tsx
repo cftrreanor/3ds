@@ -32,7 +32,7 @@ export async function BoothsCard({ eventId, isDay }: { eventId: string; isDay: b
             )}
           </p>
           <Link
-            href={`/dashboard/events/${eventId}/booths`}
+            href={`/dashboard/events/${eventId}/booths${isDay ? "/check-in" : ""}`}
             className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
           >
             {isDay ? "Partner check-in" : booths.length ? "Manage booths" : "Add booths"}

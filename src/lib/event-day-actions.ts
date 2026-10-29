@@ -80,7 +80,7 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
   } else if (hasParents(type) && parents.data) {
     job("parents", "parents", "Check in parents", "Check in parents", "At the door, after checking a photo ID", "/parents/check-in");
   } else if (hasBooths(type)) {
-    job("booths", "booths", "Check in booths and partners", "Check in booths", "Tap Arrived as each one sets up", "/booths#check-in");
+    job("booths", "booths", "Check in booths and partners", "Check in booths", "Tap Arrived as each one sets up", "/booths/check-in");
   }
   if (!hasConferences(type)) {
     if (access.canManage) {
