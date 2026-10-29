@@ -112,9 +112,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = (hostData ?? []) as unknown as HostRow[];
 
-  // The open tab: ?station=<id>, "new" to add one (also when there are none yet), or the first station.
-  const adding = tab === "new" || stations.length === 0;
-  const current = adding ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
+  // The open tab: ?station=<id>, "new" to add one (also when there are none yet), the first station, or
+  // one of the tabs after the sign-ups: "import" (volunteers from a spreadsheet), "order" (band contests' check-in order).
+  const other = tab === "import" ? "import" : tab === "order" && hasBands(event.event_type) ? "order" : null;
+  const adding = !other && (tab === "new" || stations.length === 0);
+  const current = adding || other ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
   const currentItems = current ? items.filter((i) => i.station_id === current.id) : [];
   const itemSignups: ItemSignup[] | undefined =
@@ -314,6 +316,26 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               };
             })}
             add={{ href: tabHref("new"), active: adding }}
+            extra={[
+              {
+                key: "import",
+                label: "Import volunteers",
+                status: "Optional",
+                href: tabHref("import"),
+                active: other === "import",
+              },
+              ...(hasBands(event.event_type)
+                ? [
+                    {
+                      key: "order",
+                      label: "Check-in order",
+                      status: checkpoints.length ? `${checkpoints.length} ${checkpoints.length === 1 ? "stop" : "stops"}` : "No stops yet",
+                      href: tabHref("order"),
+                      active: other === "order",
+                    },
+                  ]
+                : []),
+            ]}
           />
           <div className="mt-6">
             {current ? (
@@ -349,6 +371,74 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 leadOptions={leadOptions}
                 pendingInvites={(inviteData ?? []).filter((inv) => inv.station_id === current.id).map((inv) => inv.email)}
               />
+            ) : other === "import" ? (
+              <Card>
+                <h3 className="text-lg font-semibold">Import volunteers</h3>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  Optional. Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row
+                  per person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
+                  room for them.
+                </p>
+                {shifts.length === 0 ? (
+                  <p className="text-sm">Add a sign-up and its shifts first. Each volunteer you import goes onto one of your shifts.</p>
+                ) : (
+                  <SpreadsheetImport
+                    kind="volunteers"
+                    fields={importFields("volunteers")}
+                    choices={{ shift: shiftChoices }}
+                    noun={{ one: "sign-up", many: "sign-ups" }}
+                    templateName="volunteers.csv"
+                    emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
+                    action={importVolunteers.bind(null, eventId)}
+                  />
+                )}
+              </Card>
+            ) : other === "order" ? (
+              <Card>
+                <h3 className="text-lg font-semibold">Check-in order</h3>
+                {checkpoints.length > 0 ? (
+                  <>
+                    <p className="mt-0.5 text-sm text-muted">
+                      The stops each band goes through on contest day. This order sorts the sign-up tabs here and on the sign-up
+                      page, and is how we tell whether a band is on track.
+                    </p>
+                    <ol className="mt-3 space-y-2">
+                      {checkpoints.map((c, i) => (
+                        <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
+                          <span className="w-5 text-sm font-semibold text-muted">{i + 1}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">{c.name}</span>
+                            <span className="block text-xs text-muted">{kindLabel(c.checkpoint_kind!)}</span>
+                          </span>
+                          {i > 0 && (
+                            <TapButton
+                              action={moveCheckpoint.bind(null, eventId, c.id, "up")}
+                              variant="ghost"
+                              className="[&_button]:min-h-9 [&_button]:px-2"
+                            >
+                              <span aria-label={`Move ${c.name} earlier`}>↑</span>
+                            </TapButton>
+                          )}
+                          {i < checkpoints.length - 1 && (
+                            <TapButton
+                              action={moveCheckpoint.bind(null, eventId, c.id, "down")}
+                              variant="ghost"
+                              className="[&_button]:min-h-9 [&_button]:px-2"
+                            >
+                              <span aria-label={`Move ${c.name} later`}>↓</span>
+                            </TapButton>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </>
+                ) : (
+                  <p className="mt-0.5 text-sm text-muted">
+                    None yet. In a station&apos;s settings, choose what kind of check-in station it is (Parking, Check-in point,
+                    Warm-up or Gate) to add it to the bands&apos; path.
+                  </p>
+                )}
+              </Card>
             ) : (
               <Card>
                 <h3 className="text-lg font-semibold">{stations.length ? "Add a sign-up" : "Add your first sign-up"}</h3>
@@ -358,83 +448,6 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             )}
           </div>
         </UnsavedChangesProvider>
-
-        {hasBands(event.event_type) && (
-        <Card className="mt-8 p-4">
-          <h3 className="text-sm font-semibold">Band check-in order</h3>
-          {checkpoints.length > 0 ? (
-            <>
-              <p className="mt-0.5 text-sm text-muted">
-                The stops each band goes through on contest day. This order sorts the sign-up tabs here and on the sign-up
-                page, and is how we tell whether a band is on track.
-              </p>
-              <ol className="mt-3 space-y-2">
-                {checkpoints.map((c, i) => (
-                  <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
-                    <span className="w-5 text-sm font-semibold text-muted">{i + 1}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{c.name}</span>
-                      <span className="block text-xs text-muted">{kindLabel(c.checkpoint_kind!)}</span>
-                    </span>
-                    {i > 0 && (
-                      <TapButton
-                        action={moveCheckpoint.bind(null, eventId, c.id, "up")}
-                        variant="ghost"
-                        className="[&_button]:min-h-9 [&_button]:px-2"
-                      >
-                        <span aria-label={`Move ${c.name} earlier`}>↑</span>
-                      </TapButton>
-                    )}
-                    {i < checkpoints.length - 1 && (
-                      <TapButton
-                        action={moveCheckpoint.bind(null, eventId, c.id, "down")}
-                        variant="ghost"
-                        className="[&_button]:min-h-9 [&_button]:px-2"
-                      >
-                        <span aria-label={`Move ${c.name} later`}>↓</span>
-                      </TapButton>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </>
-          ) : (
-            <p className="mt-0.5 text-sm text-muted">
-              None yet. In a station&apos;s settings, choose what kind of check-in station it is (Parking, Check-in point,
-              Warm-up or Gate) to add it to the bands&apos; path.
-            </p>
-          )}
-        </Card>
-        )}
-
-      </section>
-
-      <section className="mt-10" aria-labelledby="import-heading">
-        <h2 id="import-heading" className="text-xl font-semibold">
-          Import volunteers from a spreadsheet
-        </h2>
-        <p className="mt-1 mb-4 text-sm text-muted">
-          Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row per
-          person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
-          room for them.
-        </p>
-        <Card>
-          {shifts.length === 0 ? (
-            <p className="text-sm">
-              Add a sign-up and its shifts above first. Each volunteer you import goes onto one of your shifts.
-            </p>
-          ) : (
-            <SpreadsheetImport
-              kind="volunteers"
-              fields={importFields("volunteers")}
-              choices={{ shift: shiftChoices }}
-              noun={{ one: "sign-up", many: "sign-ups" }}
-              templateName="volunteers.csv"
-              emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
-              action={importVolunteers.bind(null, eventId)}
-            />
-          )}
-        </Card>
       </section>
     </div>
   );
