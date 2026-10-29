@@ -78,7 +78,7 @@ export const loadDayActions = cache(async (eventId: string): Promise<DayActions 
   } else if (hasRooms(type)) {
     job("groups", "groups", "Check groups in", "Check groups in", "Tap Arrived, then Done in each room", "/event-day");
   } else if (hasParents(type) && parents.data) {
-    job("parents", "parents", "Check in parents", "Check in parents", "At the door, after checking a photo ID", "/parents#door-check-in");
+    job("parents", "parents", "Check in parents", "Check in parents", "At the door, after checking a photo ID", "/parents/check-in");
   } else if (hasBooths(type)) {
     job("booths", "booths", "Check in booths and partners", "Check in booths", "Tap Arrived as each one sets up", "/booths#check-in");
   }

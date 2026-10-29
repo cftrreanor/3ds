@@ -159,7 +159,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       id: "parents-close",
       label: "Choose when parent registration closes",
       hint: "Or close it by hand when you're ready.",
-      href: `${base}/parents`,
+      href: `${base}/parents?tab=settings`,
       done: f.parentClosesAt,
       required: false,
     });
