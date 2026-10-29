@@ -68,6 +68,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
           title: s.title,
           description: s.description,
           when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}`,
+          startsAt: s.starts_at,
+          endsAt: s.ends_at,
           spotsLeft: s.max_capacity - s.registered_count,
           adultsOnly: st.adults_only || Boolean((s as { adults_only?: boolean }).adults_only),
           minAge: (s as { min_age?: number | null }).min_age ?? null,

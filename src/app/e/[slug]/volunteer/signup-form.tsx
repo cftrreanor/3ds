@@ -8,13 +8,15 @@ import { BotCheck } from "@/components/bot-check";
 import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge, Button, Card, Field, FormMessage, Input } from "@/components/ui";
-import { GUARDIAN_CONSENT, MAX_OTHERS, groupProgress, ineligibleReason } from "@/lib/group-signup";
+import { GUARDIAN_CONSENT, MAX_OTHERS, groupProgress, ineligibleReason, shiftsOverlap } from "@/lib/group-signup";
 import type { SignupPayload, SignupState } from "./actions";
 
 export type PublicShift = {
   id: string;
   title: string;
   when: string;
+  startsAt: string;
+  endsAt: string;
   description: string | null;
   spotsLeft: number;
   /** No one under 18 (this shift's own switch, or its sign-up's). */
@@ -103,6 +105,15 @@ export function SignupForm({
     const s = shiftById.get(shiftId);
     return s ? ineligibleReason({ minor: minorOf(who), age: ageOf(who) }, s) : null;
   };
+  // A shift that's at the same time as one this person already picked: "Same time as your Concessions shift".
+  const clash = (shiftId: string, who: number) => {
+    const s = shiftById.get(shiftId);
+    const other = s && shiftsOf(who).map((id) => shiftById.get(id)).find((o) => o && o.id !== shiftId && shiftsOverlap(o, s));
+    if (!other) return null;
+    return `Same time as ${who === BOOKER ? "your" : `${firstName(who)}'s`} ${other.station.name} shift`;
+  };
+  // Why a shift can't be ticked for this person right now.
+  const blockedFor = (shiftId: string, who: number) => whyNot(shiftId, who) ?? clash(shiftId, who);
   const firstName = (who: number) => (who === BOOKER ? "you" : people[who]?.name.trim().split(/\s+/)[0] || "them");
   const anyMinor = me.minor || people.some((p) => p.minor);
 
@@ -171,6 +182,11 @@ export function SignupForm({
     if (who === BOOKER && mine.length === 0 && pickedItems.size === 0) return setProblem("Pick at least one shift or item above.");
     if (who === BOOKER && next === "add" && mine.length === 0) return setProblem("Pick a shift for yourself first. Then you can add other people.");
     if (who !== BOOKER && shiftsOf(who).length === 0) return setProblem(`Pick at least one shift for ${firstName(who)}.`);
+    const overlap = shiftsOf(who).find((id) => clash(id, who));
+    if (overlap) {
+      const s = shiftById.get(overlap)!;
+      return setProblem(`${who === BOOKER ? "You have" : `${firstName(who)} has`} two shifts at the same time (${s.station.name}, ${s.when}). Untick one to go on.`);
+    }
     setProblem(null);
     if (next === "add") addPerson();
     else void goReview();
@@ -281,7 +297,7 @@ export function SignupForm({
             <Card key={st.id} className="p-4 sm:p-5">
               <h3 className="font-semibold">{st.name}</h3>
               {st.location && <p className="text-sm text-muted">{st.location}</p>}
-              <ShiftChoices shifts={st.shifts} chosen={p.shifts} onToggle={toggle} spotsFor={(id) => spotsFor(id, i)} whyNot={(id) => whyNot(id, i)} disabled={disabled} />
+              <ShiftChoices shifts={st.shifts} chosen={p.shifts} onToggle={toggle} spotsFor={(id) => spotsFor(id, i)} whyNot={(id) => blockedFor(id, i)} disabled={disabled} />
             </Card>
           ))}
         <FormMessage error={problem} />
@@ -460,7 +476,7 @@ export function SignupForm({
       me={me}
       setMe={setMe}
       spotsFor={(id) => spotsFor(id, BOOKER)}
-      whyNot={(id) => whyNot(id, BOOKER)}
+      whyNot={(id) => blockedFor(id, BOOKER)}
       progress={progress}
       problem={problem}
       onSubmit={onPicked(BOOKER)}
