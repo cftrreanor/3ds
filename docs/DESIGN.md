@@ -160,6 +160,23 @@ How a host sets something up (Volunteer Setup, Band Registration). Same feel eve
 10. **Plain, matching names.** A page's title matches the card that links to it. Buttons say what
    they do ("Create shifts", "Open band registration"), never "Submit".
 
+### Tabs or one page
+
+Pick by how the host uses the page:
+
+- **A flow gets tabs.** The setup has parts done in turn, each with its own status, that the host
+  comes back to until they're all done (Band Registration, Performance schedule, Rooms & schedule,
+  Conference and Meeting Setup, Parent Registration, Booths & Partners, Volunteer Setup, Team setup).
+  - A status card sits on top, with the link, Copy link, Preview page, any extra buttons, and the
+    main action in one row and the QR code folded underneath.
+  - Below it are tabs (`SetupTabs`), each with a ✓ or a yellow dot and a status line.
+  - Each tab has a footer pinned to the bottom of the screen that holds its Save.
+  - Leaving a tab with unsaved changes asks "Save your changes first?"
+  - Day-of work (check-in) is its own page, not a tab.
+- **Information gets one page.** Short settings the host reads and adjusts, and needs to see
+  together, stay on one page with no tabs (Email settings, Maps & documents, Publishing &
+  more). Splitting them would only hide things.
+
 ## Event settings (Event settings)
 
 An event's global settings live on one page with a section menu: down the side on wide
