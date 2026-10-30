@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import QRCode from "qrcode";
 import { CopyLink } from "@/components/copy-link";
-import { ScrollTo } from "@/components/scroll-to";
+import { JustPublished } from "@/components/just-published";
 import { missing } from "@/lib/schema-check";
 import { conferenceBookedCount } from "@/lib/conference-access";
 import { createClient } from "@/lib/supabase/server";
@@ -847,8 +847,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             : undefined
       }
     >
-      {justPublished && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; the links to share are at the top.`} />}
-      {justPublished && <ScrollTo id="share" />}
+      {justPublished && <JustPublished />}
       {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">

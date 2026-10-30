@@ -295,7 +295,9 @@ export async function setEventPublished(eventId: string, publish: boolean): Prom
     }
     return { error: friendlyDbError(error) };
   }
-  if (!data?.length) return { error: "Only the event's host can publish it." };
+  if (!data?.length) {
+    return { error: publish ? "Only the event's host can publish it. Ask them to publish it from the event's page." : "Only the event's host can unpublish it." };
+  }
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }

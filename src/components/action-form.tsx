@@ -1,11 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { unstable_rethrow, useRouter } from "next/navigation";
 import { createContext, use, useActionState, useEffect, useRef, useState, startTransition, type ReactNode } from "react";
 import { confirmDialog, confirmFromText, shareDialog } from "@/components/confirm-dialog";
 import type { ActionState } from "@/lib/action-state";
+import { brand } from "@/lib/brand";
 import { toast } from "./toaster";
 import { FormMessage } from "./ui";
+
+const UNREACHABLE = `That didn't go through, so nothing changed. Check your internet connection and try again. If it keeps happening, write to us at ${brand.supportEmail}.`;
 
 /** Lets <SubmitButton> know a manually-submitted ActionForm is saving. */
 export const ActionPendingContext = createContext(false);
@@ -54,7 +57,17 @@ export function ActionForm({
   /** Called as the user types or picks anything (after a reset too), with the form. */
   onEdit?: (form: HTMLFormElement) => void;
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, formAction, pending] = useActionState(async (prev: ActionState, data: FormData): Promise<ActionState> => {
+    try {
+      return await action(prev, data);
+    } catch (error) {
+      // Lost connection (or the server failed): keep the page and what was typed, and say what to do.
+      // Next's own redirects pass through.
+      unstable_rethrow(error);
+      console.error("Form action failed", error);
+      return { error: UNREACHABLE };
+    }
+  }, {});
   // A problem found in the browser, shown instead of the last server answer.
   const [checked, setChecked] = useState<ActionState | null>(null);
   const shown = checked ?? state;

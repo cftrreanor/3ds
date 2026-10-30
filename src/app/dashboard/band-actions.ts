@@ -204,13 +204,15 @@ export async function setBandRegistrationOpen(eventId: string, open: boolean) {
 
 /**
  * Band Registration's one button before the event is live: publish it and open
- * registration, then the link to send directors, on the Registered bands tab.
+ * registration, then go to the event's page, where the registration link to
+ * send directors is in Links to share.
  */
 export async function publishAndOpenBandRegistration(eventId: string): Promise<ActionState> {
   const published = await setEventPublished(eventId, true);
   if (published.error) return published;
   const opened = await setBandRegistrationOpen(eventId, true);
-  return opened.error ? opened : { ...opened, goTo: `/dashboard/events/${eventId}/bands?tab=bands` };
+  if (opened.error) return opened;
+  redirect(`/dashboard/events/${eventId}?published=1`);
 }
 
 /** Registration just opened: the link to send directors. */
