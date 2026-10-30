@@ -1013,7 +1013,7 @@ function PublishPanel({
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
       <h2 className="text-lg font-semibold">{remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
-      {remaining.length ? (
+      {needsJob ? null : remaining.length ? (
         // The checklist beside the page lists every step; here, just the first one left.
         <p className="mt-2 text-sm">
           <span className="text-muted">We recommend finishing {remaining.length === 1 ? "one more step" : `${remaining.length} more steps`} first, starting with </span>

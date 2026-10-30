@@ -214,7 +214,7 @@ export function StationPanel({
             <section id="items" aria-labelledby="items-heading" className="scroll-mt-6 border-t border-border pt-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h4 id="items-heading" className="text-base font-semibold">
-                  Items to bring
+                  {job ? "Things to bring" : "Items to bring"}
                 </h4>
                 <p className="text-sm text-muted">Sign-ups stop when an item is covered</p>
               </div>
