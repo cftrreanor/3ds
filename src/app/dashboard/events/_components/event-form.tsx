@@ -280,10 +280,10 @@ function EventDates({ startsOn, endsOn, startTime, endTime }: { startsOn?: strin
         <input type="hidden" name="endsOn" value={start} />
       )}
       {/* Always on a row of their own, under the dates. */}
-      <Field label={multi ? "Gates open / first volunteers arrive (first day)" : "Gates open / first volunteers arrive"} className="sm:col-start-1">
+      <Field label={multi ? "Start time (first day)" : "Start time"} className="sm:col-start-1">
         <Input name="startTime" type="time" defaultValue={startTime ?? "07:00"} required />
       </Field>
-      <Field label={multi ? "Everything wraps up (last day)" : "Everything wraps up"}>
+      <Field label={multi ? "End time (last day)" : "End time"}>
         <Input name="endTime" type="time" defaultValue={endTime ?? "22:00"} required />
       </Field>
     </>
