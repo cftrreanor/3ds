@@ -90,7 +90,8 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const asked = ALL_SECTIONS.find((x) => x === sectionParam) ?? (typeof step === "string" ? fromStep[step] : undefined);
   const section: Section = asked && SECTIONS.includes(asked) ? asked : "details";
   // The guided setup, step by step (conferences and meetings have their own setup page instead).
-  const guided = setupParam === "1" && !hasConferences(event.event_type);
+  // A volunteer event's setup is its three steps (shown by the layout), not the guided Event settings.
+  const guided = setupParam === "1" && !hasConferences(event.event_type) && event.event_type !== "volunteer";
   const at = SETUP_STEPS.findIndex((s) => s.id === section);
   const prevStep = guided && at > 0 ? setupHref(eventId, SETUP_STEPS[at - 1].id) : undefined;
   const nextStep = guided && at < SETUP_STEPS.length - 1 ? setupHref(eventId, SETUP_STEPS[at + 1].id) : undefined;
