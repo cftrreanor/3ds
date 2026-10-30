@@ -18,3 +18,20 @@ Owner decisions, 2026-10-30.
 | 11 | "Publish, open registration later" leads nowhere | 3 | Take the advice | Dropped for now: one button, "Publish and open registration" |
 | 12 | Closing and reopening registration not designed | 3 | Take the advice | "Close registration early" with a confirmation; "Reopen registration" asks for a new deadline |
 | Sev 2 | The "Should fix" list | 2 | Take the advice | Applied in the revised mock-ups, then a light check |
+
+## Light check on the revised mock-ups (owner, 2026-10-30)
+
+Review: docs/design-reviews/2026-10-30-band-contest-mockups-v2.md
+
+| # | Finding | Severity | Decision | Notes |
+|---|---|---|---|---|
+| 1 | The event page's numbers disagree; status repeated | 3 | Take the advice | "Your contest" cards are navigation with one neutral fact each; status lives in the stage bar and main card; one source for every count; mock-up data fixed |
+| 2 | Check-in stops set in two places | 3 | Fix it differently | Owner: set inside each volunteer job (More options), plus a small "Check-in order" list. The event page counts those jobs, so it never says "not set" when a job has a stop |
+| 3 | A failed save still lets the host move on | 3 | Take the advice | Finish or retry saves before leaving; stay if one fails; mark the field |
+| 4 | Dark mode: white text on red buttons | 3 | Take the advice | Dark text on red in dark mode, one shared color |
+| 5 | Invitation sign-in links expire after 7 days | 3 | Take the advice | Keep 7 days; after that directors confirm with a code; add "Send a reminder" (a fresh link) for invited directors who haven't registered; stop promising "one tap" |
+| 6 | Server rules (publish needs deadline and classification; used classifications can't be removed; field-by-field saves; reopening needs a deadline) | 3 | Take the advice | With security tests |
+| 7 | Volunteer link before any jobs exist | 3 | Take the advice | "Add jobs first" until a job has open spots |
+| — | New contests start with 1A–6A filled in | 2 | Fix it differently | Owner: start empty, with guidance under the field showing the formats people use (like 1A–6A, Class AA, or Division I) |
+| — | Entry fee "Paid" tracking | 2 | Keep as is | Owner: not needed; hosts track payment elsewhere. The optional payment link stays |
+| Sev 2 | The rest of the "Should fix" list | 2 | Take the advice | Built in, then checked in the screenshot review before the PR |
