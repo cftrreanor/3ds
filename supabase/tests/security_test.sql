@@ -7099,6 +7099,34 @@ begin
                                    array['10000000-0000-0000-0000-0000000000bb']::uuid[]);
 end $$;
 reset role;
+-- Switching shifts with a pass (through the server) can't land on a hidden job either.
+select set_config('jobs.asg', a.id::text, false), set_config('jobs.vtok', v.access_token::text, false)
+  from public.volunteer_assignments a join public.volunteers v on v.id = a.volunteer_id
+ where v.email = 'pat@example.com' and a.shift_id = '10000000-0000-0000-0000-0000000000bb';
+set role service_role;
+set request.jwt.claims = '{"role":"service_role"}';
+do $$ begin
+  begin
+    perform public.swap_shift_with_pass(current_setting('jobs.asg')::uuid, '10000000-0000-0000-0000-0000000000ba',
+                                        array[current_setting('jobs.vtok')::uuid], '{}'::uuid[]);
+  exception when others then null;
+  end;
+  assert (select shift_id from public.volunteer_assignments where id = current_setting('jobs.asg')::uuid) = '10000000-0000-0000-0000-0000000000bb',
+         'a volunteer can''t switch onto a hidden job';
+end $$;
+reset role;
+-- Demo mode's volunteer joins a showing job, never a hidden one.
+insert into public.demo_events (owner_id, event_id) values ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000000b7');
+set role service_role;
+set request.jwt.claims = '{"role":"service_role"}';
+do $$ begin
+  perform public.demo_join('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000000b7', 'd0000000-0000-0000-0000-000000000004');
+  assert (select a.shift_id from public.volunteer_assignments a join public.volunteers v on v.id = a.volunteer_id
+           where v.email = 'vol-1@demo.fieldcommandevents.com' and v.event_id = '10000000-0000-0000-0000-0000000000b7')
+         = '10000000-0000-0000-0000-0000000000bb', 'the demo volunteer joins the showing job';
+  perform public.demo_leave('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000000b7');
+end $$;
+reset role;
 -- Coordinators: their own hidden job, not anyone else's.
 set role authenticated;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
@@ -7117,6 +7145,13 @@ do $$
 declare ok boolean := false; msg text;
 begin
   assert exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b8'), 'a Volunteer Lead previews hidden jobs';
+  -- Not even a Volunteer Lead adds a walk-up to a hidden job; they're told to show it first.
+  begin
+    perform public.add_walk_up('10000000-0000-0000-0000-0000000000ba', 'Wally Walkup', null);
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'This job is hidden from volunteers. Show it%', 'no walk-ups on a hidden job';
+  ok := false;
   -- Signed up: the job can't be hidden, and its shift can't be deleted.
   update public.stations set showing = true where id = '10000000-0000-0000-0000-0000000000b8';
   begin
@@ -7252,6 +7287,10 @@ begin
   exception when sqlstate 'P0001' then ok := true;
   end;
   assert ok, 'and so does the job';
+  -- Replacing its shifts (new ones first, like "Fill the day") is fine.
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+    ('10000000-0000-0000-0000-0000000000c3', '10000000-0000-0000-0000-0000000000b9', 'Midday', now() + interval '40 days 2 hours', now() + interval '40 days 4 hours', 3);
+  delete from public.shifts where id = '10000000-0000-0000-0000-0000000000bb';
 end $$;
 reset role;
 -- Switching a live event to a volunteer event needs a showing job too.

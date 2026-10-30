@@ -37,7 +37,7 @@ begin
   begin
     delete from public.stations where event_id = ev.id and name like '%(test)';
   exception when sqlstate 'P0001' then
-    raise exception 'Someone who isn''t test data signed up for a "(test)" job, so the test jobs were kept. Remove that person from the job first, then run this again.';
+    raise exception 'Nothing was removed: %. (Often someone who isn''t test data signed up for a "(test)" job. Remove them from it first, then run this again.)', sqlerrm;
   end;
 end $$;
 

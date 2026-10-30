@@ -63,7 +63,12 @@ export default async function VolunteerSignupPage({ params }: Params) {
   // Check-in stations first, in the host's order: they matter most on the day.
   const publicStations: PublicStation[] = sortStations(showing)
     .map((st) => ({
-      ...st,
+      // Only what the form shows (the query reads every column).
+      id: st.id,
+      name: st.name,
+      location: st.location,
+      instructions: st.instructions,
+      adults_only: st.adults_only,
       // An items station takes things to bring, never time slots.
       shifts: (st.signup_kind === "items" ? [] : (shifts ?? []))
         .filter((s) => s.station_id === st.id)

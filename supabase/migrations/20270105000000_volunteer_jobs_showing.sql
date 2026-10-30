@@ -92,6 +92,9 @@ begin
   -- the server's included (the public sign-up page goes through it). The role
   -- setting stays the caller's inside security-definer functions.
   if st.id is not null and not st.showing and current_setting('role', true) in ('authenticated', 'anon', 'service_role') then
+    if public.can_preview_station(st.id) then
+      raise exception 'This job is hidden from volunteers. Show it to volunteers first, then add people.' using errcode = 'P0001';
+    end if;
     raise exception 'That volunteer job isn''t open for sign-up yet.' using errcode = 'P0001';
   end if;
   return new;
@@ -227,7 +230,9 @@ language plpgsql security definer set search_path = public
 as $$
 begin
   if new.station_id is distinct from old.station_id then
-    if exists (select 1 from stations where id = new.station_id and not showing for share)
+    -- Lock the new job first, so it can't be hidden while this shift moves in.
+    perform 1 from stations where id = new.station_id for share;
+    if exists (select 1 from stations where id = new.station_id and not showing)
        and exists (select 1 from volunteer_assignments where shift_id = new.id) then
       raise exception 'Volunteers have signed up for this shift, so it can''t move to a hidden job. Show that job first.' using errcode = 'P0001';
     end if;
@@ -267,23 +272,153 @@ create trigger events_publish_volunteer_job
   for each row execute function public.events_publish_needs_job();
 
 -- 7. Demo mode ------------------------------------------------------------------------------------
--- demo_leave removes sample jobs past the checks above; demo_join signs its demo
+-- Written out in full so this file holds the current versions. demo_leave removes
+-- sample jobs past the checks above (app.cleaning_up); demo_join signs its demo
 -- volunteer up for a showing job only.
-do $$
+CREATE OR REPLACE FUNCTION public.demo_leave(p_owner uuid, p_event uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 declare
-  src text := pg_get_functiondef('public.demo_leave(uuid, uuid)'::regprocedure);
-  fixed text;
+  org uuid;
 begin
-  fixed := replace(src, $q$  select organization_id into org from events where id = p_event;$q$,
-                        $q$  select organization_id into org from events where id = p_event;
+  select organization_id into org from events where id = p_event;
   -- Sample jobs go whole, sign-ups and all (see signups_block_delete).
-  perform set_config('app.cleaning_up', 'on', true);$q$);
-  if fixed = src then raise exception 'demo_leave has changed; update this migration'; end if;
-  execute fixed;
-  src := pg_get_functiondef('public.demo_join(uuid, uuid, uuid)'::regprocedure);
-  fixed := replace(src, $q$select * into sh from shifts where event_id = p_event$q$,
-                        $q$select * into sh from shifts where event_id = p_event
-         and station_id in (select id from stations where event_id = p_event and showing)$q$);
-  if fixed = src then raise exception 'demo_join has changed; update this migration'; end if;
-  execute fixed;
-end $$;
+  perform set_config('app.cleaning_up', 'on', true);
+
+  -- Sample data (stations take their shifts and sign-ups with them).
+  delete from volunteers where id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'volunteer');
+  delete from stations where id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'station');
+  delete from bands where id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'band');
+  delete from rooms where id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'room');
+  delete from parent_registrations where id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'parent');
+  delete from fair_booths where id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'booth');
+  delete from conference_bookings where id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'booking');
+  delete from conference_settings where event_id in (select row_id from demo_samples where owner_id = p_owner and event_id = p_event and kind = 'conference');
+  delete from demo_samples where owner_id = p_owner and event_id = p_event;
+
+  -- Free the demo volunteer's shift spots.
+  update shifts s set registered_count = greatest(0, s.registered_count - n.cnt)
+    from (
+      select va.shift_id, count(*) as cnt
+        from volunteer_assignments va
+        join volunteers v on v.id = va.volunteer_id
+        join profiles p on p.email = v.email
+        join demo_accounts d on d.user_id = p.id and d.owner_id = p_owner
+       where v.event_id = p_event
+       group by va.shift_id
+    ) n
+   where s.id = n.shift_id;
+  delete from volunteers v using profiles p, demo_accounts d
+   where v.event_id = p_event and p.email = v.email and d.user_id = p.id and d.owner_id = p_owner;
+
+  delete from bands b using demo_accounts d
+   where b.event_id = p_event and b.director_user_id = d.user_id and d.owner_id = p_owner;
+  delete from station_leads l using demo_accounts d
+   where l.event_id = p_event and l.user_id = d.user_id and d.owner_id = p_owner;
+  delete from event_staff s using demo_accounts d
+   where s.event_id = p_event and s.user_id = d.user_id and d.owner_id = p_owner;
+  -- The demo host leaves the organization unless it's demoing another of its events.
+  delete from organization_members m using demo_accounts d
+   where m.organization_id = org and m.user_id = d.user_id and d.owner_id = p_owner
+     and not exists (
+       select 1 from demo_events de join events e on e.id = de.event_id
+        where de.owner_id = p_owner and de.event_id <> p_event and e.organization_id = org
+     );
+
+  -- Demo people don't linger on the Team page's "Removed" tab.
+  delete from team_removals t using demo_accounts d
+   where t.organization_id = org and t.user_id = d.user_id and d.owner_id = p_owner;
+
+  delete from demo_events where owner_id = p_owner and event_id = p_event;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.demo_join(p_owner uuid, p_event uuid, p_user uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  acct    public.demo_accounts;
+  ev      public.events;
+  who     public.profiles;
+  band_id uuid;
+  vol_id  uuid;
+  sh      public.shifts;
+begin
+  select * into acct from demo_accounts where user_id = p_user and owner_id = p_owner;
+  if not found then
+    raise exception 'Not a demo account' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from demo_events where owner_id = p_owner and event_id = p_event) then
+    raise exception 'Demo mode is not on for this event' using errcode = 'P0001';
+  end if;
+  select * into ev from events where id = p_event;
+  select * into who from profiles where id = p_user;
+
+  if acct.persona = 'host' then
+    insert into organization_members (organization_id, user_id, role)
+    values (ev.organization_id, p_user, 'admin')
+    on conflict do nothing;
+
+  elsif acct.persona = 'volunteer_lead' then
+    insert into event_staff (event_id, user_id, role) values (p_event, p_user, 'volunteer_director')
+    on conflict do nothing;
+
+  elsif acct.persona = 'section_lead' then
+    insert into event_staff (event_id, user_id, role) values (p_event, p_user, 'section_lead')
+    on conflict do nothing;
+    -- Leads the first two stations (check-in path first), the first time.
+    if not exists (select 1 from station_leads where event_id = p_event and user_id = p_user) then
+      insert into station_leads (station_id, user_id, event_id)
+      select id, p_user, p_event from stations
+       where event_id = p_event
+       order by checkpoint_order nulls last, sort_order, created_at
+       limit 2;
+    end if;
+
+  elsif acct.persona = 'director' then
+    select id into band_id from bands where event_id = p_event and director_user_id = p_user;
+    if band_id is null then
+      if cardinality(ev.classifications) = 0 then
+        raise exception 'Add a classification to the event first' using errcode = 'P0001';
+      end if;
+      insert into bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                         contact_email, head_director_name, head_director_email, head_director_phone,
+                         student_count, chaperone_count, bus_count, box_truck_count)
+      values (p_event, p_user, 'Demo High School', 'Demo Marching Band', ev.classifications[1],
+              '100 Demo Way', who.email, who.full_name, who.email, '+15125550100',
+              60, least(4, ev.chaperone_limit), 2, 1)
+      returning id into band_id;
+    end if;
+
+  elsif acct.persona = 'volunteer' then
+    select id into vol_id from volunteers where event_id = p_event and email = who.email;
+    if vol_id is null then
+      insert into volunteers (event_id, full_name, email, phone)
+      values (p_event, who.full_name, who.email, '+15125550100')
+      returning id into vol_id;
+      -- One shift: the first with an open spot (or simply the first).
+      select * into sh from shifts where event_id = p_event
+         and station_id in (select id from stations where event_id = p_event and showing)
+       order by (registered_count >= max_capacity), starts_at
+       limit 1
+       for update;
+      if found then
+        insert into volunteer_assignments (shift_id, volunteer_id) values (sh.id, vol_id);
+        update shifts set registered_count = registered_count + 1,
+                          max_capacity = greatest(max_capacity, registered_count + 1)
+         where id = sh.id;
+      end if;
+    end if;
+  end if;
+  -- 'parent' just looks at the public page: nothing to add.
+
+  update demo_events set last_used_at = now() where owner_id = p_owner and event_id = p_event;
+  return band_id;
+end;
+$function$;
