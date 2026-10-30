@@ -42,7 +42,7 @@ import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
-import { hiddenJobsSentence, volunteerTotals } from "@/lib/volunteer-totals";
+import { volunteerTotals } from "@/lib/volunteer-totals";
 import { SetupGuide } from "@/components/setup-guide";
 import { DayRail } from "@/components/event-day-nav";
 import { loadDayActions } from "@/lib/event-day-actions";
@@ -185,9 +185,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
 
   // Totals count only the jobs volunteers can see (hosts and leads read hidden ones too), the same way as Volunteer jobs.
-  const hiddenJobs = stations
-    .filter((st) => (st as { showing?: boolean }).showing === false)
-    .map((st) => ({ ...st, ready: (shifts ?? []).some((s) => s.station_id === st.id) || (itemRows ?? []).some((i) => i.station_id === st.id) }));
   const totals = volunteerTotals(stations as { id: string; showing?: boolean }[], shifts ?? [], itemRows ?? []);
   const liveShifts = totals.liveShifts;
   const signedUp = totals.filled;
@@ -745,7 +742,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               )}
               <span className="text-sm text-muted">
                 {event.event_type === "volunteer"
-                  ? `${stations.length - hiddenJobs.length} ${stations.length - hiddenJobs.length === 1 ? "job" : "jobs"} showing`
+                  ? `${stations.length} ${stations.length === 1 ? "job" : "jobs"}`
                   : `${stations.length} sign-up${stations.length === 1 ? "" : "s"} · ${(shifts ?? []).length} shift${(shifts ?? []).length === 1 ? "" : "s"}`}
               </span>
             </div>
@@ -753,20 +750,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               Manage volunteers
             </Link>
           </div>
-          {hiddenJobs.length > 0 && (
-            <p className="text-sm leading-6">
-              <span className="font-medium">{hiddenJobsSentence(hiddenJobs)}:</span>{" "}
-              {hiddenJobs.map((j, i) => (
-                <span key={j.id}>
-                  {i > 0 && (i === hiddenJobs.length - 1 ? (hiddenJobs.length > 2 ? ", and " : " and ") : ", ")}
-                  <Link href={`/dashboard/events/${eventId}/volunteering?station=${j.id}`} className="font-medium text-brand underline underline-offset-4">
-                    {j.name}
-                  </Link>
-                </span>
-              ))}
-              . They&apos;re not counted here until you show them.
-            </p>
-          )}
           <VolunteerStats
             filled={signedUp}
             capacity={totalSlots}
@@ -805,7 +788,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ) : null;
 
   // Before publishing: what publishing does, and the button. (Once live, unpublishing is in event settings.)
-  const publish = setup && checklist && !published ? <PublishPanel facts={setup} remaining={checklist.remaining} previewHref={`/e/${event.slug}/volunteer?preview=1`} /> : null;
+  const publish = setup && checklist && !published ? <PublishPanel facts={setup} remaining={checklist.remaining} previewHref={`/e/${event.slug}/volunteer`} /> : null;
 
   // Still setting up: the one thing to do next, in the main column too.
   const nextUpStep = checklist && !published ? (checklist.inProgress ?? checklist.next) : null;
@@ -1004,11 +987,10 @@ function PublishPanel({
   /** A volunteer event's sign-up page, as the team previews it. */
   previewHref: string;
 }) {
-  // A volunteer event chooses when sign-up opens with its publish button, and names the jobs volunteers won't see yet.
+  // A volunteer event chooses when sign-up opens with its publish button.
   const jobsHere = facts.eventType === "volunteer";
-  const hidden = jobsHere ? (facts.hiddenJobs ?? []) : [];
-  // Publishing needs a job volunteers can see (the database checks too): until then, the way there instead of the buttons.
-  const needsJob = jobsHere && (facts.showingJobs ?? 1) === 0;
+  // Publishing needs a job with a shift or a thing to bring (the database checks too): until then, the way there instead of the buttons.
+  const needsJob = jobsHere && (facts.readyJobs ?? 1) === 0;
   const effects = publishEffects(facts).filter((line) => !(jobsHere && line.startsWith("Volunteer sign-up")));
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
@@ -1027,20 +1009,6 @@ function PublishPanel({
           <span aria-hidden>✓</span> Everything your event needs is set up.
         </p>
       )}
-      {hidden.length > 0 && !needsJob && (
-        <p className="mt-3 text-sm leading-6">
-          {hiddenJobsSentence(hidden)}:{" "}
-          {hidden.map((j, i) => (
-            <span key={j.id}>
-              {i > 0 && (i === hidden.length - 1 ? (hidden.length > 2 ? ", and " : " and ") : ", ")}
-              <Link href={`/dashboard/events/${facts.eventId}/volunteering?station=${j.id}`} className="font-medium text-brand underline underline-offset-4">
-                {j.name}
-              </Link>
-            </span>
-          ))}
-          . Volunteers won&apos;t see {hidden.length === 1 ? "it" : "them"} until you show {hidden.length === 1 ? "it" : "them"}.
-        </p>
-      )}
       <p className="mt-4 text-sm font-semibold">When you publish:</p>
       <ul className="mt-2 space-y-1.5 text-sm text-muted">
         {effects.map((line) => (
@@ -1052,25 +1020,11 @@ function PublishPanel({
       </ul>
       {needsJob ? (
         <div className="mt-5 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
-          <p className="font-semibold">Show a job to volunteers before you publish</p>
-          <p className="mt-1">Publishing needs at least one job volunteers can see, with a shift or a thing to bring.</p>
-          {hidden.some((j) => j.ready) ? (
-            <ul className="mt-2 space-y-1">
-              {hidden
-                .filter((j) => j.ready)
-                .map((j) => (
-                  <li key={j.id}>
-                    <Link href={`/dashboard/events/${facts.eventId}/volunteering?station=${j.id}`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
-                      Show {j.name}
-                    </Link>
-                  </li>
-                ))}
-            </ul>
-          ) : (
-            <Link href={`/dashboard/events/${facts.eventId}/volunteering`} className={`${BTN} mt-3`}>
-              Go to jobs and shifts
-            </Link>
-          )}
+          <p className="font-semibold">Add a job before you publish</p>
+          <p className="mt-1">Publishing needs at least one job with a shift or a thing to bring.</p>
+          <Link href={`/dashboard/events/${facts.eventId}/volunteering`} className={`${BTN} mt-3`}>
+            Go to jobs and shifts
+          </Link>
         </div>
       ) : facts.planBlock ? (
         // Say why before they try, and what they can do: not an error after the click.

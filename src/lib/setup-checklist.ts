@@ -1,4 +1,3 @@
-import { hiddenJobsSentence } from "@/lib/volunteer-totals";
 import { groupWords, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, isMeeting } from "@/lib/event-types";
 
 /**
@@ -25,10 +24,8 @@ export type SetupFacts = {
   published: boolean;
   stations: number;
   shifts: number;
-  /** Jobs volunteers can see that have a shift or a thing to bring. */
-  showingJobs?: number;
-  /** Jobs volunteers can't see yet, and whether each has a shift or a thing to bring. */
-  hiddenJobs?: { id: string; name: string; ready: boolean }[];
+  /** Volunteer jobs with a shift or a thing to bring (what publishing a volunteer event needs). */
+  readyJobs?: number;
   /** Stations marked as check-in stops (band contests). */
   checkInStops: number;
   /** People who've joined the event's team (co-hosts and leads). */
@@ -91,30 +88,20 @@ export type SetupChecklist = {
 const BEFORE_ORDER = ["details", "director-info", "booths", "conference", "parents-close", "rooms", "shifts", "check-in", "team", "files"];
 
 /**
- * A volunteer event's jobs: done once volunteers can see a job with a shift or a
- * thing to bring (the database won't publish without one).
+ * A volunteer event's jobs: done once a job has a shift or a thing to bring
+ * (the database won't publish without one).
  */
 function jobsStep(f: SetupFacts, base: string): SetupStep {
-  const hidden = f.hiddenJobs ?? [];
-  const showing = f.showingJobs ?? (f.stations > 0 && f.shifts > 0 ? 1 : 0);
+  const ready = f.readyJobs ?? (f.stations > 0 && f.shifts > 0 ? 1 : 0);
   return {
     id: "shifts",
     label: "Add volunteer jobs and shifts",
     hint: "What volunteers sign up for.",
     href: `${base}/volunteering`,
-    done: showing > 0,
+    done: ready > 0,
     required: true,
-    partial:
-      f.stations > 0 && showing === 0
-        ? { fraction: 0.5, note: jobsNote(f.stations, hidden) }
-        : undefined,
+    partial: f.stations > 0 && ready === 0 ? { fraction: 0.5, note: `${f.stations} ${f.stations === 1 ? "job" : "jobs"}, no shifts yet` } : undefined,
   };
-}
-
-/** What a volunteer event's jobs still need, in a few words: "3 jobs are hidden, 2 ready to show". */
-export function jobsNote(jobs: number, hidden: { ready: boolean }[]) {
-  if (hidden.some((j) => j.ready)) return `${hiddenJobsSentence(hidden)}. Show one to publish`;
-  return `${jobs} ${jobs === 1 ? "job" : "jobs"}, no shifts yet`;
 }
 
 export function setupChecklist(f: SetupFacts): SetupChecklist {

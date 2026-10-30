@@ -18,7 +18,8 @@ import {
 } from "../../actions";
 import { BuildShifts, DeleteButton, ItemsEditor, ShiftForm, StationForm, type LeadOption } from "./forms";
 import { inviteCoordinator } from "../../team-actions";
-import { JobKindSwitch, JobVisibility, type JobVisibilityFacts } from "./volunteering/job-visibility";
+import { JobKindSwitch, type JobFacts } from "./volunteering/job-parts";
+import { JobForm } from "./volunteering/job-form";
 
 export type Shift = {
   id: string;
@@ -130,8 +131,8 @@ export function StationPanel({
   leadOptions?: LeadOption[];
   /** Invited to lead it, not accepted yet. */
   pendingInvites?: string[];
-  /** A volunteer event's job: whether volunteers can see it, with its Show or Hide button. */
-  job?: JobVisibilityFacts;
+  /** A volunteer event's job: its own layout and words, saved as people type. */
+  job?: JobFacts;
 }) {
   const noun = job ? "job" : "sign-up";
   const itemsStation = station.signup_kind === "items";
@@ -179,18 +180,23 @@ export function StationPanel({
         </div>
       </div>
 
-      {canManage && job && (
-        <div className="mt-4">
-          <JobVisibility eventId={eventId} stationId={station.id} name={station.name} job={job} />
-        </div>
-      )}
       {canManage && (
         // Everything about the sign-up in one place: its name, type, details, and Coordinators (one Save),
         // then its items or time slots, edited right in their rows.
-        <div className="mt-5 space-y-8">
+        <div className={job ? "mt-4 space-y-5" : "mt-5 space-y-8"}>
           {/* A volunteer event's job starts with what volunteers sign up for: shifts or things to bring. */}
           {job && <JobKindSwitch eventId={eventId} stationId={station.id} kind={itemsStation ? "items" : "shifts"} locked={kindLocked} />}
           <div id="station-details" className="scroll-mt-6">
+            {job ? (
+              <JobForm
+                action={updateStation.bind(null, eventId, station.id)}
+                remove={deleteStation.bind(null, eventId, station.id)}
+                initial={station}
+                leadLabel={leadWords(event.event_type).many}
+                coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
+                links={job.links}
+              />
+            ) : (
             <StationForm
               action={updateStation.bind(null, eventId, station.id)}
               initial={station}
@@ -202,8 +208,6 @@ export function StationPanel({
               kind={{ value: station.signup_kind ?? "shifts", locked: kindLocked }}
               coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
               trackUnsaved
-              job={Boolean(job)}
-              visibility={job ? { showing: job.showing, ready: job.ready, links: job.links } : undefined}
               draft={!station.details_saved_at}
               remaining={[
                 ...(station.details_saved_at ? [] : ["finish the details"]),
@@ -212,9 +216,10 @@ export function StationPanel({
                   : stationShifts.length ? [] : [job ? "add shifts" : "add time slots"]),
               ]}
             />
+            )}
           </div>
           {itemsStation ? (
-            <section id="items" aria-labelledby="items-heading" className="scroll-mt-6 border-t border-border pt-6">
+            <section id="items" aria-labelledby="items-heading" className={`scroll-mt-6 border-t border-border ${job ? "pt-4" : "pt-6"}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h4 id="items-heading" className="text-base font-semibold">
                   {job ? "Things to bring" : "Items to bring"}
@@ -223,6 +228,7 @@ export function StationPanel({
               </div>
               <div className="mt-3">
                 <ItemsEditor
+                  autosave={Boolean(job)}
                   create={createItem.bind(null, eventId, station.id)}
                   items={items.map((it) => ({
                     ...it,
@@ -233,7 +239,7 @@ export function StationPanel({
               </div>
             </section>
           ) : (
-            <section id="build-shifts" aria-labelledby="shifts-heading" className="scroll-mt-6 border-t border-border pt-6">
+            <section id="build-shifts" aria-labelledby="shifts-heading" className={`scroll-mt-6 border-t border-border ${job ? "pt-4" : "pt-6"}`}>
               <h4 id="shifts-heading" className="text-base font-semibold">
                 {job ? "Shifts" : "Time slots"}
               </h4>
@@ -276,7 +282,8 @@ export function StationPanel({
         ))}
       {!job && roster && !itemsStation && <RosterList roster={roster} shifts={stationShifts} tz={tz} event={event} canManage={canManage} />}
 
-      {canManage && (
+      {/* A job's Delete is in its pinned bar. */}
+      {canManage && !job && (
         <div className="mt-8 border-t border-border pt-4">
           <DeleteButton
             action={deleteStation.bind(null, eventId, station.id)}
@@ -376,7 +383,7 @@ export function JobSignups({
   eventId: string;
 }) {
   return (
-    <section id="signed-up" aria-labelledby="signed-up-heading" className="mt-8 scroll-mt-6 rounded-lg border border-border bg-surface p-4 sm:p-6">
+    <section id="signed-up" aria-labelledby="signed-up-heading" className="mt-6 scroll-mt-6 rounded-lg border border-border bg-surface p-4 sm:p-6">
       <h2 id="signed-up-heading" className="text-lg font-semibold">
         {station.signup_kind === "items" ? "Who's bringing what" : "Who's signed up"}: {station.name}
       </h2>

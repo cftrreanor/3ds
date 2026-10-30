@@ -88,7 +88,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   ]);
   // Check-in stations first, in the band's order, matching the volunteer sign-up page.
   if (stationsError) missing();
-  // A volunteer event's jobs: each one showing to volunteers or hidden (the setup redesign).
+  // A volunteer event's jobs: the setup redesign's words, layout, and saving as you type.
   const jobsHere = event.event_type === "volunteer";
   const published = event.status === "published";
   const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
@@ -173,12 +173,10 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   // Each job's own shifts and things to bring, and the jobs volunteers can see that have some.
   const ownShifts = (id: string) => shifts.filter((x) => x.station_id === id);
   const ownItems = (id: string) => items.filter((x) => x.station_id === id);
-  const isShowing = (st: Station) => st.showing !== false;
   const hasSome = (st: Station) => ownShifts(st.id).length + ownItems(st.id).length > 0;
-  const showingReady = stations.filter((st) => isShowing(st) && hasSome(st));
   // Totals count only what volunteers can see, the same way as the event page.
   const { filled, capacity } = volunteerTotals(stations, shifts, items);
-  const previewHref = `/e/${event.slug}/volunteer${jobsHere ? "?preview=1" : ""}`;
+  const previewHref = `/e/${event.slug}/volunteer`;
 
   const nameOf = (userId: string | null) => {
     if (!userId) return null;
@@ -252,8 +250,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         <p className="mt-4 flex gap-2 rounded-lg border border-brand/25 bg-brand-soft px-4 py-3 text-sm leading-6">
           <span aria-hidden>ⓘ</span>
           <span>
-            <span className="font-semibold">This event is published.</span> Changes to a job that&apos;s showing reach volunteers as soon as
-            you save. People already signed up get an email if their shift&apos;s time changes.
+            <span className="font-semibold">This event is published.</span> Changes reach volunteers as soon as they save. A job shows
+            on the sign-up page once it has a shift or a thing to bring. People already signed up get an email if their shift&apos;s time changes.
           </span>
         </p>
       )}
@@ -344,7 +342,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       </Card>
       )}
 
-      <section className={jobsHere ? "mt-6" : "mt-10"} aria-labelledby="signups-heading">
+      <section className={jobsHere ? "mt-4" : "mt-10"} aria-labelledby="signups-heading">
         <h2 id="signups-heading" className={jobsHere ? "sr-only" : "text-xl font-semibold"}>
           {jobsHere ? "Jobs" : "Volunteer sign-ups"}
         </h2>
@@ -375,7 +373,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 items: st.signup_kind === "items",
                 filled: own.reduce((n, x) => n + x.registered_count, 0) + itemsHere.reduce((n, x) => n + x.claimed_count, 0),
                 capacity: own.reduce((n, x) => n + x.max_capacity, 0) + itemsHere.reduce((n, x) => n + x.needed, 0),
-                showing: jobsHere ? isShowing(st) : undefined,
+                job: jobsHere,
               };
             })}
             add={jobsHere ? (adding && stations.length > 0 ? { href: tabHref("new"), active: true, label: "New job" } : undefined) : { href: tabHref("new"), active: adding }}
@@ -437,19 +435,14 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 job={
                   jobsHere
                     ? {
-                        showing: isShowing(current),
                         ready: hasSome(current),
                         items: current.signup_kind === "items",
-                        signedUp:
-                          currentShifts.reduce((n, x) => n + x.registered_count, 0) + currentItems.reduce((n, x) => n + x.claimed_count, 0),
-                        lastShowing: published && showingReady.length === 1 && showingReady[0].id === current.id,
-                        previewHref,
-                        published,
                         links: {
                           addJob: tabHref("new"),
+                          preview: previewHref,
                           next: published
                             ? { href: `/dashboard/events/${eventId}`, label: "Back to the event" }
-                            : { href: `/dashboard/events/${eventId}#publish`, label: "Go to publish" },
+                            : { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish your event" },
                         },
                       }
                     : undefined
@@ -530,7 +523,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 </h3>
                 <p className="mt-1 mb-4 text-sm text-muted">
                   {jobsHere
-                    ? "Name it and choose shifts or things to bring. It starts hidden from volunteers, so you can set it up and preview it first."
+                    ? "Name it and choose shifts or things to bring. You add them next."
                     : "Name it and choose its type. You'll add its details, Coordinators, and time slots or items next."}
                 </p>
                 <NewStationForm action={createStation.bind(null, eventId)} openTab job={jobsHere} />
@@ -539,37 +532,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           </div>
         </UnsavedChangesProvider>
       </section>
-      {jobsHere && !published && access.isHost && (
-        // The way on to the last step, once a job is showing.
-        <Card className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-semibold">{showingReady.length ? "Next: publish" : "Before you publish"}</p>
-            <p className="mt-0.5 text-sm text-muted">
-              {showingReady.length
-                ? `${showingReady.length} ${showingReady.length === 1 ? "job is" : "jobs are"} showing to volunteers. You can keep adding jobs after you publish.`
-                : stations.some(hasSome)
-                  ? "Show at least one job to volunteers. Hidden jobs stay off the sign-up page."
-                  : "Add a job with a shift or a thing to bring, then show it to volunteers."}
-            </p>
-            <a href={previewHref} target="_blank" className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline">
-              Preview the sign-up page
-            </a>
-          </div>
-          {showingReady.length > 0 && (
-            <Link href={`/dashboard/events/${eventId}#publish`} className="inline-flex min-h-11 shrink-0 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
-              Continue to publish
-            </Link>
-          )}
-        </Card>
-      )}
-      {jobsHere && (
-        <p className="mt-8 text-sm text-muted">
-          🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
-          how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
-        </p>
-      )}
       {digest && (
-        <section className="mt-8">
+        <section className={jobsHere ? "mt-6" : "mt-8"}>
           <DigestCard
             action={saveMyDigestPrefs.bind(null, eventId)}
             prefs={digest.prefs}
@@ -589,6 +553,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           event={event}
           eventId={eventId}
         />
+      )}
+      {jobsHere && (
+        <p className="mt-6 text-sm text-muted">
+          🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
+          how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
+        </p>
       )}
     </div>
   );

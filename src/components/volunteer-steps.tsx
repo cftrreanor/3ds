@@ -18,8 +18,7 @@ export type VolunteerStepFacts = {
   jobsDone: boolean;
   /** What the jobs step still needs, when it isn't done ("2 jobs are hidden…"). */
   jobsNote: string | null;
-  showing: number;
-  hidden: number;
+  jobs: number;
 };
 
 /**
@@ -33,10 +32,7 @@ export function VolunteerSteps({ eventId, facts }: { eventId: string; facts: Vol
   const here = STEPS.findIndex((s) => pathname === `${base}${s.path}`);
   if (here < 0) return null;
   const done = [true, facts.jobsDone, false];
-  const counts =
-    facts.showing + facts.hidden > 0
-      ? [facts.showing ? `${facts.showing} showing` : null, facts.hidden ? `${facts.hidden} hidden` : null].filter(Boolean).join(", ")
-      : null;
+  const counts = facts.jobs ? `${facts.jobs} ${facts.jobs === 1 ? "job" : "jobs"}` : null;
   const doneCount = done.filter(Boolean).length;
   return (
     <nav aria-label="Volunteer event setup" className="mb-6 print:hidden">

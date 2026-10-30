@@ -11,10 +11,7 @@ import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
-import { confirmDialog, copyDialog } from "@/components/confirm-dialog";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import type { JobLinks } from "./volunteering/job-visibility";
+import { copyDialog } from "@/components/confirm-dialog";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -47,10 +44,7 @@ export function StationForm({
   kind: signupKind,
   coordinators,
   job = false,
-  visibility,
 }: {
-  /** A volunteer event's job: whether volunteers can see it, and whether it has a shift or a thing to bring yet. */
-  visibility?: { showing: boolean; ready: boolean; links?: JobLinks };
   action: Action;
   initial?: StationValues;
   /** A volunteer event's job: says "job" and "shifts" (other events keep "sign-up" and "time slots"). */
@@ -91,51 +85,6 @@ export function StationForm({
     // (After the page has redrawn with the saved sign-up, so the scroll isn't cut short.)
     if (trackUnsaved) setTimeout(() => document.getElementById("signups-heading")?.scrollIntoView({ block: "start" }), 50);
   }, [setEdited, trackUnsaved]);
-  if (job) {
-    // A volunteer event's job: its name here, its shifts or things to bring right below (their own forms,
-    // on the panel), then "More options" further down, which still saves with this form (see JobMoreOptions).
-    return (
-      <ActionForm
-        id={trackUnsaved ? SIGNUP_FORM : undefined}
-        action={action}
-        className="space-y-4"
-        resetOnSuccess={!initial}
-        onEdit={trackUnsaved ? changed : undefined}
-        onSuccess={trackUnsaved ? saved : undefined}
-      >
-        <input type="hidden" name="noun" value="job" />
-        <Field label="Job name" hint="e.g. Parking, Litter pickup, Supplies to bring">
-          <Input name="name" required maxLength={80} defaultValue={initial?.name} />
-        </Field>
-        <JobMoreOptions>
-          {coordinators && (
-            <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} formId={SIGNUP_FORM} {...coordinators} />
-          )}
-          <Field label="Instructions for volunteers" hint="Optional. What to wear, bring, and do.">
-            <Textarea name="instructions" form={SIGNUP_FORM} defaultValue={initial?.instructions ?? ""} />
-          </Field>
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              name="adultsOnly"
-              form={SIGNUP_FORM}
-              defaultChecked={initial?.adults_only ?? false}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
-            />
-            <span>
-              <span className="font-medium">Adults only (18+)</span>
-              <span className="block text-muted">No one under 18 can sign up for this job or be added as a walk-up.</span>
-            </span>
-          </label>
-        </JobMoreOptions>
-        {trackUnsaved ? (
-          <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} job visibility={visibility} />
-        ) : (
-          <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
-        )}
-      </ActionForm>
-    );
-  }
   return (
     <ActionForm
       id={trackUnsaved ? SIGNUP_FORM : undefined}
@@ -262,7 +211,7 @@ export function StationForm({
         </fieldset>
       )}
       {trackUnsaved ? (
-        <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} job={job} />
+        <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} />
       ) : (
         <div className="sm:col-span-2">
           <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
@@ -274,31 +223,6 @@ export function StationForm({
 
 const SIGNUP_FORM = "signup-details";
 
-/**
- * A job's "More options" (Coordinators, instructions, adults only): drawn into the panel's #job-more slot,
- * below the shifts or things to bring. Its fields name the job's form (form=), so they save with it, and
- * React still passes their edits up to that form for the unsaved-changes bar.
- */
-function JobMoreOptions({ children }: { children: React.ReactNode }) {
-  const slot = useSyncExternalStore(
-    noSubscribe,
-    () => document.getElementById("job-more"),
-    () => null,
-  );
-  if (!slot) return null;
-  return createPortal(
-    <details className="group rounded-lg border border-border">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        More options: Coordinators, instructions, adults only
-        <span aria-hidden className="text-brand transition group-open:rotate-90">
-          ›
-        </span>
-      </summary>
-      <div className="space-y-4 border-t border-border p-3">{children}</div>
-    </details>,
-    slot,
-  );
-}
 const noSubscribe = () => () => {};
 
 /**
@@ -310,16 +234,11 @@ function SignupBar({
   draft,
   remaining,
   submitLabel,
-  job,
-  visibility,
 }: {
   dirty: boolean;
   draft: boolean;
   remaining: string[];
   submitLabel: string;
-  visibility?: { showing: boolean; ready: boolean; links?: JobLinks };
-  /** A volunteer event's job: showing or hidden is its own choice, so a finished one just says it's saved. */
-  job: boolean;
 }) {
   const slot = useSyncExternalStore(
     noSubscribe,
@@ -351,29 +270,10 @@ function SignupBar({
                 <span className="font-semibold">What&apos;s left:</span> {left[0].toUpperCase() + left.slice(1)}
               </>
             ) : (
-              <span className="font-semibold">{job ? (visibility && !visibility.showing ? "Saved for later, hidden from volunteers" : "Saved") : "Ready for sign-ups"}</span>
+              <span className="font-semibold">Ready for sign-ups</span>
             )}
           </span>
         </p>
-        {job && visibility ? (
-          // A job: a hidden one saves for later (still hidden), or posts (saves and shows it) in one go; a showing one just saves.
-          <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
-            {visibility.showing ? (
-              <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
-                Save job
-              </SubmitButton>
-            ) : (
-              <>
-                <SubmitButton form={SIGNUP_FORM} variant="secondary" pendingText="Saving…" disabled={!dirty && !draft}>
-                  Save for later
-                </SubmitButton>
-                <SubmitButton form={SIGNUP_FORM} name="intent" value="show" pendingText="Posting…" disabled={!visibility.ready}>
-                  Post job
-                </SubmitButton>
-              </>
-            )}
-          </div>
-        ) : (
           <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
             {/* Always there; usable once there's something to save. Keeps it without marking the sign-up finished. */}
             <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…" disabled={!dirty && !draft}>
@@ -383,43 +283,12 @@ function SignupBar({
               {submitLabel}
             </SubmitButton>
           </div>
-        )}
       </div>
-      {job && visibility?.links && <JobBarLinks links={visibility.links} dirty={dirty} />}
     </div>,
     slot,
   );
 }
 
-/**
- * Under a job's save buttons: "+ Add a job" and the next step, always in reach (the bar is pinned
- * to the bottom of a phone's screen). With changes not saved yet, they ask before leaving.
- */
-function JobBarLinks({ links, dirty }: { links: JobLinks; dirty: boolean }) {
-  const router = useRouter();
-  const leave = async (e: React.MouseEvent, href: string) => {
-    if (!dirty) return;
-    e.preventDefault();
-    const ok = await confirmDialog({
-      title: "Leave without saving?",
-      message: "This job has changes that aren't saved yet. Save for later or Post job keeps them.",
-      confirmLabel: "Leave without saving",
-      cancelLabel: "Stay here",
-    });
-    if (ok) router.push(href);
-  };
-  const cls = "inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4";
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4">
-      <Link href={links.addJob} scroll={false} onClick={(e) => leave(e, links.addJob)} className={cls}>
-        + Add a job
-      </Link>
-      <Link href={links.next.href} onClick={(e) => leave(e, links.next.href)} className={cls}>
-        {links.next.label} →
-      </Link>
-    </div>
-  );
-}
 
 /** Anything typed or picked in a form (hidden fields aside). */
 function hasAnswers(form: HTMLFormElement) {
@@ -811,49 +680,41 @@ export function NewStationForm({
 }
 
 /** Items to bring: one row per item (Desserts, 6 needed), edited right in the row, and a row to add another. */
+type EditableItem = { id: string; name: string; needed: number; claimed_count: number; update: Action; remove: () => Promise<ActionState> };
+
 export function ItemsEditor({
   items,
   create,
+  autosave = false,
 }: {
   /** Each item with its own save and delete (bound on the server). */
-  items: { id: string; name: string; needed: number; claimed_count: number; update: Action; remove: () => Promise<ActionState> }[];
+  items: EditableItem[];
   create: Action;
+  /** A volunteer event's job: each row saves itself a moment after a change, with no Save button. */
+  autosave?: boolean;
 }) {
   return (
     <div className="rounded-lg border border-border bg-background">
-      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_6rem_9rem] gap-3 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted sm:grid">
+      <div className={`hidden ${itemCols(autosave)} gap-3 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted sm:grid`}>
         <span>Item</span>
         <span>Needed</span>
-        <span>Signed up</span>
+        {/* A volunteer event's job lists who's signed up further down the page instead. */}
+        {!autosave && <span>Signed up</span>}
         <span />
       </div>
       <ul className="divide-y divide-border">
         {items.map((it) => (
-          <li key={it.id} className="px-3 py-2.5">
-            <ActionForm
-              action={it.update}
-              resetOnSuccess={false}
-              className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]"
-            >
-              <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" />
-              <NumberInput name="needed" required defaultValue={it.needed} maxLength={3} aria-label={`How many ${it.name} needed`} />
-              <span className="text-sm tabular-nums text-muted">
-                {it.claimed_count >= it.needed ? <span className="font-medium text-success">Covered</span> : `${it.claimed_count} of ${it.needed}`}
-              </span>
-              <span className="flex items-center justify-end gap-1">
-                <SubmitButton variant="secondary" pendingText="Saving…" className="min-h-9 px-3 text-sm">
-                  Save
-                </SubmitButton>
-                <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
-              </span>
-            </ActionForm>
-          </li>
+          <ItemRow key={it.id} item={it} autosave={autosave} />
         ))}
         <li className="px-3 py-2.5">
-          <ActionForm action={create} resetOnSuccess className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]">
+          <ActionForm
+            action={create}
+            resetOnSuccess
+            className={`grid items-center gap-3 ${autosave ? "grid-cols-[minmax(0,1fr)_6rem_auto]" : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
+          >
             <Input name="name" required maxLength={100} placeholder={items.length ? "Add another item" : "Add an item, e.g. Desserts"} aria-label="New item" />
             <NumberInput name="needed" required defaultValue={1} maxLength={3} aria-label="How many needed" />
-            <span className="hidden sm:block" />
+            {!autosave && <span className="hidden sm:block" />}
             <span className="flex justify-end">
               <SubmitButton variant="go" pendingText="Adding…" className="min-h-9 px-4 text-sm">
                 Add
@@ -866,13 +727,54 @@ export function ItemsEditor({
   );
 }
 
+/** The things-to-bring columns: item, needed, (signed up,) and its buttons. */
+const itemCols = (autosave: boolean) => (autosave ? "sm:grid-cols-[minmax(0,1fr)_7rem_6rem]" : "sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]");
+
+/** One thing to bring: its name and how many, saved with its Save button, or by itself a moment after a change. */
+function ItemRow({ item: it, autosave }: { item: EditableItem; autosave: boolean }) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const schedule = (form: HTMLFormElement) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      if (form.checkValidity()) form.requestSubmit();
+    }, 900);
+  };
+  return (
+    <li className="px-3 py-2.5">
+      <ActionForm
+        action={it.update}
+        resetOnSuccess={false}
+        onEdit={autosave ? schedule : undefined}
+        className={`grid items-center gap-3 ${autosave ? "grid-cols-[minmax(0,1fr)_6rem_auto]" : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
+      >
+        {autosave && <input type="hidden" name="auto" value="1" />}
+        <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" />
+        <NumberInput name="needed" required defaultValue={it.needed} maxLength={3} aria-label={`How many ${it.name} needed`} />
+        {!autosave && (
+          <span className="text-sm tabular-nums text-muted">
+            {it.claimed_count >= it.needed ? <span className="font-medium text-success">Covered</span> : `${it.claimed_count} of ${it.needed}`}
+          </span>
+        )}
+        <span className="flex items-center justify-end gap-1">
+          {!autosave && (
+            <SubmitButton variant="secondary" pendingText="Saving…" className="min-h-9 px-3 text-sm">
+              Save
+            </SubmitButton>
+          )}
+          <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
+        </span>
+      </ActionForm>
+    </li>
+  );
+}
+
 /**
  * A sign-up's Coordinators: who leads it, as chips, and "+ Add", which opens a
  * window to pick people from the team or invite someone new by email (the
  * invitation also shows in Event settings → Team). Picks are saved with the
  * sign-up's Save button; an invitation goes out right away.
  */
-function CoordinatorPicker({
+export function CoordinatorPicker({
   label,
   initial,
   options,
@@ -1010,17 +912,29 @@ export function DeleteButton({
   /** Red text, no outline: a delete that shouldn't compete with the page's main actions. */
   quiet?: boolean;
 }) {
+  // A row's delete (the shared "Deleting" part): red text with a bin icon, full height. "Cancel" keeps its plain look.
+  const row = !destructive && !quiet;
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="contents">
       <SubmitButton
-        variant={quiet ? "quiet-danger" : destructive ? "danger" : "ghost"}
-        pendingText={destructive || quiet ? "Deleting…" : "Working…"}
-        className={destructive || quiet ? "text-sm" : "px-2 text-xs"}
-        aria-label={destructive || quiet ? undefined : label}
+        variant={destructive ? "danger" : "quiet-danger"}
+        pendingText={text === "Cancel" ? "Working…" : "Deleting…"}
+        className={row ? "gap-1.5 px-1.5 text-sm" : "text-sm"}
+        aria-label={row ? label : undefined}
       >
+        {row && text !== "Cancel" && <BinIcon />}
         {text}
       </SubmitButton>
     </ActionForm>
+  );
+}
+
+/** The bin beside a row's Delete. */
+export function BinIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className={`${className} shrink-0`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </svg>
   );
 }
 

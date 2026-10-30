@@ -17,11 +17,3 @@ export function volunteerTotals<
     liveItems,
   };
 }
-
-/** "3 jobs are hidden, 2 ready to show", the same words wherever hidden jobs are counted. */
-export function hiddenJobsSentence(hidden: { ready: boolean }[]) {
-  const ready = hidden.filter((j) => j.ready).length;
-  const head = `${hidden.length} ${hidden.length === 1 ? "job is" : "jobs are"} hidden`;
-  if (ready === hidden.length) return hidden.length === 1 ? `${head} and ready to show` : `${head}, all ready to show`;
-  return ready ? `${head}, ${ready} ready to show` : head;
-}

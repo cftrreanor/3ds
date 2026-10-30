@@ -1,6 +1,5 @@
 "use client";
 
-import { EyeOffIcon } from "@/components/eye-off-icon";
 import { useState } from "react";
 import { VolunteerTags } from "@/components/volunteer-tags";
 import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
@@ -38,8 +37,6 @@ export type LeadStation = {
   checkpoint: string | null;
   location: string | null;
   instructions: string | null;
-  /** Hidden from volunteers: its Coordinator previews it, nobody signs up yet. */
-  hidden?: boolean;
   shifts: LeadShift[];
 };
 
@@ -96,15 +93,7 @@ export function LeadStations({
 
       <div className="mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
-            {current.name}
-            {current.hidden && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-0.5 text-xs font-semibold ring-1 ring-warning/30">
-                <EyeOffIcon className="size-3.5" />
-                Hidden from volunteers
-              </span>
-            )}
-          </h3>
+          <h3 className="text-lg font-semibold">{current.name}</h3>
           {current.checkpoint && <span className="text-xs font-medium text-muted">{current.checkpoint}</span>}
         </div>
         {current.location && <p className="text-sm text-muted">{current.location}</p>}

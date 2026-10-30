@@ -404,12 +404,9 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
   if (!leadIds.success) return { error: "Something went wrong with the Coordinators. Please try again." };
 
   const supabase = await createClient();
-  // A volunteer event's new jobs start hidden, so volunteers never see one half set up.
-  const { data: ev } = await supabase.from("events").select("event_type").eq("id", eventId).maybeSingle();
   const { data, error } = await supabase
     .from("stations")
     .insert({
-      ...(ev?.event_type === "volunteer" ? { showing: false } : {}),
       event_id: eventId,
       name: v.name,
       station_type: kind ? "active_checkpoint" : "passive",
@@ -484,16 +481,10 @@ export async function updateStation(
     if (leadError) return { error: leadError };
   }
 
-  // A hidden job's "Post job": its changes and showing it, together.
-  if (formData.get("intent") === "show") {
-    const shown = await setStationShowing(eventId, stationId, true);
-    if (shown.error) return { error: `Saved, but not shown yet: ${shown.error}` };
-    return shown;
-  }
-
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  const noun = formData.get("noun") === "job" ? "Job" : "Sign-up";
-  return { ok: true, message: formData.get("intent") === "later" ? "Saved. Finish the rest when you're ready." : `${noun} saved.` };
+  // A volunteer event's job saves itself as people type: its form says "Saved", no message needed.
+  if (formData.get("noun") === "job") return { ok: true };
+  return { ok: true, message: formData.get("intent") === "later" ? "Saved. Finish the rest when you're ready." : "Sign-up saved." };
 }
 
 /** A sign-up's leads become exactly these: the newly ticked are added (in the order shown), the unticked removed. */
@@ -576,30 +567,6 @@ export async function setSignupKind(eventId: string, stationId: string, kind: "s
   return { ok: true };
 }
 
-/**
- * Show a job to volunteers, or hide it again. The database refuses to hide one
- * with people signed up, or the last one a published event's volunteers can see.
- */
-export async function setStationShowing(eventId: string, stationId: string, showing: boolean): Promise<ActionState> {
-  await requireUser();
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("stations").update({ showing }).eq("id", stationId).eq("event_id", eventId).select("name");
-  if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "You don't have permission to do that." };
-  revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  // Before the event is published, nobody outside the team sees anything yet.
-  const { data: ev } = await supabase.from("events").select("status").eq("id", eventId).maybeSingle();
-  const live = ev?.status === "published";
-  return {
-    ok: true,
-    message: showing
-      ? live
-        ? `Volunteers can see “${data[0].name}” now.`
-        : `“${data[0].name}” is showing. Volunteers will see it when you publish.`
-      : `“${data[0].name}” is hidden from volunteers.`,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Items to bring (a station whose sign-ups are things, not times)
 // ---------------------------------------------------------------------------
@@ -635,7 +602,8 @@ export async function updateItem(eventId: string, itemId: string, _prev: ActionS
   if (error) return { error: error.code === "P0001" ? error.message : friendlyDbError(error) };
   if (!data?.length) return { error: "Only the event's hosts and Volunteer Leads can change this." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: "Saved." };
+  // Saved as they type (a volunteer event's things to bring): the row says so, no message needed.
+  return formData.get("auto") ? { ok: true } : { ok: true, message: "Saved." };
 }
 
 export async function deleteItem(eventId: string, itemId: string): Promise<ActionState> {

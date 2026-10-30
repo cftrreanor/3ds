@@ -53,7 +53,6 @@ export async function loadLeadStations(
     checkpoint: station.checkpoint_kind ? `Check-in stop ${station.checkpoint_order} · ${kindLabel(station.checkpoint_kind)}` : null,
     location: station.location,
     instructions: station.instructions,
-    hidden: station.showing === false,
     shifts: shifts
       .filter((sh) => sh.station_id === station.id)
       .map((sh) => ({

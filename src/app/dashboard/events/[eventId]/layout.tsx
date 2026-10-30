@@ -29,13 +29,6 @@ export default async function EventLayout({ children, params }: LayoutProps<"/da
 }
 
 function volunteerSteps(f: SetupFacts): VolunteerStepFacts {
-  const hidden = f.hiddenJobs ?? [];
-  const showing = f.stations - hidden.length;
-  const jobsDone = (f.showingJobs ?? 0) > 0;
-  return {
-    jobsDone,
-    jobsNote: jobsDone ? null : f.stations === 0 ? "Add a job" : hidden.some((j) => j.ready) ? "Show a job to volunteers" : "Add a shift",
-    showing,
-    hidden: hidden.length,
-  };
+  const jobsDone = (f.readyJobs ?? 0) > 0;
+  return { jobsDone, jobsNote: jobsDone ? null : f.stations === 0 ? "Add a job" : "Add a shift", jobs: f.stations };
 }
