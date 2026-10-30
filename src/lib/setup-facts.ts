@@ -5,6 +5,7 @@ import { loadConferenceSettings } from "@/lib/conference-settings";
 import { hasBooths, hasConferences, hasRooms } from "@/lib/event-types";
 import type { SetupFacts } from "@/lib/setup-checklist";
 import { createClient } from "@/lib/supabase/server";
+import { utcToZonedDate } from "@/lib/time";
 
 /**
  * Everything the setup checklist ticks from, read fresh for one event.
@@ -83,18 +84,20 @@ async function publishBlock(supabase: Awaited<ReturnType<typeof createClient>>, 
   const { data: reason, error } = await supabase.rpc("org_can_publish", { p_event: eventId });
   // Before 20261223000000_packages.sql: the database still checks when they publish.
   if (error || typeof reason !== "string") return null;
+  // The one that hasn't ended yet (finished ones don't count toward "one at a time").
   const other = reason.includes("at a time")
     ? (
-        await supabase
-          .from("events")
-          .select("id, name")
-          .eq("organization_id", orgId)
-          .eq("event_type", type)
-          .eq("status", "published")
-          .neq("id", eventId)
-          .limit(1)
-          .maybeSingle()
-      ).data
+        (
+          await supabase
+            .from("events")
+            .select("id, name, ends_on, timezone")
+            .eq("organization_id", orgId)
+            .eq("event_type", type)
+            .eq("status", "published")
+            .neq("id", eventId)
+            .order("starts_on")
+        ).data ?? []
+      ).find((e) => e.ends_on >= utcToZonedDate(new Date().toISOString(), e.timezone))
     : null;
   return { reason, other: other ? { id: other.id, name: other.name } : null };
 }

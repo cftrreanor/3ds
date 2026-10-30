@@ -1011,7 +1011,7 @@ function PublishPanel({
           </p>
           {facts.planBlock.other && (
             <Link
-              href={`/dashboard/events/${facts.planBlock.other.id}#publish`}
+              href={`/dashboard/events/${facts.planBlock.other.id}`}
               className="mt-3 inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
             >
               Open {facts.planBlock.other.name}

@@ -28,6 +28,16 @@ function readRecords(records: unknown): { records?: ImportRecord[]; error?: stri
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+// A "try it" event (its type isn't in the account's plan) doesn't email anyone
+// outside the account. The database holds back band invitations the same way.
+const TRIAL_NO_EMAIL = "Your plan doesn't include this kind of event yet, so we didn't email anyone";
+
+async function isTrialEvent(eventId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("event_trial", { p_event: eventId });
+  return data === true;
+}
+
 /**
  * Bands or groups: save each director's details for them (nobody is
  * registered). The director sees them filled in when they register.
@@ -91,7 +101,8 @@ export async function importVolunteers(eventId: string, records: unknown, sendEm
   }
   if (added.length === 0) return { error: "None of the volunteers could be added.", skipped };
 
-  if (sendEmails) {
+  const trial = sendEmails && (await isTrialEvent(eventId));
+  if (sendEmails && !trial) {
     const origin = await getOrigin();
     const { data: event } = await supabase.from("events").select("timezone, starts_on, ends_on").eq("id", eventId).single();
     after(async () => {
@@ -108,7 +119,7 @@ export async function importVolunteers(eventId: string, records: unknown, sendEm
   const people = added.reduce((n, v) => n + 1 + v.others.length, 0);
   return {
     ok: true,
-    message: `Added ${plural(people, "volunteer", "volunteers")} to their shifts${sendEmails ? ", and emailing each a confirmation now" : ""}.`,
+    message: `Added ${plural(people, "volunteer", "volunteers")} to their shifts${trial ? `. ${TRIAL_NO_EMAIL}` : sendEmails ? ", and emailing each a confirmation now" : ""}.`,
     skipped,
   };
 }
@@ -142,7 +153,8 @@ export async function importParents(eventId: string, records: unknown, sendEmail
   }
   if (added.length === 0) return { error: "None of the families could be added.", skipped };
 
-  if (sendEmails) {
+  const trial = sendEmails && (await isTrialEvent(eventId));
+  if (sendEmails && !trial) {
     const origin = await getOrigin();
     const { data: event } = await supabase
       .from("events")
@@ -169,7 +181,7 @@ export async function importParents(eventId: string, records: unknown, sendEmail
   revalidatePath(`/dashboard/events/${eventId}/parents`);
   return {
     ok: true,
-    message: `Added ${plural(added.length, "family", "families")}${sendEmails ? ", and emailing each a confirmation now" : ""}.`,
+    message: `Added ${plural(added.length, "family", "families")}${trial ? `. ${TRIAL_NO_EMAIL}` : sendEmails ? ", and emailing each a confirmation now" : ""}.`,
     skipped,
   };
 }

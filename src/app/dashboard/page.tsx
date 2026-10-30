@@ -9,7 +9,7 @@ import { getMyOrganization, type Organization } from "@/lib/data";
 import { freeStatus } from "@/lib/admin";
 import { brand } from "@/lib/brand";
 import { conferenceBookedCount } from "@/lib/conference-access";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { invitedAs } from "@/lib/invited-as";
 import { formatDate, formatDateRange, formatTime, utcToZonedDate, zoneAbbreviation } from "@/lib/time";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -21,7 +21,9 @@ import type { createClient as CreateClient } from "@/lib/supabase/server";
 import { RequestAccess } from "@/components/request-access";
 import { OnboardingForm } from "./onboarding-form";
 import { NewEventButton } from "@/components/event-type-picker";
-import { loadAccountPlan, startableTypes } from "@/lib/plan";
+import { loadAccountPlan, pickerSubtitle, planEnded, startableTypes, typeNotes, type AccountPlan } from "@/lib/plan";
+import { setupChecklist, type SetupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { loadSetupFacts } from "@/lib/setup-facts";
 import { SuccessToast } from "@/components/toaster";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -56,6 +58,8 @@ type MyBand = {
   performance_slots: { perform_at: string | null } | { perform_at: string | null }[] | null;
   finals_slots: { perform_at: string | null }[];
 };
+
+type DraftStatus = { checklist: SetupChecklist; planBlock: SetupFacts["planBlock"] };
 
 type StaffEvent = { role: "volunteer_director" | "section_lead"; events: EventSummary | null };
 
@@ -220,9 +224,25 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   }
 
   const teacher = org?.account_kind === "teacher";
-  // What New event can start: the package's kinds plus any with an unused pass.
+  // New event leads with the package's kinds plus any with an unused pass; any other kind can be tried.
   const plan = org ? await loadAccountPlan(supabase, org.id) : null;
-  const allowed = plan ? startableTypes(plan) : teacher ? ["conference"] : undefined;
+  const included = plan ? startableTypes(plan) : teacher ? ["conference"] : undefined;
+  const newEvent = <NewEventButton included={included} notes={plan ? typeNotes(plan, hosted) : undefined} subtitle={pickerSubtitle(plan, included)} />;
+  // Each upcoming draft's next step, from the same checklist as its event page.
+  const drafts = new Map(
+    (
+      await Promise.all(
+        hosted
+          .filter((e) => e.status === "draft" && !isPast(e))
+          .map(async (e) => {
+            const facts = await loadSetupFacts(e.id);
+            return facts ? ([e.id, { checklist: setupChecklist(facts), planBlock: facts.planBlock ?? null }] as const) : null;
+          }),
+      )
+    ).filter((x) => x != null),
+  );
+  // Who can renew the plan: the Account Host, or ask them.
+  const accountHost = org ? await loadAccountHost(supabase, org.id, user.id) : null;
   return (
     <div className="space-y-10">
       <div className="space-y-4">
@@ -250,12 +270,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               ? "Parent-teacher conferences you're running. Free during the pilot."
               : `Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`
           }
-          action={<NewEventButton allowed={allowed} />}
-          notice={org && <PlanNotice org={org} />}
+          action={newEvent}
+          notice={org && <PlanNotice org={org} plan={plan} accountHost={accountHost} />}
           items={hosted.map((e) => ({
             key: e.id,
             past: isPast(e),
-            node: <HostedCard event={e} showType={mixedHosted} signups={counts.get(e.id) ?? 0} />,
+            node: <HostedCard event={e} showType={mixedHosted} signups={counts.get(e.id) ?? 0} draft={drafts.get(e.id)} />,
           }))}
           empty={
             <Card className="text-center">
@@ -266,7 +286,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                   : "Create your first event. It stays a private draft until you publish it, so you can set everything up at your own pace."}
               </p>
               <div className="mt-4">
-                <NewEventButton allowed={allowed} />
+                {newEvent}
               </div>
             </Card>
           }
@@ -275,7 +295,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <h3 className="font-semibold">{teacher ? "No upcoming conferences" : "No upcoming events"}</h3>
               <p className="mx-auto mt-2 max-w-md leading-7 text-muted">Your past ones are below.</p>
               <div className="mt-4">
-                <NewEventButton allowed={allowed} />
+                {newEvent}
               </div>
             </Card>
           }
@@ -428,7 +448,18 @@ function EventCard({
 
 const where = (e: EventSummary) => e.venue_name ?? e.venue_address;
 
-function HostedCard({ event: e, showType, signups }: { event: EventSummary; showType: boolean; signups: number }) {
+function HostedCard({
+  event: e,
+  showType,
+  signups,
+  draft,
+}: {
+  event: EventSummary;
+  showType: boolean;
+  signups: number;
+  /** Drafts: the setup checklist, for the next step and how far along it is. */
+  draft?: DraftStatus;
+}) {
   const href = `/dashboard/events/${e.id}`;
   const today = isToday(e) && e.status === "published";
   const day = DAY_SCREEN[e.event_type ?? "band_contest"];
@@ -456,10 +487,34 @@ function HostedCard({ event: e, showType, signups }: { event: EventSummary; show
         </Link>
       ) : e.status === "published" ? (
         <p className="text-sm font-medium">{signupLine(e.event_type, signups)}</p>
+      ) : draft ? (
+        <DraftNext draft={draft} />
       ) : (
-        <p className="text-sm font-medium text-warning">Next: finish setup and publish</p>
+        <p className="text-sm font-medium">Next: finish setup and publish</p>
       )}
     </EventCard>
+  );
+}
+
+/** A draft's next step, how far along it is, and anything the plan holds back. */
+function DraftNext({ draft: { checklist: c, planBlock } }: { draft: DraftStatus }) {
+  const held = planBlock
+    ? planBlock.other
+      ? `You can publish this after ${planBlock.other.name} ends`
+      : "Publishing needs a plan"
+    : null;
+  return (
+    <div className="space-y-1 text-sm">
+      {c.remaining.length ? (
+        <>
+          <p className="font-medium">Next: {c.next?.label}</p>
+          <p className="text-muted">{c.progress.label}</p>
+        </>
+      ) : (
+        <p className="font-medium">{held ? "Set up and ready" : "Ready to publish"}</p>
+      )}
+      {held && <p className="font-medium text-warning">{held}</p>}
+    </div>
   );
 }
 
@@ -604,7 +659,19 @@ function HostYourOwn({ invited }: { invited: boolean }) {
 }
 
 /** Hosts: when their free pilot or trial ends (and what that means). */
-function PlanNotice({ org }: { org: Organization }) {
+type AccountHost = { isMe: boolean; name: string };
+
+/** The account's Account Host: the person who can renew its plan. */
+async function loadAccountHost(supabase: Awaited<ReturnType<typeof CreateClient>>, orgId: string, userId: string): Promise<AccountHost | null> {
+  // Members only (RLS); the name comes from the server, since co-hosts can't read each other's profiles.
+  const { data: owner } = await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("role", "owner").maybeSingle();
+  if (!owner) return null;
+  if (owner.user_id === userId) return { isMe: true, name: "" };
+  const { data: profile } = await createAdminClient().from("profiles").select("full_name, email").eq("id", owner.user_id).maybeSingle();
+  return { isMe: false, name: profile?.full_name?.trim() || profile?.email || "your Account Host" };
+}
+
+function PlanNotice({ org, plan, accountHost }: { org: Organization; plan: AccountPlan | null; accountHost: AccountHost | null }) {
   if (org.suspended_at) {
     return (
       <p className="rounded-lg border border-danger/40 bg-warning-soft px-4 py-3 text-sm leading-6">
@@ -617,13 +684,34 @@ function PlanNotice({ org }: { org: Organization }) {
     );
   }
   const free = freeStatus(org);
-  if (!free) return null;
-  if (free.ended) {
+  // A free pilot or trial that's over, or a paid plan that has lapsed.
+  const lapsed = free ? free.ended : Boolean(plan && planEnded(plan));
+  if (!free && !lapsed) return null;
+  if (lapsed || !free) {
+    // An issue to act on, not just information: amber, with who can fix it.
     return (
-      <p className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm leading-6">
-        <strong>Your free period ended {free.day}.</strong> Events you&apos;ve already published stay live, and you can publish
-        parent-teacher conferences. Email <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">{brand.supportEmail}</a> to keep going.
-      </p>
+      <div role="note" className="flex gap-3 rounded-lg border border-warning/50 bg-warning-soft px-4 py-3 text-sm leading-6">
+        <LockIcon />
+        <div className="space-y-2">
+          <p>
+            <strong>{free ? `Your free period ended ${free.day}.` : `Your ${plan?.package_name} plan has ended.`}</strong> Your published events stay up, and you can still set up any kind
+            of event. Without a plan, you can publish one one-time parent-teacher conference at a time.
+          </p>
+          {accountHost && !accountHost.isMe ? (
+            <p className="font-medium">Ask {accountHost.name}, your Account Host, about a plan.</p>
+          ) : (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <a
+                href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`A plan for ${org.name}`)}`}
+                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 font-semibold text-foreground hover:border-brand"
+              >
+                Email us about a plan
+              </a>
+              <span className="text-muted">{brand.supportEmail} · we reply within a day</span>
+            </p>
+          )}
+        </div>
+      </div>
     );
   }
   return (
@@ -632,14 +720,30 @@ function PlanNotice({ org }: { org: Organization }) {
       {free.soon && (
         <>
           {" "}
-          After that, you can publish parent-teacher conferences only. Email{" "}
-          <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">
-            {brand.supportEmail}
-          </a>{" "}
-          to keep going.
+          After that, you can publish one parent-teacher conference at a time.{" "}
+          {accountHost && !accountHost.isMe ? (
+            <>Ask {accountHost.name}, your Account Host, about a plan.</>
+          ) : (
+            <>
+              Email{" "}
+              <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">
+                {brand.supportEmail}
+              </a>{" "}
+              to keep going.
+            </>
+          )}
         </>
       )}
     </p>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="mt-0.5 size-5 shrink-0 text-warning" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
   );
 }
 

@@ -3,6 +3,7 @@
 // summary (account_plan) and says it in plain words.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatDate, utcToZonedDate } from "@/lib/time";
 
 export const PACKAGES = [
   { value: "free", label: "Free" },
@@ -88,6 +89,36 @@ export function startableTypes(plan: AccountPlan): string[] {
     .filter(([, n]) => n > 0)
     .map(([t]) => t);
   return [...new Set([...plan.own_event_types, ...unused])];
+}
+
+/** The plan's package has lapsed: it publishes under Free until it's renewed. */
+export const planEnded = (plan: AccountPlan) => plan.active !== plan.package;
+
+/** Under the type picker's heading: what the plan's own cards are. Null when it includes every kind. */
+export function pickerSubtitle(plan: AccountPlan | null, included: string[] | undefined): string | undefined {
+  if (!plan || !included || included.length >= TYPE_ORDER.length) return undefined;
+  return planEnded(plan) ? `Your ${plan.package_name} plan has ended. These are the kinds it included` : `Your ${plan.package_name} plan includes these`;
+}
+
+type PublishedEvent = { name: string; event_type: string | null; status: string; ends_on: string; timezone: string };
+
+/**
+ * A short note per event type for the type picker: "Publishing needs a plan"
+ * for the package's own types while it has lapsed, and for "one at a time"
+ * types, the event that's published until it ends (finished ones don't count).
+ * The database (org_publish_reason) has the last word when they publish.
+ */
+export function typeNotes(plan: AccountPlan, events: PublishedEvent[]): Record<string, string> {
+  const notes: Record<string, string> = {};
+  if (planEnded(plan)) for (const t of plan.own_event_types) if (!plan.event_types.includes(t)) notes[t] = "Publishing needs a plan";
+  for (const t of plan.one_at_a_time) {
+    if (!plan.event_types.includes(t)) continue;
+    const live = events
+      .filter((e) => e.event_type === t && e.status === "published" && e.ends_on >= utcToZonedDate(new Date().toISOString(), e.timezone))
+      .sort((a, b) => a.ends_on.localeCompare(b.ends_on))[0];
+    if (live) notes[t] = `${live.name} runs until ${formatDate(live.ends_on, { weekday: undefined, year: undefined })}. You can set up another now and publish it after that.`;
+  }
+  return notes;
 }
 
 const sortTypes = (types: string[]) => [...types].sort((a, b) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b));

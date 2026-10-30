@@ -63,6 +63,8 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
   }));
   const admin = createAdminClient();
   const { error } = await admin.from("band_invitations").upsert(rows, { onConflict: "event_id,email" });
+  // The database holds back invitations from a "try it" event (its type isn't in the plan).
+  if (error?.code === "42501") return { error: `Your plan doesn't include this kind of event yet, so it can't send invitations. You can keep setting it up and preview it.` };
   if (error) {
     console.error("Saving band invitations failed", error);
     return { error: "We couldn't send the invitations. Please try again." };
