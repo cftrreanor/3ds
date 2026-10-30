@@ -110,13 +110,18 @@ export function endedSentence(
   return null;
 }
 
-/** Under the type picker's heading: what the plan's own cards are. Undefined when it includes every kind. */
-export function pickerSubtitle(plan: AccountPlan | null, included: string[] | undefined, ended: string | null): string | undefined {
-  if (!plan || !included || included.length >= TYPE_ORDER.length) return undefined;
-  return ended ? `${ended}. These are the kinds it included` : `Included in your ${plan.package_name} plan`;
+/**
+ * How the type picker groups the kinds: with an active plan, a label over the
+ * plan's own kinds ("Included in your … plan"); after a plan ends, what ended
+ * (the kinds are then grouped by what can be published now). Empty when the plan
+ * includes every kind.
+ */
+export function pickerGroups(plan: AccountPlan | null, included: string[] | undefined, ended: string | null): { label?: string; ended?: string } {
+  if (!plan || !included || included.length >= TYPE_ORDER.length) return {};
+  return ended && planEnded(plan) ? { ended: `${ended}. You can still set up any kind of event.` } : { label: `Included in your ${plan.package_name} plan` };
 }
 
-type PublishedEvent = { name: string; event_type: string | null; status: string; starts_on: string; ends_on: string; timezone: string };
+type PublishedEvent = { id?: string; name: string; event_type: string | null; status: string; starts_on: string; ends_on: string; timezone: string };
 
 /** A note on a type card: a plain fact (info), something to know before starting (warn), or a go-ahead (ok). */
 export type TypeNote = { text: string; tone: "info" | "warn" | "ok" };
@@ -126,7 +131,7 @@ export type TypeNote = { text: string; tone: "info" | "warn" | "ok" };
  * the way the database picks it (org_publish_reason: earliest start). Only this
  * account's events should be passed in.
  */
-export function holdingEvent(type: string, events: PublishedEvent[]) {
+export function holdingEvent<E extends PublishedEvent>(type: string, events: E[]): E | undefined {
   return events
     .filter((e) => e.event_type === type && e.status === "published" && e.ends_on >= utcToZonedDate(new Date().toISOString(), e.timezone))
     .sort((a, b) => a.starts_on.localeCompare(b.starts_on))[0];
@@ -147,7 +152,7 @@ export function typeNotes(plan: AccountPlan, events: PublishedEvent[]): Record<s
     if (!plan.event_types.includes(t)) continue;
     const live = holdingEvent(t, events);
     notes[t] = live
-      ? { text: `${live.name} runs until ${shortDate(live.ends_on)}. You can set up another now and publish it after that.`, tone: "info" }
+      ? { text: `${live.name} runs through ${shortDate(live.ends_on)}. You can publish another after that.`, tone: "info" }
       : planEnded(plan)
         ? { text: "You can publish one now", tone: "ok" }
         : notes[t];
@@ -159,7 +164,7 @@ export function typeNotes(plan: AccountPlan, events: PublishedEvent[]): Record<s
 /** For the plan-ended notice: the conference holding the one free spot, in a sentence (or null). */
 export function spotTaken(plan: AccountPlan, events: PublishedEvent[]): string | null {
   const live = plan.one_at_a_time.includes("conference") ? holdingEvent("conference", events) : undefined;
-  return live ? `${live.name} is using it until ${shortDate(live.ends_on)}.` : null;
+  return live ? `${live.name} runs through ${shortDate(live.ends_on)}, so you can publish another after that.` : null;
 }
 
 const sortTypes = (types: string[]) => [...types].sort((a, b) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b));
@@ -197,3 +202,19 @@ export function usageLines(plan: AccountPlan): string[] {
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/**
+ * The Account Host: the person who can get or renew a plan (account_host, for the
+ * account's own hosts). `unknown` when it couldn't be looked up and the viewer's own
+ * role isn't known either: then both ways forward are shown.
+ */
+export type AccountHost = { isMe: boolean; name: string; email: string | null; unknown?: boolean };
+
+export async function loadAccountHost(supabase: SupabaseClient, orgId: string, userId: string): Promise<AccountHost> {
+  const { data, error } = await supabase.rpc("account_host", { p_org: orgId }).maybeSingle<{ user_id: string; name: string; email: string | null }>();
+  if (!error && data) return { isMe: data.user_id === userId, name: data.name, email: data.email };
+  // Couldn't look it up (or before the database update): the viewer's own role still says whether they're the Account Host.
+  const { data: me } = await supabase.from("organization_members").select("role").eq("organization_id", orgId).eq("user_id", userId).maybeSingle();
+  if (me?.role === "owner") return { isMe: true, name: "", email: null };
+  return { isMe: false, name: "your Account Host", email: null, unknown: !me };
+}

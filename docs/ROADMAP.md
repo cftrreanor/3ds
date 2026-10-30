@@ -82,6 +82,10 @@ Last updated October 2026.
 - **Measure the plan path** (with PostHog, or a simple events table): the picker opened, "more kinds
   to try" opened, try-it events started and finished, and "Email us about a plan" clicks. Decide
   what success looks like before the free pilot ends (design review 2026-10-30, My events)
+- **Owed confirmations:** people imported into a try-it event aren't emailed. Remember who is owed a
+  confirmation and offer "Send confirmations" once the event can email (design review 2026-10-30)
+- **One-call draft summary:** a database function that returns every draft's setup counts and
+  publish reason at once, so My events can show the next step for every draft, not just the first six
 
 ## Later
 - A visitor check-in event for non-school events (open houses, showcases), without the child, teacher,

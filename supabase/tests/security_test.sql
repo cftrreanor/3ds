@@ -5972,9 +5972,38 @@ begin
   assert ok and msg like '%isn''t active right now, so you can publish parent-teacher conferences only%', 'a lapsed plan publishes conferences only';
   assert (select status from public.events where id = '70000000-0000-0000-0000-0000000000e1') = 'published', 'published events stay up';
   assert not public.event_trial('70000000-0000-0000-0000-0000000000e1'), 'and a published event is never a try-it event';
+  -- Unpublishing it now means it can't be published again until the plan comes back.
+  assert public.org_can_publish('70000000-0000-0000-0000-0000000000e1') like '%isn''t active right now%',
+         'the app can warn before unpublishing that it can''t be republished';
+  update public.events set status = 'draft' where id = '70000000-0000-0000-0000-0000000000e1';
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e1';
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'an unpublished event can''t be republished while the plan is lapsed';
 end $$;
 reset role;
 update public.organizations set free_until = date '2099-01-01' where id = '70000000-0000-0000-0000-000000000001';
+update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e1';
+-- Someone on the try-it event's own team isn't outside the account (event staff
+-- normally needs a bigger plan, so this row skips the triggers).
+set session_replication_role = replica;
+insert into public.event_staff (event_id, user_id, role)
+values ('70000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-000000000003', 'volunteer_director');
+set session_replication_role = origin;
+select set_config('pk.staff_email', (select email from public.profiles where id = '00000000-0000-0000-0000-000000000003'), false);
+do $$ begin
+  assert public.event_email_blocked('70000000-0000-0000-0000-0000000000e4', array[current_setting('pk.staff_email')]) = '{}'::text[],
+         'a try-it event can email its own team';
+end $$;
+set role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-0000-0000-000000000003', 'email', current_setting('pk.staff_email'))::text, false);
+do $$ begin
+  assert public.event_trial('70000000-0000-0000-0000-0000000000e4'), 'its Volunteer Lead sees that it''s a try-it event';
+end $$;
+reset role;
+delete from public.event_staff where event_id = '70000000-0000-0000-0000-0000000000e4';
 
 -- A pass publishes one band contest, once.
 reset role;
@@ -6067,6 +6096,15 @@ end $$;
 reset role;
 insert into public.organization_members (organization_id, user_id, role)
 values ('70000000-0000-0000-0000-000000000001', '0000000b-0000-0000-0000-000000000002', 'admin');
+-- A Co-host sees who the Account Host is (to ask about a plan).
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000002","email":"pkco@example.com"}';
+do $$ begin
+  assert (select user_id from public.account_host('70000000-0000-0000-0000-000000000001')) = '0000000b-0000-0000-0000-000000000001'
+     and (select email from public.account_host('70000000-0000-0000-0000-000000000001')) is not null,
+         'a Co-host sees the Account Host''s name and email';
+end $$;
+reset role;
 set role authenticated;
 set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
 do $$

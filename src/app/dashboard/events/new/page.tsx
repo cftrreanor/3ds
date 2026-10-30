@@ -11,8 +11,10 @@ import { SetupLogo } from "../_components/setup-logo";
 import { loadBrand } from "@/lib/badges";
 import { EventTypeChoices } from "@/components/event-type-picker";
 import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
-import { endedSentence, loadAccountPlan, pickerSubtitle, planEnded, startableTypes, typeNotes, typeWords } from "@/lib/plan";
+import { endedSentence, loadAccountHost, loadAccountPlan, pickerGroups, planEnded, startableTypes, typeNotes, typeWords } from "@/lib/plan";
 import { freeStatus } from "@/lib/admin";
+import { requireUser } from "@/lib/auth";
+import { PlanAsk } from "@/components/plan-ask";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "New event" };
@@ -33,19 +35,18 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
       ? await supabase.from("events").select("name, event_type, status, starts_on, ends_on, timezone").eq("organization_id", org.id).eq("status", "published")
       : { data: null };
     const ended = endedSentence(plan, freeStatus(org), org.subscription_status);
-    const subtitle = pickerSubtitle(plan, included, ended);
     return (
       <div className="mx-auto max-w-2xl">
         <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
           ← My events
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">What kind of event is this?</h1>
-        {subtitle && <p className="mt-2 leading-7 text-muted">{subtitle}</p>}
         <div className="mt-8">
           <EventTypeChoices
             included={included}
             notes={plan ? typeNotes(plan, published ?? []) : undefined}
             lead={plan && planEnded(plan) ? "conference" : undefined}
+            groups={pickerGroups(plan, included, ended)}
           />
         </div>
       </div>
@@ -58,20 +59,32 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
     </Link>
   );
   // A kind the plan doesn't include: say so up front, before any work goes in.
+  // A kind the plan doesn't include: say so up front, before any work goes in, with who to ask for a plan.
+  const user = trial ? await requireUser() : null;
+  const host = user ? await loadAccountHost(supabase, org.id, user.id) : null;
   const trialNote = trial && (
     <div role="note" className="mt-4 flex gap-3 rounded-md border border-brand/25 bg-brand-soft px-4 py-3 text-sm leading-6">
       <svg aria-hidden viewBox="0 0 24 24" className="mt-0.5 size-5 shrink-0 text-brand" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 11v5M12 8h.01" />
       </svg>
-      <p>
-        <strong>You&apos;re trying {typeWords(trial)}.</strong> Set it up and preview it as much as you like. To publish it, or to email
-        anyone outside your team, you need a plan that includes {typeWords(trial)}. See your plan on the{" "}
-        <Link href="/dashboard/account" className="font-medium text-brand underline underline-offset-4">
-          Account
-        </Link>{" "}
-        page.
-      </p>
+      <div className="space-y-2">
+        <p>
+          <strong>You&apos;re trying {typeWords(trial)}.</strong> Set it up and preview it as much as you like. While you&apos;re trying it,
+          emails go only to people on your {org.name} account. Publishing it, or inviting partners, volunteers, or families, needs a plan
+          that includes {typeWords(trial)}.
+        </p>
+        {host && (
+          <p>
+            <PlanAsk host={host} orgName={org.name} kind={typeWords(trial)} />
+          </p>
+        )}
+        <p>
+          <Link href="/dashboard/account" className="font-medium text-brand underline underline-offset-4">
+            See your plan
+          </Link>
+        </p>
+      </div>
     </div>
   );
 

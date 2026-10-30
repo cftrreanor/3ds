@@ -28,6 +28,8 @@ as $$
    where e.id = p_event;
 $$;
 revoke execute on function public.event_is_trial(uuid) from public, anon, authenticated;
+-- The server checks it once per event before sending event emails (src/lib/email.ts).
+grant execute on function public.event_is_trial(uuid) to service_role;
 
 /** For the app: whether this is a try-it event. The event's team only; false for anyone else. */
 create function public.event_trial(p_event uuid)

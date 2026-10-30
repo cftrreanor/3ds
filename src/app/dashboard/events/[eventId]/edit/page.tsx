@@ -263,6 +263,11 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
     { id: "more", label: "Publishing & more", done: event.status === "published", status: event.status === "published" ? "Live" : "Draft" },
   ];
   const published = event.status === "published";
+  // Could it be published again after unpublishing? Not after a plan ends, or once another event takes a one-at-a-time spot.
+  const republishBlocked = published && section === "more" ? await republishReason(supabase, eventId) : null;
+  const afterUnpublish = republishBlocked
+    ? `${republishBlocked} If you unpublish it, you can't publish it again until that changes.`
+    : "You can publish again anytime.";
   // Demo mode, for FieldCommand admins (src/lib/demo.ts).
   const demo =
     section === "more" && (await supabase.rpc("is_platform_admin")).data
@@ -464,7 +469,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                 title="Publishing"
                 intro={
                   published
-                    ? "Your event is live. Unpublishing hides its public pages and stops every sign-up and registration. Nobody is emailed, and you can publish again anytime."
+                    ? `Your event is live. Unpublishing hides its public pages and stops every sign-up and registration. Nobody is emailed. ${afterUnpublish}`
                     : guided
                       ? "Ready for people to see it? Publish now and your event page goes live. You can also publish later from your event page."
                       : "Your event isn't published yet. Publish it from the event page when you're ready."
@@ -478,7 +483,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   <ActionButton
                     action={setEventPublished.bind(null, eventId, false)}
                     variant="stop"
-                    confirmMessage="Unpublish? The public pages will be hidden and volunteer sign-up will close. You can publish again anytime."
+                    confirmMessage={`Unpublish? The public pages will be hidden and volunteer sign-up will close. ${afterUnpublish}`}
                   >
                     Unpublish event
                   </ActionButton>
@@ -637,4 +642,13 @@ function EmailStep({
       <SetupFooter back={back} skip={skip} submit={<SubmitButton pendingText="Saving…">Continue</SubmitButton>} />
     </ActionForm>
   );
+}
+
+/**
+ * Why this live event couldn't be published again if it were unpublished now
+ * (org_can_publish answers as if it were a draft), or null when it could.
+ */
+async function republishReason(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc("org_can_publish", { p_event: eventId });
+  return !error && typeof data === "string" ? data : null;
 }
