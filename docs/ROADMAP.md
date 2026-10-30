@@ -110,7 +110,7 @@ Last updated October 2026.
   account gets the full Schedule Command package. The app never says "free during the pilot" next
   to "your free period ended".
 - **Draft volunteer jobs** (Oct 2026): hidden from volunteers, enforced in the database. Hosts,
-  Co-hosts, Volunteer Directors, and that job's own lead can preview them, always labelled as a
+  Co-hosts, Volunteer Leads, and that job's own Coordinator can preview them, always labelled as a
   preview. A job can't go back to draft while anyone is signed up for it. Its spots can still be
   raised or lowered, but never below the number already signed up.
 - **Kept as is after the security review:** sign-in links that work on any device; "already

@@ -7,7 +7,7 @@ Owner decided 1, 2, and 10 on 2026-10-30. Conference rule clarified: after the p
 | # | Finding | Severity | Decision | Notes |
 |---|---|---|---|---|
 | 1 | Plan words promise what the product can't do | 3 | Fix it differently (later) | Not decided yet: owner is focused on pilot users. Logged as a critical item to decide by mid-November 2026 (docs/ROADMAP.md, Next 0). Until then, honest placeholder wording: "write to us", no "as soon as", no self-serve promise |
-| 2 | Hidden draft jobs need a database rule and a preview mode | 3 | Take the advice | Database rule plus preview mode. Previews: Hosts, Co-hosts, Volunteer Directors, and that job's own lead |
+| 2 | Hidden draft jobs need a database rule and a preview mode | 3 | Take the advice | Database rule plus preview mode. Previews: Hosts, Co-hosts, Volunteer Leads (the app's name for the database's volunteer_director role), and that job's own Coordinator |
 | 3 | Job editor shows another job's shifts | 3 | | Mock-up error; fix in v2 |
 | 4 | No way forward from jobs to publish | 3 | | Fix in v2 |
 | 5 | Disabled buttons look usable in dark mode | 3 | | Fix in v2 |
