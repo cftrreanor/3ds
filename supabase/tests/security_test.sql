@@ -6831,4 +6831,72 @@ do $$ begin
   assert not (select public from storage.buckets where id = 'feedback-screenshots'), 'feedback screenshots are private';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Shared links (20270104000000): hosts and Volunteer Leads record them as
+-- themselves; the event's team reads them; nobody else does either.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$ begin
+  insert into public.event_shared_links (event_id, link) values ('10000000-0000-0000-0000-00000000000a', 'announcement');
+  assert (select shared_by from public.event_shared_links where link = 'announcement') = '00000000-0000-0000-0000-000000000001',
+         'a shared link is recorded as the host who shared it';
+  begin
+    insert into public.event_shared_links (event_id, link) values ('10000000-0000-0000-0000-00000000000a', 'flyer');
+    raise exception 'FAIL: saved a link the event doesn''t have';
+  exception when check_violation then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$ begin
+  insert into public.event_shared_links (event_id, link) values ('10000000-0000-0000-0000-00000000000a', 'volunteers');
+  begin
+    insert into public.event_shared_links (event_id, link, shared_by)
+    values ('10000000-0000-0000-0000-00000000000a', 'parents', '00000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: a Volunteer Lead recorded a share as the host';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.event_shared_links set shared_at = now() - interval '1 day';
+    raise exception 'FAIL: a Volunteer Lead changed when a link was shared';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    delete from public.event_shared_links;
+    raise exception 'FAIL: a Volunteer Lead removed shared links';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert (select count(*) from public.event_shared_links where event_id = '10000000-0000-0000-0000-00000000000a') = 2,
+         'a Coordinator sees which links have been shared';
+  begin
+    insert into public.event_shared_links (event_id, link) values ('10000000-0000-0000-0000-00000000000a', 'parents');
+    raise exception 'FAIL: a Coordinator recorded a shared link';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.event_shared_links where event_id = '10000000-0000-0000-0000-00000000000a'),
+         'a stranger doesn''t see another event''s shared links';
+  begin
+    insert into public.event_shared_links (event_id, link) values ('10000000-0000-0000-0000-00000000000a', 'parents');
+    raise exception 'FAIL: a stranger recorded a shared link on someone else''s event';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin
+    perform 1 from public.event_shared_links;
+    raise exception 'FAIL: the public read shared links';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+delete from public.event_shared_links;
+
 \echo 'All database security tests passed.'

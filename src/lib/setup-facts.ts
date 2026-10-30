@@ -3,7 +3,8 @@ import { getEventAccess } from "@/lib/data";
 import { notReady } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { hasBooths, hasConferences, hasRooms } from "@/lib/event-types";
-import type { SetupFacts } from "@/lib/setup-checklist";
+import { parentRegistrationClosed } from "@/lib/parents";
+import { SHARED_LINKS, type SetupFacts, type SharedLink } from "@/lib/setup-checklist";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -17,7 +18,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, status, event_type, volunteer_signup_open, band_registration_open, performance_order_published, director_info, finals_published, finalists_revealed, parent_registration_open, parent_registration_closes_at, venue_address",
+      "id, organization_id, status, event_type, volunteer_signup_open, band_registration_open, performance_order_published, director_info, finals_published, finalists_revealed, parent_registration_open, parent_registration_closes_at, venue_address, timezone, ends_on",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -26,7 +27,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const count = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
   const head = { count: "exact" as const, head: true };
   const conferenceHere = hasConferences(type);
-  const [stations, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots] = await Promise.all([
+  const [stations, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots, shared] = await Promise.all([
     count(supabase.from("stations").select("id", head).eq("event_id", eventId)),
     count(supabase.from("stations").select("id", head).eq("event_id", eventId).not("checkpoint_kind", "is", null)),
     count(supabase.from("shifts").select("id", head).eq("event_id", eventId)),
@@ -46,6 +47,14 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
       : type === "band_contest"
         ? count(supabase.from("performance_slots").select("band_id", head).eq("event_id", eventId))
         : 0,
+    // Before 20270104000000_shared_links.sql has been run: nothing shared yet.
+    event.status === "published"
+      ? supabase
+          .from("event_shared_links")
+          .select("link")
+          .eq("event_id", eventId)
+          .then(({ data }) => (data ?? []).map((r) => r.link as SharedLink).filter((l) => SHARED_LINKS.includes(l)))
+      : [],
   ]);
   // Why the account's plan won't let this publish (packages: what's included, one at a time), or null.
   // For "one at a time", the event that's already published, to link to.
@@ -73,7 +82,9 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     conferenceTimesSaved: Boolean(conference?.times_saved_at),
     booths,
     parentRegistrationOpen: event.parent_registration_open,
+    parentRegistrationLive: !parentRegistrationClosed(event),
     parentClosesAt: Boolean(event.parent_registration_closes_at),
+    shared,
     conferenceMissing: conferenceHere ? notReady(conference, event.venue_address, event.event_type) : null,
     planBlock,
   };

@@ -166,7 +166,7 @@ function DialogBody({ request: r, close }: { request: Request; close: () => void
         <textarea
           readOnly
           value={r.text}
-          rows={Math.min(6, Math.max(2, Math.ceil(r.text.length / 45)))}
+          rows={Math.min(r.text.includes("\n") ? 14 : 6, Math.max(2, Math.ceil(r.text.length / 45), r.text.split("\n").length))}
           onFocus={(e) => e.currentTarget.select()}
           autoFocus
           aria-label={r.title}

@@ -7,7 +7,7 @@ import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import QRCode from "qrcode";
-import { CopyLink } from "@/components/copy-link";
+import { CopyAnnouncement, CopyLink, QrDownload } from "@/components/copy-link";
 import { JustPublished } from "@/components/just-published";
 import { missing } from "@/lib/schema-check";
 import { conferenceBookedCount } from "@/lib/conference-access";
@@ -41,7 +41,9 @@ import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
-import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { publishEffects, setupChecklist, type SetupFacts, type SharedLink } from "@/lib/setup-checklist";
+import { announcementText } from "@/lib/announcement";
+import { markLinkShared } from "./setup-actions";
 import { SetupGuide } from "@/components/setup-guide";
 import { DayRail } from "@/components/event-day-nav";
 import { loadDayActions } from "@/lib/event-day-actions";
@@ -297,21 +299,25 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           who: "Spectators",
           what: roomsHere ? "Room schedule and what's on now" : "Performance schedule and what's on now",
           url: publicUrl,
+          link: "public",
+          pitch: `See the ${roomsHere ? "room" : "performance"} schedule and what's on now`,
           on: event.performance_order_published,
           off: "Shows the schedule once you publish it",
           fix: { label: "Publish the schedule", href: `${base}/${roomsHere ? "rooms#order-heading" : "schedule"}` },
         }
       : conferenceHere
-        ? { who: booking.Bookers, what: "Book a time", url: publicUrl, on: true }
+        ? { who: booking.Bookers, what: "Book a time", url: publicUrl, link: "public", pitch: `${booking.Bookers} book a meeting time`, on: true }
         : hasBooths(event.event_type)
-          ? { who: "Everyone", what: "What's at the event: booths and partners", url: publicUrl, on: true }
-          : { who: "Everyone", what: "Event page: date, place, and maps", url: publicUrl, on: true },
+          ? { who: "Everyone", what: "What's at the event: booths and partners", url: publicUrl, link: "public", pitch: "Booths and partners to visit", on: true }
+          : { who: "Everyone", what: "Event page: date, place, and maps", url: publicUrl, link: "public", on: true },
     ...(groupsHere
       ? [
           {
             who: `${words.One} directors`,
             what: "Registration",
             url: `${publicUrl}/bands`,
+            link: "registration" as const,
+            pitch: `${words.One} directors register their ${words.one}`,
             on: event.band_registration_open,
             off: "Registration is closed",
             fix: { label: "Open it", href: `${base}/bands` },
@@ -324,6 +330,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             who: "Parents",
             what: "Registration",
             url: `${publicUrl}/parents`,
+            link: "parents" as const,
+            pitch: "Families register ahead of time",
             on: !parentRegistrationClosed(event),
             off: "Registration is closed",
             fix: { label: "Open it", href: `${base}/parents` },
@@ -336,6 +344,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             who: "Volunteers",
             what: event.event_type === "volunteer" ? "Sign-up: shifts and things to bring" : "Sign-up",
             url: `${publicUrl}/volunteer`,
+            link: "volunteers" as const,
+            pitch: "Volunteers sign up to help",
             on: event.volunteer_signup_open,
             off: "Sign-up is closed",
             fix: { label: "Open it", href: `${base}/volunteering` },
@@ -343,6 +353,14 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         ]
       : []),
   ];
+  // Copy announcement: the details for a flyer or newsletter, with what's open right now.
+  const announcement = announcementText({
+    name: event.name,
+    when: `${formatDateRange(event.starts_on, event.ends_on)} · ${windowLabel}`,
+    where: event.venue_address ? [event.venue_name, event.venue_address].filter(Boolean).join(", ") : null,
+    involved: shareRows.filter((r) => r.on && r.pitch).map((r) => r.pitch!),
+    url: publicUrl,
+  });
   const shareQrs =
     published && access.canManage
       ? await Promise.all(shareRows.map((r) => (r.on ? QRCode.toDataURL(r.url, { margin: 2, width: 1024 }) : Promise.resolve(null))))
@@ -890,7 +908,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           )}
         </div>
 
-        {published && access.canManage && <ShareLinks rows={shareRows} qrs={shareQrs} slug={event.slug} canFix={access.isHost} />}
+        {published && access.canManage && <ShareLinks eventId={eventId} rows={shareRows} qrs={shareQrs} slug={event.slug} canFix={access.isHost} announcement={announcement} />}
 
         {/* Hosts and Volunteer Leads posted these, so one line is enough; the rest of the team sees them in full. */}
         {access.canManage ? (
@@ -1034,6 +1052,10 @@ type ShareRow = {
   who: string;
   what: string;
   url: string;
+  /** Which Next steps step sharing it ticks. */
+  link: SharedLink;
+  /** Its line under "What's involved" in the announcement (none for the plain event page). */
+  pitch?: string;
   on: boolean;
   /** Why the page isn't usable yet, and where to change that. */
   off?: string;
@@ -1043,9 +1065,24 @@ type ShareRow = {
 /**
  * Links to share, at the top of a live event: every public page it has, one
  * row per kind of person (spectators, directors, parents, volunteers), each
- * with its link, Copy link, and a QR code to download.
+ * with its link, Copy link, and a QR code to download, then the announcement
+ * to copy for a flyer or newsletter. Copying ticks the step in Next steps.
  */
-function ShareLinks({ rows, qrs, slug, canFix }: { rows: ShareRow[]; qrs: (string | null)[]; slug: string; canFix: boolean }) {
+function ShareLinks({
+  eventId,
+  rows,
+  qrs,
+  slug,
+  canFix,
+  announcement,
+}: {
+  eventId: string;
+  rows: ShareRow[];
+  qrs: (string | null)[];
+  slug: string;
+  canFix: boolean;
+  announcement: string;
+}) {
   const linkClass = "inline-flex min-h-11 items-center font-medium text-brand underline-offset-4 hover:underline";
   return (
     <section id="share" aria-labelledby="share-heading" className="mt-6 scroll-mt-6 rounded-lg border border-border bg-surface">
@@ -1074,11 +1111,14 @@ function ShareLinks({ rows, qrs, slug, canFix }: { rows: ShareRow[]; qrs: (strin
                   {r.url.replace(/^https?:\/\//, "")} ↗
                 </a>
                 <span className="flex shrink-0 gap-x-4 whitespace-nowrap">
-                  <CopyLink url={r.url} className={linkClass} />
+                  <CopyLink url={r.url} className={linkClass} onCopy={markLinkShared.bind(null, eventId, r.link)} />
                   {qrs[i] && (
-                    <a href={qrs[i]!} download={`${slug}-${r.url.split("/").pop()}-qr.png`} className={linkClass}>
-                      QR code
-                    </a>
+                    <QrDownload
+                      href={qrs[i]!}
+                      fileName={`${slug}-${r.url.split("/").pop()}-qr.png`}
+                      className={linkClass}
+                      onDownload={markLinkShared.bind(null, eventId, r.link)}
+                    />
                   )}
                 </span>
               </div>
@@ -1098,6 +1138,16 @@ function ShareLinks({ rows, qrs, slug, canFix }: { rows: ShareRow[]; qrs: (strin
             )}
           </li>
         ))}
+        <li className="grid gap-x-4 gap-y-1 px-4 py-2.5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:items-center">
+          <p className="text-sm leading-5">
+            <span className="block font-semibold">Announcement</span>
+            <span className="block text-xs text-muted">For a flyer, newsletter, or post</span>
+          </p>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 text-sm sm:flex-nowrap">
+            <span className="min-w-0 text-muted sm:flex-1">The name, date, place, what&apos;s involved, and the link</span>
+            <CopyAnnouncement text={announcement} className={linkClass} onCopy={markLinkShared.bind(null, eventId, "announcement")} />
+          </div>
+        </li>
       </ul>
     </section>
   );

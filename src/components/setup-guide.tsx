@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { currentChecklist } from "@/app/dashboard/events/[eventId]/setup-actions";
+import { useEffect, useRef, useState, useTransition, type CSSProperties, type RefObject } from "react";
+import { currentChecklist, markLinkShared } from "@/app/dashboard/events/[eventId]/setup-actions";
 import type { SetupChecklist, SetupStep } from "@/lib/setup-checklist";
 
 /**
  * The host's setup checklist on the event page: a sticky panel beside it on
  * a computer, and a light bar along the bottom of a phone (showing the next
- * step) that slides up a drawer.
+ * step) that slides up a drawer. Once the event is live it becomes Next
+ * steps: opening each page and sharing its link, and announcing the event.
  */
 export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
   const drawer = useRef<HTMLDialogElement>(null);
@@ -19,14 +20,14 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
   return (
     <>
       {/* Computer: beside the page, staying in view as you scroll. */}
-      <aside aria-label="Event setup checklist" className="hidden lg:block">
+      <aside aria-label={`${title(checklist)} checklist`} className="hidden lg:block">
         <div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-card">
           {complete ? (
             // Everything's done: a small note, with the list a tap away.
             <details>
               <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                <span className="text-success">✓</span> Setup complete
-                <span className="mt-1 block text-xs font-normal text-muted">Show the checklist</span>
+                <span className="text-success">✓</span> Next steps done
+                <span className="mt-1 block text-xs font-normal text-muted">Show the list</span>
               </summary>
               <div className="mt-3">
                 <Steps checklist={checklist} justDone={justDone} />
@@ -49,7 +50,9 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
             className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-left"
           >
             <span className="min-w-0" aria-live="polite">
-              <span className="block text-xs text-muted">Event setup · {progress.label}</span>
+              <span className="block text-xs text-muted">
+                {title(checklist)} · {progress.label}
+              </span>
               <span className="block truncate text-sm font-semibold">{headline(checklist, celebrate)}</span>
             </span>
             <span aria-hidden className="text-lg text-brand">
@@ -62,6 +65,9 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
     </>
   );
 }
+
+/** Before publishing it's setup; once live, what comes next. */
+const title = (c: SetupChecklist) => (c.publish.done ? "Next steps" : "Event setup");
 
 /** The bar's main line: a step just finished, a step part-way, or the next one. */
 function headline(c: SetupChecklist, celebrate: SetupStep | null) {
@@ -169,7 +175,7 @@ function StripBar({ checklist, pathname }: { checklist: SetupChecklist; pathname
       <div className="mb-5 overflow-hidden rounded-lg border border-border bg-surface text-sm print:hidden">
         <div className="flex items-center gap-3 px-3 py-2 sm:px-4">
           <p className="min-w-0 flex-1 leading-6" aria-live="polite">
-            <span className="font-semibold">Setup</span> <span className="text-muted">· {progress.label}</span>
+            <span className="font-semibold">{checklist.publish.done ? "Next steps" : "Setup"}</span> <span className="text-muted">· {progress.label}</span>
             {celebrate && (
               <span className="block truncate font-medium text-success sm:ml-1 sm:inline">
                 <span className="hidden text-muted sm:inline">· </span>
@@ -251,7 +257,7 @@ function ChecklistDrawer({
   return (
     <dialog
       ref={drawer}
-      aria-label="Event setup checklist"
+      aria-label={`${title(checklist)} checklist`}
       onClick={(e) => e.target === e.currentTarget && drawer.current?.close()}
       className={`mx-0 mt-auto mb-0 max-h-[85vh] w-full max-w-none overflow-y-auto rounded-t-2xl border border-border bg-surface p-0 text-foreground shadow-elevated backdrop:bg-[#071a31]/50 ${
         everywhere ? "sm:m-auto sm:max-w-md sm:rounded-2xl" : "lg:hidden"
@@ -276,7 +282,19 @@ const SETTINGS_STEPS = new Set(["details", "team", "files"]);
 function Steps({ checklist, justDone, onNavigate }: { checklist: SetupChecklist; justDone: Set<string>; onNavigate?: () => void }) {
   const { progress } = checklist;
   // The bars point to a step that's part-way first, so "Next" sits on the same one here.
-  const props = { next: checklist.inProgress ?? checklist.next, justDone, onNavigate };
+  const props = { next: checklist.inProgress ?? checklist.next, justDone, onNavigate, eventId: checklist.eventId };
+  if (checklist.publish.done) {
+    // Live: only what comes next, and the optional setup steps still open.
+    return (
+      <div>
+        <h2 className="text-lg font-semibold">Next steps</h2>
+        <p className="mt-1 text-sm text-muted">{progress.label}</p>
+        <Segments segments={checklist.segments} className="mt-3" />
+        <Group steps={checklist.after} {...props} />
+        {checklist.extras.length > 0 && <Group title="Also worth doing" steps={checklist.extras} {...props} />}
+      </div>
+    );
+  }
   const setup = checklist.before.filter((st) => !SETTINGS_STEPS.has(st.id));
   const settings = checklist.before.filter((st) => SETTINGS_STEPS.has(st.id));
   return (
@@ -316,15 +334,15 @@ function Steps({ checklist, justDone, onNavigate }: { checklist: SetupChecklist;
 /** Settings steps sit apart from the main list, so the ones publishing waits on say so. */
 const NEEDED_PILL = new Set(["details"]);
 
-type StepProps = { next: SetupStep | null; justDone: Set<string>; onNavigate?: () => void };
+type StepProps = { next: SetupStep | null; justDone: Set<string>; onNavigate?: () => void; eventId: string };
 
 /** Open steps first (and any just finished, so its moment is seen); the rest fold into one line you can open. */
-function Group({ title, steps, ...props }: { title: string; steps: SetupStep[] } & StepProps) {
+function Group({ title, steps, ...props }: { title?: string; steps: SetupStep[] } & StepProps) {
   const open = steps.filter((st) => !st.done || props.justDone.has(st.id));
   const done = steps.filter((st) => st.done && !props.justDone.has(st.id));
   return (
-    <div className="mt-5">
-      <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">{title}</h3>
+    <div className={title ? "mt-5" : "mt-3"}>
+      {title && <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">{title}</h3>}
       {open.length > 0 && (
         <ol className="mt-2 space-y-1">
           {open.map((st) => (
@@ -400,10 +418,52 @@ function StatusRing({ step, justDone = false }: { step: Pick<SetupStep, "done" |
   );
 }
 
-function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & StepProps) {
+function Step({ step: st, next, justDone, onNavigate, eventId }: { step: SetupStep } & StepProps) {
   const isNext = next?.id === st.id;
   return (
     <li>
+      <StepLink step={st} isNext={isNext} justDone={justDone} onNavigate={onNavigate} />
+      {/* Shared some other way (a printed flyer, a group text): tick it by hand. */}
+      {st.share?.ready && !st.done && <MarkShared eventId={eventId} step={st} />}
+    </li>
+  );
+}
+
+function MarkShared({ eventId, step }: { eventId: string; step: SetupStep }) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="mb-1 ml-10">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            setError(null);
+            try {
+              const result = await markLinkShared(eventId, step.share!.link);
+              if (result.error) setError(result.error);
+            } catch {
+              setError("That didn't go through. Check your internet connection and try again.");
+            }
+          })
+        }
+        className="inline-flex min-h-9 items-center rounded-md px-2 text-xs font-medium text-brand hover:bg-brand-soft disabled:text-muted"
+      >
+        {pending ? "Saving…" : "Mark as done"}
+      </button>
+      {error && (
+        <p role="alert" className="px-2 text-xs leading-5 text-danger">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StepLink({ step: st, isNext, justDone, onNavigate }: { step: SetupStep; isNext: boolean; justDone: Set<string>; onNavigate?: () => void }) {
+  return (
+    <>
       <Link
         href={st.href}
         onClick={onNavigate}
@@ -446,6 +506,6 @@ function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & St
           </span>
         )}
       </Link>
-    </li>
+    </>
   );
 }

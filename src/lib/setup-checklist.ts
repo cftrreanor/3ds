@@ -2,8 +2,9 @@ import { groupWords, hasBooths, hasConferences, hasEnsembles, hasParents, hasRoo
 
 /**
  * The host's setup checklist for one event: what to do before publishing,
- * the publish step itself, and what to open once it's live. Each step is
- * ticked from the event's real data, so it can't drift from what's set up.
+ * the publish step itself, and what to open and share once it's live (the
+ * Next steps list). Each step is ticked from the event's real data, so it
+ * can't drift from what's set up.
  */
 export type SetupStep = {
   id: string;
@@ -16,7 +17,13 @@ export type SetupStep = {
   required: boolean;
   /** Started but not finished (something's saved): how far along, and what's there so far. */
   partial?: { fraction: number; note: string };
+  /** A link to share: ticked when it's copied, or by hand with Mark as done (once its page is open). */
+  share?: { link: SharedLink; ready: boolean };
 };
+
+/** The links the Next steps list asks to share (as saved in event_shared_links). */
+export const SHARED_LINKS = ["public", "registration", "parents", "volunteers", "announcement"] as const;
+export type SharedLink = (typeof SHARED_LINKS)[number];
 
 export type SetupFacts = {
   eventId: string;
@@ -48,7 +55,11 @@ export type SetupFacts = {
   conferenceTimesSaved?: boolean;
   booths: number;
   parentRegistrationOpen: boolean;
+  /** Parents can register right now (open, published, and before the deadline). */
+  parentRegistrationLive?: boolean;
   parentClosesAt: boolean;
+  /** Links someone on the team has copied or marked shared (Next steps). */
+  shared?: SharedLink[];
   /** Conferences: what's still needed before publishing (null when ready). */
   conferenceMissing?: string | null;
   /**
@@ -63,6 +74,8 @@ export type SetupChecklist = {
   before: SetupStep[];
   publish: SetupStep;
   after: SetupStep[];
+  /** Once live: optional setup steps not done yet, listed under Next steps as "Also worth doing". */
+  extras: SetupStep[];
   /** Recommended steps still to do before publishing. */
   remaining: SetupStep[];
   doneCount: number;
@@ -208,16 +221,28 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     required: true,
   };
 
+  // After publishing, in order for each kind of person: open their page, then share its link.
+  const shared = new Set(f.shared ?? []);
+  const shareStep = (link: SharedLink, label: string, hint: string, ready: boolean, first = "Open it first, then share the link."): SetupStep => ({
+    id: `share-${link}`,
+    label,
+    hint: ready ? hint : first,
+    href: `${base}#share`,
+    done: f.published && shared.has(link),
+    required: true,
+    share: { link, ready: f.published && ready },
+  });
   const after: SetupStep[] = [];
-  if ((hasShifts || volunteerEvent) && !hasConferences(f.eventType)) {
-    after.push({
-      id: "signup",
-      label: "Open volunteer sign-up",
-      hint: "Then share the sign-up link or QR code.",
-      href: `${base}/volunteering`,
-      done: f.published && f.volunteerSignupOpen,
-      required: false,
-    });
+  if (hasConferences(f.eventType)) {
+    const meeting = isMeeting(f.eventType);
+    after.push(
+      shareStep(
+        "public",
+        meeting ? "Share your booking link" : "Share the booking link with families",
+        meeting ? "Send it to the people who need to book a time." : "Families pick a time from it. Send it the way you usually reach them.",
+        true,
+      ),
+    );
   }
   if (groups) {
     after.push(
@@ -227,29 +252,55 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         hint: `So ${words.one} directors can register.`,
         href: `${base}/bands`,
         done: f.published && f.bandRegistrationOpen,
-        required: false,
+        required: true,
       },
+      shareStep("registration", `Send the registration link to ${words.one} directors`, "Copy it or download its QR code under Links to share.", f.bandRegistrationOpen),
       {
         id: "schedule",
         label: hasRooms(f.eventType) ? "Build and post the room schedule" : "Build and publish the performance schedule",
         hint: "Directors are emailed their times when you publish it.",
         href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/schedule`,
         done: f.scheduleShared,
-        required: false,
+        required: true,
         partial: f.scheduleSlots > 0 ? { fraction: 0.75, note: "Built, not published yet" } : undefined,
       },
+      shareStep("public", "Share the schedule with spectators", "Families and fans follow what's on now from it.", f.scheduleShared, "Publish the schedule first, then share it."),
     );
   }
   if (hasParents(f.eventType)) {
-    after.push({
-      id: "parents-open",
-      label: "Open parent registration",
-      hint: "Share the registration link or QR code with families.",
-      href: `${base}/parents`,
-      done: f.published && f.parentRegistrationOpen,
-      required: false,
-    });
+    after.push(
+      {
+        id: "parents-open",
+        label: "Open parent registration",
+        hint: "So families can register ahead of time.",
+        href: `${base}/parents`,
+        done: f.published && f.parentRegistrationOpen,
+        required: true,
+      },
+      shareStep("parents", "Send the registration link to families", "Copy it or download its QR code under Links to share.", f.parentRegistrationLive ?? f.parentRegistrationOpen),
+    );
   }
+  if ((hasShifts || volunteerEvent) && !hasConferences(f.eventType)) {
+    after.push(
+      {
+        id: "signup",
+        label: "Open volunteer sign-up",
+        hint: "So people can pick a shift.",
+        href: `${base}/volunteering`,
+        done: f.published && f.volunteerSignupOpen,
+        required: true,
+      },
+      shareStep("volunteers", "Send the sign-up link to volunteers", "Copy it or download its QR code under Links to share.", f.volunteerSignupOpen),
+    );
+  }
+  after.push(
+    shareStep(
+      "announcement",
+      "Announce your event",
+      "Copy the announcement under Links to share for a flyer, newsletter, or post.",
+      true,
+    ),
+  );
 
   before.sort((a, b) => BEFORE_ORDER.indexOf(a.id) - BEFORE_ORDER.indexOf(b.id));
   // Only open steps can be part-way; a finished one just shows done.
@@ -272,6 +323,8 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     before,
     publish,
     after,
+    // The date and place are always there; the rest is optional once live.
+    extras: f.published ? before.filter((s) => !s.done && s.id !== "details") : [],
     remaining,
     doneCount: all.filter((s) => s.done).length,
     total: all.length,
