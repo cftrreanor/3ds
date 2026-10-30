@@ -144,7 +144,8 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       admin.from("volunteer_assignments").select("id, volunteer_id, volunteers(minor, age)").in("id", switchable.map((r) => r.assignment_id)),
       admin
         .from("shifts")
-        .select("id, event_id, title, starts_at, ends_at, max_capacity, registered_count, adults_only, min_age, stations(name, adults_only, signup_kind)")
+        // stations(*): showing arrives with the 20270105000000 update (hidden jobs aren't offered).
+        .select("id, event_id, title, starts_at, ends_at, max_capacity, registered_count, adults_only, min_age, stations(*)")
         .in("event_id", [...new Set(switchable.map((r) => r.event_id))])
         .gt("starts_at", new Date().toISOString())
         .order("starts_at"),
@@ -165,14 +166,14 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
       registered_count: number;
       adults_only?: boolean;
       min_age?: number | null;
-      stations: { name: string; adults_only: boolean } | null;
+      stations: { name: string; adults_only: boolean; showing?: boolean } | null;
     };
     for (const r of switchable) {
       const w = people.get(r.assignment_id);
       if (!w) continue;
       const taken = new Set((theirs ?? []).filter((t) => t.volunteer_id === w.volunteer_id).map((t) => t.shift_id as string));
       const options = ((openShifts ?? []) as unknown as Open[])
-        .filter((s) => s.event_id === r.event_id && !taken.has(s.id) && s.registered_count < s.max_capacity)
+        .filter((s) => s.event_id === r.event_id && s.stations?.showing !== false && !taken.has(s.id) && s.registered_count < s.max_capacity)
         .filter(
           (s) =>
             !ineligibleReason(

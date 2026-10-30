@@ -75,10 +75,14 @@ export type SignupPayload = z.infer<typeof payloadSchema>;
 export async function currentSpots(eventId: string): Promise<Record<string, number>> {
   const { data } = await createAdminClient()
     .from("shifts")
-    .select("id, max_capacity, registered_count")
+    // stations(*): showing arrives with the 20270105000000 update. Hidden jobs aren't listed.
+    .select("id, max_capacity, registered_count, stations(*)")
     .eq("event_id", eventId)
     .gt("ends_at", new Date().toISOString());
-  return Object.fromEntries((data ?? []).map((s) => [s.id, s.max_capacity - s.registered_count]));
+  type Row = { id: string; max_capacity: number; registered_count: number; stations: { showing?: boolean } | null };
+  return Object.fromEntries(
+    ((data ?? []) as unknown as Row[]).filter((s) => s.stations?.showing !== false).map((s) => [s.id, s.max_capacity - s.registered_count]),
+  );
 }
 
 /**

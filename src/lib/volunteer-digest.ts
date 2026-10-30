@@ -38,10 +38,11 @@ export async function sendVolunteerDigests(admin: SupabaseClient, origin: string
       admin.from("volunteer_dropped_shifts").select("*").eq("event_id", eventId).gte("dropped_at", since),
       // Switched shifts (none before 20270102000000_group_signup.sql).
       admin.from("volunteer_changes").select("full_name, from_shift_id, to_shift_id").eq("event_id", eventId).gte("changed_at", since),
-      admin.from("shifts").select("id, starts_at, ends_at, max_capacity, registered_count, stations(name)").eq("event_id", eventId),
+      // stations(*): showing arrives with the 20270105000000 update (hidden jobs' spots aren't counted).
+      admin.from("shifts").select("id, starts_at, ends_at, max_capacity, registered_count, stations(*)").eq("event_id", eventId),
       // Items to bring (before 20261231000000_items_to_bring.sql these come back empty).
       admin.from("item_signups").select("item_id, note, volunteers(full_name)").eq("event_id", eventId).gte("created_at", since),
-      admin.from("station_items").select("id, name, needed, claimed_count, stations(name)").eq("event_id", eventId),
+      admin.from("station_items").select("id, name, needed, claimed_count, stations(*)").eq("event_id", eventId),
     ]);
     const signedUp = (added ?? []) as unknown as {
       shift_id: string;
@@ -86,10 +87,12 @@ export async function sendVolunteerDigests(admin: SupabaseClient, origin: string
         detail: d.item_id ? what(d.item_id) : d.shift_id ? where(d.shift_id) : "a shift that was removed",
       })),
     };
-    const filled = [...shifts.values()].reduce((n, s) => n + s.registered_count, 0);
-    const spots = [...shifts.values()].reduce((n, s) => n + s.max_capacity, 0);
-    const covered = [...items.values()].reduce((n, i) => n + i.claimed_count, 0);
-    const needed = [...items.values()].reduce((n, i) => n + i.needed, 0);
+    const open = [...shifts.values()].filter((s) => (s.stations as { showing?: boolean } | null)?.showing !== false);
+    const filled = open.reduce((n, s) => n + s.registered_count, 0);
+    const spots = open.reduce((n, s) => n + s.max_capacity, 0);
+    const openItems = [...items.values()].filter((i) => (i.stations as { showing?: boolean } | null)?.showing !== false);
+    const covered = openItems.reduce((n, i) => n + i.claimed_count, 0);
+    const needed = openItems.reduce((n, i) => n + i.needed, 0);
     const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
     const counts: Record<DigestPart, string> = {
       new_bookings: plural(parts.new_bookings.length, "new sign-up", "new sign-ups"),

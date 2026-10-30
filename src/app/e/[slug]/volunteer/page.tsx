@@ -37,7 +37,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
   const [{ data: stations }, { data: shifts }, { data: items }, { data: board }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_order, location, instructions, adults_only, signup_kind")
+      // Every column: showing arrives with the 20270105000000 update.
+      .select("*")
       .eq("event_id", event.id)
       .order("sort_order")
       .order("created_at"),
@@ -53,13 +54,21 @@ export default async function VolunteerSignupPage({ params }: Params) {
     supabase.rpc("public_item_board", { p_event_id: event.id }),
   ]);
   const coming = (board ?? []) as { item_id: string; first_name: string; note: string | null }[];
+  // Only jobs volunteers can sign up for. (Signed-in hosts and Coordinators can read hidden
+  // jobs too; they preview those elsewhere, never mixed into the real page.)
+  const showing = (stations ?? []).filter((st) => (st as { showing?: boolean }).showing !== false);
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
   // Check-in stations first, in the host's order: they matter most on the day.
-  const publicStations: PublicStation[] = sortStations(stations ?? [])
+  const publicStations: PublicStation[] = sortStations(showing)
     .map((st) => ({
-      ...st,
+      // Only what the form shows (the query reads every column).
+      id: st.id,
+      name: st.name,
+      location: st.location,
+      instructions: st.instructions,
+      adults_only: st.adults_only,
       // An items station takes things to bring, never time slots.
       shifts: (st.signup_kind === "items" ? [] : (shifts ?? []))
         .filter((s) => s.station_id === st.id)

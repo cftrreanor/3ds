@@ -81,8 +81,9 @@ begin
   -- Sign them up: the first shift is filled completely, the rest about 60%, so
   -- there's room left to test signing up yourself.
   n := 0;
+  -- Only jobs volunteers can see: hidden ones stay empty (and can be shown later).
   for sh in select s.* from public.shifts s join public.stations st on st.id = s.station_id
-             where s.event_id = ev.id order by st.sort_order, s.starts_at loop
+             where s.event_id = ev.id and st.showing order by st.sort_order, s.starts_at loop
     target := case when n = 0 then sh.max_capacity else ceil(sh.max_capacity * 0.6)::int end;
     i := 0;
     while i < target - sh.registered_count loop

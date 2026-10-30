@@ -3231,6 +3231,10 @@ begin
        and event_id = '10000000-0000-0000-0000-0000000000d3'
   ), 'sample people are never emailed';
 
+  -- The demo volunteer signs up for a sample job's shift, and leaving still clears it all.
+  perform public.demo_join(owner, '10000000-0000-0000-0000-0000000000d5', 'd0000000-0000-0000-0000-000000000004');
+  assert exists (select 1 from public.volunteers where email = 'vol-1@demo.fieldcommandevents.com'
+                    and event_id = '10000000-0000-0000-0000-0000000000d5'), 'the demo volunteer joins a sample job';
   for n in 1..5 loop
     ev := ('10000000-0000-0000-0000-0000000000d' || n)::uuid;
     perform public.demo_leave(owner, ev);
@@ -3242,6 +3246,7 @@ begin
     assert not exists (select 1 from public.fair_booths where event_id = ev), 'sample booths are gone';
     assert not exists (select 1 from public.demo_samples where event_id = ev), 'nothing left on the list';
   end loop;
+  assert not exists (select 1 from public.volunteers where email = 'vol-1@demo.fieldcommandevents.com'), 'the demo volunteer is gone too';
 end $$;
 reset role;
 delete from public.events where id::text like '10000000-0000-0000-0000-0000000000d%';
@@ -5846,6 +5851,13 @@ begin
           current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Track Rd'),
          ('70000000-0000-0000-0000-0000000000e2', '70000000-0000-0000-0000-000000000001', 'Book Fair', 'pk-books', 'volunteer',
           current_date + 19, current_date + 19, now() + interval '19 days', now() + interval '19 days 3 hours', '1 Library Ln');
+  -- A volunteer event publishes with a job volunteers can see.
+  insert into public.stations (id, event_id, name) values
+    ('70000000-0000-0000-0000-0000000000f1', '70000000-0000-0000-0000-0000000000e1', 'Water table'),
+    ('70000000-0000-0000-0000-0000000000f2', '70000000-0000-0000-0000-0000000000e2', 'Book sorting');
+  insert into public.shifts (station_id, title, starts_at, ends_at, max_capacity) values
+    ('70000000-0000-0000-0000-0000000000f1', 'Morning', now() + interval '9 days', now() + interval '9 days 2 hours', 4),
+    ('70000000-0000-0000-0000-0000000000f2', 'Morning', now() + interval '19 days', now() + interval '19 days 2 hours', 4);
   update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e1';
   assert public.org_can_publish('70000000-0000-0000-0000-0000000000e2') like
          'Your Schedule Command plan publishes one volunteer event at a time%Volunteer Command.',
@@ -7006,6 +7018,302 @@ delete from public.platform_admins where user_id = '00000000-0000-0000-0000-0000
 delete from public.feedback;
 do $$ begin
   assert not (select public from storage.buckets where id = 'feedback-screenshots'), 'feedback screenshots are private';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Volunteer jobs: showing or hidden
+-- ---------------------------------------------------------------------------
+update public.organizations set subscription_status = 'active', package = 'event' where id = :'org_id';
+insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address, volunteer_signup_open)
+values ('10000000-0000-0000-0000-0000000000b7', :'org_id', 'Spring Fling', 'spring-fling-jobs', 'volunteer',
+        current_date + 40, current_date + 40, now() + interval '40 days', now() + interval '40 days 4 hours', '1 School Rd', true);
+insert into public.event_staff (event_id, user_id, role) values
+  ('10000000-0000-0000-0000-0000000000b7', '00000000-0000-0000-0000-000000000002', 'volunteer_director'),
+  ('10000000-0000-0000-0000-0000000000b7', '00000000-0000-0000-0000-000000000003', 'section_lead'),
+  ('10000000-0000-0000-0000-0000000000b7', '00000000-0000-0000-0000-000000000007', 'section_lead');
+do $$ begin
+  assert (select showing from public.stations limit 1), 'jobs made before this update are showing';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  insert into public.stations (id, event_id, name, showing) values
+    ('10000000-0000-0000-0000-0000000000b8', '10000000-0000-0000-0000-0000000000b7', 'Face painting', false),
+    ('10000000-0000-0000-0000-0000000000b9', '10000000-0000-0000-0000-0000000000b7', 'Ticket table', true);
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+    ('10000000-0000-0000-0000-0000000000ba', '10000000-0000-0000-0000-0000000000b8', 'Morning', now() + interval '40 days', now() + interval '40 days 2 hours', 3);
+  -- Only a hidden job: not ready to publish.
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000b7';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Show at least one volunteer job%', 'a volunteer event needs a showing job to publish';
+  -- The showing job has no shift yet, so it doesn't count either.
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000b7';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a showing job needs a shift or a thing to bring';
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+    ('10000000-0000-0000-0000-0000000000bb', '10000000-0000-0000-0000-0000000000b9', 'Morning', now() + interval '40 days', now() + interval '40 days 2 hours', 3);
+  update public.events set status = 'published' where id = '10000000-0000-0000-0000-0000000000b7';
+  -- The last showing job can't be hidden while it's live.
+  ok := false;
+  begin
+    update public.stations set showing = false where id = '10000000-0000-0000-0000-0000000000b9';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%last job volunteers can see%', 'the last showing job stays while the event is live';
+  -- Hosts see hidden jobs (to preview them).
+  assert exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b8'), 'a host sees a hidden job';
+  assert exists (select 1 from public.shifts where id = '10000000-0000-0000-0000-0000000000ba'), 'and its shifts';
+end $$;
+reset role;
+insert into public.station_leads (station_id, user_id, event_id) values
+  ('10000000-0000-0000-0000-0000000000b8', '00000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-0000000000b7'),
+  ('10000000-0000-0000-0000-0000000000b9', '00000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-0000000000b7');
+-- The public sees only showing jobs.
+set role anon;
+set request.jwt.claims = '{"role":"anon"}';
+do $$ begin
+  assert not exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b8'), 'the public doesn''t see a hidden job';
+  assert not exists (select 1 from public.shifts where id = '10000000-0000-0000-0000-0000000000ba'), 'or its shifts';
+  assert exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b9'), 'it sees a showing job';
+end $$;
+-- The sign-up page signs people up through the server: still not onto a hidden job.
+set role service_role;
+set request.jwt.claims = '{"role":"service_role"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    perform public.sign_up_volunteer('10000000-0000-0000-0000-0000000000b7', 'Pat Parent', 'pat@example.com', null,
+                                     array['10000000-0000-0000-0000-0000000000ba']::uuid[]);
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%isn''t open for sign-up yet%', 'nobody signs up for a hidden job, even with its id';
+  perform public.sign_up_volunteer('10000000-0000-0000-0000-0000000000b7', 'Pat Parent', 'pat@example.com', null,
+                                   array['10000000-0000-0000-0000-0000000000bb']::uuid[]);
+end $$;
+reset role;
+-- Switching shifts with a pass (through the server) can't land on a hidden job either.
+select set_config('jobs.asg', a.id::text, false), set_config('jobs.vtok', v.access_token::text, false)
+  from public.volunteer_assignments a join public.volunteers v on v.id = a.volunteer_id
+ where v.email = 'pat@example.com' and a.shift_id = '10000000-0000-0000-0000-0000000000bb';
+set role service_role;
+set request.jwt.claims = '{"role":"service_role"}';
+do $$ begin
+  begin
+    perform public.swap_shift_with_pass(current_setting('jobs.asg')::uuid, '10000000-0000-0000-0000-0000000000ba',
+                                        array[current_setting('jobs.vtok')::uuid], '{}'::uuid[]);
+  exception when others then null;
+  end;
+  assert (select shift_id from public.volunteer_assignments where id = current_setting('jobs.asg')::uuid) = '10000000-0000-0000-0000-0000000000bb',
+         'a volunteer can''t switch onto a hidden job';
+end $$;
+reset role;
+-- Demo mode's volunteer joins a showing job, never a hidden one.
+insert into public.demo_events (owner_id, event_id) values ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000000b7');
+set role service_role;
+set request.jwt.claims = '{"role":"service_role"}';
+do $$ begin
+  perform public.demo_join('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000000b7', 'd0000000-0000-0000-0000-000000000004');
+  assert (select a.shift_id from public.volunteer_assignments a join public.volunteers v on v.id = a.volunteer_id
+           where v.email = 'vol-1@demo.fieldcommandevents.com' and v.event_id = '10000000-0000-0000-0000-0000000000b7')
+         = '10000000-0000-0000-0000-0000000000bb', 'the demo volunteer joins the showing job';
+  perform public.demo_leave('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000000b7');
+end $$;
+reset role;
+-- Coordinators: their own hidden job, not anyone else's.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000003","email":"lead@example.com"}';
+do $$ begin
+  assert exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b8'), 'a Coordinator previews their own hidden job';
+  assert exists (select 1 from public.shifts where id = '10000000-0000-0000-0000-0000000000ba'), 'and its shifts';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000007","email":"newlead@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b8'), 'another Coordinator doesn''t see it';
+  assert not exists (select 1 from public.shifts where id = '10000000-0000-0000-0000-0000000000ba'), 'or its shifts';
+  assert exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b9'), 'they see their own showing job';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  assert exists (select 1 from public.stations where id = '10000000-0000-0000-0000-0000000000b8'), 'a Volunteer Lead previews hidden jobs';
+  -- Not even a Volunteer Lead adds a walk-up to a hidden job; they're told to show it first.
+  begin
+    perform public.add_walk_up('10000000-0000-0000-0000-0000000000ba', 'Wally Walkup', null);
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'This job is hidden from volunteers. Show it%', 'no walk-ups on a hidden job';
+  ok := false;
+  -- Signed up: the job can't be hidden, and its shift can't be deleted.
+  update public.stations set showing = true where id = '10000000-0000-0000-0000-0000000000b8';
+  begin
+    update public.stations set showing = false where id = '10000000-0000-0000-0000-0000000000b9';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'People are signed up for this job%', 'a job with sign-ups can''t be hidden';
+  ok := false;
+  begin
+    delete from public.shifts where id = '10000000-0000-0000-0000-0000000000bb';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a shift with sign-ups can''t be deleted';
+  ok := false;
+  begin
+    delete from public.stations where id = '10000000-0000-0000-0000-0000000000b9';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'nor can its whole job';
+  -- With another showing job, a job without sign-ups can be hidden again.
+  update public.stations set showing = false where id = '10000000-0000-0000-0000-0000000000b8';
+  -- Things to bring follow the same rules.
+  insert into public.stations (id, event_id, name, signup_kind) values
+    ('10000000-0000-0000-0000-0000000000bc', '10000000-0000-0000-0000-0000000000b7', 'Bake sale', 'items');
+  insert into public.station_items (id, station_id, event_id, name, needed) values
+    ('10000000-0000-0000-0000-0000000000bd', '10000000-0000-0000-0000-0000000000bc', '10000000-0000-0000-0000-0000000000b7', 'Brownies', 4);
+end $$;
+reset role;
+set role service_role;
+set request.jwt.claims = '{"role":"service_role"}';
+select public.sign_up_volunteer('10000000-0000-0000-0000-0000000000b7', 'Bea Baker', 'bea@example.com', null, '{}'::uuid[], false, '[]',
+                                '[{"item": "10000000-0000-0000-0000-0000000000bd"}]') is not null as signed_up \gset
+reset role;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000002","email":"director@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    delete from public.station_items where id = '10000000-0000-0000-0000-0000000000bd';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a thing to bring with sign-ups can''t be deleted';
+  ok := false;
+  begin
+    update public.stations set showing = false where id = '10000000-0000-0000-0000-0000000000bc';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'nor its job hidden';
+end $$;
+reset role;
+-- Things to bring on a hidden job are hidden too.
+update public.stations set showing = false where id = '10000000-0000-0000-0000-0000000000b8';
+insert into public.stations (id, event_id, name, signup_kind, showing) values
+  ('10000000-0000-0000-0000-0000000000be', '10000000-0000-0000-0000-0000000000b7', 'Raffle prizes', 'items', false);
+insert into public.station_items (id, station_id, event_id, name, needed) values
+  ('10000000-0000-0000-0000-0000000000bf', '10000000-0000-0000-0000-0000000000be', '10000000-0000-0000-0000-0000000000b7', 'Gift cards', 5);
+set role anon;
+set request.jwt.claims = '{"role":"anon"}';
+do $$ begin
+  assert not exists (select 1 from public.station_items where id = '10000000-0000-0000-0000-0000000000bf'),
+         'the public doesn''t see a hidden job''s things to bring';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000007","email":"newlead@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.station_items where id = '10000000-0000-0000-0000-0000000000bf'),
+         'nor does another Coordinator';
+end $$;
+-- Every other way onto a hidden job is refused too, even for organizers.
+set role service_role;
+set request.jwt.claims = '{"role":"service_role"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.sign_up_group('10000000-0000-0000-0000-0000000000b7', 'Gus Group', 'gus@example.com', null,
+                                 array['10000000-0000-0000-0000-0000000000ba']::uuid[]);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'the group sign-up refuses a hidden job';
+  ok := false;
+  begin
+    perform public.sign_up_volunteer('10000000-0000-0000-0000-0000000000b7', 'Ida Item', 'ida@example.com', null, '{}'::uuid[], false, '[]',
+                                     '[{"item": "10000000-0000-0000-0000-0000000000bf"}]');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'and a hidden job''s thing to bring';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    perform public.import_volunteer('10000000-0000-0000-0000-0000000000b7', 'Ivy Import', 'ivy@example.com', null, false, '[]',
+                                    array['10000000-0000-0000-0000-0000000000ba']::uuid[]);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a host can''t import people onto a hidden job';
+  -- A shift with sign-ups can't move into a hidden job.
+  ok := false;
+  begin
+    update public.shifts set station_id = '10000000-0000-0000-0000-0000000000b8' where id = '10000000-0000-0000-0000-0000000000bb';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%can''t move to a hidden job%', 'a signed-up shift doesn''t move into a hidden job';
+  -- A live event keeps a job volunteers can see: its last ones can't be deleted.
+  insert into public.stations (id, event_id, name) values
+    ('10000000-0000-0000-0000-0000000000c0', '10000000-0000-0000-0000-0000000000b7', 'Parking');
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+    ('10000000-0000-0000-0000-0000000000c1', '10000000-0000-0000-0000-0000000000c0', 'Morning', now() + interval '40 days', now() + interval '40 days 2 hours', 3);
+  delete from public.stations where id = '10000000-0000-0000-0000-0000000000c0';
+end $$;
+reset role;
+-- Only one showing job left: its shift can't go.
+delete from public.item_signups where item_id = '10000000-0000-0000-0000-0000000000bd';
+delete from public.stations where id = '10000000-0000-0000-0000-0000000000bc';
+delete from public.volunteer_assignments where shift_id = '10000000-0000-0000-0000-0000000000bb';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    delete from public.shifts where id = '10000000-0000-0000-0000-0000000000bb';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Volunteers need at least one job%', 'the last showing job''s last shift stays while the event is live';
+  ok := false;
+  begin
+    delete from public.stations where id = '10000000-0000-0000-0000-0000000000b9';
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'and so does the job';
+  -- Replacing its shifts (new ones first, like "Fill the day") is fine.
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+    ('10000000-0000-0000-0000-0000000000c3', '10000000-0000-0000-0000-0000000000b9', 'Midday', now() + interval '40 days 2 hours', now() + interval '40 days 4 hours', 3);
+  delete from public.shifts where id = '10000000-0000-0000-0000-0000000000bb';
+end $$;
+reset role;
+-- Switching a live event to a volunteer event needs a showing job too.
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000c2', :'org_id', 'Fun Fair', 'fun-fair-switch', 'published', 'fair',
+        current_date + 40, current_date + 40, now() + interval '40 days', now() + interval '40 days 4 hours', '1 School Rd');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    update public.events set event_type = 'volunteer' where id = '10000000-0000-0000-0000-0000000000c2';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Show at least one volunteer job%', 'a live event can''t become a volunteer event without a showing job';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000c2';
+-- Deleting the whole event takes everything with it.
+delete from public.events where id = '10000000-0000-0000-0000-0000000000b7';
+do $$ begin
+  assert not exists (select 1 from public.shifts where id = '10000000-0000-0000-0000-0000000000bb'), 'deleting the event removes its signed-up shifts too';
 end $$;
 
 \echo 'All database security tests passed.'

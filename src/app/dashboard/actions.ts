@@ -727,12 +727,17 @@ export async function generateShifts(
 
   if (rows.length === 0) return { error: "The event's times leave no room for shifts. Check its start and end times." };
   const replaced = existing?.length ?? 0;
-  if (replaced) {
-    const { error: deleteError } = await supabase.from("shifts").delete().eq("station_id", stationId).eq("registered_count", 0);
-    if (deleteError) return { error: friendlyDbError(deleteError) };
-  }
+  // The new shifts go in first, then the old empty ones come out, so a live event's
+  // only job is never left with nothing to sign up for (the database refuses that).
+  const { data: old } = replaced
+    ? await supabase.from("shifts").select("id").eq("station_id", stationId).eq("registered_count", 0)
+    : { data: [] };
   const { error } = await supabase.from("shifts").insert(rows);
   if (error) return { error: friendlyDbError(error) };
+  if (old?.length) {
+    const { error: deleteError } = await supabase.from("shifts").delete().in("id", old.map((s) => s.id)).eq("registered_count", 0);
+    if (deleteError) return { error: friendlyDbError(deleteError) };
+  }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   const made = `${rows.length} shift${rows.length === 1 ? "" : "s"}`;
