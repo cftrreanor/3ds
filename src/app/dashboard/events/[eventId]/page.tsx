@@ -728,6 +728,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </PageSection>
     ) : null;
 
+  // A published volunteer event's jobs with no shift or thing to bring (hosts only, from the setup facts).
+  const liveEmpty = published && event.event_type === "volunteer" ? (setup?.emptyJobs ?? []) : [];
   const volunteers =
     access.canManage && !conferenceHere ? (
       <PageSection id="volunteers" title="Volunteers">
@@ -742,7 +744,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               )}
               <span className="text-sm text-muted">
                 {event.event_type === "volunteer"
-                  ? `${stations.length} ${stations.length === 1 ? "job" : "jobs"}`
+                  ? `${stations.length} ${stations.length === 1 ? "job" : "jobs"}${liveEmpty.length ? ` · ${liveEmpty.length} not on the sign-up page yet` : ""}`
                   : `${stations.length} sign-up${stations.length === 1 ? "" : "s"} · ${(shifts ?? []).length} shift${(shifts ?? []).length === 1 ? "" : "s"}`}
               </span>
             </div>
@@ -750,6 +752,28 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               {event.event_type === "volunteer" ? "Jobs and shifts" : "Manage volunteers"}
             </Link>
           </div>
+          {/* Live, with a job nobody can sign up for yet: say so where the organizer checks in, with the fix. */}
+          {liveEmpty.length > 0 && (
+            <div className="rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+              <p className="font-semibold">
+                <span aria-hidden>◆ </span>
+                {liveEmpty.length === 1 ? "1 job isn't on the sign-up page yet" : `${liveEmpty.length} jobs aren't on the sign-up page yet`}
+              </p>
+              <ul className="mt-1">
+                {liveEmpty.map((j) => (
+                  <li key={j.id}>
+                    {j.name} needs {j.items ? "a thing to bring" : "a shift"}.{" "}
+                    <Link
+                      href={`/dashboard/events/${eventId}/volunteering?station=${j.id}`}
+                      className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4"
+                    >
+                      Add {j.items ? "one" : "a shift"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <VolunteerStats
             filled={signedUp}
             capacity={totalSlots}
@@ -989,6 +1013,8 @@ function PublishPanel({
   /** A volunteer event's sign-up page, as the team previews it. */
   previewHref: string;
 }) {
+  // The empty jobs are named in their own box below, so the "one more step" line skips them.
+  const others = (facts.emptyJobs ?? []).length ? remaining.filter((r) => r.id !== "shifts") : remaining;
   // A volunteer event chooses when sign-up opens with its publish button.
   const jobsHere = facts.eventType === "volunteer";
   // Publishing needs a job with a shift or a thing to bring (the database checks too): until then, the way there instead of the buttons.
@@ -999,7 +1025,7 @@ function PublishPanel({
   const effects = publishEffects(facts).filter((line) => !(jobsHere && line.startsWith("Volunteer sign-up")));
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">{needsJob ? "Not ready to publish yet" : remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      <h2 className="text-lg font-semibold">{needsJob ? "Not ready to publish yet" : others.length ? "Almost ready to publish" : "Ready to publish"}</h2>
       {needsJob && (
         // The one thing stopping them, first.
         <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
@@ -1030,12 +1056,12 @@ function PublishPanel({
           </ul>
         </div>
       )}
-      {needsJob ? null : remaining.length ? (
+      {needsJob ? null : others.length ? (
         // The checklist beside the page lists every step; here, just the first one left.
         <p className="mt-2 text-sm">
-          <span className="text-muted">We recommend finishing {remaining.length === 1 ? "one more step" : `${remaining.length} more steps`} first, starting with </span>
-          <Link href={remaining[0].href} className="font-medium text-brand underline-offset-4 hover:underline">
-            {remaining[0].label}
+          <span className="text-muted">We recommend finishing {others.length === 1 ? "one more step" : `${others.length} more steps`} first, starting with </span>
+          <Link href={others[0].href} className="font-medium text-brand underline-offset-4 hover:underline">
+            {others[0].label}
           </Link>
           .
         </p>

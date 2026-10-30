@@ -10,6 +10,7 @@ import { Field, Input, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { BinIcon, CoordinatorPicker, type LeadOption } from "../forms";
 import type { JobLinks } from "./job-parts";
+import { flushPending, pendingCounts, setPending, settled, usePendingCounts } from "./pending-edits";
 import { useStepEdits } from "./station-steps";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -81,16 +82,18 @@ export function JobForm({
     if (!form.checkValidity()) {
       setWhy("A job needs a name.");
       setSave("failed");
-      form.dispatchEvent(new Event("form-failed"));
+      setPending(FORM, { kind: "failed" });
       return;
     }
     setSave("saving");
+    setPending(FORM, { kind: "saving" });
     form.requestSubmit();
   }, []);
 
   const changed = useCallback(() => {
     setSave("waiting");
     setEdited(true);
+    setPending(FORM, { kind: "saving", flush: submit });
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(submit, SAVE_AFTER_MS);
   }, [setEdited, submit]);
@@ -101,19 +104,28 @@ export function JobForm({
     if (!form) return;
     const ok = () => {
       setSave((s) => (s === "waiting" ? s : "saved"));
+      setPending(FORM, timer.current ? { kind: "saving", flush: submit } : null);
       setEdited(false);
     };
-    const failed = () => setSave("failed");
+    const failed = () => {
+      setSave("failed");
+      setPending(FORM, { kind: "failed" });
+    };
     form.addEventListener("form-saved", ok);
     form.addEventListener("form-failed", failed);
     return () => {
       form.removeEventListener("form-saved", ok);
       form.removeEventListener("form-failed", failed);
+      if (timer.current) clearTimeout(timer.current);
+      setPending(FORM, null);
     };
-  }, [setEdited]);
+  }, [setEdited, submit]);
 
-  // Closing the tab before the last change saves: the browser asks first.
-  const unsaved = save === "waiting" || save === "saving" || save === "failed";
+  // Everything not saved on the job's page: this form, its things to bring, and shifts or things typed in but not added.
+  const pending = usePendingCounts();
+  const unsaved = pending.saving + pending.failed + pending.unadded > 0;
+
+  // Closing the tab first: the browser asks.
   useEffect(() => {
     if (!unsaved) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -124,47 +136,59 @@ export function JobForm({
   // Switching apps or tabs (a phone's usual way out) saves straight away instead of waiting.
   useEffect(() => {
     const flush = () => {
-      if (document.visibilityState === "hidden" && timer.current) submit();
+      if (document.visibilityState === "hidden") flushPending();
     };
     document.addEventListener("visibilitychange", flush);
-    return () => document.removeEventListener("visibilitychange", flush);
-  }, [submit]);
+    window.addEventListener("pagehide", flushPending);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", flushPending);
+    };
+  }, []);
 
-  // Any link on the page while a change is waiting: save it first, then go. If it can't save, ask.
+  // Any link to another page of the app while something isn't saved: save it first, then go.
+  // If it can't save, or a shift or thing to bring is typed in but not added, ask.
+  const leaving = useRef(false);
   useEffect(() => {
-    if (!unsaved) return;
-    const form = document.getElementById(FORM);
     const guard = (e: MouseEvent) => {
+      const counts = pendingCounts();
+      if (!counts.saving && !counts.failed && !counts.unadded) return;
       const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a || a.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
       const href = a.getAttribute("href") ?? "";
-      if (href.startsWith("#")) return;
+      if (!href.startsWith("/")) return;
       e.preventDefault();
       e.stopPropagation();
-      const done = new Promise<boolean>((resolve) => {
-        const ok = () => resolve(true);
-        const no = () => resolve(false);
-        form?.addEventListener("form-saved", ok, { once: true });
-        form?.addEventListener("form-failed", no, { once: true });
-        setTimeout(no, 8000);
-      });
-      if (save !== "saving") submit();
-      void done.then(async (saved) => {
-        if (
-          saved ||
-          (await confirmDialog({
-            title: "Leave before it saves?",
-            message: "Your last change to this job isn't saved.",
-            confirmLabel: "Leave anyway",
-            cancelLabel: "Stay here",
-          }))
-        )
-          router.push(href);
-      });
+      if (leaving.current) return;
+      leaving.current = true;
+      void (async () => {
+        flushPending();
+        const saved = await settled();
+        const go =
+          (saved && !pendingCounts().unadded) ||
+          (await confirmDialog(
+            saved
+              ? {
+                  title: "Leave without adding it?",
+                  message: "You typed a shift or a thing to bring that isn't added yet.",
+                  confirmLabel: "Leave anyway",
+                  cancelLabel: "Stay here",
+                }
+              : {
+                  title: "Leave before it saves?",
+                  message: "A change to this job isn't saved.",
+                  confirmLabel: "Leave anyway",
+                  cancelLabel: "Stay here",
+                },
+          ));
+        leaving.current = false;
+        // A job tab keeps the page where it is; another page starts at the top.
+        if (go) router.push(href, { scroll: new URL(href, location.href).pathname !== location.pathname });
+      })();
     };
     document.addEventListener("click", guard, true);
     return () => document.removeEventListener("click", guard, true);
-  }, [unsaved, save, submit, router]);
+  }, [router]);
 
   return (
     <ActionForm id={FORM} action={save$} className="space-y-3" resetOnSuccess={false} onEdit={changed}>
@@ -197,7 +221,7 @@ export function JobForm({
         </details>
       </InSlot>
       <InSlot id="signup-bar">
-        <JobBar save={save} why={why} retry={submit} remove={remove} links={links} signedUp={signedUp} ready={ready} allReady={allReady} items={items} />
+        <JobBar save={save} why={why} pending={pending} retry={submit} remove={remove} links={links} signedUp={signedUp} ready={ready} allReady={allReady} items={items} />
       </InSlot>
     </ActionForm>
   );
@@ -222,13 +246,14 @@ const SAVE_WORDS: Record<SaveState, string> = {
 };
 
 /**
- * The job's bar, pinned to the bottom of the screen: whether it's saved, Delete job, Add another job,
- * and the next step. Until the job has a shift or a thing to bring, the ways on are greyed out with a
- * note saying why; once every job has one, publishing is the main button.
+ * The job's bar, pinned to the bottom of the screen: whether everything on the job is saved, Delete job,
+ * Add another job, and the next step. Until the job has a shift or a thing to bring, the next step is
+ * greyed out with a note saying why; once every job has one, publishing is the main button.
  */
 function JobBar({
   save,
   why,
+  pending,
   retry,
   remove,
   links,
@@ -239,6 +264,7 @@ function JobBar({
 }: {
   save: SaveState;
   why: string | null;
+  pending: { saving: number; failed: number; unadded: number };
   retry: () => void;
   remove: () => Promise<ActionState>;
   links: JobLinks;
@@ -252,19 +278,31 @@ function JobBar({
   const button = "inline-flex min-h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition";
   const filled = `${button} bg-brand text-brand-foreground hover:bg-brand-hover`;
   const outline = `${button} border-[1.5px] border-brand bg-surface text-brand hover:bg-brand-soft`;
-  // Greyed out, and not a link, until the job is ready (the note says why).
-  const off = `${button} cursor-not-allowed border-[1.5px] border-dashed border-field-border bg-surface text-muted`;
   const needs = items ? "a thing to bring" : "a shift";
+  // The job's own form first, then the rest of the page's edits.
+  const failedHere = save === "failed";
+  const itemFailed = !failedHere && pending.failed > 0;
+  const saving = !failedHere && !itemFailed && pending.saving > 0;
+  const unadded = !failedHere && !itemFailed && !saving ? pending.unadded : 0;
   return (
     <div className="space-y-1.5 rounded-b-lg border-t-2 border-border bg-surface px-4 py-2.5 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:px-6">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <p className="min-w-0 flex-1 text-sm" aria-live="polite" role={save === "failed" ? "alert" : undefined}>
-          {save === "failed" ? (
+        <p className="min-w-0 flex-1 text-sm" aria-live="polite" role={failedHere || itemFailed ? "alert" : undefined}>
+          {failedHere ? (
             <span className="font-semibold text-danger">
               Not saved. {why ?? "Try again."}{" "}
               <button type="button" onClick={retry} className="underline underline-offset-2">
                 Try again
               </button>
+            </span>
+          ) : itemFailed ? (
+            <span className="font-semibold text-danger">Not saved. Give each thing to bring a name and a number, and check your connection.</span>
+          ) : saving ? (
+            <span className="text-muted">Saving…</span>
+          ) : unadded ? (
+            <span className="font-medium text-warning">
+              <span aria-hidden>◆ </span>
+              {unadded === 1 ? "1 change isn't added yet." : `${unadded} changes aren't added yet.`} Use its Add or Save button.
             </span>
           ) : (
             <span className={save === "saved" ? "font-medium" : "text-muted"}>
@@ -278,7 +316,7 @@ function JobBar({
             type="button"
             disabled={deleting || signedUp}
             aria-describedby={signedUp ? "job-bar-locked" : undefined}
-            className={`${button} gap-1.5 border border-danger/40 bg-surface text-danger hover:bg-danger/5 disabled:cursor-not-allowed disabled:border-dashed disabled:border-field-border disabled:text-muted`}
+            className={`${button} gap-1.5 border border-danger/40 bg-surface text-danger hover:bg-danger/5 disabled:cursor-not-allowed disabled:border-dashed disabled:border-field-border disabled:text-disabled`}
             onClick={async () => {
               const ok = await confirmDialog({
                 title: "Delete this job?",
@@ -296,21 +334,15 @@ function JobBar({
             {!deleting && <BinIcon />}
             {deleting ? "Deleting…" : "Delete job"}
           </button>
-          {ready ? (
-            <Link href={links.addJob} scroll={false} className={allReady ? outline : filled}>
-              Add another job
-            </Link>
-          ) : (
-            <span role="link" aria-disabled="true" aria-describedby="job-bar-note" className={off}>
-              Add another job
-            </span>
-          )}
+          <Link href={links.addJob} scroll={false} className={ready && !allReady ? filled : outline}>
+            Add another job
+          </Link>
         </div>
       </div>
       {!ready && (
         <p id="job-bar-note" className="text-sm font-medium text-warning">
           <span aria-hidden>◆ </span>
-          This job needs {needs} before volunteers can see it. Add one above.
+          Add {needs} to this job before you publish. Volunteers can&apos;t see it until it has one.
         </p>
       )}
       {signedUp && (
@@ -328,7 +360,12 @@ function JobBar({
           Preview the sign-up page
         </a>
         {!ready ? (
-          <span role="link" aria-disabled="true" aria-describedby="job-bar-note" className="inline-flex min-h-11 cursor-not-allowed items-center text-sm font-semibold text-muted">
+          <span
+            role="link"
+            aria-disabled="true"
+            aria-describedby="job-bar-note"
+            className="inline-flex min-h-11 cursor-not-allowed items-center rounded-md border-[1.5px] border-dashed border-field-border px-3 text-sm font-semibold text-disabled"
+          >
             {links.next.label} →
           </span>
         ) : allReady ? (

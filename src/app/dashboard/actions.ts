@@ -455,7 +455,7 @@ export async function updateStation(
   const kind = checkpointKind(formData);
   const { data: current } = await supabase.from("stations").select("checkpoint_order").eq("id", stationId).maybeSingle();
   const order = kind ? (current?.checkpoint_order ?? (await nextCheckpointOrder(supabase, eventId))) : null;
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("stations")
     .update({
       name: v.name,
@@ -473,8 +473,11 @@ export async function updateStation(
       // Save sign-up marks it finished; Save for later keeps it a draft.
       ...(formData.get("intent") === "later" ? {} : { details_saved_at: new Date().toISOString() }),
     })
-    .eq("id", stationId);
+    .eq("id", stationId)
+    .select("id");
   if (error) return { error: friendlyDbError(error) };
+  // Nothing changed: the job was deleted, or this person can't edit it. Don't say it saved.
+  if (!updated?.length) return { error: "This couldn't be saved. Reload the page and try again." };
 
   if (formData.has("leadsField")) {
     const leadError = await syncStationLeads(supabase, eventId, stationId, leadIds.data);

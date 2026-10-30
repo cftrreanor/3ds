@@ -10,6 +10,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
+import { setPending, useUnadded } from "./volunteering/pending-edits";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
 import { copyDialog } from "@/components/confirm-dialog";
 
@@ -333,6 +334,7 @@ export function GenerateShiftsForm({
   signedUp?: boolean;
 }) {
   const setEdited = useStepEdits("shifts");
+  const unadded = useUnadded();
   const [length, setLength] = useState(0);
   if (signedUp) {
     return (
@@ -346,7 +348,10 @@ export function GenerateShiftsForm({
       action={action}
       className="space-y-4"
       confirmMessage={existing ? `Replace this ${job ? "job" : "sign-up"}'s ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
-      onEdit={(f) => setEdited(hasAnswers(f))}
+      onEdit={(f) => {
+        setEdited(hasAnswers(f));
+        unadded(f);
+      }}
     >
       <p className="text-sm text-muted">
         Split the event day ({windowLabel}) into shifts for this {job ? "job" : "sign-up"}.
@@ -441,12 +446,16 @@ export function ShiftForm({
 }) {
   // A new shift: the button turns green once every required answer is in.
   const setEdited = useStepEdits(initial ? undefined : "shifts");
+  const unadded = useUnadded();
   return (
     <ActionForm
       action={action}
       className="grid gap-4 sm:grid-cols-2"
       resetOnSuccess={!initial}
-      onEdit={initial ? undefined : (f) => setEdited(hasAnswers(f))}
+      onEdit={(f) => {
+        if (!initial) setEdited(hasAnswers(f));
+        unadded(f);
+      }}
     >
       {initial && (
         <Field label="Title" className="sm:col-span-2">
@@ -698,17 +707,11 @@ export function ItemsEditor({
   /** A volunteer event's job: each row saves itself a moment after a change, with no Save button. */
   autosave?: boolean;
 }) {
-  // A thing typed into the add row but not added yet: closing the tab asks first.
-  const [typed, setTyped] = useState(false);
-  useEffect(() => {
-    if (!typed) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [typed]);
+  // A thing typed into the add row but not added yet: the job's bar says so, and leaving asks first.
+  const unadded = useUnadded();
   return (
     <div className="rounded-lg border border-border bg-background">
-      <div className={`hidden ${itemCols(autosave)} gap-3 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted sm:grid`}>
+      <div className={`hidden ${itemCols(autosave)} gap-3 border-b border-border px-3 py-2 text-sm font-semibold text-muted sm:grid`}>
         <span>Item</span>
         <span>Needed</span>
         {/* A volunteer event's job lists who's signed up further down the page instead. */}
@@ -723,7 +726,7 @@ export function ItemsEditor({
           <ActionForm
             action={create}
             resetOnSuccess
-            onEdit={autosave ? (form) => setTyped(Boolean((form.elements.namedItem("name") as HTMLInputElement | null)?.value.trim())) : undefined}
+            onEdit={autosave ? unadded : undefined}
             className={`grid items-center gap-3 ${autosave ? itemPhone : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
           >
             <Input name="name" required maxLength={100} placeholder={items.length ? "Add another item" : "Add an item, e.g. Desserts"} aria-label="New item" className={autosave ? "col-span-3 sm:col-span-1" : undefined} />
@@ -758,27 +761,53 @@ const itemCols = (autosave: boolean) => (autosave ? "sm:grid-cols-[minmax(0,1fr)
 /** One thing to bring: its name and how many, saved with its Save button, or by itself a moment after a change. */
 function ItemRow({ item: it, autosave }: { item: EditableItem; autosave: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formId = `item-${it.id}`;
   // A lost connection throws instead of answering: show it like any other failed save.
   const update: Action = async (prev, formData) => {
     try {
       return await it.update(prev, formData);
     } catch {
-      return { error: "Not saved. Check your connection, then try again." };
+      return { error: "Check your connection, then try again." };
     }
   };
-  const schedule = (form: HTMLFormElement) => {
+  // Saves now (when the wait is over, or someone's leaving). A blank name or count can't save: the job's bar says so.
+  const save = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      if (form.checkValidity()) form.requestSubmit();
-    }, 900);
+    timer.current = null;
+    const form = document.getElementById(formId) as HTMLFormElement | null;
+    if (!form) return;
+    if (!form.checkValidity()) return setPending(formId, { kind: "failed" });
+    setPending(formId, { kind: "saving" });
+    form.requestSubmit();
+  }, [formId]);
+  const schedule = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setPending(formId, { kind: "saving", flush: save });
+    timer.current = setTimeout(save, 900);
   };
+  useEffect(() => {
+    if (!autosave) return;
+    const form = document.getElementById(formId);
+    const ok = () => setPending(formId, null);
+    const failed = () => setPending(formId, { kind: "failed" });
+    form?.addEventListener("form-saved", ok);
+    form?.addEventListener("form-failed", failed);
+    return () => {
+      form?.removeEventListener("form-saved", ok);
+      form?.removeEventListener("form-failed", failed);
+      setPending(formId, null);
+    };
+  }, [autosave, formId]);
   return (
-    <li className="px-3 py-2.5">
+    // A job's row draws Delete beside its form, not inside it (a form can't hold another form).
+    <li className={autosave ? `grid items-center gap-3 px-3 py-2.5 ${itemPhone} ${itemCols(true)}` : "px-3 py-2.5"}>
       <ActionForm
+        id={formId}
         action={autosave ? update : it.update}
         resetOnSuccess={false}
+        quiet={autosave}
         onEdit={autosave ? schedule : undefined}
-        className={`grid items-center gap-3 ${autosave ? itemPhone : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
+        className={autosave ? "contents" : `grid items-center gap-3 grid-cols-[minmax(0,1fr)_6rem] ${itemCols(false)}`}
       >
         {autosave && <input type="hidden" name="auto" value="1" />}
         <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" className={autosave ? "col-span-3 sm:col-span-1" : undefined} />
@@ -789,15 +818,20 @@ function ItemRow({ item: it, autosave }: { item: EditableItem; autosave: boolean
             {it.claimed_count >= it.needed ? <span className="font-medium text-success">Covered</span> : `${it.claimed_count} of ${it.needed}`}
           </span>
         )}
-        <span className="flex items-center justify-end gap-1">
-          {!autosave && (
+        {!autosave && (
+          <span className="flex items-center justify-end gap-1">
             <SubmitButton variant="secondary" pendingText="Saving…" className="min-h-9 px-3 text-sm">
               Save
             </SubmitButton>
-          )}
+            <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
+          </span>
+        )}
+      </ActionForm>
+      {autosave && (
+        <span className="flex items-center justify-end">
           <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
         </span>
-      </ActionForm>
+      )}
     </li>
   );
 }
@@ -1032,7 +1066,7 @@ export function CopyLinkButton({ url, label = "Copy invite link" }: { url: strin
     <Button
       type="button"
       variant="secondary"
-      className="min-h-9 px-3 text-xs"
+      className="min-h-11 px-3 text-sm"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(url);

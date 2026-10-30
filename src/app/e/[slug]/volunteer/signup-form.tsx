@@ -232,7 +232,7 @@ export function SignupForm({
           <Field label="Their email (optional)" hint="We'll send them their own confirmation, with a link to change or cancel their spot.">
             <Input type="email" inputMode="email" value={p.email} onChange={(e) => setPerson(i, { email: e.target.value })} autoComplete="off" />
           </Field>
-          <Field label="Their cell phone (optional)" hint={`Without one, their ${lead} gets your number. Only their ${lead} sees it, and only on event day.`}>
+          <Field label="Their cell phone (optional)" hint={`Without one, their ${lead} gets your number. Only the people running this event see it, and only on event day.`}>
             <Input type="tel" inputMode="tel" value={p.phone} onChange={(e) => setPerson(i, { phone: e.target.value })} autoComplete="off" />
           </Field>
         </Card>
@@ -483,7 +483,6 @@ export function SignupForm({
       onSubmit={onPicked(BOOKER)}
       buttons={nextButtons(BOOKER)}
       disabled={disabled}
-      lead={lead}
       grouped={people.length > 0}
     />
   );
@@ -506,7 +505,6 @@ function BookerStep({
   onSubmit,
   buttons,
   disabled,
-  lead,
   grouped,
 }: {
   stations: PublicStation[];
@@ -525,7 +523,6 @@ function BookerStep({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   buttons: React.ReactNode;
   disabled?: boolean;
-  lead: string;
   grouped: boolean;
 }) {
   const [activeId, setActiveId] = useState(stations[0]?.id);
@@ -556,7 +553,7 @@ function BookerStep({
         <p className="mt-1 text-sm text-muted">
           {hasShifts && "Choose as many shifts as you like, as long as the times don't overlap."}
           {hasShifts && hasItems && " "}
-          {hasItems && "Sign up to bring something. Say what you're bringing so others can see it."}
+          {hasItems && "Pick something to bring. Everyone can see what's still needed."}
         </p>
 
         {tabbed && (
@@ -671,8 +668,8 @@ function BookerStep({
             label={me.minor ? "Parent or guardian's cell phone" : "Cell phone"}
             hint={
               grouped
-                ? `Also used for anyone you add without their own number. Only their ${lead} sees it, and only on event day.`
-                : `Only your ${lead} sees this, and only on event day.`
+                ? `Also used for anyone you add without their own number. Only the people running this event see it, and only on event day.`
+                : `Only the people running this event see it, and only on event day.`
             }
           >
             <Input type="tel" inputMode="tel" autoComplete="tel" required value={me.phone} onChange={(e) => set({ phone: e.target.value })} />

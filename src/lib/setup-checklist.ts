@@ -315,7 +315,8 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
           }
         : // Everything needed is in place: a full line, with Publish as the next step.
           { label: "Ready to publish", done: 1, of: 1 },
-    complete: f.published && afterDone === after.length,
+    // A live event with a job volunteers can't see yet isn't finished: the event page says which.
+    complete: f.published && afterDone === after.length && !(f.emptyJobs ?? []).length,
   };
 }
 

@@ -15,6 +15,8 @@
   --foreground: #0a0a0a;
   /* Slate blue for supporting text (6.6:1 on white). */
   --muted: #4b5f72;
+  /* Greyed-out controls: readable, but plainly quieter than live ones (dark mode's muted text is white). */
+  --disabled: #5b6b7b;
   --border: #dfe3e8;
   /* Edges of text boxes, options and panels that need to read clearly. */
   --field-border: #5f6d77;
@@ -57,6 +59,7 @@
     /* Dark mode uses white for all text, supporting text included: no grey. */
     --foreground: #ffffff;
     --muted: #ffffff;
+    --disabled: #8da2b8;
     --on-dark-mute: #ffffff;
     --border: #253a51;
     --field-border: #5f7489;
@@ -88,6 +91,7 @@
   --color-raised: var(--raised);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-disabled: var(--disabled);
   --color-border: var(--border);
   --color-field-border: var(--field-border);
   --color-brand: var(--brand);
@@ -192,6 +196,7 @@
   .event-band {
     --focus: #ffffff;
     --muted: #ffffff;
+    --disabled: #8da2b8;
     --brand: #ffffff;
     --danger: #ffffff;
   }
