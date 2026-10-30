@@ -112,7 +112,7 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
       {/* Where registration stands, its link, and the one button for what's next. */}
       <Card className="mt-6">
         <p className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge tone={!published ? "neutral" : closed === null ? "live" : showFamilies ? "off" : "neutral"}>
+          <Badge tone={!published ? "neutral" : closed === null ? "live" : "neutral"}>
             {!published ? "Event not published" : closed === null ? "Registration open" : showFamilies ? "Registration closed" : "Not open yet"}
           </Badge>
           <span className="text-muted">

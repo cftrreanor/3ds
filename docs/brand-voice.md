@@ -35,6 +35,7 @@ Use these rules for all website and in-app copy.
 - **Everywhere else:** "organizer" when naming the role
 - **Body copy:** "you" preferred over either word when speaking to the reader
 - **In-app role names:** "Host", "Co-host", and "Account Host" stay as the names of the account permission levels inside the app. Use "organizer" on the website and when describing the person in general copy.
+- **Sign-up:** "sign-up" is the noun ("Sign-up open", "your sign-up"), "sign up" is the verb ("Sign up to volunteer"). Never "signup".
 
 ## Audiences
 

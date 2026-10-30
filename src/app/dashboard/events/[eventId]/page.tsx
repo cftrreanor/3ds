@@ -723,7 +723,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             <div className="flex flex-wrap items-center gap-2">
               {/* Hosts get open/closed with its switch at the bottom of the card; everyone else, here. */}
               {!(access.isHost && published && !past) && (
-                <Badge tone={published && event.volunteer_signup_open ? "success" : "neutral"}>
+                <Badge tone={published && event.volunteer_signup_open ? "live" : "neutral"}>
                   {!published ? "Event not published" : event.volunteer_signup_open ? "Sign-up open" : "Sign-up closed"}
                 </Badge>
               )}

@@ -114,7 +114,7 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
   const shiftToday = upcoming.some((r) => utcToZonedDate(r.starts_at, r.timezone) === utcToZonedDate(new Date().toISOString(), r.timezone));
 
   // Events this person volunteers for (or did, before cancelling) that are
-  // still taking signups: offer "Sign up for more".
+  // still taking sign-ups: offer "Sign up for more".
   const knownIds = [...new Set([...rows, ...items].map((r) => r.event_id))];
   const { data: openEvents } =
     knownIds.length || pass.e.length
@@ -248,8 +248,8 @@ export default async function MyShiftsPage({ searchParams }: PageProps<"/my">) {
             <p className="font-medium">{ev.name}</p>
             <p className="mt-1 text-sm leading-6 text-muted">
               {sections.length === 0 && rows.length === 0
-                ? "You don't have anything signed up right now. Volunteer signup is still open."
-                : "Volunteer signup is still open for this event."}
+                ? "You don't have anything signed up right now. Volunteer sign-up is still open."
+                : "Volunteer sign-up is still open for this event."}
             </p>
             <SignUpMoreLink slug={ev.slug} primary />
           </Card>

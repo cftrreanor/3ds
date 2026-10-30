@@ -152,7 +152,7 @@ export function SignupForm({
     <div className="space-y-2">
       <div className="flex flex-wrap gap-3">
         <Button type="submit" name="next" value="finish" disabled={disabled}>
-          Save and finish
+          Review and confirm
         </Button>
         {people.length < MAX_OTHERS && (
           <Button type="submit" name="next" value="add" variant="secondary" disabled={disabled}>
@@ -415,7 +415,7 @@ export function SignupForm({
           </div>
           {progress}
           <div>
-            <h2 className="text-xl font-semibold">Check everyone before you confirm</h2>
+            <h2 className="text-xl font-semibold">{people.length ? "Last step: check everyone and confirm" : "Last step: check and confirm"}</h2>
             <p className="mt-1 text-sm text-muted">Nothing is saved until you confirm.</p>
           </div>
           <Card className="p-0">

@@ -33,7 +33,7 @@ const roleLabel = (role: "volunteer_director" | "section_lead", type: string | n
   role === "volunteer_director" ? "Volunteer Lead" : leadWords(type).one;
 const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 
-/** Volunteer signup and one tab per station (section) with its own shift schedule. */
+/** Volunteer sign-up and one tab per station (section) with its own shift schedule. */
 export default async function VolunteeringPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/volunteering">) {
   const { eventId } = await params;
   const { station: tab } = await searchParams;
@@ -82,7 +82,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     // Coordinators invited but not joined yet, shown on their sign-up.
     supabase.from("invitations").select("email, station_id").eq("event_id", eventId).eq("role", "section_lead").is("accepted_at", null),
   ]);
-  // Check-in stations first, in the band's order, matching the volunteer signup page.
+  // Check-in stations first, in the band's order, matching the volunteer sign-up page.
   // The newest columns are missing until the database update is run.
   if (stationsError) missing();
   const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
@@ -222,15 +222,15 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       <Card className="mt-6">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={event.status === "published" && event.volunteer_signup_open ? "brand" : "neutral"}>
-                {event.status !== "published" ? "Event not published" : event.volunteer_signup_open ? "Signup open" : "Signup closed"}
+              <Badge tone={event.status === "published" && event.volunteer_signup_open ? "live" : "neutral"}>
+                {event.status !== "published" ? "Event not published" : event.volunteer_signup_open ? "Sign-up open" : "Sign-up closed"}
               </Badge>
               <span className="text-sm text-muted">
                 {filled} of {capacity} spots filled
               </span>
             </div>
             <div>
-              <p className="text-sm font-medium">Signup link</p>
+              <p className="text-sm font-medium">Sign-up link</p>
               <p className="mt-1 break-all text-sm text-muted">{signupUrl}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <CopyLinkButton url={signupUrl} label="Copy link" />
@@ -269,9 +269,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                     action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
                     variant={event.volunteer_signup_open ? "stop" : "go"}
                     className="px-3! text-xs!"
-                    confirmMessage={event.volunteer_signup_open ? "Close volunteer signup? People won't be able to sign up for shifts." : undefined}
+                    confirmMessage={event.volunteer_signup_open ? "Close volunteer sign-up? People won't be able to sign up for shifts." : undefined}
                   >
-                    {event.volunteer_signup_open ? "Close volunteer signup" : "Open volunteer signup"}
+                    {event.volunteer_signup_open ? "Close volunteer sign-up" : "Open volunteer sign-up"}
                   </ActionButton>
                 )}
               </div>
@@ -286,7 +286,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 <div className="mt-2 flex flex-col items-start gap-2">
                   <div
                     className="rounded-lg border border-border bg-white p-2"
-                    aria-label="QR code for the signup link"
+                    aria-label="QR code for the sign-up link"
                     role="img"
                     dangerouslySetInnerHTML={{ __html: qrSvg }}
                   />

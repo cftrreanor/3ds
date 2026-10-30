@@ -325,7 +325,7 @@ export async function setVolunteerSignupOpen(eventId: string, open: boolean): Pr
     .eq("id", eventId)
     .select("id");
   if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "Only the event's host can open or close signups." };
+  if (!data?.length) return { error: "Only the event's host can open or close sign-ups." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   const event = open ? await eventForShare(eventId) : null;
   if (!event) return { ok: true };

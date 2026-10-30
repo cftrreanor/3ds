@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DemoBar } from "@/components/demo-bar";
 import { SignOutButton } from "@/components/sign-out-button";
+import { FeedbackLink } from "@/components/feedback-button";
 import { HeaderMenu } from "@/components/header-menu";
 import { HeaderBar, headerLinkClass } from "@/components/logo";
 import { PrintRecordNote } from "@/components/print-record-note";
@@ -65,6 +66,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
               <Link href="/dashboard/account" className={MENU_ITEM}>
                 Account
               </Link>
+              <FeedbackLink className={MENU_ITEM} />
               <SignOutButton className={MENU_ITEM} />
             </HeaderMenu>
           </div>

@@ -92,7 +92,7 @@ other accent colors.
 
 - **One face**: Inter, loaded as a variable font so the in-between weights render: 460 for body (`font-normal`), 540 for headings and emphasis (`font-medium`), 600 for buttons and labels (`font-semibold`), 700 only for emphasized inline text (`font-bold`).
 - **Page titles (`h1`)**: weight 500, 1.1 leading, tight tracking (-0.04em). Don't go heavier.
-- **Tabular numbers** everywhere so times and counts line up. Codes and IDs use JetBrains Mono (`font-mono`).
+- **Tabular numbers** in tables, times, and number boxes, and with the `tabular-nums` class wherever digits stack in a column. Not on all text: in Inter it also widens hyphens ("Check - in"). Codes and IDs use JetBrains Mono (`font-mono`).
 
 ## Home page
 

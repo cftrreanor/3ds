@@ -154,7 +154,7 @@ export async function signUpVolunteer(eventId: string, _prev: SignupState, formD
       return { error: "Sign-up isn't available right now while the organizers finish an update. Please try again later." };
     }
     console.error("sign_up_group failed", error);
-    return { error: "We couldn't save your signup. Please try again." };
+    return { error: "We couldn't save your sign-up. Please try again." };
   }
   const volunteerId = (result as { booker: string }).booker;
   const addedIds = ((result as { people: string[] }).people ?? []).filter(Boolean);

@@ -94,7 +94,7 @@ export function Badge({
   tone = "neutral",
   children,
 }: {
-  /** live: solid green (e.g. Published). off: solid red (e.g. Not published). */
+  /** live: solid green, for open or published. off: solid red, only for something that was withdrawn. A normal closed or not-yet state is neutral. */
   tone?: "neutral" | "info" | "accent" | "brand" | "success" | "warning" | "live" | "off";
   children: ReactNode;
 }) {
