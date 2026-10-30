@@ -81,6 +81,8 @@ Last updated October 2026.
 - Optional: **PostHog** product analytics; Sentry's source maps for readable alerts
 
 ## Later
+- A visitor check-in event for non-school events (open houses, showcases), without the child, teacher,
+  grade, and photo ID questions. Decided Oct 2026 not to do this yet.
 - **Teacher free and Teacher paid accounts.** Free: one published conference at a time (today's
   pilot rule). Paid: more than one at a time, priced for a single teacher. Needs Stripe (above), a
   "Teacher paid" plan the database rule checks instead of "one per account", and the event page's

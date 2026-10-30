@@ -20,3 +20,17 @@ Review: docs/design-reviews/2026-10-30-setup-redesign-mockup-v2.md
 | Family visitor day | Visitor check-in (proposed) | Waiting on owner; needs optional school questions (child, teacher, grade, photo ID) |
 
 Renames ship together as one copy change, with a light check (Content Manager and Marketing Manager) before they go out. Website, emails, plan and pass names change with the app.
+
+## Version 3 review decisions (owner, 2026-10-30)
+
+| Question | Decision |
+|---|---|
+| Job state words | **Showing / Hidden**, with a "Show to volunteers" button. "Ready" is kept only for "Ready to publish" |
+| Can a Coordinator edit their own job? | No. Coordinators can view (and preview their own hidden job), not edit |
+| Can a Volunteer Lead edit event details? | No. Only Hosts and Co-hosts edit details. Volunteer Leads keep editing jobs and shifts |
+| Trial ("Try it") events and outside invitations | Blocked until the account has a plan that includes the type (band invites, partner invites). Team invites still work |
+| Visitor check-in for non-school events | Not now. Keep the school-focused visitor day; a separate non-school visitor type may come later |
+
+## Build scope (owner, 2026-10-30)
+
+Stop iterating on the prototype and build. The new setup flow applies to **volunteer events only** for now; other types keep their current setup. My events gets its updates. Order: 1) My events and type picker, 2) database rules for showing and hiding jobs, 3) new volunteer setup screens, 4) automatic saving and name-only drafts, 5) renames. Each piece goes through the design-review routine (changed screens only) before its PR.
