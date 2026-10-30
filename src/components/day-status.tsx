@@ -1,11 +1,13 @@
+import type { ReactNode } from "react";
 import type { DayStatus as Status, DayTone } from "@/lib/director-day";
+import { LineIcon } from "@/components/line-icon";
 
-const TONE: Record<DayTone, { box: string; icon: string; label: string }> = {
+const TONE: Record<DayTone, { box: string; icon: ReactNode; label: string }> = {
   green: { box: "border-success bg-success-soft", icon: "✓", label: "On track" },
-  gold: { box: "border-warning bg-warning-soft", icon: "⏱", label: "Coming up" },
+  gold: { box: "border-warning bg-warning-soft", icon: <LineIcon name="timer" className="size-[1.1em]" />, label: "Coming up" },
   now: { box: "border-brand bg-brand-soft", icon: "▶", label: "Now" },
   red: { box: "border-danger bg-danger/10", icon: "!", label: "Running late" },
-  done: { box: "border-success bg-success-soft", icon: "🎉", label: "All done" },
+  done: { box: "border-success bg-success-soft", icon: "✓", label: "All done" },
 };
 
 /**

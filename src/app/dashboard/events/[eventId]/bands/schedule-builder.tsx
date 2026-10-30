@@ -25,6 +25,7 @@ import {
 import { RoundRows, RowEditor, type Row } from "./schedule-view";
 import { confirmDialog, confirmFromText, shareDialog } from "@/components/confirm-dialog";
 import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
+import { LineIcon } from "@/components/line-icon";
 
 export type { FinalsSlot, OrderBand, ScheduleBreak };
 
@@ -349,7 +350,7 @@ export function ScheduleBuilder({
         </p>
         {revealing > 0 && (
           <p className="text-sm font-medium text-danger">
-            ⚠️ Finalists are revealed: saving makes {revealing} more name{revealing === 1 ? "" : "s"} public right away.
+            <LineIcon name="warning" inline />Finalists are revealed: saving makes {revealing} more name{revealing === 1 ? "" : "s"} public right away.
             Directors aren&apos;t emailed until you tap Email finalists.
           </p>
         )}
@@ -449,7 +450,7 @@ export function ScheduleBuilder({
         {shiftCount > 0 && breakShiftInfo && (
           <div className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-3 text-sm">
             <p className="font-medium">
-              ⚠️ {shiftCount} {shiftCount === 1 ? "performance is" : "performances are"} scheduled from{" "}
+              <LineIcon name="warning" inline />{shiftCount} {shiftCount === 1 ? "performance is" : "performances are"} scheduled from{" "}
               {displayTime(toTime(breakShiftInfo.pivot))} on. They won&apos;t move unless you say so.
             </p>
             <label className="mt-2 flex items-start gap-2">
@@ -659,7 +660,7 @@ export function ScheduleBuilder({
                                 <p className="text-sm text-muted">
                                   {b.school} · {b.classification}
                                 </p>
-                                {b.conflicts && <p className="mt-1 text-sm">⚠️ {b.conflicts}</p>}
+                                {b.conflicts && <p className="mt-1 text-sm"><LineIcon name="warning" inline />{b.conflicts}</p>}
                               </div>
                               <div className="flex shrink-0 flex-col gap-1">
                                 <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${b.name} earlier`}>
@@ -970,7 +971,7 @@ function BreaksList({
                 onClick={() => onOpen(b.key)}
                 className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm disabled:cursor-default ${openKey === b.key ? "border-brand" : "border-border hover:border-brand"}`}
               >
-                <span aria-hidden="true">☕</span>
+                <LineIcon name="coffee" className="size-4" />
                 <span className="flex-1 font-medium">{b.label || "Break"}</span>
                 <span className="tabular-nums text-muted">
                   {formatDate(b.day, { year: undefined, weekday: undefined })} · {breakRange(b)}
@@ -1163,7 +1164,7 @@ function AutoFill({
           label="Warm-up duration"
           hint={
             auto.duration > warmUp - readyMinutes
-              ? `⚠️ That runs past the ready position (${readyMinutes} min before performing).`
+              ? <><LineIcon name="warning" inline />That runs past the ready position ({readyMinutes} min before performing).</>
               : `Leaves ${warmUp - auto.duration - readyMinutes} min to reach the ready position.`
           }
         >
@@ -1430,7 +1431,7 @@ function FinalistPrivacyNote({ published, revealed }: { published: boolean; reve
   if (revealed)
     return (
       <p className="rounded-lg border border-danger px-3 py-2 text-sm text-danger">
-        ⚠️ Finalists are revealed. A band you pick here is shown on the public schedule as soon as you save.
+        <LineIcon name="warning" inline />Finalists are revealed. A band you pick here is shown on the public schedule as soon as you save.
       </p>
     );
   return (

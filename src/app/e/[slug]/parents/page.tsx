@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDateRange, formatTimeRange } from "@/lib/time";
 import { registerParents } from "./actions";
 import { ParentsForm } from "./parents-form";
+import { LineIcon } from "@/components/line-icon";
 
 type Params = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -81,7 +82,7 @@ export default async function ParentRegistrationPage({ params, searchParams }: P
                 {event.venue_name ? ` at ${event.venue_name}` : ""}, and check in at the door.
               </p>
               <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">
-                🪪 Every adult must bring a valid government-issued photo ID (driver&apos;s license, state ID, or passport).
+                <LineIcon name="id" inline />Every adult must bring a valid government-issued photo ID (driver&apos;s license, state ID, or passport).
                 You won&apos;t be let in without it.
               </p>
             </Card>

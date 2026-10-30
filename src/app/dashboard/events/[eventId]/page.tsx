@@ -49,6 +49,7 @@ import { loadDayActions } from "@/lib/event-day-actions";
 import { SavedBy } from "@/components/saved-by";
 import { brand } from "@/lib/brand";
 import { loadSetupFacts } from "@/lib/setup-facts";
+import { LineIcon } from "@/components/line-icon";
 
 export const metadata: Metadata = { title: "Event setup" };
 
@@ -622,9 +623,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   : "Registration is closed."}
             </p>
             <p className="text-muted">
+              <LineIcon name="lock" inline />
               {doorLocked
-                ? `🔒 Children's details open for ${words2.many} on event day (${formatDate(event.starts_on, { year: undefined })}), for door check-in.`
-                : `🔒 Children's details are seen only by your team (${words2.many} on event day) and deleted 30 days after the event.`}
+                ? `Children's details open for ${words2.many} on event day (${formatDate(event.starts_on, { year: undefined })}), for door check-in.`
+                : `Children's details are seen only by your team (${words2.many} on event day) and deleted 30 days after the event.`}
             </p>
           </div>
           {!doorLocked && (
@@ -945,7 +947,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             >
               <span className="min-w-0 truncate">
                 <span className={`font-semibold ${emergency ? "text-danger" : ""}`}>
-                  {emergency && "⚠️ "}
+                  {emergency && <LineIcon name="warning" inline />}
                   {announcements.length} live {announcements.length === 1 ? "announcement" : "announcements"}
                 </span>
                 <span className="text-muted"> · {latest.body}</span>

@@ -8,6 +8,7 @@ import type { ActionState } from "@/lib/action-state";
 import { pathRooms, roomTimes, tooLongRooms, type GroupPlan, type Room } from "@/lib/rooms";
 import { formatDate, formatTime, zonedToUtc } from "@/lib/time";
 import type { ScheduleInput } from "./actions";
+import { LineIcon } from "@/components/line-icon";
 
 export type ScheduleGroup = { id: string; name: string; school: string; classification: string; conflicts: string | null };
 
@@ -179,7 +180,7 @@ export function ScheduleEditor({
                     <p className="text-sm text-muted">
                       {c.school} · {c.classification}
                     </p>
-                    {c.conflicts && <p className="mt-1 text-sm">⚠️ {c.conflicts}</p>}
+                    {c.conflicts && <p className="mt-1 text-sm"><LineIcon name="warning" inline />{c.conflicts}</p>}
                   </div>
                   <div className="flex gap-1">
                     <Button type="button" variant="ghost" className="px-3" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${c.name} earlier`}>

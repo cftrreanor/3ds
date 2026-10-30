@@ -2,6 +2,7 @@ import { DayStatusBanner } from "@/components/day-status";
 import { Card } from "@/components/ui";
 import type { BandDay } from "@/lib/contest-day";
 import { bandSteps, dayStatus, type DayTimes, type ProgressRow } from "@/lib/director-day";
+import { LineIcon } from "@/components/line-icon";
 
 export type { ProgressRow };
 
@@ -37,7 +38,7 @@ export function ContestDayCard({
 
   return (
     <Card className="mt-6 border-brand">
-      <h2 className="font-semibold">Contest day{round === "finals" ? " · 🏆 Finals" : ""}</h2>
+      <h2 className="font-semibold">Contest day{round === "finals" && <> · <LineIcon name="trophy" inline />Finals</>}</h2>
       {band.scratched_at ? (
         <p className="mt-2 text-sm">Your band is marked as withdrawn. If that&apos;s not right, contact the organizer.</p>
       ) : (

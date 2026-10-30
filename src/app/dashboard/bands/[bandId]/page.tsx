@@ -27,6 +27,8 @@ import { ContestDayCard, type ProgressRow } from "./contest-day-card";
 import { WithdrawBandButton } from "./withdraw-band";
 import { withdrawBand } from "@/app/dashboard/band-actions";
 import { eventLogoUrl, loadEventBrand } from "@/lib/event-brand";
+import { LineIcon } from "@/components/line-icon";
+import type { IconName } from "@/lib/icons";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/bands/[bandId]">): Promise<Metadata> {
   const { bandId } = await params;
@@ -213,7 +215,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
       {event.finalists_revealed && finalsSlot && (
         <TimesCard
           title={`Finals · #${finalsSlot.slot_number}`}
-          icon="🏆"
+          icon="trophy"
           times={finalsSlot}
           event={{ ...event, ready_minutes_before: event.finals_ready_minutes_before }}
           calendar={calendar("finals", finalsSlot)}
@@ -257,7 +259,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
 
       <header className="mt-4">
         <p className="flex flex-wrap items-center gap-x-2 text-sm">
-          <span aria-hidden="true">{group ? "👥" : "🎺"}</span>
+          <LineIcon name={group ? "group" : "band"} inline />
           <span className="font-semibold">{band.band_name}</span>
           <span className="text-muted">· {band.school_name}</span>
           {withdrawn && <Badge tone="off">Withdrawn</Badge>}
@@ -493,7 +495,7 @@ function TimesCard({
 }: {
   title: string;
   /** Shown before the title, hidden from screen readers. */
-  icon?: string;
+  icon?: IconName;
   times: BandTimes;
   event: TimesEvent;
   calendar: ReturnType<typeof bandCalendarEvent>;
@@ -560,7 +562,7 @@ function TimesCard({
   return (
     <Card className={`mt-6 ${highlight ? "border-brand" : ""}`}>
       <h2 className="font-semibold">
-        {icon && <span aria-hidden="true">{icon} </span>}
+        {icon && <LineIcon name={icon} inline className="text-brand dark:text-foreground" />}
         {title}
       </h2>
       {done ? (

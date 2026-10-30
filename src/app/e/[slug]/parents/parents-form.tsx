@@ -5,6 +5,7 @@ import { BotCheck } from "@/components/bot-check";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card, Field, FormMessage, Input, Select } from "@/components/ui";
 import type { ParentState } from "./actions";
+import { LineIcon } from "@/components/line-icon";
 
 type Child = { name: string; teacher: string; grade: string };
 const blankChild = (): Child => ({ name: "", teacher: "", grade: "" });
@@ -58,7 +59,7 @@ export function ParentsForm({
             </li>
           ))}
         </ul>
-        <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">🪪 {idReminder}</p>
+        <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium"><LineIcon name="id" inline />{idReminder}</p>
         <p className="text-sm text-muted">
           {state.confirmed.emailSent
             ? state.confirmed.updated
@@ -173,7 +174,7 @@ export function ParentsForm({
       </Card>
 
       <Card className="space-y-3 border-warning/40 bg-warning-soft">
-        <p className="font-semibold">🪪 Photo ID required</p>
+        <p className="font-semibold"><LineIcon name="id" inline />Photo ID required</p>
         <p className="text-sm leading-6">{idReminder}</p>
         <label className="flex items-start gap-3 text-sm font-medium">
           <input type="checkbox" name="idAgreed" required className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]" />

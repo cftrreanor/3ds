@@ -16,6 +16,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { requestPilot } from "./pilot-actions";
 import { PilotForm } from "./pilot-form";
 import { PILOT_END_LABEL } from "@/lib/pilot";
+import { IconTile } from "@/components/line-icon";
 
 // Copy follows docs/brand-voice.md. Each event card links to its own page,
 // and those pages carry the How it works steps.
@@ -38,7 +39,7 @@ const kinds = [
     ],
   },
   {
-    icon: "🎺",
+    icon: "band" as const,
     title: "Band contests",
     summary: "Marching invitationals, jazz festivals, and solo & ensemble",
     href: audiences.bands.path,
@@ -50,7 +51,7 @@ const kinds = [
     ],
   },
   {
-    icon: "👥",
+    icon: "group" as const,
     title: "Choir & group festivals",
     summary: "Choir and orchestra festivals, theater, and UIL academics",
     href: audiences.groups.path,
@@ -62,7 +63,7 @@ const kinds = [
     ],
   },
   {
-    icon: "🎪",
+    icon: "fair" as const,
     title: "School fairs & fundraisers",
     summary: "Fall festivals, carnivals, and fundraisers",
     href: audiences.fairs.path,
@@ -74,7 +75,7 @@ const kinds = [
     ],
   },
   {
-    icon: "🙋",
+    icon: "volunteer" as const,
     title: "Volunteer events",
     summary: "Cleanups, food drives, races, and potlucks",
     href: audiences.volunteers.path,
@@ -86,7 +87,7 @@ const kinds = [
     ],
   },
   {
-    icon: "🏫",
+    icon: "school" as const,
     title: "Family visitor days",
     summary: "Family lunches, class parties, open houses, and award days",
     href: audiences.parents.path,
@@ -362,9 +363,7 @@ export default async function Home() {
                     href={k.href}
                     className="group flex h-full flex-col rounded-lg border border-border bg-background p-5 transition hover:border-brand"
                   >
-                    <span aria-hidden className="text-2xl">
-                      {k.icon}
-                    </span>
+                    <IconTile name={k.icon} />
                     <span className="mt-2 font-semibold">{k.title}</span>
                     <span className="mt-1 text-sm leading-6 text-muted">{k.summary}</span>
                     <span className="mt-auto pt-3 text-sm font-medium text-brand group-hover:underline">
@@ -379,9 +378,7 @@ export default async function Home() {
             <CardCarousel label="Kinds of school event" itemName="event types">
               {kinds.map((k) => (
                 <li key={k.title} className={`${carouselCard} flex flex-col rounded-lg border border-border bg-background p-6 sm:p-8`}>
-                  <span aria-hidden className="text-3xl">
-                    {k.icon}
-                  </span>
+                  <IconTile name={k.icon} />
                   <h3 className="mt-3 text-lg font-semibold">{k.title}</h3>
                   <p className="mt-1 text-sm text-muted">{k.examples}</p>
                   <ul className="mt-4 space-y-2 leading-7">

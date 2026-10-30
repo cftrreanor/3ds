@@ -95,7 +95,7 @@ export async function HostSchedule({ eventId }: { eventId: string }) {
       <SavedBy eventId={eventId} area="schedule" className="mt-2" />
       <p className="mt-2 mb-6 text-sm text-muted">
         All times {zoneName(tz)}. Directors and the public only see a round once you publish it. Conflicts directors
-        reported are shown with ⚠️.
+        reported are marked with a warning sign.
         {bands.length === 0 && (
           <>
             {" "}
