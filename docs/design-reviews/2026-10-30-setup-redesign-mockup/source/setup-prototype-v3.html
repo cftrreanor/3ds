@@ -257,10 +257,10 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <div class="inner">
       <p class="small">Try any of these: set it up and preview it. Publishing needs a plan that includes it.</p>
       <div class="types">
-        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>School fair or fundraiser</h3><p class="small muted">Booths by zone, partner check-in, and volunteer shifts</p><div class="go"><a class="btn secondary" href="#details">Try a school fair</a></div></div>
-        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>Band contest</h3><p class="small muted">Band registration, the schedule, and contest day check-in</p><div class="go"><a class="btn secondary" href="#details">Try a band contest</a></div></div>
-        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>Choir, orchestra, or group festival</h3><p class="small muted">Groups move through your rooms on a schedule built for you</p><div class="go"><a class="btn secondary" href="#details">Try a group festival</a></div></div>
-        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>Family visitor day</h3><p class="small muted">Families register ahead and are checked in at the door</p><div class="go"><a class="btn secondary" href="#details">Try a visitor day</a></div></div>
+        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>Fair or festival</h3><p class="small muted">Booths by zone, partner check-in, and volunteer shifts</p><div class="go"><a class="btn secondary" href="#details">Try a fair or festival</a></div></div>
+        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>Band competition</h3><p class="small muted">Band registration, the schedule, and competition day check-in</p><div class="go"><a class="btn secondary" href="#details">Try a band competition</a></div></div>
+        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>Group rotations</h3><p class="small muted">Groups move room to room on a schedule built by you. For music festivals, field days, campus tours, and orientations.</p><div class="go"><a class="btn secondary" href="#details">Try group rotations</a></div></div>
+        <div class="type"><span class="badge try"><svg><use href="#lock"/></svg>Try it</span><h3>Visitor check-in</h3><p class="small muted">Guests register ahead, and you check them in at the door. For family days, open houses, campus visits, and showcases.</p><div class="go"><a class="btn secondary" href="#details">Try visitor check-in</a></div></div>
       </div>
     </div>
   </details>
@@ -270,7 +270,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 <main class="page" id="picker-ended" data-screen hidden>
   <a class="back" href="#">← My events</a>
   <div class="stack tight"><h1>What kind of event is this?</h1></div>
-  <div class="banner" role="note"><svg class="icon"><use href="#info"/></svg>
+  <div class="banner warn" role="note"><svg class="icon"><use href="#lock"/></svg>
     <div class="stack tight"><b>Your Volunteer Command plan ended Jan 1</b><span class="small">Your published events stay up. You can still set up any kind of event. Without a plan, you can publish one one-time parent-teacher conference at a time.</span>
     <div class="row" style="margin-top:6px"><a class="btn secondary" href="mailto:product@fieldcommandevents.com">Email us about a plan</a><span class="small">product@fieldcommandevents.com · we reply within a day</span></div></div>
   </div>
@@ -372,11 +372,10 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <li><a class="jobrow" href="#job-items"><b>Supplies to bring</b><span class="badge hidden">Hidden · ready to mark</span></a></li>
   </ul>
   <div class="card stack" style="gap:18px">
-    <div class="banner warn" role="status"><svg class="icon"><use href="#eyeoff"/></svg>
-      <div class="stack tight"><b>Hidden: volunteers can't see this job</b><span class="small">Hosts, Co-hosts, Volunteer Leads, and this job's Coordinator can <a href="#preview">preview it</a>. Maria can preview it after she accepts her invite.</span></div></div>
     <div class="field"><span class="lab">Job name <span class="req">*</span></span><div class="input">Litter pickup</div></div>
     <div class="field"><span class="lab">Where volunteers check in</span><span class="hint">Optional</span><div class="input">Front office</div></div>
     <div class="field"><span class="lab">Coordinator</span><span class="hint">Coordinators see who signed up. On event day they also see volunteers' phone numbers and emails.</span>
+      <span class="hint">Maria can preview this hidden job once she accepts.</span>
       <div class="row"><span class="chip">Maria Lopez · Invite sent<button type="button" aria-label="Remove Maria Lopez">×</button></span></div>
       <div class="row"><div class="input" style="flex:1;min-width:200px;color:var(--muted)">Coordinator's email</div><a class="btn secondary" href="#">Send invite</a></div>
     </div>
@@ -395,8 +394,8 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     </div>
   </div>
   <div class="savebar"><div class="in">
-    <span class="left"><span class="dot"></span>Unsaved changes · add a shift before you can mark it ready</span>
-    <div class="row"><a class="btn secondary" href="#">Save as hidden</a><span class="btn off" aria-disabled="true"><svg class="icon"><use href="#lock"/></svg>Mark ready</span></div>
+    <span class="left"><svg class="icon" style="color:var(--warning)"><use href="#eyeoff"/></svg><span><b>Hidden from volunteers.</b> Add a shift, then mark it ready.</span></span>
+    <div class="row"><a class="btn link" href="#preview">Preview</a><a class="btn secondary" href="#">Save as hidden</a><span class="btn off" aria-disabled="true"><svg class="icon"><use href="#lock"/></svg>Mark ready</span></div>
   </div></div>
   <p class="annot">With unsaved changes, "Continue to publish" waits. Leaving asks "Save Litter pickup first?"</p>
 </main>
@@ -423,7 +422,6 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <li><a class="jobrow on" href="#job-items" aria-current="page"><b>Supplies to bring</b><span class="badge hidden">Hidden · ready to mark</span></a></li>
   </ul>
   <div class="card stack" style="gap:18px">
-    <div class="banner warn" role="status"><svg class="icon"><use href="#eyeoff"/></svg><div class="stack tight"><b>Hidden: volunteers can't see this job</b><span class="small">Everything's filled in. Mark it ready when you want volunteers to see it.</span></div></div>
     <div class="field"><span class="lab">Job name <span class="req">*</span></span><div class="input">Supplies to bring</div></div>
     <div class="stack" style="gap:4px"><h3>Things to bring</h3>
       <div class="shift"><span><b>Bottled water</b> · 8 cases needed</span><a class="btn link" href="#">Edit</a></div>
@@ -432,8 +430,8 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     </div>
   </div>
   <div class="savebar"><div class="in">
-    <span class="left"><span class="dot neutral"></span>All filled in. Mark it ready to show volunteers.</span>
-    <div class="row"><a class="btn secondary" href="#">Save as hidden</a><a class="btn" href="#">Mark ready</a></div>
+    <span class="left"><svg class="icon" style="color:var(--warning)"><use href="#eyeoff"/></svg><span><b>Hidden from volunteers.</b> All filled in. Mark it ready to show them.</span></span>
+    <div class="row"><a class="btn link" href="#preview">Preview</a><a class="btn secondary" href="#">Save as hidden</a><a class="btn" href="#">Mark ready</a></div>
   </div></div>
 </main>
 
@@ -610,11 +608,11 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 <main class="page" id="unpublish" data-screen hidden>
   <div class="dialog-wrap"><div class="scrim"></div>
     <div class="dialog" role="dialog" aria-labelledby="unpub-h">
-      <h2 id="unpub-h">Take Cedar Ridge Campus Clean-up offline?</h2>
-      <p>2 volunteers are signed up. Their links stop working, and we don't email them, so tell them yourself.</p>
+      <h2 id="unpub-h">Unpublish Cedar Ridge Campus Clean-up?</h2>
+      <p>2 volunteers are signed up. Their sign-up links will stop working. We won't email them, so let them know yourself.</p>
       <p>You can publish it again later while your Volunteer Command plan is active.</p>
-      <div class="banner"><svg class="icon"><use href="#info"/></svg><span class="small">Only want to stop new sign-ups? <a href="#live-closed">Close sign-up instead</a>. The page stays up.</span></div>
-      <div class="row"><a class="btn" href="#live">Keep it online</a><a class="btn danger" href="#">Take it offline</a></div>
+      <div class="banner"><svg class="icon"><use href="#info"/></svg><span class="small">Only want to stop new sign-ups? <a href="#live-closed">Close sign-up instead</a>. The event stays published.</span></div>
+      <div class="row"><a class="btn" href="#live">Keep it published</a><a class="btn danger" href="#">Unpublish</a></div>
     </div>
   </div>
   <p class="annot">When the plan has ended, the second line reads: "Without a plan, you can't publish it again."</p>
