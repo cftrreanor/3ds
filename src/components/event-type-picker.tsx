@@ -1,5 +1,6 @@
 "use client";
 
+import { EventTypeIcon } from "./event-type-icon";
 import Link from "next/link";
 import { useId, useRef } from "react";
 import { EVENT_TYPES } from "@/lib/event-types";
@@ -94,8 +95,8 @@ function TypeCards({ types, notes, trial }: { types: readonly TypeChoice[]; note
               className="flex h-full flex-col rounded-xl border border-border bg-surface p-4 shadow-card transition hover:border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:p-5"
             >
               <span className="flex items-center justify-between gap-3">
-                <span aria-hidden className="text-2xl sm:text-3xl">
-                  {t.icon}
+                <span aria-hidden className="flex size-10 items-center justify-center rounded-lg bg-brand-soft text-brand dark:text-foreground">
+                  <EventTypeIcon type={t.value} className="size-6" />
                 </span>
                 {trial && <span className="text-xs font-semibold text-muted">Not in your plan</span>}
               </span>
