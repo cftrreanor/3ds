@@ -18,7 +18,7 @@ import {
 } from "../../actions";
 import { BuildShifts, DeleteButton, ItemsEditor, ShiftForm, StationForm, type LeadOption } from "./forms";
 import { inviteCoordinator } from "../../team-actions";
-import { JobVisibility, type JobVisibilityFacts } from "./volunteering/job-visibility";
+import { JobKindSwitch, JobVisibility, type JobVisibilityFacts } from "./volunteering/job-visibility";
 
 export type Shift = {
   id: string;
@@ -165,7 +165,8 @@ export function StationPanel({
           </div>
           <p className="mt-1 text-sm text-muted">
             {[
-              station.location,
+              // A volunteer event's jobs meet at the event's address.
+              job ? null : station.location,
               leadNames.length
                 ? `${job ? (leadNames.length > 1 ? "Coordinators" : "Coordinator") : leadNames.length > 1 ? "Leads" : "Lead"}: ${leadNames.join(", ")}`
                 : canManage
@@ -187,6 +188,8 @@ export function StationPanel({
         // Everything about the sign-up in one place: its name, type, details, and Coordinators (one Save),
         // then its items or time slots, edited right in their rows.
         <div className="mt-5 space-y-8">
+          {/* A volunteer event's job starts with what volunteers sign up for: shifts or things to bring. */}
+          {job && <JobKindSwitch eventId={eventId} stationId={station.id} kind={itemsStation ? "items" : "shifts"} locked={kindLocked} />}
           <div id="station-details" className="scroll-mt-6">
             <StationForm
               action={updateStation.bind(null, eventId, station.id)}
@@ -242,7 +245,7 @@ export function StationPanel({
                     <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
                       ›
                     </span>
-                    Redo or add shifts
+                    {job ? "Add more shifts" : "Redo or add shifts"}
                   </summary>
                   <div className="mt-2">
                     {buildShifts}
@@ -255,22 +258,62 @@ export function StationPanel({
               )}
             </section>
           )}
+          {/* A job's "More options" (Coordinators, instructions, adults only) is drawn here, after its shifts or things to bring. */}
+          {job && <div id="job-more" />}
         </div>
       )}
-      {itemsStation ? (
-        <ItemsBoard items={items} signups={itemSignups} eventId={eventId} canManage={canManage} />
-      ) : (
-        !canManage && (
-          <>
-            <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
-            <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage={false} />
-          </>
-        )
-      )}
+      {/* A volunteer event's job lists its sign-ups below the page's daily summary instead (JobSignups). */}
+      {!job &&
+        (itemsStation ? (
+          <ItemsBoard items={items} signups={itemSignups} eventId={eventId} canManage={canManage} />
+        ) : (
+          !canManage && (
+            <>
+              <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
+              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage={false} />
+            </>
+          )
+        ))}
+      {!job && roster && !itemsStation && <RosterList roster={roster} shifts={stationShifts} tz={tz} event={event} canManage={canManage} />}
 
-      {roster && !itemsStation && (
-        <div id="signed-up" className="mt-6 scroll-mt-6">
-          <h4 className="text-sm font-semibold">{canManage ? "Who's signed up" : "Your volunteers"}</h4>
+      {canManage && (
+        <div className="mt-8 border-t border-border pt-4">
+          <DeleteButton
+            action={deleteStation.bind(null, eventId, station.id)}
+            label={`Delete ${noun} ${station.name}`}
+            text={`Delete ${noun}`}
+            quiet
+            confirmMessage={`Delete “${station.name}”? Its ${job ? "shifts" : "time slots"} and items are deleted too, and this can't be undone. (A ${noun} with people signed up can't be deleted.)`}
+          />
+        </div>
+      )}
+      {canManage && (
+        // The sign-up's footer (its save bar) renders here: pinned to the bottom of the screen until the card ends.
+        <div id="signup-bar" className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 mt-6 sm:-mx-6 sm:-mb-6" />
+      )}
+    </Card>
+  );
+}
+
+/** Who's signed up for a sign-up's shifts, with their shift, who booked them, and (on event day) their phone. */
+function RosterList({
+  roster,
+  shifts,
+  tz,
+  event,
+  canManage,
+  heading = true,
+}: {
+  roster: RosterEntry[];
+  shifts: Shift[];
+  tz: string;
+  event: { starts_on: string; ends_on: string };
+  canManage: boolean;
+  heading?: boolean;
+}) {
+  return (
+        <div className="mt-6">
+          {heading && <h4 className="text-sm font-semibold">{canManage ? "Who's signed up" : "Your volunteers"}</h4>}
           {roster.length === 0 ? (
             <p className="mt-1 text-sm text-muted">No one has signed up yet.</p>
           ) : (
@@ -282,7 +325,7 @@ export function StationPanel({
               )}
               <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
                 {roster.map((v) => {
-                  const shift = stationShifts.find((s) => s.id === v.shift_id);
+                  const shift = shifts.find((s) => s.id === v.shift_id);
                   return (
                     <li key={v.assignment_id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <div className="min-w-0">
@@ -308,24 +351,43 @@ export function StationPanel({
             </>
           )}
         </div>
-      )}
+  );
+}
 
-      {canManage && (
-        <div className="mt-8 border-t border-border pt-4">
-          <DeleteButton
-            action={deleteStation.bind(null, eventId, station.id)}
-            label={`Delete ${noun} ${station.name}`}
-            text={`Delete ${noun}`}
-            quiet
-            confirmMessage={`Delete “${station.name}”? Its ${job ? "shifts" : "time slots"} and items are deleted too, and this can't be undone. (A ${noun} with people signed up can't be deleted.)`}
-          />
-        </div>
+/**
+ * A volunteer event's job: who's signed up for its shifts, or who's bringing what. Shown on
+ * Volunteer jobs below the daily summary, so the job's own card is just for setting it up.
+ */
+export function JobSignups({
+  station,
+  shifts,
+  items,
+  itemSignups,
+  roster,
+  event,
+  eventId,
+}: {
+  station: Station;
+  shifts: Shift[];
+  items: StationItem[];
+  itemSignups?: ItemSignup[];
+  roster?: RosterEntry[];
+  event: { timezone: string; starts_on: string; ends_on: string };
+  eventId: string;
+}) {
+  return (
+    <section id="signed-up" aria-labelledby="signed-up-heading" className="mt-8 scroll-mt-6 rounded-lg border border-border bg-surface p-4 sm:p-6">
+      <h2 id="signed-up-heading" className="text-lg font-semibold">
+        {station.signup_kind === "items" ? "Who's bringing what" : "Who's signed up"}: {station.name}
+      </h2>
+      {station.signup_kind === "items" ? (
+        <ItemsBoard items={items} signups={itemSignups} eventId={eventId} canManage heading={false} />
+      ) : shifts.length === 0 ? (
+        <p className="mt-1 text-sm text-muted">Add a shift first. People who sign up for it show here.</p>
+      ) : (
+        roster && <RosterList roster={roster} shifts={shifts} tz={event.timezone} event={event} canManage heading={false} />
       )}
-      {canManage && (
-        // The sign-up's footer (its save bar) renders here: pinned to the bottom of the screen until the card ends.
-        <div id="signup-bar" className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 mt-6 sm:-mx-6 sm:-mb-6" />
-      )}
-    </Card>
+    </section>
   );
 }
 
@@ -413,15 +475,18 @@ function ItemsBoard({
   signups,
   eventId,
   canManage,
+  heading = true,
 }: {
   items: StationItem[];
   signups?: ItemSignup[];
   eventId: string;
   canManage: boolean;
+  /** Its own "Who's bringing what" heading (off when the section around it has one). */
+  heading?: boolean;
 }) {
   return (
     <>
-      <h4 className="mt-6 text-sm font-semibold">Who&apos;s bringing what</h4>
+      {heading && <h4 className="mt-6 text-sm font-semibold">Who&apos;s bringing what</h4>}
       {items.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No items yet.</p>
       ) : (

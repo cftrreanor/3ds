@@ -447,7 +447,7 @@ export async function updateStation(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = stationSchema.safeParse(Object.fromEntries(formData));
+  const parsed = stationSchema.safeParse({ location: "", ...Object.fromEntries(formData) });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
   const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
@@ -466,7 +466,8 @@ export async function updateStation(
       checkpoint_kind: kind,
       checkpoint_order: order,
       due_minutes_before_warm_up: dueMinutes(formData, kind),
-      location: v.location,
+      // A volunteer event's job has no check-in place of its own (the event's address covers it): keep what's saved.
+      ...(formData.has("location") ? { location: v.location } : {}),
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
       ...zoneOf(formData),
@@ -483,7 +484,7 @@ export async function updateStation(
     if (leadError) return { error: leadError };
   }
 
-  // A hidden job's "Save and show to volunteers": its changes and showing it, together.
+  // A hidden job's "Post job": its changes and showing it, together.
   if (formData.get("intent") === "show") {
     const shown = await setStationShowing(eventId, stationId, true);
     if (shown.error) return { error: `Saved, but not shown yet: ${shown.error}` };
@@ -560,6 +561,17 @@ export async function deleteStation(eventId: string, stationId: string): Promise
 
   const { error } = await supabase.from("stations").delete().eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true };
+}
+
+/** A job's Shifts / Things to bring switch: only while it has neither (the database refuses otherwise). */
+export async function setSignupKind(eventId: string, stationId: string, kind: "shifts" | "items"): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("stations").update({ signup_kind: kind }).eq("id", stationId).eq("event_id", eventId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "You don't have permission to do that." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }

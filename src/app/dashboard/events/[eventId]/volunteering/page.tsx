@@ -22,7 +22,7 @@ import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
-import { StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
+import { JobSignups, StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
 import { volunteerTotals } from "@/lib/volunteer-totals";
 
@@ -571,6 +571,18 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             hostsLink={access.isHost ? `/dashboard/events/${eventId}/edit?section=emails#notifications` : undefined}
           />
         </section>
+      )}
+      {/* A job's sign-ups, below the daily summary: the job's own card is just for setting it up. */}
+      {jobsHere && current && (
+        <JobSignups
+          station={current}
+          shifts={currentShifts}
+          items={currentItems}
+          itemSignups={itemSignups}
+          roster={roster}
+          event={event}
+          eventId={eventId}
+        />
       )}
     </div>
   );

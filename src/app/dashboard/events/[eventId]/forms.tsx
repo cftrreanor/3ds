@@ -89,8 +89,8 @@ export function StationForm({
     if (trackUnsaved) setTimeout(() => document.getElementById("signups-heading")?.scrollIntoView({ block: "start" }), 50);
   }, [setEdited, trackUnsaved]);
   if (job) {
-    // A volunteer event's job, as in the mock-up: what volunteers need first (name, where to check in,
-    // Coordinators), the rest folded away, and one save bar that also shows a hidden job.
+    // A volunteer event's job: its name here, its shifts or things to bring right below (their own forms,
+    // on the panel), then "More options" further down, which still saves with this form (see JobMoreOptions).
     return (
       <ActionForm
         id={trackUnsaved ? SIGNUP_FORM : undefined}
@@ -104,58 +104,27 @@ export function StationForm({
         <Field label="Job name" hint="e.g. Parking, Litter pickup, Supplies to bring">
           <Input name="name" required maxLength={80} defaultValue={initial?.name} />
         </Field>
-        <Field label="Where volunteers check in" hint="Optional. e.g. North lot, front office">
-          <Input
-            name="location"
-            defaultValue={initial?.location ?? ""}
-            list={locations.length ? "room-locations" : undefined}
-          />
-          {locations.length > 0 && (
-            <datalist id="room-locations">
-              {locations.map((l) => (
-                <option key={l} value={l} />
-              ))}
-            </datalist>
+        <JobMoreOptions>
+          {coordinators && (
+            <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} formId={SIGNUP_FORM} {...coordinators} />
           )}
-        </Field>
-        {coordinators && <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} {...coordinators} />}
-        <details className="group rounded-lg border border-border">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            More options: instructions, adults only{signupKind ? ", shifts or things to bring" : ""}
-            <span aria-hidden className="text-brand transition group-open:rotate-90">
-              ›
+          <Field label="Instructions for volunteers" hint="Optional. What to wear, bring, and do.">
+            <Textarea name="instructions" form={SIGNUP_FORM} defaultValue={initial?.instructions ?? ""} />
+          </Field>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="adultsOnly"
+              form={SIGNUP_FORM}
+              defaultChecked={initial?.adults_only ?? false}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+            />
+            <span>
+              <span className="font-medium">Adults only (18+)</span>
+              <span className="block text-muted">No one under 18 can sign up for this job or be added as a walk-up.</span>
             </span>
-          </summary>
-          <div className="space-y-4 border-t border-border p-3">
-            <Field label="Instructions for volunteers" hint="Optional. What to wear, bring, and do.">
-              <Textarea name="instructions" defaultValue={initial?.instructions ?? ""} />
-            </Field>
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                name="adultsOnly"
-                defaultChecked={initial?.adults_only ?? false}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
-              />
-              <span>
-                <span className="font-medium">Adults only (18+)</span>
-                <span className="block text-muted">No one under 18 can sign up for this job or be added as a walk-up.</span>
-              </span>
-            </label>
-            {signupKind && (
-              <div>
-                <SignupKindPicker
-                  value={signup}
-                  onChange={setSignup}
-                  disabled={Boolean(signupKind.locked)}
-                  job
-                  note={signupKind.locked ?? "You can change this until you add shifts or things to bring."}
-                />
-                {signupKind.locked && <input type="hidden" name="signupKind" value={signup} />}
-              </div>
-            )}
-          </div>
-        </details>
+          </label>
+        </JobMoreOptions>
         {trackUnsaved ? (
           <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} job visibility={visibility} />
         ) : (
@@ -301,6 +270,32 @@ export function StationForm({
 }
 
 const SIGNUP_FORM = "signup-details";
+
+/**
+ * A job's "More options" (Coordinators, instructions, adults only): drawn into the panel's #job-more slot,
+ * below the shifts or things to bring. Its fields name the job's form (form=), so they save with it, and
+ * React still passes their edits up to that form for the unsaved-changes bar.
+ */
+function JobMoreOptions({ children }: { children: React.ReactNode }) {
+  const slot = useSyncExternalStore(
+    noSubscribe,
+    () => document.getElementById("job-more"),
+    () => null,
+  );
+  if (!slot) return null;
+  return createPortal(
+    <details className="group rounded-lg border border-border">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        More options: Coordinators, instructions, adults only
+        <span aria-hidden className="text-brand transition group-open:rotate-90">
+          ›
+        </span>
+      </summary>
+      <div className="space-y-4 border-t border-border p-3">{children}</div>
+    </details>,
+    slot,
+  );
+}
 const noSubscribe = () => () => {};
 
 /**
@@ -353,12 +348,12 @@ function SignupBar({
                 <span className="font-semibold">What&apos;s left:</span> {left[0].toUpperCase() + left.slice(1)}
               </>
             ) : (
-              <span className="font-semibold">{job ? (visibility && !visibility.showing ? "Saved as hidden" : "Saved") : "Ready for sign-ups"}</span>
+              <span className="font-semibold">{job ? (visibility && !visibility.showing ? "Saved for later, hidden from volunteers" : "Saved") : "Ready for sign-ups"}</span>
             )}
           </span>
         </p>
         {job && visibility ? (
-          // A job: a hidden one saves as hidden, or saves and shows (with its changes) in one go; a showing one just saves.
+          // A job: a hidden one saves for later (still hidden), or posts (saves and shows it) in one go; a showing one just saves.
           <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
             {visibility.showing ? (
               <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
@@ -367,10 +362,10 @@ function SignupBar({
             ) : (
               <>
                 <SubmitButton form={SIGNUP_FORM} variant="secondary" pendingText="Saving…" disabled={!dirty && !draft}>
-                  Save as hidden
+                  Save for later
                 </SubmitButton>
-                <SubmitButton form={SIGNUP_FORM} name="intent" value="show" pendingText="Showing…" disabled={!visibility.ready}>
-                  Save and show to volunteers
+                <SubmitButton form={SIGNUP_FORM} name="intent" value="show" pendingText="Posting…" disabled={!visibility.ready}>
+                  Post job
                 </SubmitButton>
               </>
             )}
@@ -646,7 +641,8 @@ export function BuildShifts({
   existing?: number;
   signedUp?: boolean;
 }) {
-  const [mode, setMode] = useState<"auto" | "single">("auto");
+  // A job that already has shifts most likely needs one more, not a whole new day of them.
+  const [mode, setMode] = useState<"auto" | "single">(job && existing > 0 ? "single" : "auto");
   // Switching forms drops what was typed in the other one.
   const setEdited = useStepEdits("shifts");
   const options = [
@@ -849,10 +845,13 @@ function CoordinatorPicker({
   pending,
   invite,
   onChange,
+  formId,
 }: {
   label: string;
   initial: string[];
   options: LeadOption[];
+  /** The form these picks save with, when the picker is drawn outside it. */
+  formId?: string;
   /** Emails invited to lead this sign-up who haven't accepted yet. */
   pending: string[];
   invite: Action;
@@ -872,9 +871,9 @@ function CoordinatorPicker({
   return (
     <div className="sm:col-span-2">
       <p className="text-sm font-medium">{label}</p>
-      <input type="hidden" name="leadsField" value="1" />
+      <input type="hidden" name="leadsField" value="1" form={formId} />
       {picked.map((id) => (
-        <input key={id} type="hidden" name="leadIds" value={id} />
+        <input key={id} type="hidden" name="leadIds" value={id} form={formId} />
       ))}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {picked.map((id) => (
