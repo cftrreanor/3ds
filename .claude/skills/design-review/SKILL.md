@@ -68,9 +68,17 @@ Run each reviewer as its **own subagent, in parallel**, using the Agent tool. Gi
 the other reviewers' output. A reviewer that knows why we chose something tends to agree with it.
 That is the whole point of this panel.
 
-**Coverage.** The UI Designer and the consultant must open every screenshot (every screen, width,
-and mode). Every other reviewer opens at least each screen at phone and desktop in light, plus
-one dark shot per screen. Each reviewer ends with the list of screenshots it opened. If a
+**What to photograph.** Every screen gets six shots: phone, tablet, and desktop, each in light and
+dark.
+- **Full coverage** (every screen) for the first full-panel review of a design and for the final
+  screenshots before a PR.
+- **Follow-up light checks** photograph only the screens that changed, plus one unchanged
+  neighbor for each so reviewers can compare. List the changed screens in the brief. Keep the
+  earlier screenshot folder for reference, but don't ask reviewers to reopen it.
+
+**Coverage.** The UI Designer and the consultant open every screenshot in the set (every screen,
+width, and mode). Every other reviewer opens at least each screen at phone and desktop in light,
+plus one dark shot per screen. Each reviewer ends with the list of screenshots it opened. If a
 required screenshot is missing from a reviewer's list, say so in the report.
 
 Every finding needs:
