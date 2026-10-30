@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { VolunteerTags } from "@/components/volunteer-tags";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export type LeadVolunteer = {
   assignmentId: string;
@@ -67,7 +68,7 @@ export function LeadStations({
     <div>
       {stations.length > 1 && (
         <div role="tablist" aria-label="Your sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <div className="flex min-w-max gap-1 border-b border-border">
+          <div className={folderTabRow}>
             {stations.map((s) => {
               const n = s.shifts.reduce((k, sh) => k + sh.volunteers.length, 0);
               const active = s.id === current.id;
@@ -78,12 +79,10 @@ export function LeadStations({
                   role="tab"
                   aria-selected={active}
                   onClick={() => setTab(s.id)}
-                  className={`-mb-px flex flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
-                    active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-                  }`}
+                  className={folderTab(active)}
                 >
                   <span className="whitespace-nowrap">{s.name}</span>
-                  <span className="text-xs font-normal tabular-nums text-muted">
+                  <span className={folderTabNote()}>
                     {n} {n === 1 ? "volunteer" : "volunteers"}
                   </span>
                 </button>

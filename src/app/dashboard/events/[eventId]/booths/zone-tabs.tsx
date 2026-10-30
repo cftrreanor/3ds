@@ -1,6 +1,7 @@
 "use client";
 
 import { LeaveStepLink } from "../../_components/setup-leave";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export type ZoneTab = { key: string; name: string; booths: number; active: boolean; href: string; unzoned?: boolean };
 
@@ -10,46 +11,40 @@ export type ZoneTab = { key: string; name: string; booths: number; active: boole
  */
 export function ZoneTabs({ tabs, add }: { tabs: ZoneTab[]; add: { href: string; active: boolean } }) {
   return (
-    <nav aria-label="Zones" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <ul className="flex min-w-max gap-1 border-b border-border">
-        {tabs.map((t) => (
+    <nav aria-label="Zones" className="relative -mx-4 overflow-x-auto px-4 pt-1 sm:mx-0 sm:px-0">
+      <ul className={folderTabRow}>
+        {tabs.map((t) => {
+          const needs = !(t.booths > 0 && !t.unzoned);
+          return (
           <li key={t.key}>
             <LeaveStepLink
               href={t.href}
               way="zone"
               scroll={false}
               current={t.active}
-              className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-                t.active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-              }`}
+              className={folderTab(t.active)}
             >
               <span className="flex items-center gap-1.5 whitespace-nowrap">
-                {t.booths > 0 && !t.unzoned ? (
-                  <span aria-hidden className="font-bold text-success">
-                    ✓
-                  </span>
-                ) : (
-                  <span aria-hidden className="size-2.5 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
-                )}
+                {!needs && <span aria-hidden>✓</span>}
                 {t.name}
               </span>
-              <span className="text-xs font-normal tabular-nums text-muted">
+              <span className={folderTabNote(needs)}>
+                {needs && <span aria-hidden>◆ </span>}
                 {t.unzoned ? `${t.booths} ${t.booths === 1 ? "needs" : "need"} a zone` : t.booths ? `${t.booths} ${t.booths === 1 ? "booth" : "booths"}` : "No booths yet"}
               </span>
             </LeaveStepLink>
           </li>
-        ))}
+          );
+        })}
         <li>
           <LeaveStepLink
             href={add.href}
             way="zone"
             scroll={false}
             current={add.active}
-            className={`-mb-px flex h-full items-center whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium ${
-              add.active ? "border-brand text-foreground" : "border-transparent text-brand hover:text-foreground"
-            }`}
+            className={`${folderTab(add.active)} justify-center`}
           >
-            + Add zone
+            <span className="whitespace-nowrap font-semibold text-brand">+ Add zone</span>
           </LeaveStepLink>
         </li>
       </ul>

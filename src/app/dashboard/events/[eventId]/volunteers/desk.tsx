@@ -7,6 +7,7 @@ import { Button, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { confirmDialog } from "@/components/confirm-dialog";
 import { VolunteerTags } from "@/components/volunteer-tags";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export type DeskVolunteer = {
   assignmentId: string;
@@ -164,7 +165,7 @@ export function Desk({
       ) : (
         <>
           <div role="tablist" aria-label="Sign-ups" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <div className="flex min-w-max gap-1 border-b border-border">
+            <div className={folderTabRow}>
               <TabButton active={tab === "overview"} onClick={() => setTab("overview")} label="Overview" sub="Who's not here yet?" />
               {optimistic.map((s) => {
                 const people = s.shifts.flatMap((sh) => sh.volunteers);
@@ -204,12 +205,10 @@ function TabButton({ active, onClick, label, sub }: { active: boolean; onClick: 
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={`-mb-px flex flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
-        active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-      }`}
+      className={folderTab(active)}
     >
       <span className="whitespace-nowrap">{label}</span>
-      <span className="text-xs font-normal tabular-nums text-muted">{sub}</span>
+      <span className={folderTabNote()}>{sub}</span>
     </button>
   );
 }

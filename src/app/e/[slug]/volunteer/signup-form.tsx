@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Badge, Button, Card, Field, FormMessage, Input } from "@/components/ui";
 import { GUARDIAN_CONSENT, MAX_OTHERS, groupProgress, ineligibleReason, shiftsOverlap } from "@/lib/group-signup";
 import type { SignupPayload, SignupState } from "./actions";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export type PublicShift = {
   id: string;
@@ -558,8 +559,8 @@ function BookerStep({
 
         {stations.length > 1 && (
           // Wider screens: a tab per station. Phones list every sign-up instead, so none hide off the edge.
-          <div role="tablist" aria-label="Sign-ups" className="relative mt-4 hidden overflow-x-auto sm:block">
-            <div className="flex min-w-max gap-1 border-b border-border">
+          <div role="tablist" aria-label="Sign-ups" className="relative mt-4 hidden overflow-x-auto pt-1 sm:block">
+            <div className={folderTabRow}>
               {stations.map((st) => {
                 const active = st.id === activeId;
                 const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0) + st.items.reduce((n, it) => n + Math.max(it.left, 0), 0);
@@ -573,15 +574,13 @@ function BookerStep({
                     aria-selected={active}
                     aria-controls={`panel-${st.id}`}
                     onClick={() => setActiveId(st.id)}
-                    className={`-mb-px flex flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
-                      active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-                    }`}
+                    className={folderTab(active)}
                   >
                     <span className="flex items-center gap-1.5 whitespace-nowrap">
                       {st.name}
                       {picked > 0 && <span className="rounded-full bg-brand px-1.5 text-xs font-semibold text-brand-foreground">{picked}</span>}
                     </span>
-                    <span className="text-xs font-normal text-muted">
+                    <span className={folderTabNote()}>
                       {open > 0 ? (st.items.length ? `${open} still needed` : `${open} open spot${open === 1 ? "" : "s"}`) : st.items.length ? "All covered" : "Full"}
                     </span>
                   </button>

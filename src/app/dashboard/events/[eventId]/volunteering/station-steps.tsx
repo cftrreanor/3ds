@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { useTabInView } from "@/components/use-tab-in-view";
 import { EyeOffIcon } from "@/components/eye-off-icon";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 /** The two steps inside each sign-up. */
 export type StationStep = "details" | "shifts";
@@ -155,7 +156,7 @@ export function StationTabs({
   return (
     <nav ref={row} aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 pt-1 sm:mx-0 sm:px-0">
       {/* Folder-style tabs (the shared tabs pattern): the open one is filled and joined to the page below, the others sit back. */}
-      <ul className="flex min-w-max items-end gap-1 border-b-2 border-field-border">
+      <ul className={folderTabRow}>
         {tabs.map((t) => {
           const unsaved = t.active && Boolean(progress?.dirty.details);
           // Something to do (no shifts yet, unfinished, unsaved): an amber line under the name.
@@ -167,9 +168,9 @@ export function StationTabs({
                 scroll={false}
                 aria-current={t.active ? "page" : undefined}
                 onClick={(e) => guard(e, t.href, t.active)}
-                className={tabClass(t.active)}
+                className={folderTab(t.active)}
               >
-                <span className={`flex items-center gap-1.5 whitespace-nowrap ${t.active ? "font-semibold text-brand" : "font-medium text-muted"}`}>
+                <span className="flex items-center gap-1.5 whitespace-nowrap">
                   {t.showing === false ? (
                     <EyeOffIcon className="size-3.5" />
                   ) : (
@@ -177,7 +178,7 @@ export function StationTabs({
                   )}
                   {t.name}
                 </span>
-                <span className={`text-xs tabular-nums ${needs && t.showing !== false ? "font-medium text-warning" : "text-muted"}`}>
+                <span className={folderTabNote(needs && t.showing !== false)}>
                   {needs && t.showing !== false && <span aria-hidden>◆ </span>}
                   {status(t, unsaved)}
                 </span>
@@ -187,7 +188,7 @@ export function StationTabs({
         })}
         {add && (
           <li>
-            <Link href={add.href} scroll={false} aria-current={add.active ? "page" : undefined} className={`${tabClass(add.active)} justify-center`}>
+            <Link href={add.href} scroll={false} aria-current={add.active ? "page" : undefined} className={`${folderTab(add.active)} justify-center`}>
               <span className="whitespace-nowrap font-semibold text-brand">{add.label ?? "+ Add sign-up"}</span>
             </Link>
           </li>
@@ -199,23 +200,14 @@ export function StationTabs({
               scroll={false}
               aria-current={t.active ? "page" : undefined}
               onClick={(e) => guard(e, t.href, t.active)}
-              className={tabClass(t.active)}
+              className={folderTab(t.active)}
             >
-              <span className={`whitespace-nowrap ${t.active ? "font-semibold text-brand" : "font-medium text-muted"}`}>{t.label}</span>
-              <span className="text-xs text-muted">{t.status}</span>
+              <span className="whitespace-nowrap">{t.label}</span>
+              <span className={folderTabNote()}>{t.status}</span>
             </Link>
           </li>
         ))}
       </ul>
     </nav>
   );
-}
-
-/** One folder tab: raised and joined to the page when open, set back when not. */
-function tabClass(active: boolean) {
-  return `flex min-h-11 flex-col rounded-t-[10px] px-4 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-    active
-      ? "-mb-0.5 border-2 border-b-[3px] border-field-border border-b-brand bg-brand-soft py-2.5"
-      : "border-[1.5px] border-b-2 border-field-border bg-surface py-2 hover:bg-brand-soft/60"
-  }`;
 }
