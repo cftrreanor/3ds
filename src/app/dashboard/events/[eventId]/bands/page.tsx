@@ -140,7 +140,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
         <div className="space-y-4">
           <div className="space-y-1">
             <p className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge tone={!published ? "neutral" : regOpen ? "live" : "off"}>
+              <Badge tone={!published ? "neutral" : regOpen ? "live" : "neutral"}>
                 {!published ? "Event not published" : regOpen ? "Registration open" : "Registration closed"}
               </Badge>
               <span className="text-muted">

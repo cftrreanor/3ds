@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { startTransition, useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { feedbackWho, sendFeedback, type FeedbackState } from "@/app/feedback-actions";
 import { ActionPendingContext } from "@/components/action-form";
 import { BotCheck } from "@/components/bot-check";
@@ -14,9 +14,13 @@ const KINDS = [
   { value: "question", label: "Question" },
 ] as const;
 
+const OPEN_EVENT = "open-feedback";
+
 /**
- * The Feedback button on every page: a small tab on the right edge (clear of
- * the save bars pinned to the bottom of setup pages) that opens a short form.
+ * Feedback from every page. On wider screens: a small tab on the right edge
+ * (clear of the save bars pinned to the bottom of setup pages). On phones, where
+ * a tab would cover times and buttons: a "Send feedback" line at the very end of
+ * the page, and a menu item (FeedbackLink). Both open the same short form.
  */
 export function FeedbackButton() {
   const pathname = usePathname();
@@ -29,17 +33,32 @@ export function FeedbackButton() {
     setWho(await feedbackWho());
   };
   const close = () => dialog.current?.close();
+  useEffect(() => {
+    const onOpen = () => {
+      dialog.current?.showModal();
+      void feedbackWho().then(setWho);
+    };
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, []);
 
   return (
     <>
       <button
         type="button"
         onClick={open}
-        className="fixed right-0 bottom-1/3 z-30 origin-bottom-right translate-x-0 -rotate-90 rounded-t-md bg-brand px-3 py-1.5 text-xs font-semibold text-brand-foreground shadow-elevated hover:bg-brand-hover print:hidden"
+        className="fixed right-0 bottom-1/3 z-30 hidden origin-bottom-right translate-x-0 -rotate-90 rounded-t-md bg-brand px-3 py-1.5 text-xs font-semibold text-brand-foreground shadow-elevated hover:bg-brand-hover sm:block print:hidden"
         style={{ marginRight: "env(safe-area-inset-right, 0px)" }}
       >
         Feedback
       </button>
+      {/* Phones: in the page, after everything else, above the event-day tab bar when it's showing. */}
+      <p className="px-4 pt-2 pb-6 text-center text-sm text-muted sm:hidden print:hidden" style={{ marginBottom: "var(--day-bar, 0px)" }}>
+        Spotted a problem or have an idea?{" "}
+        <button type="button" onClick={open} className="inline-flex min-h-11 items-center font-medium text-brand underline underline-offset-4">
+          Send feedback
+        </button>
+      </p>
       <dialog
         ref={dialog}
         aria-labelledby="feedback-title"
@@ -49,6 +68,15 @@ export function FeedbackButton() {
         <FeedbackForm key={round} page={pathname} signedInAs={who?.email ?? null} onClose={close} onAnother={() => setRound((n) => n + 1)} />
       </dialog>
     </>
+  );
+}
+
+/** Opens the feedback form from anywhere, such as a menu. */
+export function FeedbackLink({ className, children = "Send feedback" }: { className?: string; children?: React.ReactNode }) {
+  return (
+    <button type="button" className={className} onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
+      {children}
+    </button>
   );
 }
 

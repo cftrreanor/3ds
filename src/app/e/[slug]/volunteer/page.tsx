@@ -25,7 +25,7 @@ async function loadEvent(slug: string) {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const event = await loadEvent((await params).slug);
-  return { title: event ? `Volunteer: ${event.name}` : "Volunteer signup" };
+  return { title: event ? `Volunteer: ${event.name}` : "Volunteer sign-up" };
 }
 
 export default async function VolunteerSignupPage({ params }: Params) {
@@ -98,7 +98,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
   // With the account's color, the event name sits on a full-width band of it.
   const band = !!(await loadEventBrand(slug)).color;
   const heading = (
-    <EventHeading band={band} eyebrow="Volunteer signup" title={event.name}>
+    <EventHeading band={band} eyebrow="Volunteer sign-up" title={event.name}>
       <p className="mt-2 text-muted">
         {formatDateRange(event.starts_on, event.ends_on)} · All times {zoneName(tz)}
       </p>
@@ -125,7 +125,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
             {fairDay
               ? "Online sign-up is closed on fair day."
               : event.status === "published"
-                ? "Volunteer signup is closed."
+                ? "Volunteer sign-up is closed."
                 : "Preview: this page isn't public yet."}
           </p>
           <p className="mt-1 text-sm text-muted">
@@ -133,7 +133,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
               ? "Want to help today? Find the volunteer desk at the fair, and they'll add you to a shift."
               : event.status === "published"
                 ? "Please contact the event organizers if you'd like to help."
-              : "Only your team can see it. Publish the event and open volunteer signup to start taking signups."}
+              : "Only your team can see it. Publish the event and open volunteer sign-up to start taking sign-ups."}
           </p>
         </Card>
       )}

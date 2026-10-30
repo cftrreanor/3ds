@@ -140,7 +140,12 @@
     font-size: 16px;
     font-weight: 460;
     line-height: 1.5;
-    /* Times and counts line up. */
+  }
+
+  /* Times and counts line up in tables, times, and number boxes. Not on all text:
+     Inter's tabular setting also widens hyphens ("Check - in"). Elsewhere, add the
+     tabular-nums class where digits stack in a column. */
+  :where(table, time, input, select, output) {
     font-variant-numeric: tabular-nums;
   }
 

@@ -72,14 +72,17 @@ function isToday(e: { starts_on: string; ends_on: string; timezone: string }) {
   return e.starts_on <= today && today <= e.ends_on;
 }
 
-/** Where a host goes on the day, by event type. */
+/**
+ * Where a host goes on the day, by event type: the first job in the event-day bar
+ * (src/lib/event-day-actions.ts), with the same words. Keep the two in step.
+ */
 const DAY_SCREEN: Record<string, { path: string; label: string }> = {
-  band_contest: { path: "contest-day", label: "Open contest day" },
-  group_event: { path: "event-day", label: "Open event day" },
-  school_visit: { path: "parents", label: "Open door check-in" },
-  conference: { path: "conferences/meetings", label: "Open your meetings" },
-  fair: { path: "booths", label: "Open booth check-in" },
-  volunteer: { path: "volunteers", label: "Open volunteer check-in" },
+  band_contest: { path: "contest-day", label: "Check on every band" },
+  group_event: { path: "event-day", label: "Check groups in" },
+  school_visit: { path: "parents/check-in", label: "Check in parents" },
+  conference: { path: "conferences/meetings", label: "Run today's meetings" },
+  fair: { path: "booths/check-in", label: "Check in booths and partners" },
+  volunteer: { path: "volunteers", label: "Check in volunteers" },
 };
 
 /** Who has signed up so far, per event: the one number each kind of event runs on. */

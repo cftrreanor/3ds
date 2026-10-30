@@ -10,6 +10,12 @@ export type EventBanner = { id: string; event_id: string; body: string; priority
 
 const COLUMNS = "id, event_id, body, priority, created_at, ends_at";
 
+/** Emergencies first, then schedule changes, then everything else; newest first within each. */
+const RANK = { emergency: 0, schedule: 1, routine: 2 } as const;
+function byImportance(banners: EventBanner[]) {
+  return [...banners].sort((a, b) => RANK[a.priority] - RANK[b.priority] || b.created_at.localeCompare(a.created_at));
+}
+
 /** Live = posted in the last day and not ended yet. */
 function live<T extends { gte: (c: string, v: string) => T; or: (f: string) => T }>(q: T) {
   const now = new Date();
@@ -26,7 +32,7 @@ export async function liveEventBanners(eventId: string, audience: Exclude<EventA
     supabase.from("announcements").select(COLUMNS).eq("event_id", eventId).contains("audiences", [audience]),
   ).order("created_at", { ascending: false });
   if (error && !isSchemaError(error)) console.error("event banners load failed", error.message);
-  return (data ?? []) as EventBanner[];
+  return byImportance((data ?? []) as EventBanner[]);
 }
 
 /**
@@ -40,5 +46,5 @@ export async function liveVolunteerBanners(eventIds: string[]): Promise<EventBan
     createAdminClient().from("announcements").select(COLUMNS).in("event_id", eventIds).contains("audiences", ["volunteers"]),
   ).order("created_at", { ascending: false });
   if (error && !isSchemaError(error)) console.error("volunteer banners load failed", error.message);
-  return (data ?? []) as EventBanner[];
+  return byImportance((data ?? []) as EventBanner[]);
 }
