@@ -33,7 +33,12 @@ begin
 
   delete from public.volunteers where event_id = ev.id and email like '%@resend.dev';
   delete from public.bands where event_id = ev.id and contact_email like '%@resend.dev';
-  delete from public.stations where event_id = ev.id and name like '%(test)';
+  -- A real person's sign-up keeps its test job (a job with sign-ups can't be deleted).
+  begin
+    delete from public.stations where event_id = ev.id and name like '%(test)';
+  exception when sqlstate 'P0001' then
+    raise exception 'Someone who isn''t test data signed up for a "(test)" job, so the test jobs were kept. Remove that person from the job first, then run this again.';
+  end;
 end $$;
 
 select 'Test data removed.' as result;

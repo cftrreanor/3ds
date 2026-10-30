@@ -34,3 +34,10 @@ Renames ship together as one copy change, with a light check (Content Manager an
 ## Build scope (owner, 2026-10-30)
 
 Stop iterating on the prototype and build. The new setup flow applies to **volunteer events only** for now; other types keep their current setup. My events gets its updates. Order: 1) My events and type picker, 2) database rules for showing and hiding jobs, 3) new volunteer setup screens, 4) automatic saving and name-only drafts, 5) renames. Each piece goes through the design-review routine (changed screens only) before its PR.
+
+## Showing and hidden jobs, database review (owner, 2026-10-30)
+
+| Question | Decision |
+|---|---|
+| Can organizers put people on a hidden job themselves (import, walk-up, moving a shift into it)? | No. A hidden job takes no sign-ups at all; show it first. Moving a shift with sign-ups into a hidden job is refused |
+| The reviewer's other findings (deleting the last visible job of a live event, the public page showing hidden jobs to signed-in staff, demo mode, test data, tests) | Fix them all in PR 2 |

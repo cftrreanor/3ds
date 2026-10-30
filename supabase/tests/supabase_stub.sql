@@ -25,8 +25,9 @@ create table auth.audit_log_entries (
   created_at timestamptz default now(),
   ip_address varchar(64) not null default ''
 );
+-- Like Supabase's: null when there are no claims (a direct database session).
 create function auth.jwt() returns jsonb language sql stable as $$
-  select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
+  select nullif(current_setting('request.jwt.claims', true), '')::jsonb
 $$;
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(auth.jwt() ->> 'sub', '')::uuid
