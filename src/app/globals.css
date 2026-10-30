@@ -6,6 +6,9 @@
    band. Status colors only for real signals. Every color in the UI comes
    from here. ("brand" is the system's primary color.) */
 :root {
+  /* Native checkboxes, radios, and date pickers follow the theme, in the brand color. */
+  color-scheme: light;
+  accent-color: var(--brand);
   --background: #ffffff;
   --surface: #fcfbf8;
   --raised: #ffffff;
@@ -47,6 +50,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --background: #06121f;
     --surface: #0c1f33;
     --raised: #132a42;
@@ -237,9 +241,13 @@
   font-weight: 400;
 }
 
+/* Not ready yet, but still pressable (it says what's missing): a plain outlined button with
+   full-contrast words, never a faded one that can't be read outdoors. */
 form [data-not-ready] {
-  opacity: 0.5;
-  cursor: not-allowed;
+  background: var(--surface) !important;
+  color: var(--muted) !important;
+  border: 1.5px dashed var(--field-border) !important;
+  box-shadow: none !important;
 }
 form[data-missing] :is(input, select, textarea):invalid {
   border-color: var(--danger);

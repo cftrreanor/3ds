@@ -65,7 +65,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
       // Only what the form shows (the query reads every column).
       id: st.id,
       name: st.name,
-      location: st.location,
+      // A volunteer event's jobs meet at the event's address: a place saved before that changed stays out of sight.
+      location: event.event_type === "volunteer" ? null : st.location,
       instructions: st.instructions,
       adults_only: st.adults_only,
       // An items station takes things to bring, never time slots.

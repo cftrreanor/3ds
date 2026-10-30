@@ -529,8 +529,8 @@ function BookerStep({
   grouped: boolean;
 }) {
   const [activeId, setActiveId] = useState(stations[0]?.id);
-  // Tabs only once there are three or more jobs; two sit one under the other, so neither hides.
-  const tabbed = stations.length > 2;
+  // Tabs only once there are six or more jobs; up to five sit one under the other, so none hides.
+  const tabbed = stations.length > 5;
   const toggle = (id: string) => setMine((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const toggleItem = (id: string) =>
     setPickedItems((prev) => {
@@ -556,7 +556,7 @@ function BookerStep({
         <p className="mt-1 text-sm text-muted">
           {hasShifts && "Choose as many shifts as you like, as long as the times don't overlap."}
           {hasShifts && hasItems && " "}
-          {hasItems && "Sign up to bring something, and tell everyone what it is so there's a good mix."}
+          {hasItems && "Sign up to bring something. Say what you're bringing so others can see it."}
         </p>
 
         {tabbed && (

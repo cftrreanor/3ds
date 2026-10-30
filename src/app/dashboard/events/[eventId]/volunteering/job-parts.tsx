@@ -8,6 +8,8 @@ export type JobLinks = { addJob: string; preview: string; next: { href: string; 
 export type JobFacts = {
   /** It has a shift or a thing to bring (what volunteers sign up for). */
   ready: boolean;
+  /** Every job of the event has one, so the next step is publishing. */
+  allReady: boolean;
   items: boolean;
   links: JobLinks;
 };

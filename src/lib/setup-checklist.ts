@@ -26,6 +26,8 @@ export type SetupFacts = {
   shifts: number;
   /** Volunteer jobs with a shift or a thing to bring (what publishing a volunteer event needs). */
   readyJobs?: number;
+  /** Volunteer jobs with neither yet: volunteers won't see them on the sign-up page. */
+  emptyJobs?: { id: string; name: string; items: boolean }[];
   /** Stations marked as check-in stops (band contests). */
   checkInStops: number;
   /** People who've joined the event's team (co-hosts and leads). */
@@ -93,15 +95,23 @@ const BEFORE_ORDER = ["details", "director-info", "booths", "conference", "paren
  */
 function jobsStep(f: SetupFacts, base: string): SetupStep {
   const ready = f.readyJobs ?? (f.stations > 0 && f.shifts > 0 ? 1 : 0);
+  const empty = f.emptyJobs ?? [];
+  // Done only when every job has something to sign up for: an empty one never reaches the sign-up page.
   return {
     id: "shifts",
     label: "Add volunteer jobs and shifts",
     hint: "What volunteers sign up for.",
-    href: `${base}/volunteering`,
-    done: ready > 0,
+    href: `${base}/volunteering${empty.length ? `?station=${empty[0].id}` : ""}`,
+    done: ready > 0 && empty.length === 0,
     required: true,
-    partial: f.stations > 0 && ready === 0 ? { fraction: 0.5, note: `${f.stations} ${f.stations === 1 ? "job" : "jobs"}, no shifts yet` } : undefined,
+    partial: f.stations > 0 && (ready === 0 || empty.length > 0) ? { fraction: 0.5, note: emptyJobsNote(empty) } : undefined,
   };
+}
+
+/** "Litter pickup needs a shift" / "2 jobs need a shift or a thing to bring". */
+export function emptyJobsNote(empty: { name: string; items: boolean }[]) {
+  if (empty.length === 1) return `${empty[0].name} needs ${empty[0].items ? "a thing to bring" : "a shift"}`;
+  return `${empty.length} jobs need a shift or a thing to bring`;
 }
 
 export function setupChecklist(f: SetupFacts): SetupChecklist {

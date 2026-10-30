@@ -195,6 +195,10 @@ export function StationPanel({
                 leadLabel={leadWords(event.event_type).many}
                 coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
                 links={job.links}
+                signedUp={stationShifts.some((x) => x.registered_count > 0) || (items ?? []).some((x) => x.claimed_count > 0)}
+                ready={job.ready}
+                allReady={job.allReady}
+                items={job.items}
               />
             ) : (
             <StationForm
@@ -349,7 +353,7 @@ function RosterList({
                         )}
                       </div>
                       <span className="shrink-0 text-sm">
-                        {v.checked_in_at ? "✓ Arrived" : <span className="text-muted">Not yet</span>}
+                        {v.checked_in_at ? "✓ Arrived" : <span className="text-muted">Not checked in</span>}
                       </span>
                     </li>
                   );
@@ -422,6 +426,21 @@ function ShiftList({
       {shifts.map((s) => (
         <li key={s.id} className="px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
+            {job ? (
+              // A job's shift leads with its time; a name of its own (not just "Shift") follows.
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  {multiDay && `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · `}
+                  {formatTimeRange(s.starts_at, s.ends_at, tz)}
+                  {(s.adults_only || s.min_age) && (
+                    <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">
+                      {s.adults_only ? "Adults only" : `Ages ${s.min_age}+`}
+                    </span>
+                  )}
+                </p>
+                {!/^shift\b/i.test(s.title.trim()) && <p className="truncate text-sm text-muted">{s.title}</p>}
+              </div>
+            ) : (
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">
                 {s.title}
@@ -436,18 +455,20 @@ function ShiftList({
                 {formatTimeRange(s.starts_at, s.ends_at, tz)}
               </p>
             </div>
+            )}
             <div className="flex shrink-0 items-center gap-1">
               <span className="mr-1 text-sm tabular-nums text-muted">
                 {s.registered_count} / {s.max_capacity} filled
               </span>
-              {canManage && (
+              {/* A job's shift with people on it can't be deleted, so it doesn't offer to. */}
+              {canManage && !(job && s.registered_count > 0) && (
                 <DeleteButton action={deleteShift.bind(null, eventId, s.id)} label={`Delete shift ${s.title}`} confirmMessage={`Delete “${s.title}”?`} />
               )}
             </div>
           </div>
           {canManage && (
             <details className="mt-1">
-              <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
+              <summary className={`inline-flex min-h-11 cursor-pointer items-center text-sm font-medium ${job ? "text-brand underline underline-offset-4" : "text-muted hover:text-foreground"}`}>
                 {job ? "Edit shift" : "Edit time slot"}
               </summary>
               <div className="mt-3 pb-1">

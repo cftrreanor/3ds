@@ -176,7 +176,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const ownItems = (id: string) => items.filter((x) => x.station_id === id);
   const hasSome = (st: Station) => ownShifts(st.id).length + ownItems(st.id).length > 0;
   // Totals count only what volunteers can see, the same way as the event page.
-  const { filled, capacity } = volunteerTotals(stations, shifts, items);
+  const { sentence } = volunteerTotals(stations, shifts, items);
   const previewHref = `/e/${event.slug}/volunteer`;
 
   const nameOf = (userId: string | null) => {
@@ -224,9 +224,18 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     <>
       <h3 className="text-lg font-semibold">Import volunteers</h3>
       <p className="mt-1 mb-4 text-sm text-muted">
-        Optional. Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row
-        per person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
-        room for them.
+        {jobsHere ? (
+          <>
+            Optional. Have names from a paper sheet or another sign-up site? Add them to their shifts here. Use one row for
+            each person and shift. People who share an email are signed up together. If a shift is full, it gets more spots.
+          </>
+        ) : (
+          <>
+            Optional. Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row
+            per person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
+            room for them.
+          </>
+        )}
       </p>
       {shiftChoices.length === 0 ? (
         <p className="text-sm">
@@ -295,7 +304,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 {event.status !== "published" ? "Event not published" : event.volunteer_signup_open ? "Sign-up open" : "Sign-up closed"}
               </Badge>
               <span className="text-sm text-muted">
-                {filled} of {capacity} spots filled
+                {sentence}
               </span>
             </div>
             <div>
@@ -306,19 +315,19 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 <a
                   href={previewHref}
                   target="_blank"
-                  className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                  className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
                 >
                   Preview page
                 </a>
                 <Link
                   href={`/dashboard/events/${eventId}/volunteers`}
-                  className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                  className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
                 >
                   Check-in
                 </Link>
                 <Link
                   href={`/dashboard/events/${eventId}/volunteering/badges`}
-                  className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                  className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
                 >
                   Print volunteer badges
                 </Link>
@@ -326,24 +335,27 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   <ActionButton
                     action={publishAndOpenSignups.bind(null, eventId)}
                     variant="go"
-                    className="px-3! text-xs!"
+                    className="min-h-11 px-3! text-sm!"
                     pendingText="Publishing…"
                     confirmMessage="Publish the event and open volunteer sign-ups? Your event page goes live and people can start signing up."
                   >
                     Publish and open sign-ups
                   </ActionButton>
                 )}
-                {event.status === "published" && access.isHost && (
+              </div>
+              {/* On its own line, and quiet while sign-up is open, so it isn't tapped by mistake. */}
+              {event.status === "published" && access.isHost && (
+                <div className="mt-2">
                   <ActionButton
                     action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
-                    variant={event.volunteer_signup_open ? "stop" : "go"}
-                    className="px-3! text-xs!"
-                    confirmMessage={event.volunteer_signup_open ? "Close volunteer sign-up? People won't be able to sign up for shifts." : undefined}
+                    variant={event.volunteer_signup_open ? "quiet-stop" : "go"}
+                    className="min-h-11 px-3! text-sm!"
+                    confirmMessage={event.volunteer_signup_open ? "Close volunteer sign-up? People won't be able to sign up anymore. Everyone already signed up keeps their spot." : undefined}
                   >
                     {event.volunteer_signup_open ? "Close volunteer sign-up" : "Open volunteer sign-up"}
                   </ActionButton>
-                )}
-              </div>
+                </div>
+              )}
               {/* Tucked away to keep the top of the page short; open it to show or download the code. */}
               <details className="group mt-2">
                 <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground">
@@ -470,6 +482,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   jobsHere
                     ? {
                         ready: hasSome(current),
+                        allReady: stations.every(hasSome),
                         items: current.signup_kind === "items",
                         links: {
                           addJob: tabHref("new"),
@@ -584,8 +597,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       )}
       {jobsHere && (
         <p className="mt-6 text-sm text-muted">
-          🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
-          how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
+          🔒 Volunteers&apos; phone numbers, and everything about helpers under 18, are deleted 10 days after the event. Adults&apos;
+          names, emails, and how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
         </p>
       )}
     </div>

@@ -165,7 +165,7 @@ export function LeadStations({
                         (v.checkedIn ? (
                           <span className="shrink-0 text-sm font-semibold text-success">✓ Arrived</span>
                         ) : (
-                          <span className="shrink-0 text-sm text-muted">Not yet</span>
+                          <span className="shrink-0 text-sm text-muted">Not checked in</span>
                         ))}
                     </li>
                   ))}

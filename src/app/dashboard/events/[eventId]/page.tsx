@@ -747,12 +747,13 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               </span>
             </div>
             <Link href={`/dashboard/events/${eventId}/volunteering`} className={BTN_OUTLINE}>
-              Manage volunteers
+              {event.event_type === "volunteer" ? "Jobs and shifts" : "Manage volunteers"}
             </Link>
           </div>
           <VolunteerStats
             filled={signedUp}
             capacity={totalSlots}
+            sentence={totals.sentence}
             volunteers={volunteerCount ?? 0}
             checkedIn={isEventDay ? checkedIn : null}
             needs={needsPeople}
@@ -841,7 +842,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       ? ["attention", "signups", "schedule", "volunteers", "day", "files"]
       : event.event_type === "volunteer"
         ? // A volunteer event's last step is publishing: it leads the page (it names what's still needed).
-          ["publish", "attention", "signups", "schedule", "volunteers", "day", "files"]
+          // With no job volunteers can sign up for yet, there's no event day to plan, so its card waits.
+          ["publish", "attention", "signups", "schedule", "volunteers", ...((setup?.readyJobs ?? 1) > 0 ? ["day"] : []), "files"]
         : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
   const labels: Record<string, string> = {
     day: dayTitle,
@@ -991,10 +993,43 @@ function PublishPanel({
   const jobsHere = facts.eventType === "volunteer";
   // Publishing needs a job with a shift or a thing to bring (the database checks too): until then, the way there instead of the buttons.
   const needsJob = jobsHere && (facts.readyJobs ?? 1) === 0;
+  // Jobs with nothing to sign up for yet never reach the sign-up page: name them, with the way to fix each.
+  const empty = jobsHere ? (facts.emptyJobs ?? []) : [];
+  const jobsHref = (id?: string) => `/dashboard/events/${facts.eventId}/volunteering${id ? `?station=${id}` : ""}`;
   const effects = publishEffects(facts).filter((line) => !(jobsHere && line.startsWith("Volunteer sign-up")));
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">{remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      <h2 className="text-lg font-semibold">{needsJob ? "Not ready to publish yet" : remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      {needsJob && (
+        // The one thing stopping them, first.
+        <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+          <p className="font-semibold">
+            {facts.stations > 0 ? "Add a shift or a thing to bring to a job first" : "Add a job before you publish"}
+          </p>
+          <p className="mt-1">Publishing needs at least one job with a shift or a thing to bring.</p>
+          <Link href={jobsHref(empty[0]?.id)} className={`${BTN} mt-3`}>
+            {empty[0] ? `Add ${empty[0].items ? "things to bring" : "shifts"} to ${empty[0].name}` : "Go to jobs and shifts"}
+          </Link>
+        </div>
+      )}
+      {!needsJob && empty.length > 0 && (
+        <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+          <p className="font-semibold">
+            <span aria-hidden>◆ </span>
+            {empty.length === 1 ? "1 job won't show on the sign-up page yet" : `${empty.length} jobs won't show on the sign-up page yet`}
+          </p>
+          <ul className="mt-1">
+            {empty.map((j) => (
+              <li key={j.id}>
+                {j.name} needs {j.items ? "a thing to bring" : "a shift"}.{" "}
+                <Link href={jobsHref(j.id)} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                  Add {j.items ? "one" : "a shift"}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {needsJob ? null : remaining.length ? (
         // The checklist beside the page lists every step; here, just the first one left.
         <p className="mt-2 text-sm">
@@ -1018,15 +1053,7 @@ function PublishPanel({
           </li>
         ))}
       </ul>
-      {needsJob ? (
-        <div className="mt-5 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
-          <p className="font-semibold">Add a job before you publish</p>
-          <p className="mt-1">Publishing needs at least one job with a shift or a thing to bring.</p>
-          <Link href={`/dashboard/events/${facts.eventId}/volunteering`} className={`${BTN} mt-3`}>
-            Go to jobs and shifts
-          </Link>
-        </div>
-      ) : facts.planBlock ? (
+      {needsJob ? null : facts.planBlock ? (
         // Say why before they try, and what they can do: not an error after the click.
         <div className="mt-5 rounded-md border border-brand/25 bg-brand-soft p-4 text-sm leading-6">
           <p className="font-semibold">Your plan doesn&apos;t allow publishing this yet</p>
@@ -1295,12 +1322,14 @@ function LogisticsTotals({ bands, noTrucks = false }: { bands: BandTotals[]; noT
 function VolunteerStats({
   filled,
   capacity,
+  sentence,
   volunteers,
   checkedIn,
   needs,
 }: {
   filled: number;
   capacity: number;
+  sentence: string;
   volunteers: number;
   /** Only on event day. */
   checkedIn: { done: number; of: number } | null;
@@ -1312,7 +1341,7 @@ function VolunteerStats({
       <div>
         <div className="flex items-baseline justify-between gap-2">
           <p className="text-sm font-semibold">
-            {filled} of {capacity} spots filled
+            {sentence}
           </p>
           <p className="text-sm tabular-nums text-muted">{pct}%</p>
         </div>

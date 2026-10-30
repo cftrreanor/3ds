@@ -58,6 +58,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     stations: jobs.length,
     shifts,
     readyJobs: jobs.filter((j) => j.showing && j.ready).length,
+    emptyJobs: jobs.filter((j) => j.showing && !j.ready).map(({ id, name, items }) => ({ id, name, items })),
     checkInStops,
     team: staff + cohosts,
     invitesPending: invites,
@@ -98,6 +99,7 @@ async function loadJobs(supabase: Awaited<ReturnType<typeof createClient>>, even
     name: st.name as string,
     showing: (st as { showing?: boolean }).showing !== false,
     ready: filled.has(st.id),
+    items: (st as { signup_kind?: string }).signup_kind === "items",
   }));
 }
 

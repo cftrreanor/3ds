@@ -2,7 +2,7 @@ import { DayBar } from "@/components/event-day-nav";
 import { SetupStrip } from "@/components/setup-guide";
 import { loadDayActions } from "@/lib/event-day-actions";
 import { loadSetupFacts } from "@/lib/setup-facts";
-import { setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { emptyJobsNote, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { VOLUNTEER_STEP_PATHS, VolunteerSteps, type VolunteerStepFacts } from "@/components/volunteer-steps";
 
 /**
@@ -29,6 +29,7 @@ export default async function EventLayout({ children, params }: LayoutProps<"/da
 }
 
 function volunteerSteps(f: SetupFacts): VolunteerStepFacts {
-  const jobsDone = (f.readyJobs ?? 0) > 0;
-  return { jobsDone, jobsNote: jobsDone ? null : f.stations === 0 ? "Add a job" : "Add a shift", jobs: f.stations };
+  const empty = f.emptyJobs ?? [];
+  const jobsDone = (f.readyJobs ?? 0) > 0 && empty.length === 0;
+  return { jobsDone, jobsNote: jobsDone ? null : f.stations === 0 ? "Add a job" : emptyJobsNote(empty), jobs: f.stations };
 }

@@ -47,30 +47,41 @@ export function VolunteerSteps({ eventId, facts }: { eventId: string; facts: Vol
       <ol className="mt-2 grid grid-cols-3 gap-2">
         {STEPS.map((s, i) => {
           const now = i === here;
-          const note = now ? "Now" : done[i] ? "Done" : i === 1 && facts.jobsNote ? facts.jobsNote : i === 2 ? "Last" : "Next";
+          // The jobs step, when a job still needs something: amber, saying what (like the tabs' ◆ lines).
+          const needs = i === 1 && !done[i] && Boolean(facts.jobsNote);
+          const note = done[i] && !now ? "Done" : needs ? facts.jobsNote : now ? "Now" : "Not yet";
           return (
             <li key={s.key} className="min-w-0">
               <span
                 aria-hidden
-                className={`block h-1.5 rounded-full ${done[i] && !now ? "bg-success" : now ? "bg-brand" : "border border-field-border bg-surface"}`}
+                className={`block rounded-full ${now ? "h-2 bg-brand" : done[i] ? "h-1.5 bg-success" : needs ? "h-1.5 bg-warning" : "h-1.5 border border-field-border bg-surface"}`}
               />
               {now ? (
                 <span aria-current="step" className="mt-2 block text-sm font-semibold">
                   {s.label}
                 </span>
               ) : (
-                <Link href={`${base}${s.path}`} className="mt-2 inline-flex min-h-6 text-sm font-semibold underline underline-offset-4 hover:text-brand">
+                <Link href={`${base}${s.path}`} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4 hover:text-brand">
                   {s.label}
                 </Link>
               )}
-              <span className={`block text-xs leading-5 ${done[i] && !now ? "text-success" : "text-muted"}`}>
+              <span className={`block text-xs leading-5 ${done[i] && !now ? "text-success" : needs ? "font-medium text-warning" : "text-muted"}`}>
                 {done[i] && !now && <span aria-hidden>✓ </span>}
+                {needs && <span aria-hidden>◆ </span>}
                 {note}
               </span>
             </li>
           );
         })}
       </ol>
+      {/* Details (step 1) has no bar of its own: the way on to step 2. */}
+      {here === 0 && (
+        <p className="mt-1 text-right">
+          <Link href={`${base}${STEPS[1].path}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4">
+            Next up: Jobs and shifts →
+          </Link>
+        </p>
+      )}
     </nav>
   );
 }

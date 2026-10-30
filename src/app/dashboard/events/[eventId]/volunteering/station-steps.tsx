@@ -173,7 +173,7 @@ export function StationTabs({
                 className={folderTab(t.active)}
               >
                 <span className="flex items-center gap-1.5 whitespace-nowrap">
-                  {!needs && <span aria-hidden>✓</span>}
+                  {!needs && !t.job && <span aria-hidden>✓</span>}
                   {t.name}
                 </span>
                 <span className={folderTabNote(needs)}>

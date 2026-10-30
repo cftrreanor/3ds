@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { NumberInput } from "@/components/number-input";
 import { ZoneInput } from "@/components/zone-input";
@@ -615,7 +615,7 @@ function SignupKindPicker({
 }) {
   return (
     <fieldset disabled={disabled}>
-      <legend className="text-sm font-semibold">What do people sign up for?</legend>
+      <legend className="text-sm font-semibold">{job ? "What do volunteers sign up for?" : "What do people sign up for?"}</legend>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {SIGNUP_KINDS.map((k) => (
           <label
@@ -657,21 +657,26 @@ export function NewStationForm({
   job?: boolean;
 }) {
   const [kind, setKind] = useState<SignupKind>("shifts");
+  const picker = (
+    <SignupKindPicker
+      value={kind}
+      onChange={setKind}
+      job={job}
+      note={job ? "You can change this later, until you add shifts or things to bring." : "You can change this later, until you add time slots or items."}
+    />
+  );
   return (
     <ActionForm action={action} className="space-y-4">
       {openTab && <input type="hidden" name="openTab" value="1" />}
+      {/* A job starts with what volunteers sign up for, like the job's own page. */}
+      {job && picker}
       <Field
         label={job ? "Job name" : "Sign-up name"}
         hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : job ? "e.g. Parking, Litter pickup, Setup crew" : "e.g. Parking, Concessions, Ticket Table"}
       >
         <Input name="name" required maxLength={80} />
       </Field>
-      <SignupKindPicker
-        value={kind}
-        onChange={setKind}
-        job={job}
-        note={job ? "You can change this later, until you add shifts or things to bring." : "You can change this later, until you add time slots or items."}
-      />
+      {!job && picker}
       <SubmitButton variant="go" pendingText="Adding…">
         {job ? "Add job" : "Add sign-up"}
       </SubmitButton>
@@ -693,6 +698,14 @@ export function ItemsEditor({
   /** A volunteer event's job: each row saves itself a moment after a change, with no Save button. */
   autosave?: boolean;
 }) {
+  // A thing typed into the add row but not added yet: closing the tab asks first.
+  const [typed, setTyped] = useState(false);
+  useEffect(() => {
+    if (!typed) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [typed]);
   return (
     <div className="rounded-lg border border-border bg-background">
       <div className={`hidden ${itemCols(autosave)} gap-3 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted sm:grid`}>
@@ -710,9 +723,11 @@ export function ItemsEditor({
           <ActionForm
             action={create}
             resetOnSuccess
-            className={`grid items-center gap-3 ${autosave ? "grid-cols-[minmax(0,1fr)_6rem_auto]" : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
+            onEdit={autosave ? (form) => setTyped(Boolean((form.elements.namedItem("name") as HTMLInputElement | null)?.value.trim())) : undefined}
+            className={`grid items-center gap-3 ${autosave ? itemPhone : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
           >
-            <Input name="name" required maxLength={100} placeholder={items.length ? "Add another item" : "Add an item, e.g. Desserts"} aria-label="New item" />
+            <Input name="name" required maxLength={100} placeholder={items.length ? "Add another item" : "Add an item, e.g. Desserts"} aria-label="New item" className={autosave ? "col-span-3 sm:col-span-1" : undefined} />
+            {autosave && <NeededLabel />}
             <NumberInput name="needed" required defaultValue={1} maxLength={3} aria-label="How many needed" />
             {!autosave && <span className="hidden sm:block" />}
             <span className="flex justify-end">
@@ -727,12 +742,30 @@ export function ItemsEditor({
   );
 }
 
+/** On a phone, a job's thing to bring stacks: its name across the row, then "Needed", how many, and Delete. */
+const itemPhone = "grid-cols-[auto_5rem_minmax(0,1fr)]";
+function NeededLabel() {
+  return (
+    <span aria-hidden className="text-sm text-muted sm:hidden">
+      Needed
+    </span>
+  );
+}
+
 /** The things-to-bring columns: item, needed, (signed up,) and its buttons. */
 const itemCols = (autosave: boolean) => (autosave ? "sm:grid-cols-[minmax(0,1fr)_7rem_6rem]" : "sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]");
 
 /** One thing to bring: its name and how many, saved with its Save button, or by itself a moment after a change. */
 function ItemRow({ item: it, autosave }: { item: EditableItem; autosave: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A lost connection throws instead of answering: show it like any other failed save.
+  const update: Action = async (prev, formData) => {
+    try {
+      return await it.update(prev, formData);
+    } catch {
+      return { error: "Not saved. Check your connection, then try again." };
+    }
+  };
   const schedule = (form: HTMLFormElement) => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -742,13 +775,14 @@ function ItemRow({ item: it, autosave }: { item: EditableItem; autosave: boolean
   return (
     <li className="px-3 py-2.5">
       <ActionForm
-        action={it.update}
+        action={autosave ? update : it.update}
         resetOnSuccess={false}
         onEdit={autosave ? schedule : undefined}
-        className={`grid items-center gap-3 ${autosave ? "grid-cols-[minmax(0,1fr)_6rem_auto]" : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
+        className={`grid items-center gap-3 ${autosave ? itemPhone : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
       >
         {autosave && <input type="hidden" name="auto" value="1" />}
-        <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" />
+        <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" className={autosave ? "col-span-3 sm:col-span-1" : undefined} />
+        {autosave && <NeededLabel />}
         <NumberInput name="needed" required defaultValue={it.needed} maxLength={3} aria-label={`How many ${it.name} needed`} />
         {!autosave && (
           <span className="text-sm tabular-nums text-muted">
@@ -862,7 +896,7 @@ export function CoordinatorPicker({
                         {o.label}
                       </label>
                     ))}
-                    <p className="text-xs text-muted">Click Save sign-up afterward to keep these.</p>
+                    <p className="text-xs text-muted">{formId ? "Your picks save automatically." : "Click Save sign-up afterward to keep these."}</p>
                   </div>
                 ) : (
                   <p className="mt-1 text-sm text-muted">No one on the team yet. Invite someone below.</p>
