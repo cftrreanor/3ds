@@ -325,15 +325,15 @@ function ShiftCard({
   return (
     <section
       aria-label={`${shift.title}, ${shift.time}`}
-      className={`overflow-hidden rounded-lg border bg-surface ${shift.now ? "border-brand ring-1 ring-brand" : "border-border"} ${
-        shift.over ? "opacity-70" : ""
-      }`}
+      // An ended shift stays full strength (late arrivals still check in); its "Ended" label says it's past.
+      className={`overflow-hidden rounded-lg border bg-surface ${shift.now ? "border-brand ring-1 ring-brand" : "border-border"}`}
     >
       <header className="flex flex-wrap items-center justify-between gap-2 bg-background px-3 py-2">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <span className="truncate">{shift.time}</span>
             {shift.now && <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold text-brand-foreground">Now</span>}
+            {shift.over && <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-semibold text-muted">Ended</span>}
           </p>
           <p className="truncate text-xs text-muted">{shift.title}</p>
         </div>
