@@ -68,6 +68,11 @@ Run each reviewer as its **own subagent, in parallel**, using the Agent tool. Gi
 the other reviewers' output. A reviewer that knows why we chose something tends to agree with it.
 That is the whole point of this panel.
 
+**Coverage.** The UI Designer and the consultant must open every screenshot (every screen, width,
+and mode). Every other reviewer opens at least each screen at phone and desktop in light, plus
+one dark shot per screen. Each reviewer ends with the list of screenshots it opened. If a
+required screenshot is missing from a reviewer's list, say so in the report.
+
 Every finding needs:
 - **Where:** the screen, state, and element (and file:line for built pages, when known)
 - **What happens,** described concretely
