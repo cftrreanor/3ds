@@ -53,12 +53,12 @@ export function useStepEdits(step: StationStep | undefined) {
 
 const NOTES: Record<StationStep, { unsaved: string; todo: string }> = {
   details: {
-    unsaved: "Save your changes before moving to another sign-up.",
-    todo: "Save this sign-up's details to finish this step before moving on.",
+    unsaved: "Save your changes before you move on.",
+    todo: "Save these details to finish this step before you move on.",
   },
   shifts: {
-    unsaved: "Add your time slot before moving to another sign-up.",
-    todo: "Add at least one time slot to finish this sign-up before moving on.",
+    unsaved: "Add your shift before you move on.",
+    todo: "Add at least one shift to finish this before you move on.",
   },
 };
 
@@ -130,7 +130,10 @@ export function StationTabs({
   tabs,
   add,
   extra = [],
+  label = "Sign-ups",
 }: {
+  /** What the row of tabs is called, for screen readers. */
+  label?: string;
   tabs: StationTab[];
   add?: { href: string; active: boolean; label?: string };
   /** Tabs after the sign-ups, set a little apart: Import volunteers, Check-in order. */
@@ -154,13 +157,14 @@ export function StationTabs({
     requestAnimationFrame(() => document.querySelector("[data-step-notice]")?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
   return (
-    <nav ref={row} aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 pt-1 sm:mx-0 sm:px-0">
+    <nav ref={row} aria-label={label} className="relative -mx-4 overflow-x-auto px-4 pt-1 sm:mx-0 sm:px-0">
       {/* Folder-style tabs (the shared tabs pattern): the open one is filled and joined to the page below, the others sit back. */}
       <ul className={folderTabRow}>
         {tabs.map((t) => {
           const unsaved = t.active && Boolean(progress?.dirty.details);
           // Something to do (no shifts yet, unfinished, unsaved): an amber line under the name.
-          const needs = unsaved || !t.configured;
+          // A job: what the status line says it needs (a shift or a thing to bring); other sign-ups also count unfinished details.
+          const needs = unsaved || (t.showing !== undefined ? !t.capacity : !t.configured);
           return (
             <li key={t.id}>
               <Link
@@ -171,15 +175,11 @@ export function StationTabs({
                 className={folderTab(t.active)}
               >
                 <span className="flex items-center gap-1.5 whitespace-nowrap">
-                  {t.showing === false ? (
-                    <EyeOffIcon className="size-3.5" />
-                  ) : (
-                    !needs && <span aria-hidden>✓</span>
-                  )}
+                  {t.showing === false ? <EyeOffIcon className="size-3.5" /> : !needs && <span aria-hidden>✓</span>}
                   {t.name}
                 </span>
-                <span className={folderTabNote(needs && t.showing !== false)}>
-                  {needs && t.showing !== false && <span aria-hidden>◆ </span>}
+                <span className={folderTabNote(needs)}>
+                  {needs && <span aria-hidden>◆ </span>}
                   {status(t, unsaved)}
                 </span>
               </Link>

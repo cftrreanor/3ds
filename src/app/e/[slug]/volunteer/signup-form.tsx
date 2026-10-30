@@ -529,6 +529,8 @@ function BookerStep({
   grouped: boolean;
 }) {
   const [activeId, setActiveId] = useState(stations[0]?.id);
+  // Tabs only once there are three or more jobs; two sit one under the other, so neither hides.
+  const tabbed = stations.length > 2;
   const toggle = (id: string) => setMine((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const toggleItem = (id: string) =>
     setPickedItems((prev) => {
@@ -557,9 +559,9 @@ function BookerStep({
           {hasItems && "Sign up to bring something, and tell everyone what it is so there's a good mix."}
         </p>
 
-        {stations.length > 1 && (
+        {tabbed && (
           // Wider screens: a tab per station. Phones list every sign-up instead, so none hide off the edge.
-          <div role="tablist" aria-label="Sign-ups" className="relative mt-4 hidden overflow-x-auto pt-1 sm:block">
+          <div role="group" aria-label="Jobs" className="relative mt-4 hidden overflow-x-auto pt-1 sm:block">
             <div className={folderTabRow}>
               {stations.map((st) => {
                 const active = st.id === activeId;
@@ -569,10 +571,7 @@ function BookerStep({
                   <button
                     key={st.id}
                     type="button"
-                    role="tab"
-                    id={`tab-${st.id}`}
-                    aria-selected={active}
-                    aria-controls={`panel-${st.id}`}
+                    aria-pressed={active}
                     onClick={() => setActiveId(st.id)}
                     className={folderTab(active)}
                   >
@@ -595,9 +594,7 @@ function BookerStep({
           <Card
             key={st.id}
             id={`panel-${st.id}`}
-            role={stations.length > 1 ? "tabpanel" : undefined}
-            aria-labelledby={stations.length > 1 ? `tab-${st.id}` : undefined}
-            className={`mt-4 p-4 sm:p-5 ${st.id !== activeId ? "sm:hidden" : ""}`}
+            className={`mt-4 p-4 sm:p-5 ${tabbed && st.id !== activeId ? "sm:hidden" : ""}`}
           >
             <h3 className="font-semibold">
               {st.name}

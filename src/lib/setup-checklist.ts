@@ -1,3 +1,4 @@
+import { hiddenJobsSentence } from "@/lib/volunteer-totals";
 import { groupWords, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, isMeeting } from "@/lib/event-types";
 
 /**
@@ -110,10 +111,9 @@ function jobsStep(f: SetupFacts, base: string): SetupStep {
   };
 }
 
-/** What a volunteer event's jobs still need, in a few words: "2 jobs, both hidden". */
+/** What a volunteer event's jobs still need, in a few words: "3 jobs are hidden, 2 ready to show". */
 export function jobsNote(jobs: number, hidden: { ready: boolean }[]) {
-  const ready = hidden.filter((j) => j.ready).length;
-  if (ready > 0) return `${ready} ${ready === 1 ? "job is" : "jobs are"} hidden: show one to volunteers to publish`;
+  if (hidden.some((j) => j.ready)) return `${hiddenJobsSentence(hidden)}. Show one to publish`;
   return `${jobs} ${jobs === 1 ? "job" : "jobs"}, no shifts yet`;
 }
 

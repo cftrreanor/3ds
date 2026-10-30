@@ -47,7 +47,8 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
   const [{ data: stationData }, { data: shiftData }, { data: rowData }, { data: consentData }] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_kind, checkpoint_order, adults_only")
+      // Every column: showing arrives with the 20270105000000 update.
+      .select("*")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -74,8 +75,9 @@ export default async function VolunteersPage({ params }: PageProps<"/dashboard/e
 
   // Same station order as everywhere else: the bands' check-in path first.
   // Stations without shifts (a gate run by its lead alone) have no one to check in.
-  const stations: DeskStation[] = sortStations((stationData ?? []) as StationRow[])
-    .filter((st) => shifts.some((sh) => sh.station_id === st.id))
+  // Hidden jobs take no sign-ups or walk-ups, so the desk leaves them out.
+  const stations: DeskStation[] = sortStations((stationData ?? []) as (StationRow & { showing?: boolean })[])
+    .filter((st) => st.showing !== false && shifts.some((sh) => sh.station_id === st.id))
     .map((st) => ({
     id: st.id,
     name: st.name,

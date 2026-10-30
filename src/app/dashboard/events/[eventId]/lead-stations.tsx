@@ -1,5 +1,6 @@
 "use client";
 
+import { EyeOffIcon } from "@/components/eye-off-icon";
 import { useState } from "react";
 import { VolunteerTags } from "@/components/volunteer-tags";
 import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
@@ -37,6 +38,8 @@ export type LeadStation = {
   checkpoint: string | null;
   location: string | null;
   instructions: string | null;
+  /** Hidden from volunteers: its Coordinator previews it, nobody signs up yet. */
+  hidden?: boolean;
   shifts: LeadShift[];
 };
 
@@ -67,7 +70,7 @@ export function LeadStations({
   return (
     <div>
       {stations.length > 1 && (
-        <div role="tablist" aria-label="Your sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div role="group" aria-label="Your jobs" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <div className={folderTabRow}>
             {stations.map((s) => {
               const n = s.shifts.reduce((k, sh) => k + sh.volunteers.length, 0);
@@ -76,8 +79,7 @@ export function LeadStations({
                 <button
                   key={s.id}
                   type="button"
-                  role="tab"
-                  aria-selected={active}
+                  aria-pressed={active}
                   onClick={() => setTab(s.id)}
                   className={folderTab(active)}
                 >
@@ -92,9 +94,17 @@ export function LeadStations({
         </div>
       )}
 
-      <div role={stations.length > 1 ? "tabpanel" : undefined} className="mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
+      <div className="mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h3 className="text-lg font-semibold">{current.name}</h3>
+          <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
+            {current.name}
+            {current.hidden && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-0.5 text-xs font-semibold ring-1 ring-warning/30">
+                <EyeOffIcon className="size-3.5" />
+                Hidden from volunteers
+              </span>
+            )}
+          </h3>
           {current.checkpoint && <span className="text-xs font-medium text-muted">{current.checkpoint}</span>}
         </div>
         {current.location && <p className="text-sm text-muted">{current.location}</p>}

@@ -281,11 +281,16 @@ export async function deleteEvent(eventId: string): Promise<ActionState> {
 }
 
 export async function setEventPublished(eventId: string, publish: boolean): Promise<ActionState> {
+  return changePublished(eventId, publish);
+}
+
+async function changePublished(eventId: string, publish: boolean, signupOpen?: boolean): Promise<ActionState> {
   await requireUser();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
-    .update(publish ? { status: "published" } : { status: "draft", volunteer_signup_open: false })
+    // Publishing can set volunteer sign-up open or closed in the same step, so it never goes live half done.
+    .update(publish ? { status: "published", ...(signupOpen === undefined ? {} : { volunteer_signup_open: signupOpen }) } : { status: "draft", volunteer_signup_open: false })
     .eq("id", eventId)
     .select("id");
   if (error) {
@@ -309,18 +314,16 @@ export async function publishAndOpen(eventId: string): Promise<ActionState> {
 
 /** Volunteer Setup's one button: publish the event, open volunteer sign-ups, then go to the event's page. */
 export async function publishAndOpenSignups(eventId: string): Promise<ActionState> {
-  const result = await setEventPublished(eventId, true);
+  const result = await changePublished(eventId, true, true);
   if (result.error) return result;
-  const opened = await setVolunteerSignupOpen(eventId, true);
-  if (opened.error) return opened;
   redirect(`/dashboard/events/${eventId}?published=1`);
 }
 
 /** A volunteer event published with sign-up closed: people see the event, and sign-up opens when the host opens it. */
 export async function publishSignupLater(eventId: string): Promise<ActionState> {
-  const closed = await setVolunteerSignupOpen(eventId, false);
-  if (closed.error) return closed;
-  return publishAndOpen(eventId);
+  const result = await changePublished(eventId, true, false);
+  if (result.error) return result;
+  redirect(`/dashboard/events/${eventId}?published=1`);
 }
 
 export async function setVolunteerSignupOpen(eventId: string, open: boolean): Promise<ActionState> {
@@ -480,8 +483,16 @@ export async function updateStation(
     if (leadError) return { error: leadError };
   }
 
+  // A hidden job's "Save and show to volunteers": its changes and showing it, together.
+  if (formData.get("intent") === "show") {
+    const shown = await setStationShowing(eventId, stationId, true);
+    if (shown.error) return { error: `Saved, but not shown yet: ${shown.error}` };
+    return shown;
+  }
+
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: formData.get("intent") === "later" ? "Saved. Finish the rest when you're ready." : "Sign-up saved." };
+  const noun = formData.get("noun") === "job" ? "Job" : "Sign-up";
+  return { ok: true, message: formData.get("intent") === "later" ? "Saved. Finish the rest when you're ready." : `${noun} saved.` };
 }
 
 /** A sign-up's leads become exactly these: the newly ticked are added (in the order shown), the unticked removed. */
@@ -539,13 +550,13 @@ export async function deleteStation(eventId: string, stationId: string): Promise
     .select("id", { count: "exact", head: true })
     .eq("station_id", stationId)
     .gt("registered_count", 0);
-  if (count) return { error: "Volunteers have signed up for this sign-up's shifts, so it can't be deleted." };
+  if (count) return { error: "Volunteers have signed up for its shifts, so it can't be deleted. Move or remove them first." };
   const { count: claimed } = await supabase
     .from("station_items")
     .select("id", { count: "exact", head: true })
     .eq("station_id", stationId)
     .gt("claimed_count", 0);
-  if (claimed) return { error: "People have signed up to bring items for this sign-up, so it can't be deleted." };
+  if (claimed) return { error: "People have signed up to bring things for it, so it can't be deleted." };
 
   const { error } = await supabase.from("stations").delete().eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
@@ -564,9 +575,16 @@ export async function setStationShowing(eventId: string, stationId: string, show
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "You don't have permission to do that." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  // Before the event is published, nobody outside the team sees anything yet.
+  const { data: ev } = await supabase.from("events").select("status").eq("id", eventId).maybeSingle();
+  const live = ev?.status === "published";
   return {
     ok: true,
-    message: showing ? `Volunteers can see “${data[0].name}” now.` : `“${data[0].name}” is hidden from volunteers.`,
+    message: showing
+      ? live
+        ? `Volunteers can see “${data[0].name}” now.`
+        : `“${data[0].name}” is showing. Volunteers will see it when you publish.`
+      : `“${data[0].name}” is hidden from volunteers.`,
   };
 }
 

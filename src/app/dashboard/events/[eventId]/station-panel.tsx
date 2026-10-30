@@ -164,7 +164,14 @@ export function StationPanel({
             {station.lead_ids.includes(userId) && <Badge tone="brand">You lead this</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">
-            {[station.location, leadNames.length ? `${leadNames.length > 1 ? "Leads" : "Lead"}: ${leadNames.join(", ")}` : canManage ? "No lead yet" : null]
+            {[
+              station.location,
+              leadNames.length
+                ? `${job ? (leadNames.length > 1 ? "Coordinators" : "Coordinator") : leadNames.length > 1 ? "Leads" : "Lead"}: ${leadNames.join(", ")}`
+                : canManage
+                  ? job ? "No Coordinator yet" : "No lead yet"
+                  : null,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </p>
@@ -193,6 +200,7 @@ export function StationPanel({
               coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
               trackUnsaved
               job={Boolean(job)}
+              visibility={job ? { showing: job.showing, ready: job.ready } : undefined}
               draft={!station.details_saved_at}
               remaining={[
                 ...(station.details_saved_at ? [] : ["finish the details"]),
@@ -261,7 +269,7 @@ export function StationPanel({
       )}
 
       {roster && !itemsStation && (
-        <div className="mt-6">
+        <div id="signed-up" className="mt-6 scroll-mt-6">
           <h4 className="text-sm font-semibold">{canManage ? "Who's signed up" : "Your volunteers"}</h4>
           {roster.length === 0 ? (
             <p className="mt-1 text-sm text-muted">No one has signed up yet.</p>

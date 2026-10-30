@@ -51,7 +51,6 @@ export default async function VolunteerSignupPage({ params, searchParams }: Page
       // Every column: adults_only and min_age arrive with the 20270102000000 update, and the page works without them.
       .select("*")
       .eq("event_id", event.id)
-      .gt("ends_at", new Date().toISOString())
       .order("starts_at"),
     supabase.from("station_items").select("id, station_id, name, needed, claimed_count").eq("event_id", event.id).order("sort_order").order("created_at"),
     // Who's bringing what: first names and notes only.
@@ -66,6 +65,7 @@ export default async function VolunteerSignupPage({ params, searchParams }: Page
   const canEdit = hidden.length > 0 && (await getEventAccess(event.id)).canManage;
 
   const tz = event.timezone;
+  const nowIso = new Date().toISOString();
   const multiDay = event.starts_on !== event.ends_on;
   // Check-in stations first, in the host's order: they matter most on the day.
   const publicStations: PublicStation[] = sortStations(showing)
@@ -77,8 +77,9 @@ export default async function VolunteerSignupPage({ params, searchParams }: Page
       instructions: st.instructions,
       adults_only: st.adults_only,
       // An items station takes things to bring, never time slots.
+      // Shifts that haven't ended (a hidden job's preview below lists all of its own).
       shifts: (st.signup_kind === "items" ? [] : (shifts ?? []))
-        .filter((s) => s.station_id === st.id)
+        .filter((s) => s.station_id === st.id && s.ends_at > nowIso)
         .map((s) => ({
           id: s.id,
           title: s.title,
@@ -171,24 +172,8 @@ export default async function VolunteerSignupPage({ params, searchParams }: Page
         </Card>
       )}
 
-      <div className="mt-8">
-        {publicStations.length === 0 ? (
-          <Card>
-            <p className="text-muted">{hidden.length ? "No jobs are showing to volunteers yet." : "Nothing is open for sign-up right now."}</p>
-          </Card>
-        ) : (
-          <SignupForm
-            action={signUpVolunteer.bind(null, event.id)}
-            spots={currentSpots.bind(null, event.id)}
-            stations={publicStations}
-            disabled={!isOpen}
-            lead={leadWords(event.event_type).one}
-          />
-        )}
-      </div>
-
       {hidden.length > 0 && (
-        <ul className="mt-6 space-y-4" aria-label="Hidden jobs">
+        <ul className="mt-8 space-y-4" aria-label="Hidden jobs">
           {hidden.map((st) => {
             const own = st.signup_kind === "items" ? [] : (shifts ?? []).filter((s) => s.station_id === st.id);
             const things = (items ?? []).filter((i) => i.station_id === st.id);
@@ -226,6 +211,23 @@ export default async function VolunteerSignupPage({ params, searchParams }: Page
           })}
         </ul>
       )}
+
+      <div className="mt-8">
+        {publicStations.length === 0 ? (
+          <Card>
+            <p className="text-muted">{hidden.length ? "No jobs are showing to volunteers yet." : "Nothing is open for sign-up right now."}</p>
+          </Card>
+        ) : (
+          <SignupForm
+            action={signUpVolunteer.bind(null, event.id)}
+            spots={currentSpots.bind(null, event.id)}
+            stations={publicStations}
+            // The team's preview never takes real sign-ups, even on a live event.
+            disabled={!isOpen || hidden.length > 0}
+            lead={leadWords(event.event_type).one}
+          />
+        )}
+      </div>
 
       <p className="mt-10 text-center text-sm text-muted">
         Already signed up?{" "}

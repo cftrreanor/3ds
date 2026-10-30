@@ -13,6 +13,8 @@ type StationRow = {
   checkpoint_order: number | null;
   location: string | null;
   instructions: string | null;
+  /** Volunteers can see it (after the 20270105000000 update). */
+  showing?: boolean;
 };
 
 /**
@@ -51,6 +53,7 @@ export async function loadLeadStations(
     checkpoint: station.checkpoint_kind ? `Check-in stop ${station.checkpoint_order} · ${kindLabel(station.checkpoint_kind)}` : null,
     location: station.location,
     instructions: station.instructions,
+    hidden: station.showing === false,
     shifts: shifts
       .filter((sh) => sh.station_id === station.id)
       .map((sh) => ({

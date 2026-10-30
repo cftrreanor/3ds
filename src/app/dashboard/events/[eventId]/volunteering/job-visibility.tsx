@@ -13,6 +13,8 @@ export type JobVisibilityFacts = {
   /** The only job a published event's volunteers can see. */
   lastShowing: boolean;
   previewHref: string;
+  /** The event is published: showing means volunteers see it now. */
+  published: boolean;
 };
 
 /**
@@ -29,26 +31,27 @@ export function JobVisibility({ eventId, stationId, name, job }: { eventId: stri
           Hidden: volunteers can&apos;t see this job
         </p>
         <p className="mt-1">
-          Hosts, Co-hosts, Volunteer Leads, and this job&apos;s Coordinators can{" "}
+          Your hosts, Volunteer Leads, and this job&apos;s Coordinators can{" "}
           <Link href={job.previewHref} className="font-medium underline underline-offset-4">
             preview it
           </Link>
-          .
-        </p>
-        <div className="mt-3">
+          .{" "}
           {job.ready ? (
-            <ActionButton action={setStationShowing.bind(null, eventId, stationId, true)} pendingText="Showing…">
-              Show to volunteers
-            </ActionButton>
+            "When it's ready, use Save and show to volunteers at the bottom."
           ) : (
-            <p className="font-medium">{job.items ? "Add a thing to bring, then show it to volunteers" : "Add a shift, then show it to volunteers"}</p>
+            <>
+              <a href="#build-shifts" className="font-medium underline underline-offset-4">
+                {job.items ? "Add a thing to bring" : "Add a shift"}
+              </a>
+              , then show it to volunteers.
+            </>
           )}
-        </div>
+        </p>
       </div>
     );
   }
   const blocked = job.signedUp
-    ? `You can't hide this job while ${job.signedUp} ${job.signedUp === 1 ? "person is" : "people are"} signed up for it. Move or remove them first.`
+    ? `You can't hide this job while ${job.signedUp} ${job.signedUp === 1 ? "person is" : "people are"} signed up for it.`
     : job.lastShowing
       ? "This is the only job volunteers can see. Show another job before you hide this one, or unpublish the event."
       : null;
@@ -58,10 +61,20 @@ export function JobVisibility({ eventId, stationId, name, job }: { eventId: stri
         <span aria-hidden className="text-success">
           ✓
         </span>
-        Showing: volunteers can see this job
+        {job.published ? "Showing: volunteers can see this job" : "Showing: volunteers will see this job when you publish"}
       </p>
       {blocked ? (
-        <p className="mt-1 text-muted">{blocked}</p>
+        <p className="mt-1 text-muted">
+          {blocked}
+          {job.signedUp > 0 && (
+            <>
+              {" "}
+              <a href="#signed-up" className="font-medium text-foreground underline underline-offset-4">
+                See who
+              </a>
+            </>
+          )}
+        </p>
       ) : (
         <div className="mt-3">
           <ActionButton

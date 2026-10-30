@@ -7310,6 +7310,21 @@ begin
 end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000c2';
+-- A volunteer draft switched to another kind of event shows its hidden jobs again
+-- (only volunteer events have a Show button).
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+values ('10000000-0000-0000-0000-0000000000c4', :'org_id', 'Switch Me', 'switch-me', 'draft', 'volunteer',
+        current_date + 40, current_date + 40, now() + interval '40 days', now() + interval '40 days 4 hours', '1 School Rd');
+insert into public.stations (id, event_id, name, station_type, showing)
+values ('10000000-0000-0000-0000-0000000000c5', '10000000-0000-0000-0000-0000000000c4', 'Booth help', 'passive', false);
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+update public.events set event_type = 'fair' where id = '10000000-0000-0000-0000-0000000000c4';
+reset role;
+do $$ begin
+  assert (select showing from public.stations where id = '10000000-0000-0000-0000-0000000000c5'), 'leaving the volunteer type shows its jobs again';
+end $$;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000c4';
 -- Deleting the whole event takes everything with it.
 delete from public.events where id = '10000000-0000-0000-0000-0000000000b7';
 do $$ begin

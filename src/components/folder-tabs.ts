@@ -11,8 +11,9 @@ export const folderTabRow = "flex min-w-max items-end gap-1 border-b-2 border-fi
 export function folderTab(active: boolean) {
   return `flex min-h-11 cursor-pointer flex-col items-start rounded-t-[10px] px-4 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
     active
-      ? "-mb-0.5 border-2 border-b-[3px] border-field-border border-b-brand bg-brand-soft py-2.5 font-semibold text-brand"
-      : "border-[1.5px] border-b-2 border-field-border bg-surface py-2 font-medium text-muted hover:bg-brand-soft/60"
+      ? // Dark mode: white on a stronger fill, so the open tab stands out instead of fading back.
+        "-mb-0.5 border-2 border-b-[3px] border-field-border border-b-brand bg-brand-soft py-2.5 font-semibold text-brand dark:bg-[#1b3a57] dark:text-foreground"
+      : "border-[1.5px] border-b-2 border-field-border bg-surface py-2 font-medium text-muted hover:bg-brand-soft/60 dark:bg-background"
   }`;
 }
 

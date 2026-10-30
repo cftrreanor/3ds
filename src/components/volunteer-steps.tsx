@@ -56,7 +56,7 @@ export function VolunteerSteps({ eventId, facts }: { eventId: string; facts: Vol
             <li key={s.key} className="min-w-0">
               <span
                 aria-hidden
-                className={`block h-1.5 rounded-full ${done[i] && !now ? "bg-success" : now ? "bg-brand" : "border border-border bg-surface"}`}
+                className={`block h-1.5 rounded-full ${done[i] && !now ? "bg-success" : now ? "bg-brand" : "border border-field-border bg-surface"}`}
               />
               {now ? (
                 <span aria-current="step" className="mt-2 block text-sm font-semibold">

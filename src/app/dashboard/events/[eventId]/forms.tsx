@@ -44,7 +44,10 @@ export function StationForm({
   kind: signupKind,
   coordinators,
   job = false,
+  visibility,
 }: {
+  /** A volunteer event's job: whether volunteers can see it, and whether it has a shift or a thing to bring yet. */
+  visibility?: { showing: boolean; ready: boolean };
   action: Action;
   initial?: StationValues;
   /** A volunteer event's job: says "job" and "shifts" (other events keep "sign-up" and "time slots"). */
@@ -85,6 +88,82 @@ export function StationForm({
     // (After the page has redrawn with the saved sign-up, so the scroll isn't cut short.)
     if (trackUnsaved) setTimeout(() => document.getElementById("signups-heading")?.scrollIntoView({ block: "start" }), 50);
   }, [setEdited, trackUnsaved]);
+  if (job) {
+    // A volunteer event's job, as in the mock-up: what volunteers need first (name, where to check in,
+    // Coordinators), the rest folded away, and one save bar that also shows a hidden job.
+    return (
+      <ActionForm
+        id={trackUnsaved ? SIGNUP_FORM : undefined}
+        action={action}
+        className="space-y-4"
+        resetOnSuccess={!initial}
+        onEdit={trackUnsaved ? changed : undefined}
+        onSuccess={trackUnsaved ? saved : undefined}
+      >
+        <input type="hidden" name="noun" value="job" />
+        <Field label="Job name" hint="e.g. Parking, Litter pickup, Supplies to bring">
+          <Input name="name" required maxLength={80} defaultValue={initial?.name} />
+        </Field>
+        <Field label="Where volunteers check in" hint="Optional. e.g. North lot, front office">
+          <Input
+            name="location"
+            defaultValue={initial?.location ?? ""}
+            list={locations.length ? "room-locations" : undefined}
+          />
+          {locations.length > 0 && (
+            <datalist id="room-locations">
+              {locations.map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
+          )}
+        </Field>
+        {coordinators && <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} {...coordinators} />}
+        <details className="group rounded-lg border border-border">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+            More options: instructions, adults only{signupKind ? ", shifts or things to bring" : ""}
+            <span aria-hidden className="text-brand transition group-open:rotate-90">
+              ›
+            </span>
+          </summary>
+          <div className="space-y-4 border-t border-border p-3">
+            <Field label="Instructions for volunteers" hint="Optional. What to wear, bring, and do.">
+              <Textarea name="instructions" defaultValue={initial?.instructions ?? ""} />
+            </Field>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                name="adultsOnly"
+                defaultChecked={initial?.adults_only ?? false}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+              />
+              <span>
+                <span className="font-medium">Adults only (18+)</span>
+                <span className="block text-muted">No one under 18 can sign up for this job or be added as a walk-up.</span>
+              </span>
+            </label>
+            {signupKind && (
+              <div>
+                <SignupKindPicker
+                  value={signup}
+                  onChange={setSignup}
+                  disabled={Boolean(signupKind.locked)}
+                  job
+                  note={signupKind.locked ?? "You can change this until you add shifts or things to bring."}
+                />
+                {signupKind.locked && <input type="hidden" name="signupKind" value={signup} />}
+              </div>
+            )}
+          </div>
+        </details>
+        {trackUnsaved ? (
+          <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} job visibility={visibility} />
+        ) : (
+          <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+        )}
+      </ActionForm>
+    );
+  }
   return (
     <ActionForm
       id={trackUnsaved ? SIGNUP_FORM : undefined}
@@ -234,11 +313,13 @@ function SignupBar({
   remaining,
   submitLabel,
   job,
+  visibility,
 }: {
   dirty: boolean;
   draft: boolean;
   remaining: string[];
   submitLabel: string;
+  visibility?: { showing: boolean; ready: boolean };
   /** A volunteer event's job: showing or hidden is its own choice, so a finished one just says it's saved. */
   job: boolean;
 }) {
@@ -272,19 +353,39 @@ function SignupBar({
                 <span className="font-semibold">What&apos;s left:</span> {left[0].toUpperCase() + left.slice(1)}
               </>
             ) : (
-              <span className="font-semibold">{job ? "Saved" : "Ready for sign-ups"}</span>
+              <span className="font-semibold">{job ? (visibility && !visibility.showing ? "Saved as hidden" : "Saved") : "Ready for sign-ups"}</span>
             )}
           </span>
         </p>
-        <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
-          {/* Always there; usable once there's something to save. Keeps it without marking the sign-up finished. */}
-          <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…" disabled={!dirty && !draft}>
-            Save for later
-          </SubmitButton>
-          <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
-            {submitLabel}
-          </SubmitButton>
-        </div>
+        {job && visibility ? (
+          // A job: a hidden one saves as hidden, or saves and shows (with its changes) in one go; a showing one just saves.
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+            {visibility.showing ? (
+              <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
+                Save job
+              </SubmitButton>
+            ) : (
+              <>
+                <SubmitButton form={SIGNUP_FORM} variant="secondary" pendingText="Saving…" disabled={!dirty && !draft}>
+                  Save as hidden
+                </SubmitButton>
+                <SubmitButton form={SIGNUP_FORM} name="intent" value="show" pendingText="Showing…" disabled={!visibility.ready}>
+                  Save and show to volunteers
+                </SubmitButton>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+            {/* Always there; usable once there's something to save. Keeps it without marking the sign-up finished. */}
+            <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…" disabled={!dirty && !draft}>
+              Save for later
+            </SubmitButton>
+            <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
+              {submitLabel}
+            </SubmitButton>
+          </div>
+        )}
       </div>
     </div>,
     slot,

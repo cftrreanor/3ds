@@ -24,8 +24,13 @@ import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
+import { volunteerTotals } from "@/lib/volunteer-totals";
 
-export const metadata: Metadata = { title: "Volunteer Setup" };
+export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/volunteering">): Promise<Metadata> {
+  const { eventId } = await params;
+  const { data } = await (await createClient()).from("events").select("event_type").eq("id", eventId).maybeSingle();
+  return { title: data?.event_type === "volunteer" ? "Volunteer jobs" : "Volunteer Setup" };
+}
 
 type HostRow = { user_id: string; role: "owner" | "admin"; profiles: { full_name: string; email: string } | null };
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: { full_name: string; email: string } | null };
@@ -171,14 +176,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const isShowing = (st: Station) => st.showing !== false;
   const hasSome = (st: Station) => ownShifts(st.id).length + ownItems(st.id).length > 0;
   const showingReady = stations.filter((st) => isShowing(st) && hasSome(st));
-  // Totals count only what volunteers can see.
-  const counted = new Set(stations.filter((st) => !jobsHere || isShowing(st)).map((st) => st.id));
-  const filled =
-    shifts.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.registered_count, 0) +
-    items.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.claimed_count, 0);
-  const capacity =
-    shifts.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.max_capacity, 0) +
-    items.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.needed, 0);
+  // Totals count only what volunteers can see, the same way as the event page.
+  const { filled, capacity } = volunteerTotals(stations, shifts, items);
   const previewHref = `/e/${event.slug}/volunteer${jobsHere ? "?preview=1" : ""}`;
 
   const nameOf = (userId: string | null) => {
@@ -199,7 +198,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   ];
   // Each shift as a spreadsheet might name it: "Parking 9:00–11:00 AM", "Morning Parking"…
   const multiDay = days.length > 1;
-  const shiftChoices: Choice[] = shifts.map((sh) => {
+  // Only jobs volunteers can see take sign-ups, imported ones included.
+  const shiftChoices: Choice[] = shifts.filter((sh) => stations.some((st) => st.id === sh.station_id && st.showing !== false)).map((sh) => {
     const station = stations.find((s) => s.id === sh.station_id)?.name ?? "";
     const time = formatTimeRange(sh.starts_at, sh.ends_at, tz, { zone: false });
     const day = multiDay ? `${formatDate(utcToZonedDate(sh.starts_at, tz), { year: undefined })} ` : "";
@@ -226,12 +226,27 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{jobsHere ? "Volunteer jobs" : "Volunteer Setup"}</h1>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">{jobsHere ? "Volunteer jobs" : "Volunteer Setup"}</h1>
+        {/* A volunteer event's "+ Add a job" sits by the title, so it's never scrolled out of sight with the tabs. */}
+        {jobsHere && stations.length > 0 && (
+          <Link
+            href={tabHref("new")}
+            scroll={false}
+            className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
+          >
+            + Add a job
+          </Link>
+        )}
+      </div>
       <SavedBy eventId={eventId} area="volunteers" className="mt-2" />
+      {/* Volunteer events keep this note at the end, so the jobs come first. */}
+      {!jobsHere && (
       <p className="mt-1 text-sm text-muted">
         🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
         how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
       </p>
+      )}
 
       {jobsHere && published && (
         <p className="mt-4 flex gap-2 rounded-lg border border-brand/25 bg-brand-soft px-4 py-3 text-sm leading-6">
@@ -333,11 +348,14 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         <h2 id="signups-heading" className={jobsHere ? "sr-only" : "text-xl font-semibold"}>
           {jobsHere ? "Jobs" : "Volunteer sign-ups"}
         </h2>
-        <p className="mt-1 mb-4 text-sm text-muted">
-          {jobsHere
-            ? "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
-            : "Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items."}
-        </p>
+        {/* What a job is: said once, while there are none yet. */}
+        {!(jobsHere && stations.length > 0) && (
+          <p className="mt-1 mb-4 text-sm text-muted">
+            {jobsHere
+              ? "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
+              : "Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items."}
+          </p>
+        )}
         <UnsavedChangesProvider
           key={current?.id ?? "new"}
           needsDetails={false}
@@ -360,7 +378,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 showing: jobsHere ? isShowing(st) : undefined,
               };
             })}
-            add={{ href: tabHref("new"), active: adding, label: jobsHere ? "+ Add a job" : undefined }}
+            add={jobsHere ? (adding && stations.length > 0 ? { href: tabHref("new"), active: true, label: "New job" } : undefined) : { href: tabHref("new"), active: adding }}
+            label={jobsHere ? "Jobs" : undefined}
             extra={[
               {
                 key: "import",
@@ -382,7 +401,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 : []),
             ]}
           />
-          <div className="mt-6">
+          <div className={jobsHere ? "mt-2" : "mt-6"}>
             {current ? (
               <StationPanel
                 // A fresh panel per station, so its forms never keep the previous tab's choices.
@@ -407,10 +426,10 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                     ? "A check-in stop always takes time slots."
                     : current.signup_kind === "items"
                       ? currentItems.length
-                        ? "To switch to time slots, first delete this sign-up's items."
+                        ? `To switch to ${jobsHere ? "shifts" : "time slots"}, first delete this ${jobsHere ? "job" : "sign-up"}'s items.`
                         : null
                       : currentShifts.length
-                        ? "To switch to items to bring, first delete this sign-up's time slots."
+                        ? `To switch to ${jobsHere ? "things to bring" : "items to bring"}, first delete this ${jobsHere ? "job" : "sign-up"}'s ${jobsHere ? "shifts" : "time slots"}.`
                         : null
                 }
                 leadOptions={leadOptions}
@@ -425,6 +444,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                           currentShifts.reduce((n, x) => n + x.registered_count, 0) + currentItems.reduce((n, x) => n + x.claimed_count, 0),
                         lastShowing: published && showingReady.length === 1 && showingReady[0].id === current.id,
                         previewHref,
+                        published,
                       }
                     : undefined
                 }
@@ -535,6 +555,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             </Link>
           )}
         </Card>
+      )}
+      {jobsHere && (
+        <p className="mt-8 text-sm text-muted">
+          🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
+          how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
+        </p>
       )}
       {digest && (
         <section className="mt-8">
