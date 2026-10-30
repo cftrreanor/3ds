@@ -8,6 +8,14 @@ import type { ActionState } from "@/lib/action-state";
 import { confirmDialog } from "@/components/confirm-dialog";
 import { VolunteerTags } from "@/components/volunteer-tags";
 import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
+import { BinIcon } from "../forms";
+
+// The shared buttons: blue for the one main action, an outline for the rest, a plain link for small
+// moves, and red text with a bin for taking something off a list. 44px tall, 14px words.
+const BASE = "inline-flex min-h-11 items-center justify-center gap-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+const OUTLINE = `${BASE} rounded-md border-[1.5px] border-field-border bg-surface px-4 text-foreground hover:border-brand`;
+const LINK = `${BASE} text-brand underline underline-offset-4 hover:text-brand-hover`;
+const ROW_DELETE = `${BASE} px-1.5 text-danger underline-offset-4 hover:underline`;
 
 export type DeskVolunteer = {
   assignmentId: string;
@@ -344,9 +352,9 @@ function ShiftCard({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-muted">{full ? "Full" : `${gaps} open ${gaps === 1 ? "spot" : "spots"}`}</span>
               {!shift.over && rowProps.open && (
-                <Button type="button" variant="secondary" className="px-3 text-xs" onClick={() => setAdding(true)}>
+                <button type="button" className={OUTLINE} onClick={() => setAdding(true)}>
                   + Add walk-up
-                </Button>
+                </button>
               )}
             </div>
           )}
@@ -404,7 +412,7 @@ function WalkUpForm({
       </label>
       <input type="hidden" name="companions" value={JSON.stringify(others)} />
       {others.map((o, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2">
+        <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Input
             value={o.name}
             onChange={(e) => setOther(i, { name: e.target.value })}
@@ -413,7 +421,7 @@ function WalkUpForm({
             required
             maxLength={200}
             autoComplete="off"
-            className="min-w-0 flex-1"
+            className="min-w-0 basis-full sm:basis-auto sm:flex-1"
           />
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -424,20 +432,20 @@ function WalkUpForm({
             />
             Under 18
           </label>
-          <Button type="button" variant="ghost" className="min-h-9 px-2 text-xs" onClick={() => setOthers((prev) => prev.filter((_, j) => j !== i))}>
-            Remove
-          </Button>
+          <button type="button" className={ROW_DELETE} onClick={() => setOthers((prev) => prev.filter((_, j) => j !== i))}>
+            <BinIcon />
+            Remove {o.name.trim() || "this person"}
+          </button>
         </div>
       ))}
       {others.length < 4 && (
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          className="min-h-9 px-0 text-xs text-brand"
+          className={LINK}
           onClick={() => setOthers((prev) => [...prev, { name: "", minor: false }])}
         >
           + Add someone else
-        </Button>
+        </button>
       )}
       {blocked && (
         <p role="alert" className="text-sm text-danger">
@@ -445,12 +453,12 @@ function WalkUpForm({
         </p>
       )}
       <div className="flex gap-2">
-        <SubmitButton pendingText="Adding…" className="min-h-10" disabled={blocked}>
+        <SubmitButton pendingText="Adding…" disabled={blocked}>
           {others.length ? `Add ${others.length + 1} & check in` : "Add & check in"}
         </SubmitButton>
-        <Button type="button" variant="ghost" className="min-h-10" onClick={onDone}>
+        <button type="button" className={OUTLINE} onClick={onDone}>
           Cancel
-        </Button>
+        </button>
       </div>
     </ActionForm>
   );
@@ -492,10 +500,9 @@ function VolunteerRow({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {notHereYet && (
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            className="px-2 text-xs"
+            className={ROW_DELETE}
             disabled={releasing}
             onClick={async () => {
               const ok = await confirmDialog({
@@ -513,30 +520,24 @@ function VolunteerRow({
                 .finally(() => setReleasing(false));
             }}
           >
+            {!releasing && <BinIcon />}
             {releasing ? "Releasing…" : "Release spot"}
-          </Button>
+          </button>
         )}
         {!open ? (
           v.checkedIn && <span className="text-sm font-semibold text-success">✓ Here</span>
+        ) : v.checkedIn ? (
+          // Here: a status, not a button, with a small Undo beside it.
+          <span className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-success">✓ Here</span>
+            <button type="button" className={LINK} onClick={() => onToggle(v)} aria-label={`Undo check-in for ${v.name}`}>
+              Undo
+            </button>
+          </span>
         ) : (
-          <button
-            type="button"
-            onClick={() => onToggle(v)}
-            aria-pressed={v.checkedIn}
-            aria-label={v.checkedIn ? `${v.name} is checked in. Tap to undo.` : `Check in ${v.name}`}
-            className={`flex min-h-12 min-w-28 flex-col items-center justify-center rounded-md px-3 text-sm font-semibold transition ${
-              v.checkedIn ? "border border-success bg-surface text-foreground" : "bg-brand text-brand-foreground hover:bg-brand-hover"
-            }`}
-          >
-            {v.checkedIn ? (
-              <>
-                <span>✓ Here</span>
-                <span className="text-[11px] font-normal text-muted">tap to undo</span>
-              </>
-            ) : (
-              "Check in"
-            )}
-          </button>
+          <Button type="button" onClick={() => onToggle(v)} className="min-w-28" aria-label={`Check in ${v.name}`}>
+            Check in
+          </Button>
         )}
       </div>
     </li>

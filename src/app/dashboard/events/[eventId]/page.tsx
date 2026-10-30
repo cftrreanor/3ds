@@ -537,7 +537,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   {[
                     // Visitor days: the parent door is the main check-in.
                     parentsHere && !doorLocked && { href: `/dashboard/events/${eventId}/parents/check-in`, label: "Parent door check-in" },
-                    access.canManage && { href: `/dashboard/events/${eventId}/volunteers`, label: "Volunteer Check-in" },
+                    access.canManage && { href: `/dashboard/events/${eventId}/volunteers`, label: "Volunteer check-in" },
                     myStations.length > 0 && { href: `/dashboard/events/${eventId}/contest-day`, label: "What I lead" },
                     hasBooths(event.event_type) && { href: `/dashboard/events/${eventId}/booths/check-in`, label: "Partner check-in" },
                     access.canManage && !past && { href: `/dashboard/events/${eventId}/announcements`, label: "Broadcast Message" },
