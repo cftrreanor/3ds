@@ -12,5 +12,8 @@
   comma, no periods on incomplete headlines/buttons/bullets/labels, "organizer" for the role, claims guardrails). In-app permission levels stay "Host"/"Co-host"/"Account Host".
 - Number-only fields use `NumberInput` (src/components/number-input.tsx): a type-in box that
   accepts digits only. Never use `<input type="number">` (no up/down arrows).
+- Designs go through the design-review skill (.claude/skills/design-review): mock-ups before
+  building, screenshots before a PR goes out. Severity 3–4 findings block until the owner decides,
+  and decisions are logged in docs/design-decisions/.
 - When a page's main data is missing, call `missing()` from src/lib/schema-check.ts, not
   `notFound()`: it shows "a database update is needed" when a migration hasn't been run yet.
