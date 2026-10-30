@@ -6,7 +6,7 @@ import { getMyOrganization } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
 import { createEvent } from "../../actions";
 import { EventForm } from "../_components/event-form";
-import { SetupHeader } from "../_components/setup-steps";
+import { SetupHeader, VOLUNTEER_SETUP_STEPS } from "../_components/setup-steps";
 import { SetupLogo } from "../_components/setup-logo";
 import { loadBrand } from "@/lib/badges";
 import { EventTypeChoices } from "@/components/event-type-picker";
@@ -95,7 +95,11 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
     const brand = isAdmin ? await loadBrand(org.id) : null;
     return (
       <div className="mx-auto max-w-5xl" data-required-marks>
-        <SetupHeader current="details" back={{ href: "/dashboard", label: "My events" }}>
+        <SetupHeader
+          current="details"
+          back={{ href: "/dashboard", label: "My events" }}
+          steps={type === "volunteer" ? VOLUNTEER_SETUP_STEPS : undefined}
+        >
           {changeKind}
         </SetupHeader>
         {trialNote}

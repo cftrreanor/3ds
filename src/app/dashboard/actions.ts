@@ -182,10 +182,15 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
   if (error) return { error: friendlyDbError(error) };
 
   revalidatePath("/dashboard");
-  // Conferences and meetings go straight to their setup, where the day or weekly hours are set; other
-  // events on to the rest of their guided setup (Event settings, a step at a time).
+  // Conferences and meetings go straight to their setup, where the day or weekly hours are set. A
+  // volunteer event's step 2 is its jobs (team, emails, and maps wait in Event settings). Other events
+  // go on to the rest of their guided setup (Event settings, a step at a time).
   redirect(
-    hasConferences(eventType as string) ? `/dashboard/events/${data.id}/conferences` : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
+    hasConferences(eventType as string)
+      ? `/dashboard/events/${data.id}/conferences`
+      : eventType === "volunteer"
+        ? `/dashboard/events/${data.id}/volunteering`
+        : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
   );
 }
 
