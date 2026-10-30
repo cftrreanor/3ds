@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { useTabInView } from "@/components/use-tab-in-view";
+import { EyeOffIcon } from "@/components/eye-off-icon";
 
 /** The two steps inside each sign-up. */
 export type StationStep = "details" | "shifts";
@@ -105,11 +106,19 @@ export type StationTab = {
   items?: boolean;
   filled: number;
   capacity: number;
+  /** A volunteer event's job: whether volunteers can see it. */
+  showing?: boolean;
 };
 
 /** What a tab says under its name: the first thing still to do, or how full it is. */
 function status(t: StationTab, unsaved: boolean) {
   if (unsaved) return "Unsaved changes";
+  // A volunteer event's job: showing or hidden first, then what it needs or how full it is.
+  if (t.showing !== undefined) {
+    if (!t.capacity) return `${t.showing ? "Showing" : "Hidden"} · ${t.items ? "needs a thing to bring" : "needs a shift"}`;
+    if (!t.showing) return "Hidden · ready to show";
+    return `Showing · ${t.filled} of ${t.capacity} ${t.items ? "covered" : "filled"}`;
+  }
   if (!t.saved) return "Draft, not finished";
   if (!t.capacity) return t.items ? "No items yet" : "No time slots yet";
   return `${t.filled} of ${t.capacity} ${t.items ? "covered" : "filled"}`;
@@ -122,7 +131,7 @@ export function StationTabs({
   extra = [],
 }: {
   tabs: StationTab[];
-  add?: { href: string; active: boolean };
+  add?: { href: string; active: boolean; label?: string };
   /** Tabs after the sign-ups, set a little apart: Import volunteers, Check-in order. */
   extra?: { key: string; label: string; status: string; href: string; active: boolean }[];
 }) {
@@ -144,66 +153,69 @@ export function StationTabs({
     requestAnimationFrame(() => document.querySelector("[data-step-notice]")?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
   return (
-    <nav ref={row} aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <ul className="flex min-w-max gap-1 border-b border-border">
-        {tabs.map((t) => (
-          <li key={t.id}>
-            <Link
-              href={t.href}
-              scroll={false}
-              aria-current={t.active ? "page" : undefined}
-              onClick={(e) => guard(e, t.href, t.active)}
-              className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-                t.active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-              }`}
-            >
-              <span className="flex items-center gap-1.5 whitespace-nowrap">
-                {t.configured && !(t.active && progress?.dirty.details) ? (
-                  <span aria-hidden className="font-bold text-success">
-                    ✓
-                  </span>
-                ) : (
-                  <span aria-hidden className="size-2.5 rounded-full bg-[#f5b301] ring-1 ring-warning/50" />
-                )}
-                {t.name}
-              </span>
-              <span className="text-xs font-normal tabular-nums text-muted">
-                {status(t, t.active && Boolean(progress?.dirty.details))}
-              </span>
-            </Link>
-          </li>
-        ))}
+    <nav ref={row} aria-label="Sign-ups" className="relative -mx-4 overflow-x-auto px-4 pt-1 sm:mx-0 sm:px-0">
+      {/* Folder-style tabs (the shared tabs pattern): the open one is filled and joined to the page below, the others sit back. */}
+      <ul className="flex min-w-max items-end gap-1 border-b-2 border-field-border">
+        {tabs.map((t) => {
+          const unsaved = t.active && Boolean(progress?.dirty.details);
+          // Something to do (no shifts yet, unfinished, unsaved): an amber line under the name.
+          const needs = unsaved || !t.configured;
+          return (
+            <li key={t.id}>
+              <Link
+                href={t.href}
+                scroll={false}
+                aria-current={t.active ? "page" : undefined}
+                onClick={(e) => guard(e, t.href, t.active)}
+                className={tabClass(t.active)}
+              >
+                <span className={`flex items-center gap-1.5 whitespace-nowrap ${t.active ? "font-semibold text-brand" : "font-medium text-muted"}`}>
+                  {t.showing === false ? (
+                    <EyeOffIcon className="size-3.5" />
+                  ) : (
+                    !needs && <span aria-hidden>✓</span>
+                  )}
+                  {t.name}
+                </span>
+                <span className={`text-xs tabular-nums ${needs && t.showing !== false ? "font-medium text-warning" : "text-muted"}`}>
+                  {needs && t.showing !== false && <span aria-hidden>◆ </span>}
+                  {status(t, unsaved)}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
         {add && (
           <li>
-            <Link
-              href={add.href}
-              scroll={false}
-              aria-current={add.active ? "page" : undefined}
-              className={`-mb-px flex h-full items-center whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium ${
-                add.active ? "border-brand text-foreground" : "border-transparent text-brand hover:text-foreground"
-              }`}
-            >
-              + Add sign-up
+            <Link href={add.href} scroll={false} aria-current={add.active ? "page" : undefined} className={`${tabClass(add.active)} justify-center`}>
+              <span className="whitespace-nowrap font-semibold text-brand">{add.label ?? "+ Add sign-up"}</span>
             </Link>
           </li>
         )}
         {extra.map((t, i) => (
-          <li key={t.key} className={i === 0 ? "ml-2 border-l border-border pl-2" : undefined}>
+          <li key={t.key} className={i === 0 ? "ml-3" : undefined}>
             <Link
               href={t.href}
               scroll={false}
               aria-current={t.active ? "page" : undefined}
               onClick={(e) => guard(e, t.href, t.active)}
-              className={`-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-                t.active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-              }`}
+              className={tabClass(t.active)}
             >
-              <span className="whitespace-nowrap">{t.label}</span>
-              <span className="text-xs font-normal text-muted">{t.status}</span>
+              <span className={`whitespace-nowrap ${t.active ? "font-semibold text-brand" : "font-medium text-muted"}`}>{t.label}</span>
+              <span className="text-xs text-muted">{t.status}</span>
             </Link>
           </li>
         ))}
       </ul>
     </nav>
   );
+}
+
+/** One folder tab: raised and joined to the page when open, set back when not. */
+function tabClass(active: boolean) {
+  return `flex min-h-11 flex-col rounded-t-[10px] px-4 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+    active
+      ? "-mb-0.5 border-2 border-b-[3px] border-field-border border-b-brand bg-brand-soft py-2.5"
+      : "border-[1.5px] border-b-2 border-field-border bg-surface py-2 hover:bg-brand-soft/60"
+  }`;
 }

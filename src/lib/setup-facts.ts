@@ -27,8 +27,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const count = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
   const head = { count: "exact" as const, head: true };
   const conferenceHere = hasConferences(type);
-  const [stations, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots] = await Promise.all([
-    count(supabase.from("stations").select("id", head).eq("event_id", eventId)),
+  const [jobs, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots] = await Promise.all([
+    loadJobs(supabase, eventId),
     count(supabase.from("stations").select("id", head).eq("event_id", eventId).not("checkpoint_kind", "is", null)),
     count(supabase.from("shifts").select("id", head).eq("event_id", eventId)),
     count(supabase.from("event_staff").select("user_id", head).eq("event_id", eventId)),
@@ -55,8 +55,10 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     eventId,
     eventType: type,
     published: event.status === "published",
-    stations,
+    stations: jobs.length,
     shifts,
+    showingJobs: jobs.filter((j) => j.showing && j.ready).length,
+    hiddenJobs: jobs.filter((j) => !j.showing).map(({ id, name, ready }) => ({ id, name, ready })),
     checkInStops,
     team: staff + cohosts,
     invitesPending: invites,
@@ -78,6 +80,26 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     conferenceMissing: conferenceHere ? notReady(conference, event.venue_address, event.event_type) : null,
     planBlock,
   };
+}
+
+/**
+ * Each job (station): whether volunteers can see it, and whether it has a shift
+ * or a thing to bring yet (what it needs before it's worth showing).
+ */
+async function loadJobs(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string) {
+  const [{ data: stations }, { data: shifts }, { data: items }] = await Promise.all([
+    // Every column: showing arrives with the 20270105000000 update.
+    supabase.from("stations").select("*").eq("event_id", eventId).order("sort_order").order("created_at"),
+    supabase.from("shifts").select("station_id").eq("event_id", eventId),
+    supabase.from("station_items").select("station_id").eq("event_id", eventId),
+  ]);
+  const filled = new Set([...(shifts ?? []), ...(items ?? [])].map((r) => r.station_id));
+  return (stations ?? []).map((st) => ({
+    id: st.id as string,
+    name: st.name as string,
+    showing: (st as { showing?: boolean }).showing !== false,
+    ready: filled.has(st.id),
+  }));
 }
 
 async function publishBlock(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string, type: string, orgId: string): Promise<SetupFacts["planBlock"]> {

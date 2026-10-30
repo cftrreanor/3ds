@@ -10,8 +10,11 @@ import { currentSpots, signUpVolunteer } from "./actions";
 import { eventPhase, sortStations } from "@/lib/contest-day";
 import { hasBooths, leadWords } from "@/lib/event-types";
 import { SignupForm, type PublicStation } from "./signup-form";
+import { getEventAccess } from "@/lib/data";
+import { EyeOffIcon } from "@/components/eye-off-icon";
 
 type Params = { params: Promise<{ slug: string }> };
+type PageProps = Params & { searchParams: Promise<{ preview?: string }> };
 
 async function loadEvent(slug: string) {
   const supabase = await createClient();
@@ -28,8 +31,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return { title: event ? `Volunteer: ${event.name}` : "Volunteer sign-up" };
 }
 
-export default async function VolunteerSignupPage({ params }: Params) {
+export default async function VolunteerSignupPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const preview = (await searchParams).preview === "1";
   const event = await loadEvent(slug);
   if (!event) missing();
 
@@ -57,6 +61,9 @@ export default async function VolunteerSignupPage({ params }: Params) {
   // Only jobs volunteers can sign up for. (Signed-in hosts and Coordinators can read hidden
   // jobs too; they preview those elsewhere, never mixed into the real page.)
   const showing = (stations ?? []).filter((st) => (st as { showing?: boolean }).showing !== false);
+  // The team's preview (?preview=1): hidden jobs too, set apart, for the people the database lets read them.
+  const hidden = preview ? sortStations((stations ?? []).filter((st) => (st as { showing?: boolean }).showing === false)) : [];
+  const canEdit = hidden.length > 0 && (await getEventAccess(event.id)).canManage;
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
@@ -123,6 +130,23 @@ export default async function VolunteerSignupPage({ params }: Params) {
 
   return (
     <>
+    {hidden.length > 0 && (
+      <div className="border-b border-warning/40 bg-warning-soft print:hidden">
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-3 px-4 py-2 text-sm">
+          <p>
+            <span className="font-semibold">Preview only.</span> Volunteers can&apos;t see hidden jobs (dashed).
+          </p>
+          {canEdit && (
+            <Link
+              href={`/dashboard/events/${event.id}/volunteering`}
+              className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 font-semibold hover:border-brand"
+            >
+              Back to jobs
+            </Link>
+          )}
+        </div>
+      </div>
+    )}
     <EventHeaderBar slug={slug} />
     {band && heading}
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
@@ -150,7 +174,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
       <div className="mt-8">
         {publicStations.length === 0 ? (
           <Card>
-            <p className="text-muted">Nothing is open for sign-up right now.</p>
+            <p className="text-muted">{hidden.length ? "No jobs are showing to volunteers yet." : "Nothing is open for sign-up right now."}</p>
           </Card>
         ) : (
           <SignupForm
@@ -162,6 +186,46 @@ export default async function VolunteerSignupPage({ params }: Params) {
           />
         )}
       </div>
+
+      {hidden.length > 0 && (
+        <ul className="mt-6 space-y-4" aria-label="Hidden jobs">
+          {hidden.map((st) => {
+            const own = st.signup_kind === "items" ? [] : (shifts ?? []).filter((s) => s.station_id === st.id);
+            const things = (items ?? []).filter((i) => i.station_id === st.id);
+            return (
+              <li key={st.id} className="rounded-lg border-2 border-dashed border-warning/60 p-4 sm:p-5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-0.5 text-xs font-semibold">
+                  <EyeOffIcon className="size-3.5" />
+                  Hidden from volunteers
+                </span>
+                <p className="mt-2 font-semibold">{st.name}</p>
+                <ul className="mt-1 space-y-0.5 text-sm">
+                  {own.map((s) => (
+                    <li key={s.id}>
+                      {multiDay && `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · `}
+                      {formatTimeRange(s.starts_at, s.ends_at, tz)} · {s.max_capacity} {s.max_capacity === 1 ? "spot" : "spots"}
+                    </li>
+                  ))}
+                  {things.map((i) => (
+                    <li key={i.id}>
+                      {i.name} · {i.needed} needed
+                    </li>
+                  ))}
+                  {own.length + things.length === 0 && <li className="text-muted">{st.signup_kind === "items" ? "No things to bring yet" : "No shifts yet"}</li>}
+                </ul>
+                {canEdit && (
+                  <Link
+                    href={`/dashboard/events/${event.id}/volunteering?station=${st.id}`}
+                    className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4"
+                  >
+                    Edit {st.name}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <p className="mt-10 text-center text-sm text-muted">
         Already signed up?{" "}

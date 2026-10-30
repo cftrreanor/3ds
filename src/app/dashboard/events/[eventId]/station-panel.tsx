@@ -18,6 +18,7 @@ import {
 } from "../../actions";
 import { BuildShifts, DeleteButton, ItemsEditor, ShiftForm, StationForm, type LeadOption } from "./forms";
 import { inviteCoordinator } from "../../team-actions";
+import { JobVisibility, type JobVisibilityFacts } from "./volunteering/job-visibility";
 
 export type Shift = {
   id: string;
@@ -46,6 +47,8 @@ export type Station = {
   lead_user_id: string | null;
   /** Everyone leading this sign-up, first-added first. */
   lead_ids: string[];
+  /** Volunteers can see it (a volunteer event's jobs start hidden; after the 20270105000000 update). */
+  showing?: boolean;
   /** When "1. Sign-up details" was last saved (null: not done yet). */
   details_saved_at?: string | null;
   /** Time slots (shifts) or things to bring (items). */
@@ -98,6 +101,7 @@ export function StationPanel({
   kindLocked = null,
   leadOptions = [],
   pendingInvites = [],
+  job,
 }: {
   eventId: string;
   station: Station;
@@ -126,7 +130,10 @@ export function StationPanel({
   leadOptions?: LeadOption[];
   /** Invited to lead it, not accepted yet. */
   pendingInvites?: string[];
+  /** A volunteer event's job: whether volunteers can see it, with its Show or Hide button. */
+  job?: JobVisibilityFacts;
 }) {
+  const noun = job ? "job" : "sign-up";
   const itemsStation = station.signup_kind === "items";
   const tz = event.timezone;
   const multiDay = days.length > 1;
@@ -139,6 +146,7 @@ export function StationPanel({
       days={days}
       existing={stationShifts.length}
       signedUp={stationShifts.some((s) => s.registered_count > 0)}
+      job={Boolean(job)}
     />
   );
   return (
@@ -163,6 +171,11 @@ export function StationPanel({
         </div>
       </div>
 
+      {canManage && job && (
+        <div className="mt-4">
+          <JobVisibility eventId={eventId} stationId={station.id} name={station.name} job={job} />
+        </div>
+      )}
       {canManage && (
         // Everything about the sign-up in one place: its name, type, details, and Coordinators (one Save),
         // then its items or time slots, edited right in their rows.
@@ -171,7 +184,7 @@ export function StationPanel({
             <StationForm
               action={updateStation.bind(null, eventId, station.id)}
               initial={station}
-              submitLabel="Save sign-up"
+              submitLabel={`Save ${noun}`}
               bands={hasBands(event.event_type)}
               locations={locations}
               zones={zones}
@@ -179,10 +192,13 @@ export function StationPanel({
               kind={{ value: station.signup_kind ?? "shifts", locked: kindLocked }}
               coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
               trackUnsaved
+              job={Boolean(job)}
               draft={!station.details_saved_at}
               remaining={[
                 ...(station.details_saved_at ? [] : ["finish the details"]),
-                ...(itemsStation ? (items.length ? [] : ["add items to bring"]) : stationShifts.length ? [] : ["add time slots"]),
+                ...(itemsStation
+                  ? items.length ? [] : [job ? "add things to bring" : "add items to bring"]
+                  : stationShifts.length ? [] : [job ? "add shifts" : "add time slots"]),
               ]}
             />
           </div>
@@ -208,9 +224,9 @@ export function StationPanel({
           ) : (
             <section id="build-shifts" aria-labelledby="shifts-heading" className="scroll-mt-6 border-t border-border pt-6">
               <h4 id="shifts-heading" className="text-base font-semibold">
-                Time slots
+                {job ? "Shifts" : "Time slots"}
               </h4>
-              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage />
+              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage job={Boolean(job)} />
               {stationShifts.length > 0 ? (
                 // Once it has time slots, redoing or adding them is tucked away so it doesn't pull focus.
                 <details className="group mt-3">
@@ -290,10 +306,10 @@ export function StationPanel({
         <div className="mt-8 border-t border-border pt-4">
           <DeleteButton
             action={deleteStation.bind(null, eventId, station.id)}
-            label={`Delete sign-up ${station.name}`}
-            text="Delete sign-up"
+            label={`Delete ${noun} ${station.name}`}
+            text={`Delete ${noun}`}
             quiet
-            confirmMessage={`Delete “${station.name}”? Its time slots and items are deleted too, and this can't be undone. (A sign-up with people signed up can't be deleted.)`}
+            confirmMessage={`Delete “${station.name}”? Its ${job ? "shifts" : "time slots"} and items are deleted too, and this can't be undone. (A ${noun} with people signed up can't be deleted.)`}
           />
         </div>
       )}
@@ -313,15 +329,17 @@ function ShiftList({
   multiDay,
   days,
   canManage,
+  job = false,
 }: {
   shifts: Shift[];
+  job?: boolean;
   eventId: string;
   tz: string;
   multiDay: boolean;
   days: string[];
   canManage: boolean;
 }) {
-  if (shifts.length === 0) return <p className="mt-2 text-sm text-muted">No time slots yet.</p>;
+  if (shifts.length === 0) return <p className="mt-2 text-sm text-muted">{job ? "No shifts yet. Add at least one so volunteers can sign up." : "No time slots yet."}</p>;
   return (
     <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
       {shifts.map((s) => (
@@ -353,14 +371,14 @@ function ShiftList({
           {canManage && (
             <details className="mt-1">
               <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
-                Edit time slot
+                {job ? "Edit shift" : "Edit time slot"}
               </summary>
               <div className="mt-3 pb-1">
                 <ShiftForm
                   action={updateShift.bind(null, eventId, s.id)}
                   days={days}
                   registered={s.registered_count}
-                  submitLabel="Save time slot"
+                  submitLabel={job ? "Save shift" : "Save time slot"}
                   initial={{
                     title: s.title,
                     day: utcToZonedDate(s.starts_at, tz),

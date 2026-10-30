@@ -43,9 +43,12 @@ export function StationForm({
   remaining = [],
   kind: signupKind,
   coordinators,
+  job = false,
 }: {
   action: Action;
   initial?: StationValues;
+  /** A volunteer event's job: says "job" and "shifts" (other events keep "sign-up" and "time slots"). */
+  job?: boolean;
   leads?: LeadOption[];
   /** Time slots or items to bring, and why it can't change right now (null if it can). */
   kind?: { value: SignupKind; locked: string | null };
@@ -92,8 +95,8 @@ export function StationForm({
       onSuccess={trackUnsaved ? saved : undefined}
     >
       <Field
-        label="Sign-up name"
-        hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}
+        label={job ? "Job name" : "Sign-up name"}
+        hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : job ? "e.g. Parking, Litter pickup, Supplies to bring" : "e.g. Parking, Concessions, Ticket Table"}
         className={signupKind ? "sm:col-span-2" : undefined}
       >
         <Input name="name" required maxLength={80} defaultValue={initial?.name} />
@@ -104,13 +107,14 @@ export function StationForm({
             value={signup}
             onChange={setSignup}
             disabled={Boolean(signupKind.locked)}
-            note={signupKind.locked ?? "You can change this until you add time slots or items."}
+            job={job}
+            note={signupKind.locked ?? (job ? "You can change this until you add shifts or things to bring." : "You can change this until you add time slots or items.")}
           />
           {/* A locked choice still says what it is, so saving never changes it. */}
           {signupKind.locked && <input type="hidden" name="signupKind" value={signup} />}
         </div>
       )}
-      {signupKind && <h3 className="border-t border-border pt-4 text-base font-semibold sm:col-span-2">Sign-up details</h3>}
+      {signupKind && <h3 className="border-t border-border pt-4 text-base font-semibold sm:col-span-2">{job ? "Job details" : "Sign-up details"}</h3>}
       {bands && (
       <Field
         label="Check-in stop?"
@@ -175,7 +179,7 @@ export function StationForm({
         />
         <span>
           <span className="font-medium">Adults only (18+)</span>
-          <span className="block text-muted">No one under 18 can sign up for this sign-up&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
+          <span className="block text-muted">No one under 18 can sign up for this {job ? "job" : "sign-up"}&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
         </span>
       </label>
       {coordinators && <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} {...coordinators} />}
@@ -207,7 +211,7 @@ export function StationForm({
         </fieldset>
       )}
       {trackUnsaved ? (
-        <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} />
+        <SignupBar dirty={dirty} draft={draft} remaining={remaining} submitLabel={submitLabel} job={job} />
       ) : (
         <div className="sm:col-span-2">
           <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
@@ -224,7 +228,20 @@ const noSubscribe = () => () => {};
  * A sign-up's footer: pinned to the bottom of the screen for the whole sign-up (resting at the end of its card),
  * saying what's left and saving its details form. Rendered into the card's #signup-bar slot.
  */
-function SignupBar({ dirty, draft, remaining, submitLabel }: { dirty: boolean; draft: boolean; remaining: string[]; submitLabel: string }) {
+function SignupBar({
+  dirty,
+  draft,
+  remaining,
+  submitLabel,
+  job,
+}: {
+  dirty: boolean;
+  draft: boolean;
+  remaining: string[];
+  submitLabel: string;
+  /** A volunteer event's job: showing or hidden is its own choice, so a finished one just says it's saved. */
+  job: boolean;
+}) {
   const slot = useSyncExternalStore(
     noSubscribe,
     () => document.getElementById("signup-bar"),
@@ -255,7 +272,7 @@ function SignupBar({ dirty, draft, remaining, submitLabel }: { dirty: boolean; d
                 <span className="font-semibold">What&apos;s left:</span> {left[0].toUpperCase() + left.slice(1)}
               </>
             ) : (
-              <span className="font-semibold">Ready for sign-ups</span>
+              <span className="font-semibold">{job ? "Saved" : "Ready for sign-ups"}</span>
             )}
           </span>
         </p>
@@ -303,9 +320,11 @@ export function GenerateShiftsForm({
   multiDay = false,
   existing = 0,
   signedUp = false,
+  job = false,
 }: {
   action: Action;
   windowLabel: string;
+  job?: boolean;
   /** How long the event day is, to say whether a length splits it evenly. */
   windowMinutes?: number;
   multiDay?: boolean;
@@ -319,7 +338,7 @@ export function GenerateShiftsForm({
   if (signedUp) {
     return (
       <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
-        Volunteers have signed up for this sign-up&apos;s time slots, so filling the day can&apos;t replace them. Edit them one at a time above, or add one shift.
+        Volunteers have signed up for this {job ? "job" : "sign-up"}&apos;s {job ? "shifts" : "time slots"}, so filling the day can&apos;t replace them. Edit them one at a time above, or add one shift.
       </p>
     );
   }
@@ -327,11 +346,11 @@ export function GenerateShiftsForm({
     <ActionForm
       action={action}
       className="space-y-4"
-      confirmMessage={existing ? `Replace this sign-up's ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
+      confirmMessage={existing ? `Replace this ${job ? "job" : "sign-up"}'s ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
       onEdit={(f) => setEdited(hasAnswers(f))}
     >
       <p className="text-sm text-muted">
-        Split the event day ({windowLabel}) into shifts for this sign-up.
+        Split the event day ({windowLabel}) into shifts for this {job ? "job" : "sign-up"}.
         {existing > 0 && (
           <>
             {" "}
@@ -513,8 +532,10 @@ export function BuildShifts({
   days,
   existing = 0,
   signedUp = false,
+  job = false,
 }: {
   generate: Action;
+  job?: boolean;
   create: Action;
   windowLabel: string;
   /** How long the event day is (for the even-shifts check). */
@@ -560,6 +581,7 @@ export function BuildShifts({
           multiDay={days.length > 1}
           existing={existing}
           signedUp={signedUp}
+          job={job}
         />
       ) : (
         <ShiftForm action={create} days={days} />
@@ -583,11 +605,13 @@ function SignupKindPicker({
   onChange,
   disabled = false,
   note,
+  job = false,
 }: {
   value: SignupKind;
   onChange: (kind: SignupKind) => void;
   disabled?: boolean;
   note: string;
+  job?: boolean;
 }) {
   return (
     <fieldset disabled={disabled}>
@@ -607,7 +631,7 @@ function SignupKindPicker({
               className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
             />
             <span>
-              <span className="block text-sm font-semibold">{k.label}</span>
+              <span className="block text-sm font-semibold">{job ? (k.value === "shifts" ? "Shifts" : "Things to bring") : k.label}</span>
               <span className="block text-sm text-muted">{k.hint}</span>
             </span>
           </label>
@@ -621,20 +645,35 @@ function SignupKindPicker({
 /** "Time slots" or "Items to bring", for a sign-up's row. */
 export const signupKindLabel = (kind: SignupKind) => SIGNUP_KINDS.find((k) => k.value === kind)!.label;
 
-export function NewStationForm({ action, openTab = false }: { action: Action; /** Go to the new sign-up's tab once it's added. */ openTab?: boolean }) {
+export function NewStationForm({
+  action,
+  openTab = false,
+  job = false,
+}: {
+  action: Action;
+  /** Go to the new sign-up's tab once it's added. */
+  openTab?: boolean;
+  /** A volunteer event's job (see StationForm). */
+  job?: boolean;
+}) {
   const [kind, setKind] = useState<SignupKind>("shifts");
   return (
     <ActionForm action={action} className="space-y-4">
       {openTab && <input type="hidden" name="openTab" value="1" />}
       <Field
-        label="Sign-up name"
-        hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : "e.g. Parking, Concessions, Ticket Table"}
+        label={job ? "Job name" : "Sign-up name"}
+        hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : job ? "e.g. Parking, Litter pickup, Setup crew" : "e.g. Parking, Concessions, Ticket Table"}
       >
         <Input name="name" required maxLength={80} />
       </Field>
-      <SignupKindPicker value={kind} onChange={setKind} note="You can change this later, until you add time slots or items." />
+      <SignupKindPicker
+        value={kind}
+        onChange={setKind}
+        job={job}
+        note={job ? "You can change this later, until you add shifts or things to bring." : "You can change this later, until you add time slots or items."}
+      />
       <SubmitButton variant="go" pendingText="Adding…">
-        Add sign-up
+        {job ? "Add job" : "Add sign-up"}
       </SubmitButton>
     </ActionForm>
   );

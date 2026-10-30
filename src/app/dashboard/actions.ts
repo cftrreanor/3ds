@@ -316,6 +316,13 @@ export async function publishAndOpenSignups(eventId: string): Promise<ActionStat
   redirect(`/dashboard/events/${eventId}?published=1`);
 }
 
+/** A volunteer event published with sign-up closed: people see the event, and sign-up opens when the host opens it. */
+export async function publishSignupLater(eventId: string): Promise<ActionState> {
+  const closed = await setVolunteerSignupOpen(eventId, false);
+  if (closed.error) return closed;
+  return publishAndOpen(eventId);
+}
+
 export async function setVolunteerSignupOpen(eventId: string, open: boolean): Promise<ActionState> {
   await requireUser();
   const supabase = await createClient();
@@ -394,9 +401,12 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
   if (!leadIds.success) return { error: "Something went wrong with the Coordinators. Please try again." };
 
   const supabase = await createClient();
+  // A volunteer event's new jobs start hidden, so volunteers never see one half set up.
+  const { data: ev } = await supabase.from("events").select("event_type").eq("id", eventId).maybeSingle();
   const { data, error } = await supabase
     .from("stations")
     .insert({
+      ...(ev?.event_type === "volunteer" ? { showing: false } : {}),
       event_id: eventId,
       name: v.name,
       station_type: kind ? "active_checkpoint" : "passive",
@@ -541,6 +551,23 @@ export async function deleteStation(eventId: string, stationId: string): Promise
   if (error) return { error: friendlyDbError(error) };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
+}
+
+/**
+ * Show a job to volunteers, or hide it again. The database refuses to hide one
+ * with people signed up, or the last one a published event's volunteers can see.
+ */
+export async function setStationShowing(eventId: string, stationId: string, showing: boolean): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("stations").update({ showing }).eq("id", stationId).eq("event_id", eventId).select("name");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "You don't have permission to do that." };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return {
+    ok: true,
+    message: showing ? `Volunteers can see “${data[0].name}” now.` : `“${data[0].name}” is hidden from volunteers.`,
+  };
 }
 
 // ---------------------------------------------------------------------------

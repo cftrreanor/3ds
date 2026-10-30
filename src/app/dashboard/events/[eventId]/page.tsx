@@ -25,7 +25,7 @@ import {
 import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
-import { publishAndOpen, setVolunteerSignupOpen } from "../../actions";
+import { publishAndOpen, publishAndOpenSignups, publishSignupLater, setVolunteerSignupOpen } from "../../actions";
 import { setBandRegistrationOpen } from "../../band-actions";
 import { setParentRegistrationOpen } from "./parents/actions";
 import { ActionButton } from "./forms";
@@ -111,7 +111,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   ] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, lead_user_id")
+      // Every column: showing arrives with the 20270105000000 update.
+      .select("*")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -180,7 +181,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const multiDay = days.length > 1;
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
 
-  const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
+  // Totals count only the jobs volunteers can see (hosts and leads read hidden ones too).
+  const hiddenJobs = stations.filter((st) => (st as { showing?: boolean }).showing === false);
+  const liveShifts = (shifts ?? []).filter((s) => !hiddenJobs.some((st) => st.id === s.station_id));
+  const signedUp = liveShifts.reduce((n, s) => n + s.registered_count, 0);
 
   // Coordinators: their sign-ups (volunteers by shift) are on the Contest day page.
   const myStations = stations.filter((s) => s.lead_ids.includes(user.id));
@@ -192,7 +196,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   for (const s of (shifts ?? []) as Shift[]) {
     shiftsByStation.set(s.station_id, [...(shiftsByStation.get(s.station_id) ?? []), s]);
   }
-  const totalSlots = (shifts ?? []).reduce((n, s) => n + s.max_capacity, 0);
+  const totalSlots = liveShifts.reduce((n, s) => n + s.max_capacity, 0);
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = ((hostData ?? []) as unknown as HostRow[]).sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
   const stationName = (id: string | null) => stations.find((s) => s.id === id)?.name;
@@ -256,7 +260,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const doorLocked = parentsHere && !access.canManage && !isEventDay;
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
   // The emptiest shifts first: where to send the next volunteers.
-  const needsPeople = ((shifts ?? []) as Shift[])
+  const needsPeople = (liveShifts as Shift[])
     .filter((s) => s.registered_count < s.max_capacity)
     .sort((a, b) => a.registered_count / a.max_capacity - b.registered_count / b.max_capacity || a.starts_at.localeCompare(b.starts_at))
     .slice(0, 3)
@@ -728,14 +732,31 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 </Badge>
               )}
               <span className="text-sm text-muted">
-                {stations.length} sign-up{stations.length === 1 ? "" : "s"} · {(shifts ?? []).length} shift
-                {(shifts ?? []).length === 1 ? "" : "s"}
+                {event.event_type === "volunteer"
+                  ? `${stations.length - hiddenJobs.length} ${stations.length - hiddenJobs.length === 1 ? "job" : "jobs"} showing · ${liveShifts.length} ${liveShifts.length === 1 ? "shift" : "shifts"}`
+                  : `${stations.length} sign-up${stations.length === 1 ? "" : "s"} · ${(shifts ?? []).length} shift${(shifts ?? []).length === 1 ? "" : "s"}`}
               </span>
             </div>
             <Link href={`/dashboard/events/${eventId}/volunteering`} className={BTN_OUTLINE}>
               Manage volunteers
             </Link>
           </div>
+          {hiddenJobs.length > 0 && (
+            <p className="text-sm leading-6">
+              <span className="font-medium">
+                {hiddenJobs.length === 1 ? "1 job is" : `${hiddenJobs.length} jobs are`} hidden from volunteers:
+              </span>{" "}
+              {hiddenJobs.map((j, i) => (
+                <span key={j.id}>
+                  {i > 0 && (i === hiddenJobs.length - 1 ? (hiddenJobs.length > 2 ? ", and " : " and ") : ", ")}
+                  <Link href={`/dashboard/events/${eventId}/volunteering?station=${j.id}`} className="font-medium text-brand underline underline-offset-4">
+                    {j.name}
+                  </Link>
+                </span>
+              ))}
+              . They&apos;re not counted here until you show them.
+            </p>
+          )}
           <VolunteerStats
             filled={signedUp}
             capacity={totalSlots}
@@ -774,7 +795,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ) : null;
 
   // Before publishing: what publishing does, and the button. (Once live, unpublishing is in event settings.)
-  const publish = setup && checklist && !published ? <PublishPanel facts={setup} remaining={checklist.remaining} /> : null;
+  const publish = setup && checklist && !published ? <PublishPanel facts={setup} remaining={checklist.remaining} previewHref={`/e/${event.slug}/volunteer?preview=1`} /> : null;
 
   // Still setting up: the one thing to do next, in the main column too.
   const nextUpStep = checklist && !published ? (checklist.inProgress ?? checklist.next) : null;
@@ -963,10 +984,17 @@ function PageSection({ id, title, saved, children }: { id: string; title: string
 function PublishPanel({
   facts,
   remaining,
+  previewHref,
 }: {
   facts: SetupFacts;
   remaining: ReturnType<typeof setupChecklist>["remaining"];
+  /** A volunteer event's sign-up page, as the team previews it. */
+  previewHref: string;
 }) {
+  // A volunteer event chooses when sign-up opens with its publish button, and names the jobs volunteers won't see yet.
+  const jobsHere = facts.eventType === "volunteer";
+  const hidden = jobsHere ? (facts.hiddenJobs ?? []) : [];
+  const effects = publishEffects(facts).filter((line) => !(jobsHere && line.startsWith("Volunteer sign-up")));
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
       <h2 className="text-lg font-semibold">{remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
@@ -984,9 +1012,23 @@ function PublishPanel({
           <span aria-hidden>✓</span> Everything your event needs is set up.
         </p>
       )}
+      {hidden.length > 0 && (
+        <p className="mt-3 text-sm leading-6">
+          {hidden.length === 1 ? "1 job is" : `${hidden.length} jobs are`} hidden:{" "}
+          {hidden.map((j, i) => (
+            <span key={j.id}>
+              {i > 0 && (i === hidden.length - 1 ? (hidden.length > 2 ? ", and " : " and ") : ", ")}
+              <Link href={`/dashboard/events/${facts.eventId}/volunteering?station=${j.id}`} className="font-medium text-brand underline underline-offset-4">
+                {j.name}
+              </Link>
+            </span>
+          ))}
+          . Volunteers won&apos;t see {hidden.length === 1 ? "it" : "them"} until you show {hidden.length === 1 ? "it" : "them"}.
+        </p>
+      )}
       <p className="mt-4 text-sm font-semibold">When you publish:</p>
       <ul className="mt-2 space-y-1.5 text-sm text-muted">
-        {publishEffects(facts).map((line) => (
+        {effects.map((line) => (
           <li key={line} className="flex gap-2">
             <span aria-hidden className="text-success">✓</span>
             <span>{line}</span>
@@ -1019,11 +1061,32 @@ function PublishPanel({
           )}
         </div>
       ) : (
-        <div className="mt-5">
-          <ActionButton action={publishAndOpen.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
-            Publish event
-          </ActionButton>
-        </div>
+        jobsHere ? (
+          <div className="mt-5 space-y-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <ActionButton action={publishAndOpenSignups.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
+                Publish and open sign-up
+              </ActionButton>
+              <a href={previewHref} target="_blank" className="inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline">
+                Preview the sign-up page
+              </a>
+            </div>
+            <div className="text-sm text-muted">
+              <p>Not ready for sign-ups yet? Publish now and open sign-up later. People can see the event but can&apos;t sign up.</p>
+              <div className="mt-2">
+                <ActionButton action={publishSignupLater.bind(null, facts.eventId)} variant="secondary" pendingText="Publishing…">
+                  Publish, open sign-up later
+                </ActionButton>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5">
+            <ActionButton action={publishAndOpen.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
+              Publish event
+            </ActionButton>
+          </div>
+        )
       )}
     </Card>
   );

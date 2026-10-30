@@ -57,9 +57,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const [{ data: stationData, error: stationsError }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }, { data: inviteData }] = await Promise.all([
     supabase
       .from("stations")
-      .select(
-        `id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id, details_saved_at, signup_kind${hasBooths(event.event_type) ? ", zone" : ""}`,
-      )
+      // Every column: showing arrives with the 20270105000000 update.
+      .select("*")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -83,8 +82,10 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     supabase.from("invitations").select("email, station_id").eq("event_id", eventId).eq("role", "section_lead").is("accepted_at", null),
   ]);
   // Check-in stations first, in the band's order, matching the volunteer sign-up page.
-  // The newest columns are missing until the database update is run.
   if (stationsError) missing();
+  // A volunteer event's jobs: each one showing to volunteers or hidden (the setup redesign).
+  const jobsHere = event.event_type === "volunteer";
+  const published = event.status === "published";
   const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
     ...st,
     lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
@@ -164,8 +165,21 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     QRCode.toString(signupUrl, { type: "svg", margin: 1, width: 160 }),
     QRCode.toDataURL(signupUrl, { margin: 2, width: 1024 }),
   ]);
-  const filled = shifts.reduce((n, s) => n + s.registered_count, 0) + items.reduce((n, i) => n + i.claimed_count, 0);
-  const capacity = shifts.reduce((n, s) => n + s.max_capacity, 0) + items.reduce((n, i) => n + i.needed, 0);
+  // Each job's own shifts and things to bring, and the jobs volunteers can see that have some.
+  const ownShifts = (id: string) => shifts.filter((x) => x.station_id === id);
+  const ownItems = (id: string) => items.filter((x) => x.station_id === id);
+  const isShowing = (st: Station) => st.showing !== false;
+  const hasSome = (st: Station) => ownShifts(st.id).length + ownItems(st.id).length > 0;
+  const showingReady = stations.filter((st) => isShowing(st) && hasSome(st));
+  // Totals count only what volunteers can see.
+  const counted = new Set(stations.filter((st) => !jobsHere || isShowing(st)).map((st) => st.id));
+  const filled =
+    shifts.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.registered_count, 0) +
+    items.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.claimed_count, 0);
+  const capacity =
+    shifts.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.max_capacity, 0) +
+    items.filter((x) => counted.has(x.station_id)).reduce((n, x) => n + x.needed, 0);
+  const previewHref = `/e/${event.slug}/volunteer${jobsHere ? "?preview=1" : ""}`;
 
   const nameOf = (userId: string | null) => {
     if (!userId) return null;
@@ -212,13 +226,25 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer Setup</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{jobsHere ? "Volunteer jobs" : "Volunteer Setup"}</h1>
       <SavedBy eventId={eventId} area="volunteers" className="mt-2" />
       <p className="mt-1 text-sm text-muted">
         🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
         how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
       </p>
 
+      {jobsHere && published && (
+        <p className="mt-4 flex gap-2 rounded-lg border border-brand/25 bg-brand-soft px-4 py-3 text-sm leading-6">
+          <span aria-hidden>ⓘ</span>
+          <span>
+            <span className="font-semibold">This event is published.</span> Changes to a job that&apos;s showing reach volunteers as soon as
+            you save. People already signed up get an email if their shift&apos;s time changes.
+          </span>
+        </p>
+      )}
+
+      {/* A volunteer event's draft publishes from its last step (the event page), so its sign-up link waits until then. */}
+      {!(jobsHere && !published) && (
       <Card className="mt-6">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -235,7 +261,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               <div className="mt-2 flex flex-wrap gap-2">
                 <CopyLinkButton url={signupUrl} label="Copy link" />
                 <a
-                  href={`/e/${event.slug}/volunteer`}
+                  href={previewHref}
                   target="_blank"
                   className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
                 >
@@ -301,13 +327,16 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             )}
           </div>
       </Card>
+      )}
 
-      <section className="mt-10" aria-labelledby="signups-heading">
-        <h2 id="signups-heading" className="text-xl font-semibold">
-          Volunteer sign-ups
+      <section className={jobsHere ? "mt-6" : "mt-10"} aria-labelledby="signups-heading">
+        <h2 id="signups-heading" className={jobsHere ? "sr-only" : "text-xl font-semibold"}>
+          {jobsHere ? "Jobs" : "Volunteer sign-ups"}
         </h2>
         <p className="mt-1 mb-4 text-sm text-muted">
-          Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items.
+          {jobsHere
+            ? "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
+            : "Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items."}
         </p>
         <UnsavedChangesProvider
           key={current?.id ?? "new"}
@@ -316,21 +345,22 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         >
           <StationTabs
             tabs={stations.map((st) => {
-              const own = shifts.filter((x) => x.station_id === st.id);
-              const ownItems = items.filter((x) => x.station_id === st.id);
+              const own = ownShifts(st.id);
+              const itemsHere = ownItems(st.id);
               return {
                 id: st.id,
                 name: st.name,
                 href: tabHref(st.id),
                 active: current?.id === st.id,
                 saved: Boolean(st.details_saved_at),
-                configured: Boolean(st.details_saved_at) && own.length + ownItems.length > 0,
+                configured: Boolean(st.details_saved_at) && own.length + itemsHere.length > 0,
                 items: st.signup_kind === "items",
-                filled: own.reduce((n, x) => n + x.registered_count, 0) + ownItems.reduce((n, x) => n + x.claimed_count, 0),
-                capacity: own.reduce((n, x) => n + x.max_capacity, 0) + ownItems.reduce((n, x) => n + x.needed, 0),
+                filled: own.reduce((n, x) => n + x.registered_count, 0) + itemsHere.reduce((n, x) => n + x.claimed_count, 0),
+                capacity: own.reduce((n, x) => n + x.max_capacity, 0) + itemsHere.reduce((n, x) => n + x.needed, 0),
+                showing: jobsHere ? isShowing(st) : undefined,
               };
             })}
-            add={{ href: tabHref("new"), active: adding }}
+            add={{ href: tabHref("new"), active: adding, label: jobsHere ? "+ Add a job" : undefined }}
             extra={[
               {
                 key: "import",
@@ -385,6 +415,19 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 }
                 leadOptions={leadOptions}
                 pendingInvites={(inviteData ?? []).filter((inv) => inv.station_id === current.id).map((inv) => inv.email)}
+                job={
+                  jobsHere
+                    ? {
+                        showing: isShowing(current),
+                        ready: hasSome(current),
+                        items: current.signup_kind === "items",
+                        signedUp:
+                          currentShifts.reduce((n, x) => n + x.registered_count, 0) + currentItems.reduce((n, x) => n + x.claimed_count, 0),
+                        lastShowing: published && showingReady.length === 1 && showingReady[0].id === current.id,
+                        previewHref,
+                      }
+                    : undefined
+                }
               />
             ) : other === "import" ? (
               <Card>
@@ -456,14 +499,43 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               </Card>
             ) : (
               <Card>
-                <h3 className="text-lg font-semibold">{stations.length ? "Add a sign-up" : "Add your first sign-up"}</h3>
-                <p className="mt-1 mb-4 text-sm text-muted">Name it and choose its type. You&apos;ll add its details, Coordinators, and time slots or items next.</p>
-                <NewStationForm action={createStation.bind(null, eventId)} openTab />
+                <h3 className="text-lg font-semibold">
+                  {jobsHere ? (stations.length ? "Add a job" : "Add your first job") : stations.length ? "Add a sign-up" : "Add your first sign-up"}
+                </h3>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  {jobsHere
+                    ? "Name it and choose shifts or things to bring. It starts hidden from volunteers, so you can set it up and preview it first."
+                    : "Name it and choose its type. You'll add its details, Coordinators, and time slots or items next."}
+                </p>
+                <NewStationForm action={createStation.bind(null, eventId)} openTab job={jobsHere} />
               </Card>
             )}
           </div>
         </UnsavedChangesProvider>
       </section>
+      {jobsHere && !published && access.isHost && (
+        // The way on to the last step, once a job is showing.
+        <Card className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">{showingReady.length ? "Next: publish" : "Before you publish"}</p>
+            <p className="mt-0.5 text-sm text-muted">
+              {showingReady.length
+                ? `${showingReady.length} ${showingReady.length === 1 ? "job is" : "jobs are"} showing to volunteers. You can keep adding jobs after you publish.`
+                : stations.some(hasSome)
+                  ? "Show at least one job to volunteers. Hidden jobs stay off the sign-up page."
+                  : "Add a job with a shift or a thing to bring, then show it to volunteers."}
+            </p>
+            <a href={previewHref} target="_blank" className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline">
+              Preview the sign-up page
+            </a>
+          </div>
+          {showingReady.length > 0 && (
+            <Link href={`/dashboard/events/${eventId}#publish`} className="inline-flex min-h-11 shrink-0 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+              Continue to publish
+            </Link>
+          )}
+        </Card>
+      )}
       {digest && (
         <section className="mt-8">
           <DigestCard
