@@ -6,6 +6,7 @@ import { emailButton, emailShell } from "@/lib/email-format";
 import { eventSender } from "@/lib/event-sender";
 import { isQa } from "@/lib/qa";
 import { withOrganizerEmail } from "@/lib/ics";
+import { isSchemaError } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
@@ -29,6 +30,23 @@ function fromWithName(name: string | null | undefined) {
 async function senderFor(eventId: string | undefined, replyTo: string | undefined) {
   const sender = eventId ? await eventSender(eventId) : null;
   return { from: fromWithName(sender?.name), replyTo: replyTo ?? sender?.replyTo ?? undefined };
+}
+
+/**
+ * Of these addresses, the ones an event's email must not go to: a "try it"
+ * event (a kind its plan doesn't include) emails only the account's own people
+ * (event_email_blocked, 20270104000000_drafts_any_type.sql). Before that database
+ * update, nothing is held back; if the check fails for another reason, everyone is.
+ */
+async function heldBack(eventId: string | undefined, to: string[]): Promise<Set<string>> {
+  if (!eventId || to.length === 0) return new Set();
+  const { data, error } = await createAdminClient().rpc("event_email_blocked", { p_event: eventId, p_emails: to });
+  if (error) {
+    if (isSchemaError(error)) return new Set();
+    console.error("event_email_blocked failed; holding the email back", error.message);
+    return new Set(to.map((t) => t.toLowerCase()));
+  }
+  return new Set(((data ?? []) as string[]).map((t) => t.toLowerCase()));
 }
 
 /**
@@ -169,6 +187,10 @@ export async function sendEmail({
   // Demo people (src/lib/demo.ts) have made-up addresses: never email them
   // (on the QA site everything goes to the outbox, theirs included).
   if (isDemoEmail(to) && !isQa()) return true;
+  if ((await heldBack(eventId, [to])).has(to.toLowerCase())) {
+    await logEmail(to, subject, "skipped", "Try-it event: the plan doesn't include this kind of event", author);
+    return false;
+  }
   const sender = await senderFor(eventId, replyTo);
   if (isQa()) {
     const saved = await toOutbox({ ...sender, to: [to], subject, html, text, invite: invite?.method });
@@ -246,14 +268,17 @@ export async function sendEmailToMany({
   replyTo?: string;
   eventId?: string;
 }): Promise<number> {
-  const recipients = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && (isQa() || !isDemoEmail(t)));
-  if (recipients.length === 0) return 0;
+  const all = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && (isQa() || !isDemoEmail(t)));
+  const held = await heldBack(eventId, all);
+  const recipients = all.filter((t) => !held.has(t));
   const log = async (emails: string[], status: "sent" | "failed" | "skipped", error?: string) => {
     const { error: dbError } = await createAdminClient()
       .from("email_log")
       .insert(emails.map((e) => ({ to_email: e, subject: subject.slice(0, 300), status, error: error ? error.slice(0, 500) : null })));
     if (dbError) console.error("email_log insert failed", dbError.message);
   };
+  if (held.size) await log([...held], "skipped", "Try-it event: the plan doesn't include this kind of event");
+  if (recipients.length === 0) return 0;
   if (isQa()) {
     const saved = await toOutbox({ ...(await senderFor(eventId, replyTo)), to: recipients, subject, html, text });
     await log(recipients, saved ? "sent" : "failed", saved ? undefined : "QA outbox");

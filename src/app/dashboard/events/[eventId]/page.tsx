@@ -853,7 +853,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">
         <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
-          ← All events
+          ← My events
         </Link>
 
         {/* Name and details on the left; Event settings top right (unpublishing, demo, and deleting live there too). */}

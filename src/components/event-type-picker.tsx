@@ -4,29 +4,32 @@ import Link from "next/link";
 import { useRef } from "react";
 import { Badge } from "@/components/ui";
 import { EVENT_TYPES } from "@/lib/event-types";
+import type { TypeNote } from "@/lib/plan";
 
 type TypeChoice = (typeof EVENT_TYPES)[number];
 
 /**
  * The choices, as large cards that start a new event of that kind. The kinds
- * the account's plan includes (`included`) come first. Every other kind sits in
- * a folded "Interested in more?" section, to try: it can be set up and
- * previewed, and publishing it needs a plan that includes it. `notes` adds a
- * line to a card, such as "Publishing needs a plan" after a plan ends.
+ * the account's plan includes (`included`) come first, with `lead` (the one it
+ * can still publish after a plan ends) at the top. Every other kind sits in a
+ * folded section, to try: it can be set up and previewed, and publishing it
+ * needs a plan that includes it. `notes` adds a line to a card (typeNotes).
  */
-export function EventTypeChoices({ included, notes = {} }: { included?: string[]; notes?: Record<string, string> }) {
-  const main = included ? EVENT_TYPES.filter((t) => included.includes(t.value)) : EVENT_TYPES;
+export function EventTypeChoices({ included, notes = {}, lead }: { included?: string[]; notes?: Record<string, TypeNote>; lead?: string }) {
+  const main = (included ? EVENT_TYPES.filter((t) => included.includes(t.value)) : [...EVENT_TYPES]).sort(
+    (a, b) => Number(b.value === lead) - Number(a.value === lead),
+  );
   const more = included ? EVENT_TYPES.filter((t) => !included.includes(t.value)) : [];
   return (
     <div>
       <TypeCards types={main} notes={notes} />
       {more.length > 0 && (
         <details className="group mt-6 rounded-xl border border-border">
-          <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-4 py-3 font-semibold">
-            <span aria-hidden className="transition group-open:rotate-90">
-              ›
-            </span>
-            Interested in more? {more.length} more {more.length === 1 ? "kind" : "kinds"} of event to try
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 font-semibold hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand [&::-webkit-details-marker]:hidden">
+            {more.length} more {more.length === 1 ? "kind" : "kinds"} of event to try
+            <svg aria-hidden viewBox="0 0 20 20" className="size-5 shrink-0 text-brand transition group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </summary>
           <div className="px-4 pb-4">
             <p className="mb-4 text-sm leading-6">Try any of these: set it up and preview it. Publishing needs a plan that includes it.</p>
@@ -38,28 +41,48 @@ export function EventTypeChoices({ included, notes = {} }: { included?: string[]
   );
 }
 
-function TypeCards({ types, notes, trial }: { types: readonly TypeChoice[]; notes: Record<string, string>; trial?: boolean }) {
+const NOTE_TONE: Record<TypeNote["tone"], string> = { info: "text-foreground", warn: "text-warning", ok: "text-success" };
+
+function TypeCards({ types, notes, trial }: { types: readonly TypeChoice[]; notes: Record<string, TypeNote>; trial?: boolean }) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2">
-      {types.map((t) => (
-        <li key={t.value}>
-          <Link
-            href={`/dashboard/events/new?type=${t.value}`}
-            className="flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-card transition hover:border-brand focus-visible:border-brand"
-          >
-            <span aria-hidden className="text-3xl">
-              {t.icon}
-            </span>
-            <span className="mt-3 flex flex-wrap items-center gap-2 text-lg font-semibold">
-              {t.label}
-              {trial && <Badge tone="neutral">Try it</Badge>}
-            </span>
-            {notes[t.value] && <span className="mt-2 text-sm font-medium leading-6">{notes[t.value]}</span>}
-            <span className="mt-1 text-sm leading-6 text-muted">{t.blurb}</span>
-          </Link>
-        </li>
-      ))}
+      {types.map((t) => {
+        const note = notes[t.value];
+        return (
+          // An odd last card spans both columns, so the grid has no hole.
+          <li key={t.value} className="sm:[&:last-child:nth-child(odd)]:col-span-2">
+            <Link
+              href={`/dashboard/events/new?type=${t.value}`}
+              className="flex h-full flex-col rounded-xl border border-border bg-surface p-4 shadow-card transition hover:border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:p-5"
+            >
+              <span className="flex items-center justify-between gap-3">
+                <span aria-hidden className="text-2xl sm:text-3xl">
+                  {t.icon}
+                </span>
+                {trial && <Badge tone="info">Try it</Badge>}
+              </span>
+              <span className="mt-2 text-lg font-semibold sm:mt-3">{t.label}</span>
+              {note && (
+                <span className={`mt-1 flex items-start gap-1.5 text-sm font-medium leading-6 ${NOTE_TONE[note.tone]}`}>
+                  {note.tone === "warn" && <LockIcon />}
+                  {note.text}
+                </span>
+              )}
+              <span className="mt-1 line-clamp-2 text-sm leading-6 text-muted sm:line-clamp-none">{t.blurb}</span>
+            </Link>
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+export function LockIcon({ className = "mt-1 size-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className={`${className} shrink-0`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
   );
 }
 
@@ -72,10 +95,13 @@ export function NewEventButton({
   included,
   notes,
   subtitle,
+  lead,
 }: {
   className?: string;
   included?: string[];
-  notes?: Record<string, string>;
+  notes?: Record<string, TypeNote>;
+  /** The kind to show first (the one an account can still publish after its plan ends). */
+  lead?: string;
   /** Under the heading, e.g. "Your … plan includes these" (pickerSubtitle). */
   subtitle?: string;
 }) {
@@ -91,14 +117,15 @@ export function NewEventButton({
       <dialog
         ref={dialog}
         aria-labelledby="new-event-title"
-        className="m-auto w-[calc(100%-2rem)] max-w-3xl rounded-2xl border border-border bg-background p-0 text-foreground shadow-elevated backdrop:bg-[#0d1422]/60"
+        className="m-auto w-[calc(100%-2rem)] max-w-3xl rounded-2xl border border-border bg-background p-0 text-foreground shadow-elevated backdrop:bg-[#0d1422]/75"
         onClick={(e) => {
           // A click on the backdrop closes it.
           if (e.target === e.currentTarget) dialog.current?.close();
         }}
       >
-        <div className="p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
+        <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+          {/* The heading and close button stay in view while the cards scroll. */}
+          <div className="sticky top-0 z-10 -mx-5 flex items-start justify-between gap-4 border-b border-border bg-background px-5 pb-3 pt-5 sm:-mx-6 sm:px-6 sm:pt-6">
             <div>
               <h2 id="new-event-title" className="text-2xl font-semibold">
                 What kind of event is this?
@@ -115,7 +142,7 @@ export function NewEventButton({
             </button>
           </div>
           <div className="mt-5">
-            <EventTypeChoices included={included} notes={notes} />
+            <EventTypeChoices included={included} notes={notes} lead={lead} />
           </div>
         </div>
       </dialog>

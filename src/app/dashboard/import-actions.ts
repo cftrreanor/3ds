@@ -30,7 +30,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 // A "try it" event (its type isn't in the account's plan) doesn't email anyone
 // outside the account. The database holds back band invitations the same way.
-const TRIAL_NO_EMAIL = "Your plan doesn't include this kind of event yet, so we didn't email anyone";
+const TRIAL_NO_EMAIL = "Your plan doesn't include this kind of event, so we didn't email anyone";
 
 async function isTrialEvent(eventId: string): Promise<boolean> {
   const supabase = await createClient();

@@ -79,6 +79,9 @@ Last updated October 2026.
 - **Data privacy agreements:** attorney review of docs/DATA-PRIVACY.md (district packet and draft
   Texas agreement exhibits), then close its "Before signing" list
 - Optional: **PostHog** product analytics; Sentry's source maps for readable alerts
+- **Measure the plan path** (with PostHog, or a simple events table): the picker opened, "more kinds
+  to try" opened, try-it events started and finished, and "Email us about a plan" clicks. Decide
+  what success looks like before the free pilot ends (design review 2026-10-30, My events)
 
 ## Later
 - A visitor check-in event for non-school events (open houses, showcases), without the child, teacher,

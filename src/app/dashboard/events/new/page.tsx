@@ -11,7 +11,8 @@ import { SetupLogo } from "../_components/setup-logo";
 import { loadBrand } from "@/lib/badges";
 import { EventTypeChoices } from "@/components/event-type-picker";
 import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
-import { loadAccountPlan, pickerSubtitle, startableTypes, typeNotes, typeWords } from "@/lib/plan";
+import { endedSentence, loadAccountPlan, pickerSubtitle, planEnded, startableTypes, typeNotes, typeWords } from "@/lib/plan";
+import { freeStatus } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "New event" };
@@ -29,17 +30,23 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
   // No kind picked yet (e.g. a bookmarked link): ask first.
   if (!isEventType(type)) {
     const { data: published } = plan
-      ? await supabase.from("events").select("name, event_type, status, ends_on, timezone").eq("organization_id", org.id).eq("status", "published")
+      ? await supabase.from("events").select("name, event_type, status, starts_on, ends_on, timezone").eq("organization_id", org.id).eq("status", "published")
       : { data: null };
+    const ended = endedSentence(plan, freeStatus(org), org.subscription_status);
+    const subtitle = pickerSubtitle(plan, included, ended);
     return (
       <div className="mx-auto max-w-2xl">
         <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
-          ← All events
+          ← My events
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">What kind of event is this?</h1>
-        {pickerSubtitle(plan, included) && <p className="mt-2 leading-7 text-muted">{pickerSubtitle(plan, included)}</p>}
+        {subtitle && <p className="mt-2 leading-7 text-muted">{subtitle}</p>}
         <div className="mt-8">
-          <EventTypeChoices included={included} notes={plan ? typeNotes(plan, published ?? []) : undefined} />
+          <EventTypeChoices
+            included={included}
+            notes={plan ? typeNotes(plan, published ?? []) : undefined}
+            lead={plan && planEnded(plan) ? "conference" : undefined}
+          />
         </div>
       </div>
     );
@@ -52,14 +59,20 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
   );
   // A kind the plan doesn't include: say so up front, before any work goes in.
   const trialNote = trial && (
-    <p className="mt-4 rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6">
-      <strong>You&apos;re trying {typeWords(trial)}.</strong> Set it up and preview it as much as you like. Publishing needs a plan that
-      includes {typeWords(trial)}, and until then it doesn&apos;t send invitations. See what&apos;s included on your{" "}
-      <Link href="/dashboard/account" className="font-medium text-brand underline-offset-4 hover:underline">
-        Account
-      </Link>{" "}
-      page.
-    </p>
+    <div role="note" className="mt-4 flex gap-3 rounded-md border border-brand/25 bg-brand-soft px-4 py-3 text-sm leading-6">
+      <svg aria-hidden viewBox="0 0 24 24" className="mt-0.5 size-5 shrink-0 text-brand" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5M12 8h.01" />
+      </svg>
+      <p>
+        <strong>You&apos;re trying {typeWords(trial)}.</strong> Set it up and preview it as much as you like. To publish it, or to email
+        anyone outside your team, you need a plan that includes {typeWords(trial)}. See your plan on the{" "}
+        <Link href="/dashboard/account" className="font-medium text-brand underline underline-offset-4">
+          Account
+        </Link>{" "}
+        page.
+      </p>
+    </div>
   );
 
   // Most events: the first of the guided setup's steps (the rest are in Event settings, ?setup=1).
@@ -69,7 +82,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
     const brand = isAdmin ? await loadBrand(org.id) : null;
     return (
       <div className="mx-auto max-w-5xl" data-required-marks>
-        <SetupHeader current="details" back={{ href: "/dashboard", label: "All events" }}>
+        <SetupHeader current="details" back={{ href: "/dashboard", label: "My events" }}>
           {changeKind}
         </SetupHeader>
         {trialNote}
@@ -96,7 +109,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
   return (
     <div className="mx-auto max-w-2xl" data-required-marks>
       <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
-        ← All events
+        ← My events
       </Link>
       <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">
         {type === "conference" ? "New parent-teacher conference" : type === "meeting" ? "New meetings" : `New ${eventTypeLabel(type).toLowerCase()}`}

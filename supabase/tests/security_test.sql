@@ -5914,6 +5914,67 @@ reset role;
 update public.events set starts_on = current_date + 9, ends_on = current_date + 9,
        window_start = now() + interval '9 days', window_end = now() + interval '9 days 3 hours'
  where id = '70000000-0000-0000-0000-0000000000e1';
+-- "Hasn't ended" is in the event's own time zone: an event that ends today
+-- where it happens still counts, even when it's already tomorrow in UTC.
+update public.events set timezone = 'Pacific/Kiritimati',
+       starts_on = (now() at time zone 'Pacific/Kiritimati')::date, ends_on = (now() at time zone 'Pacific/Kiritimati')::date
+ where id = '70000000-0000-0000-0000-0000000000e1';
+do $$ begin
+  assert public.org_publish_reason('70000000-0000-0000-0000-000000000001', 'volunteer', '70000000-0000-0000-0000-0000000000e2') like '%at a time%',
+         'an event ending today in its own time zone still counts';
+end $$;
+update public.events set ends_on = (now() at time zone 'Pacific/Kiritimati')::date - 1, starts_on = (now() at time zone 'Pacific/Kiritimati')::date - 1
+ where id = '70000000-0000-0000-0000-0000000000e1';
+do $$ begin
+  assert public.org_publish_reason('70000000-0000-0000-0000-000000000001', 'volunteer', '70000000-0000-0000-0000-0000000000e2') is null,
+         'one that ended yesterday in its own time zone doesn''t';
+  assert coalesce((public.account_plan('70000000-0000-0000-0000-000000000001') -> 'published' ->> 'volunteer')::int, 0) = 0,
+         'the plan summary doesn''t count a finished event as published';
+end $$;
+update public.events set timezone = 'America/Chicago', starts_on = current_date + 9, ends_on = current_date + 9
+ where id = '70000000-0000-0000-0000-0000000000e1';
+-- Event emails from a try-it event go only to the account's own people.
+do $$ begin
+  assert public.event_email_blocked('70000000-0000-0000-0000-0000000000e4', array['pkhost@example.com', 'Parent@Example.com'])
+         = array['Parent@Example.com'], 'a try-it event emails nobody outside the account';
+  assert public.event_email_blocked('70000000-0000-0000-0000-0000000000e2', array['parent@example.com']) = '{}'::text[],
+         'other events email as usual';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.event_email_blocked('70000000-0000-0000-0000-0000000000e4', array['x@example.com']);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'only the server asks which emails are held back';
+  assert (select name from public.account_host('70000000-0000-0000-0000-000000000001')) is not null, 'the account''s hosts see who the Account Host is';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000004","email":"outsider@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.account_host('70000000-0000-0000-0000-000000000001')), 'nobody else does';
+end $$;
+-- After the plan lapses: only conferences publish, published events stay up and
+-- aren't try-it events.
+reset role;
+update public.organizations set free_until = current_date - 10 where id = '70000000-0000-0000-0000-000000000001';
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000000b-0000-0000-0000-000000000001","email":"pkhost@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e2';
+  exception when insufficient_privilege then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%isn''t active right now, so you can publish parent-teacher conferences only%', 'a lapsed plan publishes conferences only';
+  assert (select status from public.events where id = '70000000-0000-0000-0000-0000000000e1') = 'published', 'published events stay up';
+  assert not public.event_trial('70000000-0000-0000-0000-0000000000e1'), 'and a published event is never a try-it event';
+end $$;
+reset role;
+update public.organizations set free_until = date '2099-01-01' where id = '70000000-0000-0000-0000-000000000001';
 
 -- A pass publishes one band contest, once.
 reset role;
@@ -5967,6 +6028,23 @@ reset role;
 do $$ begin
   assert (select count(*) from public.event_passes where event_id is not null and organization_id = '70000000-0000-0000-0000-000000000001') = 1,
          'republishing the same event doesn''t use another pass';
+end $$;
+-- A published event that used a pass can't change kind (one pass per event).
+set role service_role;
+select public.add_event_pass('70000000-0000-0000-0000-000000000001', 'fair', null, 'payment') as pk_fair_pass2 \gset
+reset role;
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    update public.events set event_type = 'fair' where id = '70000000-0000-0000-0000-0000000000e3';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '%published with a band contest pass%', 'a published event with a pass keeps its kind';
+end $$;
+select set_config('pk.fair2', :'pk_fair_pass2', false);
+do $$ begin
+  assert (select event_id from public.event_passes where id = current_setting('pk.fair2')::uuid) is null, 'and the other pass stays unused';
 end $$;
 
 -- Team: Schedule Command is a host and a co-host, with no Volunteer Leads or Section Leads.

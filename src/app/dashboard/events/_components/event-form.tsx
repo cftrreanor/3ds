@@ -75,7 +75,7 @@ export function EventForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       {eventType && <input type="hidden" name="eventType" value={eventType} />}
       <Field label="Event name">
-        <Input name="name" required defaultValue={initial.name} placeholder={meeting ? "e.g. Fall Advising Meetings" : conference ? "e.g. Fall Parent-Teacher Conferences" : eventType === "volunteer" ? "e.g. Community Cleanup Day" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "group_event" ? "e.g. Spring Arts Festival" : "e.g. Cedar Ridge Marching Invitational"} />
+        <Input name="name" required defaultValue={initial.name} placeholder={meeting ? "e.g. Fall Advising Meetings" : conference ? "e.g. Fall Parent-Teacher Conferences" : eventType === "volunteer" ? "e.g. Community Cleanup Day" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "group_event" ? "e.g. Spring Arts Festival" : eventType === "fair" ? "e.g. Oak Hills Spring Carnival" : "e.g. Cedar Ridge Marching Invitational"} />
       </Field>
 
       <fieldset className="grid gap-4 sm:grid-cols-2">
@@ -138,7 +138,7 @@ export function EventForm({
       {!conference && (
         <fieldset className="grid gap-4">
           <legend className="mb-3 w-full border-b border-border pt-2 pb-1 font-semibold">Where</legend>
-          <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} />
+          <VenuePicker searchEnabled={venueSearchEnabled} initial={initial.venue} timezone={timezone} {...(eventType && eventType !== "band_contest" ? { example: "e.g. Oak Hills Elementary" } : {})} />
         </fieldset>
       )}
 
