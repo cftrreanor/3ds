@@ -126,7 +126,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
 
   // The open tab: ?station=<id>, "new" to add one (also when there are none yet), the first station, or
   // one of the tabs after the sign-ups: "import" (volunteers from a spreadsheet), "order" (band contests' check-in order).
-  const other = tab === "import" ? "import" : tab === "order" && hasBands(event.event_type) ? "order" : null;
+  // A volunteer event's import sits under "More options" at the end of the page, not in the job tabs.
+  const other = tab === "import" && !jobsHere ? "import" : tab === "order" && hasBands(event.event_type) ? "order" : null;
   const adding = !other && (tab === "new" || stations.length === 0);
   const current = adding || other ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
@@ -217,6 +218,35 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const digest = isSchemaError(digestError)
     ? null
     : { receiving: Boolean(digestPicked?.memberIds.includes(user.id)), prefs: (myDigest as DigestPrefs | null) ?? ALL_DIGEST };
+
+  // Volunteers from a spreadsheet: a tab on most events, under "More options" on a volunteer event.
+  const importVolunteersBlock = (
+    <>
+      <h3 className="text-lg font-semibold">Import volunteers</h3>
+      <p className="mt-1 mb-4 text-sm text-muted">
+        Optional. Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row
+        per person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
+        room for them.
+      </p>
+      {shiftChoices.length === 0 ? (
+        <p className="text-sm">
+          {jobsHere
+            ? "Add a job and its shifts first. Each volunteer you import goes onto one of your shifts."
+            : "Add a sign-up and its shifts first. Each volunteer you import goes onto one of your shifts."}
+        </p>
+      ) : (
+        <SpreadsheetImport
+          kind="volunteers"
+          fields={importFields("volunteers")}
+          choices={{ shift: shiftChoices }}
+          noun={{ one: "sign-up", many: "sign-ups" }}
+          templateName="volunteers.csv"
+          emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
+          action={importVolunteers.bind(null, eventId)}
+        />
+      )}
+    </>
+  );
 
   return (
     // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
@@ -379,13 +409,17 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             add={jobsHere ? (adding && stations.length > 0 ? { href: tabHref("new"), active: true, label: "New job" } : undefined) : { href: tabHref("new"), active: adding }}
             label={jobsHere ? "Jobs" : undefined}
             extra={[
-              {
-                key: "import",
-                label: "Import volunteers",
-                status: "Optional",
-                href: tabHref("import"),
-                active: other === "import",
-              },
+              ...(jobsHere
+                ? []
+                : [
+                    {
+                      key: "import",
+                      label: "Import volunteers",
+                      status: "Optional",
+                      href: tabHref("import"),
+                      active: other === "import",
+                    },
+                  ]),
               ...(hasBands(event.event_type)
                 ? [
                     {
@@ -450,25 +484,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               />
             ) : other === "import" ? (
               <Card>
-                <h3 className="text-lg font-semibold">Import volunteers</h3>
-                <p className="mt-1 mb-4 text-sm text-muted">
-                  Optional. Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row
-                  per person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
-                  room for them.
-                </p>
-                {shifts.length === 0 ? (
-                  <p className="text-sm">Add a sign-up and its shifts first. Each volunteer you import goes onto one of your shifts.</p>
-                ) : (
-                  <SpreadsheetImport
-                    kind="volunteers"
-                    fields={importFields("volunteers")}
-                    choices={{ shift: shiftChoices }}
-                    noun={{ one: "sign-up", many: "sign-ups" }}
-                    templateName="volunteers.csv"
-                    emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
-                    action={importVolunteers.bind(null, eventId)}
-                  />
-                )}
+                {importVolunteersBlock}
               </Card>
             ) : other === "order" ? (
               <Card>
@@ -553,6 +569,18 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
           event={event}
           eventId={eventId}
         />
+      )}
+      {jobsHere && (
+        // Away from the jobs, so it doesn't pull focus from setting them up.
+        <details open={tab === "import"} className="group mt-6 rounded-lg border border-border bg-surface">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold sm:px-6 [&::-webkit-details-marker]:hidden">
+            More options: import volunteers from a spreadsheet
+            <span aria-hidden className="text-brand transition group-open:rotate-90">
+              ›
+            </span>
+          </summary>
+          <div className="border-t border-border p-4 sm:p-6">{importVolunteersBlock}</div>
+        </details>
       )}
       {jobsHere && (
         <p className="mt-6 text-sm text-muted">
