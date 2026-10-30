@@ -6,7 +6,7 @@ export const EVENT_TYPES = [
     value: "band_contest",
     label: "Band contest",
     icon: "🎺",
-    blurb: "Band registration, the performance schedule, contest day check-in, and your volunteers, all in one place.",
+    blurb: "Band registration, the performance schedule, contest-day check-in, and your volunteers, all in one place.",
   },
   {
     value: "group_event",
@@ -24,7 +24,7 @@ export const EVENT_TYPES = [
     value: "school_visit",
     label: "Family visitor day",
     icon: "🏫",
-    blurb: "Parents register ahead (child, teacher, and grade), are reminded to bring a photo ID, and are checked in at the door. Student details are deleted 30 days after.",
+    blurb: "Parents register ahead (child, teacher, and grade), are reminded to bring a photo ID, and are checked in at the door. Student details are deleted 30 days after the visit.",
   },
   {
     value: "fair",

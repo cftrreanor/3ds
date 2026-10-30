@@ -64,6 +64,12 @@ Last updated October 2026.
 - Copy follows the brand voice (docs/brand-voice.md)
 
 ## Next
+0. **Critical, decide by mid-November 2026: how someone gets a plan.** Nobody can buy or add a
+   plan in the app yet, so after a free period ends the setup screens can only say "write to us".
+   Decide what the "get a plan" step is (self-serve checkout, a request form, or "ask your Account
+   Host"), whether one-time event passes are offered on those screens, and the wording. Until then
+   the setup redesign uses honest placeholder wording. Raised by the design review panel
+   (docs/design-reviews/2026-10-30-setup-redesign-mockup.md, finding 1).
 1. **Privacy policy and terms of service pages**, once the attorney's review is done; swap the
    attorney's wording into the school-records reminders (src/lib/records.ts)
 
@@ -73,8 +79,17 @@ Last updated October 2026.
 - **Data privacy agreements:** attorney review of docs/DATA-PRIVACY.md (district packet and draft
   Texas agreement exhibits), then close its "Before signing" list
 - Optional: **PostHog** product analytics; Sentry's source maps for readable alerts
+- **Measure the plan path** (with PostHog, or a simple events table): the picker opened, "more kinds
+  to try" opened, try-it events started and finished, and "Email us about a plan" clicks. Decide
+  what success looks like before the free pilot ends (design review 2026-10-30, My events)
+- **Owed confirmations:** people imported into a try-it event aren't emailed. Remember who is owed a
+  confirmation and offer "Send confirmations" once the event can email (design review 2026-10-30)
+- **One-call draft summary:** a database function that returns every draft's setup counts and
+  publish reason at once, so My events can show the next step for every draft, not just the first six
 
 ## Later
+- A visitor check-in event for non-school events (open houses, showcases), without the child, teacher,
+  grade, and photo ID questions. Decided Oct 2026 not to do this yet.
 - **Teacher free and Teacher paid accounts.** Free: one published conference at a time (today's
   pilot rule). Paid: more than one at a time, priced for a single teacher. Needs Stripe (above), a
   "Teacher paid" plan the database rule checks instead of "one per account", and the event page's
@@ -99,6 +114,19 @@ Last updated October 2026.
 - **One published conference at a time during the pilot** (Oct 2026), for every account. The app
   says so before Publish, names the conference that's already up, and offers "write to us" for
   more. Upgrading isn't offered yet: the Teacher free / Teacher paid split above comes first.
+- **After the pilot, without a plan** (Oct 2026): an account can publish one one-time
+  parent-teacher conference at a time (not a weekly recurring one). During the pilot, every
+  account gets the full Schedule Command package. The app never says "free during the pilot" next
+  to "your free period ended".
+- **Draft volunteer jobs** (Oct 2026): hidden from volunteers, enforced in the database. Hosts,
+  Co-hosts, Volunteer Leads, and that job's own Coordinator can preview them, always labelled as a
+  preview. A job can't go back to draft while anyone is signed up for it. Its spots can still be
+  raised or lowered, but never below the number already signed up.
+- **Type picker and drafts** (Oct 2026): drafts of every event type are allowed, and the plan is
+  checked only at publish. The picker leads with the account's own package types; every other type
+  is in a collapsed "Interested in more?" section, marked as something to try (set up and preview,
+  publishing needs a plan). An event is saved to the account as soon as it has a name.
+- **One conference at a time counts only conferences that haven't ended** (Oct 2026).
 - **Kept as is after the security review:** sign-in links that work on any device; "already
   registered" messages on public forms; no per-person limit on the address search (a $5 Google
   budget alert is the safety net).

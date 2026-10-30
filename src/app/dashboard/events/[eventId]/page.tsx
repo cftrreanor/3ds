@@ -853,7 +853,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
       <div className="min-w-0">
         <Link href="/dashboard" className="text-sm text-muted hover:text-foreground">
-          ← All events
+          ← My events
         </Link>
 
         {/* Name and details on the left; Event settings top right (unpublishing, demo, and deleting live there too). */}
@@ -1011,7 +1011,7 @@ function PublishPanel({
           </p>
           {facts.planBlock.other && (
             <Link
-              href={`/dashboard/events/${facts.planBlock.other.id}#publish`}
+              href={`/dashboard/events/${facts.planBlock.other.id}`}
               className="mt-3 inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
             >
               Open {facts.planBlock.other.name}

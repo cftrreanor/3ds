@@ -3,6 +3,7 @@
 // summary (account_plan) and says it in plain words.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatDate, utcToZonedDate } from "@/lib/time";
 
 export const PACKAGES = [
   { value: "free", label: "Free" },
@@ -90,6 +91,82 @@ export function startableTypes(plan: AccountPlan): string[] {
   return [...new Set([...plan.own_event_types, ...unused])];
 }
 
+/** The plan's package has lapsed: it publishes under Free until it's renewed. */
+export const planEnded = (plan: AccountPlan) => plan.active !== plan.package;
+
+/**
+ * What ended, in one sentence used everywhere (the My events notice and the
+ * type picker): a free pilot or trial that's over, or a paid plan that lapsed.
+ * Null when nothing has ended, or for the Free package (nothing changes for it).
+ */
+export function endedSentence(
+  plan: AccountPlan | null,
+  free: { ended: boolean; day: string } | null,
+  status: string,
+): string | null {
+  if (plan?.package === "free") return null;
+  if (free?.ended) return `Your free ${status === "trialing" ? "trial" : "pilot"} ended ${free.day}`;
+  if (!free && plan && planEnded(plan)) return `Your ${plan.package_name} plan has ended`;
+  return null;
+}
+
+/**
+ * How the type picker groups the kinds: with an active plan, a label over the
+ * plan's own kinds ("Included in your … plan"); after a plan ends, what ended
+ * (the kinds are then grouped by what can be published now). Empty when the plan
+ * includes every kind.
+ */
+export function pickerGroups(plan: AccountPlan | null, included: string[] | undefined, ended: string | null): { label?: string; ended?: string } {
+  if (!plan || !included || included.length >= TYPE_ORDER.length) return {};
+  return ended && planEnded(plan) ? { ended: `${ended}. You can still set up any kind of event.` } : { label: `Included in your ${plan.package_name} plan` };
+}
+
+type PublishedEvent = { id?: string; name: string; event_type: string | null; status: string; starts_on: string; ends_on: string; timezone: string };
+
+/** A note on a type card: a plain fact (info), something to know before starting (warn), or a go-ahead (ok). */
+export type TypeNote = { text: string; tone: "info" | "warn" | "ok" };
+
+/**
+ * For a "one at a time" type, the published event that hasn't ended yet, picked
+ * the way the database picks it (org_publish_reason: earliest start). Only this
+ * account's events should be passed in.
+ */
+export function holdingEvent<E extends PublishedEvent>(type: string, events: E[]): E | undefined {
+  return events
+    .filter((e) => e.event_type === type && e.status === "published" && e.ends_on >= utcToZonedDate(new Date().toISOString(), e.timezone))
+    .sort((a, b) => a.starts_on.localeCompare(b.starts_on))[0];
+}
+
+const shortDate = (d: string) => formatDate(d, { weekday: undefined, year: undefined });
+
+/**
+ * A short note per event type for the type picker: "Publishing needs a plan"
+ * for the package's own types while it has lapsed, and for "one at a time"
+ * types, the event that's published until it ends (finished ones don't count),
+ * or that one can be published now. The database has the last word when they publish.
+ */
+export function typeNotes(plan: AccountPlan, events: PublishedEvent[]): Record<string, TypeNote> {
+  const notes: Record<string, TypeNote> = {};
+  if (planEnded(plan)) for (const t of plan.own_event_types) if (!plan.event_types.includes(t)) notes[t] = { text: "Publishing needs a plan", tone: "warn" };
+  for (const t of plan.one_at_a_time) {
+    if (!plan.event_types.includes(t)) continue;
+    const live = holdingEvent(t, events);
+    notes[t] = live
+      ? { text: `${live.name} runs through ${shortDate(live.ends_on)}. You can publish another after that.`, tone: "info" }
+      : planEnded(plan)
+        ? { text: "You can publish one now", tone: "ok" }
+        : notes[t];
+    if (!notes[t]) delete notes[t];
+  }
+  return notes;
+}
+
+/** For the plan-ended notice: the conference holding the one free spot, in a sentence (or null). */
+export function spotTaken(plan: AccountPlan, events: PublishedEvent[]): string | null {
+  const live = plan.one_at_a_time.includes("conference") ? holdingEvent("conference", events) : undefined;
+  return live ? `${live.name} runs through ${shortDate(live.ends_on)}, so you can publish another after that.` : null;
+}
+
 const sortTypes = (types: string[]) => [...types].sort((a, b) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b));
 
 /** "a, b, and c" */
@@ -125,3 +202,19 @@ export function usageLines(plan: AccountPlan): string[] {
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/**
+ * The Account Host: the person who can get or renew a plan (account_host, for the
+ * account's own hosts). `unknown` when it couldn't be looked up and the viewer's own
+ * role isn't known either: then both ways forward are shown.
+ */
+export type AccountHost = { isMe: boolean; name: string; email: string | null; unknown?: boolean };
+
+export async function loadAccountHost(supabase: SupabaseClient, orgId: string, userId: string): Promise<AccountHost> {
+  const { data, error } = await supabase.rpc("account_host", { p_org: orgId }).maybeSingle<{ user_id: string; name: string; email: string | null }>();
+  if (!error && data) return { isMe: data.user_id === userId, name: data.name, email: data.email };
+  // Couldn't look it up (or before the database update): the viewer's own role still says whether they're the Account Host.
+  const { data: me } = await supabase.from("organization_members").select("role").eq("organization_id", orgId).eq("user_id", userId).maybeSingle();
+  if (me?.role === "owner") return { isMe: true, name: "", email: null };
+  return { isMe: false, name: "your Account Host", email: null, unknown: !me };
+}

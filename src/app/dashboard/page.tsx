@@ -20,11 +20,14 @@ import { eventTypeLabel, groupWords, hasConferences, hasEnsembles, hasRooms } fr
 import type { createClient as CreateClient } from "@/lib/supabase/server";
 import { RequestAccess } from "@/components/request-access";
 import { OnboardingForm } from "./onboarding-form";
-import { NewEventButton } from "@/components/event-type-picker";
-import { loadAccountPlan, startableTypes } from "@/lib/plan";
+import { LockIcon, NewEventButton } from "@/components/event-type-picker";
+import { endedSentence, holdingEvent, loadAccountHost, loadAccountPlan, pickerGroups, planEnded, spotTaken, startableTypes, typeNotes, typeWords, type AccountHost } from "@/lib/plan";
+import { PlanAsk } from "@/components/plan-ask";
+import { setupChecklist, type SetupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { loadSetupFacts } from "@/lib/setup-facts";
 import { SuccessToast } from "@/components/toaster";
 
-export const metadata: Metadata = { title: "Dashboard" };
+export const metadata: Metadata = { title: "My events" };
 
 type EventSummary = {
   id: string;
@@ -36,6 +39,7 @@ type EventSummary = {
   venue_name: string | null;
   venue_address: string;
   event_type: string | null;
+  organization_id: string;
 };
 
 type MyBand = {
@@ -57,9 +61,35 @@ type MyBand = {
   finals_slots: { perform_at: string | null }[];
 };
 
+type DraftStatus = {
+  /** The setup checklist (the soonest few drafts only). */
+  checklist: SetupChecklist | null;
+  planBlock: SetupFacts["planBlock"];
+  /** The kind in plan words when the account's own package doesn't include it ("school fairs"). */
+  kindLocked: string | null;
+  daysAway: number;
+  /** A line about the event pass publishing it would use. */
+  pass: string | null;
+};
+
+/** Days until an event starts, in its own time zone. */
+function daysUntil(e: { starts_on: string; timezone: string }) {
+  const today = utcToZonedDate(new Date().toISOString(), e.timezone);
+  return Math.round((Date.parse(e.starts_on) - Date.parse(today)) / 86_400_000);
+}
+
+/** Why the plan won't let a draft publish (no setup read): for drafts past the first few. */
+async function publishBlockOnly(supabase: Awaited<ReturnType<typeof CreateClient>>, eventId: string): Promise<SetupFacts["planBlock"]> {
+  const { data, error } = await supabase.rpc("org_can_publish", { p_event: eventId });
+  return !error && typeof data === "string" ? { reason: data, other: null } : null;
+}
+
+/** How many drafts on My events show their next step (each reads that event's setup). */
+const MAX_DRAFT_STEPS = 6;
+
 type StaffEvent = { role: "volunteer_director" | "section_lead"; events: EventSummary | null };
 
-const EVENT_COLUMNS = "id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, event_type";
+const EVENT_COLUMNS = "id, organization_id, name, status, timezone, starts_on, ends_on, venue_name, venue_address, event_type";
 
 /** Has the event ended, in its own time zone? */
 function isPast(e: { ends_on: string; timezone: string }) {
@@ -220,13 +250,59 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   }
 
   const teacher = org?.account_kind === "teacher";
-  // What New event can start: the package's kinds plus any with an unused pass.
+  // New event leads with the package's kinds plus any with an unused pass; any other kind can be tried.
   const plan = org ? await loadAccountPlan(supabase, org.id) : null;
-  const allowed = plan ? startableTypes(plan) : teacher ? ["conference"] : undefined;
+  const included = plan ? startableTypes(plan) : teacher ? ["conference"] : undefined;
+  const ownEvents = org ? hosted.filter((e) => e.organization_id === org.id) : [];
+  // One sentence for what ended (a free pilot or trial, or a lapsed plan), used by the notice and the picker.
+  const ended = org ? endedSentence(plan, freeStatus(org), org.subscription_status) : null;
+  const newEvent = (
+    <NewEventButton
+      included={included}
+      notes={plan ? typeNotes(plan, ownEvents) : undefined}
+      lead={plan && planEnded(plan) ? "conference" : undefined}
+      groups={pickerGroups(plan, included, ended)}
+    />
+  );
+  // Each upcoming draft's next step, from the same checklist as its event page. Only the
+  // soonest few read their whole setup; every draft gets the plan check (one call).
+  const upcomingDrafts = ownEvents.filter((e) => e.status === "draft" && !isPast(e));
+  const passFor = (type: string | null) => (plan && type && !plan.event_types.includes(type) ? (plan.passes_unused[type] ?? 0) : 0);
+  const drafts = new Map<string, DraftStatus>(
+    await Promise.all(
+      upcomingDrafts.map(async (e, i) => {
+        const facts = i < MAX_DRAFT_STEPS ? await loadSetupFacts(e.id) : null;
+        const planBlock = facts ? (facts.planBlock ?? null) : await publishBlockOnly(supabase, e.id);
+        const type = e.event_type ?? "band_contest";
+        // More drafts of a kind than unused passes: only the first one published gets the pass.
+        const sharing = upcomingDrafts.filter((d) => d.event_type === e.event_type).length;
+        const passes = planBlock ? 0 : passFor(e.event_type);
+        return [
+          e.id,
+          {
+            checklist: facts ? setupChecklist(facts) : null,
+            planBlock,
+            kindLocked: plan && !plan.own_event_types.includes(type) ? typeWords(type) : null,
+            daysAway: daysUntil(e),
+            pass: passes
+              ? sharing > passes
+                ? `You have ${passes} event ${passes === 1 ? "pass" : "passes"} for ${sharing} drafts like this: the first ${passes === 1 ? "one" : passes} you publish ${passes === 1 ? "uses it" : "use them"}`
+                : "Publishing uses your event pass"
+              : null,
+          },
+        ] as const;
+      }),
+    ),
+  );
+  // The conference using the one free spot after a plan ends, marked on its card.
+  const spotHolder = plan && planEnded(plan) && plan.one_at_a_time.includes("conference") ? holdingEvent("conference", ownEvents) : undefined;
+  // Who can get or renew the plan: the Account Host, or ask them. Only when there's something to say.
+  const accountHost =
+    org && (ended || freeStatus(org)?.soon || [...drafts.values()].some((d) => d.planBlock)) ? await loadAccountHost(supabase, org.id, user.id) : null;
   return (
     <div className="space-y-10">
       <div className="space-y-4">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Your events</h1>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">My events</h1>
         {deleted && <SuccessToast message="Event deleted." />}
         {withdrawn && <SuccessToast message="Registration withdrawn. The organizer has been emailed." />}
         {isAdmin && (
@@ -250,12 +326,31 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               ? "Parent-teacher conferences you're running. Free during the pilot."
               : `Events ${orgs.length > 1 ? orgs.map((o) => o.name).join(" and ") : org.name} ${orgs.length > 1 ? "are" : "is"} putting on.`
           }
-          action={<NewEventButton allowed={allowed} />}
-          notice={org && <PlanNotice org={org} />}
+          action={newEvent}
+          notice={
+            org && (
+              <PlanNotice
+                org={org}
+                ended={ended}
+                spot={plan ? spotTaken(plan, ownEvents) : null}
+                accountHost={accountHost}
+                urgent={[...drafts.values()].some((d) => d.planBlock && d.daysAway >= 0 && d.daysAway <= 30)}
+              />
+            )
+          }
           items={hosted.map((e) => ({
             key: e.id,
             past: isPast(e),
-            node: <HostedCard event={e} showType={mixedHosted} signups={counts.get(e.id) ?? 0} />,
+            node: (
+              <HostedCard
+                event={e}
+                showType={mixedHosted}
+                signups={counts.get(e.id) ?? 0}
+                draft={drafts.get(e.id)}
+                spot={spotHolder?.id === e.id ? spotHolder.ends_on : null}
+                ask={accountHost && org ? { host: accountHost, orgName: org.name } : null}
+              />
+            ),
           }))}
           empty={
             <Card className="text-center">
@@ -266,7 +361,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                   : "Create your first event. It stays a private draft until you publish it, so you can set everything up at your own pace."}
               </p>
               <div className="mt-4">
-                <NewEventButton allowed={allowed} />
+                {newEvent}
               </div>
             </Card>
           }
@@ -275,7 +370,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
               <h3 className="font-semibold">{teacher ? "No upcoming conferences" : "No upcoming events"}</h3>
               <p className="mx-auto mt-2 max-w-md leading-7 text-muted">Your past ones are below.</p>
               <div className="mt-4">
-                <NewEventButton allowed={allowed} />
+                {newEvent}
               </div>
             </Card>
           }
@@ -428,7 +523,24 @@ function EventCard({
 
 const where = (e: EventSummary) => e.venue_name ?? e.venue_address;
 
-function HostedCard({ event: e, showType, signups }: { event: EventSummary; showType: boolean; signups: number }) {
+function HostedCard({
+  event: e,
+  showType,
+  signups,
+  draft,
+  spot,
+  ask,
+}: {
+  event: EventSummary;
+  showType: boolean;
+  signups: number;
+  /** Drafts: the setup checklist, for the next step and how far along it is. */
+  draft?: DraftStatus;
+  /** The last day this conference holds the one free spot (after a plan ends). */
+  spot?: string | null;
+  /** Who to ask for a plan, for drafts the plan holds back. */
+  ask?: { host: AccountHost; orgName: string } | null;
+}) {
   const href = `/dashboard/events/${e.id}`;
   const today = isToday(e) && e.status === "published";
   const day = DAY_SCREEN[e.event_type ?? "band_contest"];
@@ -455,12 +567,74 @@ function HostedCard({ event: e, showType, signups }: { event: EventSummary; show
           Today · {day.label} →
         </Link>
       ) : e.status === "published" ? (
-        <p className="text-sm font-medium">{signupLine(e.event_type, signups)}</p>
+        <div className="space-y-1 text-sm">
+          <p className="font-medium">{signupLine(e.event_type, signups)}</p>
+          {spot && <p className="text-muted">Uses your one free conference spot through {formatDate(spot, { weekday: undefined, year: undefined })}</p>}
+        </div>
+      ) : draft ? (
+        <DraftNext draft={draft} href={href} ask={ask ?? null} />
       ) : (
-        <p className="text-sm font-medium text-warning">Next: finish setup and publish</p>
+        <p className="text-sm font-medium">Next: finish setup and publish</p>
       )}
     </EventCard>
   );
+}
+
+/** A draft's next step, how far along it is, and anything the plan holds back (with who to ask). */
+function DraftNext({ draft: d, href, ask }: { draft: DraftStatus; href: string; ask: { host: AccountHost; orgName: string } | null }) {
+  const c = d.checklist;
+  const left = c ? c.progress.of - c.progress.done : 0;
+  return (
+    <div className="space-y-1 text-sm">
+      {!c ? (
+        <p className="font-medium">Next: finish setup and publish</p>
+      ) : c.remaining.length ? (
+        <>
+          <p className="font-medium">Next: {c.next?.label}</p>
+          <p className="text-muted">
+            {left} {d.planBlock ? "setup " : ""}
+            {left === 1 ? "step" : "steps"} left{d.planBlock ? "" : " to publish"}
+          </p>
+        </>
+      ) : d.planBlock ? (
+        <p className="flex items-center gap-1.5 font-medium">
+          <span aria-hidden>✓</span> Setup done
+        </p>
+      ) : (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium text-brand">
+          <span>
+            <span aria-hidden>✓</span> Ready to publish
+          </span>
+          {/* Above the card's own link, so it can be tapped on its own. */}
+          <Link href={`${href}#publish`} className="relative z-10 underline underline-offset-4">
+            Review and publish
+          </Link>
+        </p>
+      )}
+      {d.pass && <p className="text-muted">{d.pass}</p>}
+      {d.planBlock && (
+        <>
+          <p className="flex items-start gap-1.5 font-medium text-warning">
+            <LockIcon />
+            <span>
+              {heldBackLine(d)}
+              {d.daysAway >= 0 && d.daysAway <= 30 && ` · the event is in ${d.daysAway} ${d.daysAway === 1 ? "day" : "days"}`}
+            </span>
+          </p>
+          {ask && !d.planBlock.other && <PlanAsk host={ask.host} orgName={ask.orgName} kind={d.kindLocked ?? undefined} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Why the plan holds a draft back, in a few words (the event page has the full reason). */
+function heldBackLine(d: DraftStatus) {
+  const block = d.planBlock!;
+  if (block.other) return `You can publish this after ${block.other.name} ends`;
+  if (d.kindLocked) return `Publishing needs a plan with ${d.kindLocked}`;
+  if (block.reason.includes("weekly hours")) return "Weekly hours need a plan";
+  return "Publishing needs a plan";
 }
 
 /** Where a band stands at a contest, in one line. */
@@ -603,8 +777,21 @@ function HostYourOwn({ invited }: { invited: boolean }) {
   );
 }
 
-/** Hosts: when their free pilot or trial ends (and what that means). */
-function PlanNotice({ org }: { org: Organization }) {
+/** Hosts: a free pilot or trial ending soon, or a free period or plan that has ended (and what that means). */
+function PlanNotice({
+  org,
+  ended,
+  spot,
+  accountHost,
+  urgent,
+}: {
+  org: Organization;
+  ended: string | null;
+  spot: string | null;
+  accountHost: AccountHost | null;
+  /** A draft the plan holds back starts within 30 days: keep the notice open. */
+  urgent: boolean;
+}) {
   if (org.suspended_at) {
     return (
       <p className="rounded-lg border border-danger/40 bg-warning-soft px-4 py-3 text-sm leading-6">
@@ -617,29 +804,51 @@ function PlanNotice({ org }: { org: Organization }) {
     );
   }
   const free = freeStatus(org);
-  if (!free) return null;
-  if (free.ended) {
+  if (ended) {
+    const limit = "Without a plan, you can have one parent-teacher conference published at a time.";
+    const body = (
+      <>
+        <p>
+          Your published events stay up and keep working: sign-ups, reminders, and check-in. You can still set up any kind of event.{" "}
+          {limit}
+          {spot && ` ${spot}`}
+        </p>
+        {accountHost && <PlanAsk host={accountHost} orgName={org.name} variant="button" />}
+      </>
+    );
+    // Two weeks on, it folds to one line (it opens again when a held-back draft is coming up).
+    const folded = free && free.left < -14 && !urgent;
     return (
-      <p className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm leading-6">
-        <strong>Your free period ended {free.day}.</strong> Events you&apos;ve already published stay live, and you can publish
-        parent-teacher conferences. Email <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">{brand.supportEmail}</a> to keep going.
-      </p>
+      <div role="note" className="flex gap-3 rounded-lg border border-warning/50 bg-warning-soft px-4 py-3 text-sm leading-6">
+        <LockIcon className="mt-0.5 size-5 text-warning" />
+        {folded ? (
+          <details className="min-w-0 flex-1">
+            <summary className="min-h-6 cursor-pointer">
+              <strong>{ended}.</strong> {limit}
+            </summary>
+            <div className="mt-2 space-y-2">{body}</div>
+          </details>
+        ) : (
+          <div className="space-y-2">
+            <p>
+              <strong>{ended}.</strong>
+            </p>
+            {body}
+          </div>
+        )}
+      </div>
     );
   }
+  if (!free || free.ended) return null;
   return (
-    <p className={`rounded-lg px-4 py-3 text-sm leading-6 ${free.soon ? "border border-warning/40 bg-warning-soft" : "bg-brand-soft"}`}>
-      {org.subscription_status === "trialing" ? "Free trial" : "Free pilot"} through <strong>{free.day}</strong>.
-      {free.soon && (
-        <>
-          {" "}
-          After that, you can publish parent-teacher conferences only. Email{" "}
-          <a href={`mailto:${brand.supportEmail}`} className="font-medium text-brand underline">
-            {brand.supportEmail}
-          </a>{" "}
-          to keep going.
-        </>
-      )}
-    </p>
+    <div className={`space-y-2 rounded-lg px-4 py-3 text-sm leading-6 ${free.soon ? "border border-warning/40 bg-warning-soft" : "bg-brand-soft"}`}>
+      <p>
+        {org.subscription_status === "trialing" ? "Free trial" : "Free pilot"} through <strong>{free.day}</strong>.
+        {free.soon && " After that, you can have one parent-teacher conference published at a time."}
+      </p>
+      {free.soon && accountHost && <PlanAsk host={accountHost} orgName={org.name} />}
+    </div>
   );
 }
+
 

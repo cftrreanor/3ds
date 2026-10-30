@@ -6,6 +6,7 @@ import { emailButton, emailShell } from "@/lib/email-format";
 import { eventSender } from "@/lib/event-sender";
 import { isQa } from "@/lib/qa";
 import { withOrganizerEmail } from "@/lib/ics";
+import { isSchemaError } from "@/lib/schema-check";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // Transactional email through Resend's REST API (https://resend.com/docs/api-reference/emails/send-email).
@@ -29,6 +30,56 @@ function fromWithName(name: string | null | undefined) {
 async function senderFor(eventId: string | undefined, replyTo: string | undefined) {
   const sender = eventId ? await eventSender(eventId) : null;
   return { from: fromWithName(sender?.name), replyTo: replyTo ?? sender?.replyTo ?? undefined };
+}
+
+/** Whether an event is a "try it" event, kept for a minute so a loop of emails checks once. */
+const trialCache = new Map<string, { trial: boolean | null; at: number }>();
+
+/**
+ * Is this a "try it" event (a draft of a kind its plan doesn't include)? Published
+ * events never are. Null when it couldn't be checked, even after a retry.
+ */
+async function isTrialEvent(eventId: string): Promise<boolean | null> {
+  const hit = trialCache.get(eventId);
+  if (hit && Date.now() - hit.at < 60_000) return hit.trial;
+  const admin = createAdminClient();
+  let trial: boolean | null = null;
+  for (let attempt = 0; attempt < 2 && trial === null; attempt++) {
+    const { data: event, error } = await admin.from("events").select("status").eq("id", eventId).maybeSingle();
+    if (error) continue;
+    if (!event || event.status === "published") {
+      trial = false;
+      break;
+    }
+    const res = await admin.rpc("event_is_trial", { p_event: eventId });
+    if (res.error && isSchemaError(res.error)) trial = false; // Before the database update: nothing is held back.
+    else if (!res.error) trial = res.data === true;
+  }
+  if (trial !== null) trialCache.set(eventId, { trial, at: Date.now() });
+  return trial;
+}
+
+/**
+ * Of these addresses, the ones an event's email must not go to, and why: a "try
+ * it" event emails only the account's own people (event_email_blocked,
+ * 20270104000000_drafts_any_type.sql). Published events always send. A draft
+ * whose check fails twice holds its email back.
+ */
+async function heldBack(eventId: string | undefined, to: string[]): Promise<{ held: Set<string>; reason: string }> {
+  const none = { held: new Set<string>(), reason: "" };
+  if (!eventId || to.length === 0) return none;
+  const trial = await isTrialEvent(eventId);
+  if (trial === false) return none;
+  if (trial === null) {
+    console.error("Couldn't check whether this event is a try-it event; holding the draft's email back", eventId);
+    return { held: new Set(to.map((t) => t.toLowerCase())), reason: "Couldn't check the plan for this draft event, so it was held back" };
+  }
+  const { data, error } = await createAdminClient().rpc("event_email_blocked", { p_event: eventId, p_emails: to });
+  if (error) {
+    console.error("event_email_blocked failed; holding the draft's email back", error.message);
+    return { held: new Set(to.map((t) => t.toLowerCase())), reason: "Couldn't check the plan for this draft event, so it was held back" };
+  }
+  return { held: new Set(((data ?? []) as string[]).map((t) => t.toLowerCase())), reason: "Try-it event: the plan doesn't include this kind of event" };
 }
 
 /**
@@ -169,6 +220,11 @@ export async function sendEmail({
   // Demo people (src/lib/demo.ts) have made-up addresses: never email them
   // (on the QA site everything goes to the outbox, theirs included).
   if (isDemoEmail(to) && !isQa()) return true;
+  const check = await heldBack(eventId, [to]);
+  if (check.held.has(to.toLowerCase())) {
+    await logEmail(to, subject, "skipped", check.reason, author);
+    return false;
+  }
   const sender = await senderFor(eventId, replyTo);
   if (isQa()) {
     const saved = await toOutbox({ ...sender, to: [to], subject, html, text, invite: invite?.method });
@@ -246,14 +302,17 @@ export async function sendEmailToMany({
   replyTo?: string;
   eventId?: string;
 }): Promise<number> {
-  const recipients = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && (isQa() || !isDemoEmail(t)));
-  if (recipients.length === 0) return 0;
+  const all = [...new Set(to.map((t) => t.trim().toLowerCase()))].filter((t) => t && (isQa() || !isDemoEmail(t)));
+  const { held, reason } = await heldBack(eventId, all);
+  const recipients = all.filter((t) => !held.has(t));
   const log = async (emails: string[], status: "sent" | "failed" | "skipped", error?: string) => {
     const { error: dbError } = await createAdminClient()
       .from("email_log")
       .insert(emails.map((e) => ({ to_email: e, subject: subject.slice(0, 300), status, error: error ? error.slice(0, 500) : null })));
     if (dbError) console.error("email_log insert failed", dbError.message);
   };
+  if (held.size) await log([...held], "skipped", reason);
+  if (recipients.length === 0) return 0;
   if (isQa()) {
     const saved = await toOutbox({ ...(await senderFor(eventId, replyTo)), to: recipients, subject, html, text });
     await log(recipients, saved ? "sent" : "failed", saved ? undefined : "QA outbox");

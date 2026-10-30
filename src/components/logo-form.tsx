@@ -101,7 +101,7 @@ export function LogoForm({ eventId, logo, color }: { eventId: string | null; log
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-4">
-        <div className="flex h-16 w-32 items-center justify-center rounded-md border border-border bg-white p-2">
+        <div className={`flex h-16 w-32 items-center justify-center rounded-md border p-2 ${logo ? "border-border bg-white" : "border-dashed border-field-border bg-surface"}`}>
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logo} alt="Your logo" className="max-h-full max-w-full object-contain" />

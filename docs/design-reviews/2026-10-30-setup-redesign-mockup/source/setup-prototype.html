@@ -1,0 +1,455 @@
+<title>Setup Redesign Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a thin prototype switcher on top; below it, the app exactly as an organizer would see it at this width. Tokens mirror src/app/globals.css */
+:root {
+  --background: #ffffff; --surface: #fcfbf8; --raised: #ffffff; --foreground: #0a0a0a; --muted: #4b5f72;
+  --border: #dfe3e8; --field-border: #5f6d77; --brand: #0b3558; --brand-hover: #071a31; --brand-foreground: #ffffff;
+  --brand-soft: #edf3f9; --accent: #1a5c8f; --success: #16794a; --success-soft: #e7f4ed; --warning: #854600;
+  --warning-soft: #fdf1df; --danger: #b42318; --header: #0b3558; --header-foreground: #ffffff; --on-dark-mute: #c8d4e0;
+  --proto-bg: #e9edf1; --proto-fg: #10202e; --proto-chip: #ffffff;
+  --sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --background: #06121f; --surface: #0c1f33; --raised: #132a42; --foreground: #ffffff; --muted: #c8d4e0;
+  --border: #253a51; --field-border: #5f7489; --brand: #9cc3ee; --brand-hover: #b8d4f3; --brand-foreground: #071a31;
+  --brand-soft: #12304f; --accent: #7fb6e0; --success: #64d69a; --success-soft: #16322a; --warning: #ffc266;
+  --warning-soft: #3a2c14; --danger: #ff8a80; --header: #071a31; --header-foreground: #ffffff; --on-dark-mute: #c8d4e0;
+  --proto-bg: #030b14; --proto-fg: #e6edf3; --proto-chip: #0c1f33; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --background: #06121f; --surface: #0c1f33; --raised: #132a42; --foreground: #ffffff; --muted: #c8d4e0;
+  --border: #253a51; --field-border: #5f7489; --brand: #9cc3ee; --brand-hover: #b8d4f3; --brand-foreground: #071a31;
+  --brand-soft: #12304f; --accent: #7fb6e0; --success: #64d69a; --success-soft: #16322a; --warning: #ffc266;
+  --warning-soft: #3a2c14; --danger: #ff8a80; --header: #071a31; --header-foreground: #ffffff; --on-dark-mute: #c8d4e0;
+  --proto-bg: #030b14; --proto-fg: #e6edf3; --proto-chip: #0c1f33; color-scheme: dark }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--background); color: var(--foreground); font: 16px/1.5 var(--sans); }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--brand); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+/* prototype switcher (not part of the design) */
+.proto { background: var(--proto-bg); color: var(--proto-fg); padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--border); }
+.proto p { margin: 0; font-size: 13px; }
+.proto nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.proto nav a { flex: none; font-size: 13px; text-decoration: none; color: var(--proto-fg); background: var(--proto-chip); border: 1px solid var(--border); border-radius: 999px; padding: 6px 11px; white-space: nowrap; }
+.proto nav a[aria-current="page"] { background: var(--brand); color: var(--brand-foreground); border-color: var(--brand); }
+
+/* app chrome */
+.appbar { background: var(--header); color: var(--header-foreground); padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.logo { font-weight: 800; letter-spacing: .02em; font-size: 15px; text-transform: uppercase; }
+.appnav { display: flex; gap: 16px; font-size: 14px; }
+.appnav span { white-space: nowrap; }
+.page { max-width: 1120px; margin: 0 auto; padding-block: 24px 140px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 20px; }
+.narrow { max-width: 760px; }
+.back { font-size: 14px; color: var(--muted); text-decoration: none; }
+h1 { margin: 0; font-size: clamp(26px, 4.4vw, 36px); line-height: 1.15; letter-spacing: -0.02em; font-weight: 600; text-wrap: balance; }
+h2 { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; }
+h3 { margin: 0; font-size: 16px; line-height: 1.3; font-weight: 600; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--raised); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card.key { border: 2px solid var(--brand); }
+.card.warn { background: var(--warning-soft); border-color: var(--warning); }
+.card.ok { background: var(--success-soft); border-color: var(--success); }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--border); background: var(--surface); color: var(--foreground); white-space: nowrap; }
+.badge.draft { background: var(--warning-soft); border-color: var(--warning); color: var(--warning); }
+.badge.ready { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+.badge.live { background: var(--success); border-color: var(--success); color: var(--background); }
+.badge.lock { background: var(--surface); border-color: var(--field-border); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 10px; font-weight: 600; font-size: 15px; border: 2px solid var(--brand); background: var(--brand); color: var(--brand-foreground); text-decoration: none; cursor: pointer; }
+.btn.secondary { background: transparent; color: var(--brand); border: 2px solid var(--field-border); }
+.btn.quiet { background: transparent; border-color: transparent; color: var(--brand); padding: 0 8px; text-decoration: underline; }
+.btn.danger { background: transparent; border-color: transparent; color: var(--danger); text-decoration: underline; padding: 0 8px; }
+.btn[aria-disabled="true"] { background: var(--surface); color: var(--muted); border-color: var(--border); cursor: not-allowed; }
+
+/* the one checklist */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; list-style: none; margin: 0; padding: 0; }
+.steps li { display: flex; flex-direction: column; gap: 6px; font-size: 14px; min-width: 0; }
+.steps .seg { height: 6px; border-radius: 3px; background: var(--border); }
+.steps .done .seg { background: var(--success); }
+.steps .now .seg { background: var(--brand); }
+.steps .lbl { display: flex; gap: 6px; align-items: baseline; font-weight: 600; }
+.steps .lbl em { font-style: normal; font-weight: 500; color: var(--muted); }
+.steps .done .lbl em { color: var(--success); }
+.progress { display: flex; flex-direction: column; gap: 10px; }
+.progress .top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; font-size: 14px; }
+
+/* forms */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field label { font-weight: 600; font-size: 15px; }
+.field .hint { font-size: 14px; color: var(--muted); }
+.input { min-height: 44px; border: 1.5px solid var(--field-border); border-radius: 8px; padding: 9px 12px; background: var(--background); width: 100%; }
+.input.filled { color: var(--foreground); }
+.input.empty { color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.req { color: var(--danger); }
+
+/* save bar */
+.savebar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--raised); border-top: 1px solid var(--border); padding-block: 12px calc(12px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); z-index: 5; }
+.savebar .in { max-width: 1120px; margin: 0 auto; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.savebar .left { display: flex; gap: 8px; align-items: center; font-size: 14px; min-width: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warning); flex: none; }
+.dot.ok { background: var(--success); }
+
+/* type picker */
+.types { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.type { background: var(--raised); border: 1.5px solid var(--border); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.type.can { border-color: var(--brand); }
+.type .tag { align-self: flex-start; }
+.icon { width: 22px; height: 22px; flex: none; }
+
+/* jobs */
+.jobbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.jobs { display: flex; flex-direction: column; gap: 8px; }
+.jobpick { display: none; }
+.joblist { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.jobitem { border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; background: var(--raised); min-width: 0; }
+.jobitem.on { border: 2px solid var(--brand); background: var(--brand-soft); }
+.jobitem b { font-size: 15px; }
+.shift { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.shift:first-child { border-top: 0; }
+.notice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; font-size: 15px; }
+.notice.draft { background: var(--warning-soft); border: 1px solid var(--warning); }
+.notice.info { background: var(--brand-soft); border: 1px solid var(--border); }
+.layout2 { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.fold { border: 1px dashed var(--field-border); border-radius: 12px; padding: 14px 16px; display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+ul.check { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+ul.check li { display: flex; gap: 8px; }
+ul.check li::before { content: "✓"; color: var(--success); font-weight: 700; }
+.opt { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
+.opt input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--brand); }
+.linkbox { font-family: ui-monospace, Menlo, monospace; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-wrap: anywhere; }
+.stat { display: flex; gap: 20px; flex-wrap: wrap; font-size: 15px; }
+.stat b { font-size: 22px; display: block; }
+
+/* public preview */
+.previewbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 4; background: var(--warning); color: var(--background); padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; font-size: 15px; }
+.previewbar b { font-weight: 700; }
+.previewbar a { color: var(--background); font-weight: 600; }
+.pubhero { background: var(--brand-soft); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px; }
+.pjob { border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--raised); }
+.pjob.hidden-job { border-style: dashed; border-color: var(--warning); }
+.pshift { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.annot { font-size: 13px; color: var(--muted); border-left: 3px solid var(--accent); padding: 4px 10px; }
+
+@media (max-width: 860px) {
+  .layout2 { grid-template-columns: minmax(0, 1fr); }
+  .appnav { gap: 12px; font-size: 13px; }
+}
+@media (max-width: 560px) {
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .joblist { display: none; }
+  .jobpick { display: flex; }
+  .steps .lbl em { display: none; }
+  .appnav span.hide-sm { display: none; }
+  .savebar .in > .row { width: 100%; }
+  .savebar .in > .row .btn { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="proto" id="proto">
+  <p><b>Prototype</b>: the redesigned volunteer event setup. Tap through the screens in order. The bar you're reading isn't part of the design.</p>
+  <nav aria-label="Prototype screens">
+    <a href="#picker">1 · Type picker</a>
+    <a href="#details">2 · Details</a>
+    <a href="#jobs-empty">3 · First job</a>
+    <a href="#job-edit">4 · Editing a job</a>
+    <a href="#preview">5 · Preview</a>
+    <a href="#ready">6 · Ready to publish</a>
+    <a href="#live">7 · Live</a>
+    <a href="#blocked">8 · Plan doesn't allow</a>
+  </nav>
+</div>
+
+<header class="appbar">
+  <span class="logo">Field Command</span>
+  <nav class="appnav" aria-label="Main"><span>My events</span><span>Volunteer tracking</span><span class="hide-sm">Account</span></nav>
+</header>
+
+<!-- 1 · TYPE PICKER (plan: free period ended, conferences only, one at a time) -->
+<main class="page" id="picker" data-screen>
+  <a class="back" href="#">← My events</a>
+  <div class="stack">
+    <h1>What kind of event is this?</h1>
+    <p class="muted">You can change this later, until people start signing up</p>
+  </div>
+  <div class="notice info" role="note">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+    <div class="stack" style="gap:4px"><b>Your free period ended Oct 20</b><span class="small">Your published events stay live. Right now you can publish parent-teacher conferences, one at a time. You can still set up any kind of event and publish it once you add a plan. <a href="#">See what's included</a></span></div>
+  </div>
+  <div class="types">
+    <div class="type can">
+      <h3>Parent-teacher conferences</h3>
+      <span class="badge ready tag">You can publish this</span>
+      <p class="small muted">Set aside a day, and families book a time in person, on video, or by phone</p>
+      <p class="small">Free during the pilot, one published at a time</p>
+    </div>
+    <div class="type">
+      <h3>Volunteer event</h3>
+      <span class="badge lock tag"><svg class="icon" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Set up now, publish with a plan</span>
+      <p class="small muted">Shifts, things to bring, a check-in desk, and your team</p>
+    </div>
+    <div class="type">
+      <h3>Band contest</h3>
+      <span class="badge lock tag">Set up now, publish with a plan</span>
+      <p class="small muted">Band registration, the performance schedule, contest day check-in, and volunteers</p>
+    </div>
+    <div class="type">
+      <h3>Family visitor day</h3>
+      <span class="badge lock tag">Set up now, publish with a plan</span>
+      <p class="small muted">Families register ahead and are checked in at the door</p>
+    </div>
+  </div>
+  <p class="annot">Decided: the plan rule shows before any setup starts, on every card, and again at the top of the event page</p>
+</main>
+
+<!-- 2 · DETAILS (step 1 of 3) -->
+<main class="page narrow" id="details" data-screen hidden>
+  <a class="back" href="#">← My events</a>
+  <div class="progress">
+    <div class="top"><span><b>Step 1 of 3:</b> Details</span><span class="muted">Next, you'll add volunteer jobs and shifts</span></div>
+    <ol class="steps" aria-label="Setup steps">
+      <li class="now"><span class="seg"></span><span class="lbl">Details <em>now</em></span></li>
+      <li><span class="seg"></span><span class="lbl">Jobs and shifts</span></li>
+      <li><span class="seg"></span><span class="lbl">Publish</span></li>
+    </ol>
+  </div>
+  <h1>Set up your volunteer event</h1>
+  <p class="muted">Fill in the boxes marked <span class="req">*</span>. You can change everything later.</p>
+  <div class="card stack" style="gap:16px">
+    <div class="field"><label for="f-name">Event name <span class="req">*</span></label><div class="input filled" id="f-name">Cedar Ridge Fall Festival</div></div>
+    <div class="grid2">
+      <div class="field"><label for="f-date">Date <span class="req">*</span></label><div class="input filled" id="f-date">Sat, Nov 14, 2026</div></div>
+      <div class="field"><label for="f-tz">Time zone</label><div class="input filled" id="f-tz">Central (Austin)</div><span class="hint">From your browser. Every time volunteers see uses this zone.</span></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="f-start">Starts <span class="req">*</span></label><div class="input empty" id="f-start">Pick a time</div></div>
+      <div class="field"><label for="f-end">Ends <span class="req">*</span></label><div class="input empty" id="f-end">Pick a time</div></div>
+    </div>
+    <div class="field"><label for="f-venue">Where <span class="req">*</span></label><div class="input filled" id="f-venue">Cedar Ridge Elementary, 400 Oak St, Austin, TX</div></div>
+    <p class="small muted">Your team, emails, and maps can wait. They're in Event settings whenever you're ready.</p>
+  </div>
+  <p class="annot">No band-contest defaults: start and end are blank. No logo upload here, since it changes every event.</p>
+  <div class="savebar"><div class="in">
+    <span class="left"><span class="dot"></span>2 boxes left: Starts and Ends</span>
+    <div class="row"><a class="btn" href="#jobs-empty">Save and continue</a></div>
+  </div></div>
+</main>
+
+<!-- 3 · JOBS, EMPTY (step 2 of 3) -->
+<main class="page" id="jobs-empty" data-screen hidden>
+  <a class="back" href="#ready">← Cedar Ridge Fall Festival</a>
+  <div class="progress">
+    <div class="top"><span><b>Step 2 of 3:</b> Jobs and shifts</span><span class="badge">Draft: only your team can see this event</span></div>
+    <ol class="steps" aria-label="Setup steps">
+      <li class="done"><span class="seg"></span><span class="lbl">Details <em>done</em></span></li>
+      <li class="now"><span class="seg"></span><span class="lbl">Jobs and shifts <em>now</em></span></li>
+      <li><span class="seg"></span><span class="lbl">Publish</span></li>
+    </ol>
+  </div>
+  <h1>Volunteer jobs</h1>
+  <div class="card key" style="align-items:flex-start">
+    <h2>Add your first job</h2>
+    <p class="muted" style="max-width:60ch">A job is a place to help or a list of things to bring, like Parking, Face painting, or a bake sale. Volunteers pick a shift or an item.</p>
+    <div class="row"><a class="btn" href="#job-edit">+ Add a job</a><a class="btn secondary" href="#">Import from a spreadsheet</a></div>
+  </div>
+  <div class="fold"><span><b>Start from a past event</b> <span class="muted small">Copy jobs and shifts from Spring Carnival 2026</span></span><a class="btn secondary" href="#">Copy jobs</a></div>
+  <p class="annot">"Start from a past event" is a separate, larger decision (finding 15). It's shown here so you can see where it would go.</p>
+</main>
+
+<!-- 4 · EDITING A JOB -->
+<main class="page" id="job-edit" data-screen hidden>
+  <a class="back" href="#ready">← Cedar Ridge Fall Festival</a>
+  <div class="progress">
+    <div class="top"><span><b>Step 2 of 3:</b> Jobs and shifts</span><span class="muted">1 job ready · 2 drafts</span></div>
+    <ol class="steps" aria-label="Setup steps">
+      <li class="done"><span class="seg"></span><span class="lbl">Details <em>done</em></span></li>
+      <li class="now"><span class="seg"></span><span class="lbl">Jobs and shifts <em>now</em></span></li>
+      <li><span class="seg"></span><span class="lbl">Publish</span></li>
+    </ol>
+  </div>
+  <div class="jobbar"><h1>Volunteer jobs</h1><div class="row"><a class="btn secondary" href="#">+ Add a job</a><a class="btn quiet" href="#">Import</a></div></div>
+  <div class="joblist" role="list" aria-label="Jobs">
+    <div class="jobitem" role="listitem"><b>Parking</b><span class="badge ready" style="align-self:flex-start">Ready · 2 shifts</span></div>
+    <div class="jobitem on" role="listitem" aria-current="true"><b>Face painting</b><span class="badge draft" style="align-self:flex-start">Draft · needs a shift</span></div>
+    <div class="jobitem" role="listitem"><b>Bake sale items</b><span class="badge draft" style="align-self:flex-start">Draft · hidden</span></div>
+  </div>
+  <div class="jobpick field"><label for="jp">Job</label><div class="input filled" id="jp">Face painting · Draft, needs a shift ▾</div><span class="hint">3 jobs: 1 ready, 2 drafts</span></div>
+  <div class="layout2">
+    <div class="card stack" style="gap:16px">
+      <div class="notice draft" role="status">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><path d="M4 4l16 16"/></svg>
+        <div class="stack" style="gap:4px"><b>Draft: volunteers can't see this job</b><span class="small">It stays hidden until you mark it ready. You and its lead can <a href="#preview">preview it</a>.</span></div>
+      </div>
+      <div class="field"><label>Job name <span class="req">*</span></label><div class="input filled">Face painting</div></div>
+      <div class="field"><label>Where volunteers check in</label><div class="input filled">Gym, by the stage</div><span class="hint">Optional</span></div>
+      <div class="field"><label>Lead</label><div class="row"><span class="badge">Maria Lopez <span aria-label="Remove Maria Lopez">×</span></span><a class="btn quiet" href="#">+ Add a lead</a></div><span class="hint">Leads see who signed up. On event day they also see volunteers' phone numbers.</span></div>
+      <div class="stack" style="gap:4px">
+        <h3>Shifts</h3>
+        <p class="small muted">No shifts yet. Add at least one so volunteers can sign up.</p>
+        <div><a class="btn secondary" href="#">+ Add a shift</a></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Parking</h3>
+      <span class="badge ready" style="align-self:flex-start">Ready</span>
+      <div class="shift"><span><b>8:00–11:00 AM</b><br><span class="small muted">2 of 4 spots filled</span></span><span class="row"><a class="btn quiet" href="#">Edit</a></span></div>
+      <div class="shift"><span><b>11:00 AM–2:00 PM</b><br><span class="small muted">0 of 4 spots filled</span></span><span class="row"><a class="btn quiet" href="#">Edit</a><a class="btn danger" href="#">Delete</a></span></div>
+      <p class="small muted">Shifts with people in them can't be deleted. Move or remove the people first.</p>
+    </div>
+  </div>
+  <div class="savebar"><div class="in">
+    <span class="left"><span class="dot"></span>What's left: add a shift</span>
+    <div class="row"><a class="btn secondary" href="#">Save as draft</a><a class="btn" href="#" aria-disabled="true" title="Add a shift first">Save and mark ready</a></div>
+  </div></div>
+</main>
+
+<!-- 5 · PREVIEW (host and lead only) -->
+<div id="preview" data-screen hidden>
+  <div class="previewbar" role="status"><span><b>Preview only.</b> Volunteers can't see this page yet. Draft jobs are outlined.</span><a href="#job-edit">Close preview</a></div>
+  <main class="page narrow">
+    <div class="pubhero">
+      <span class="small muted">Cedar Ridge PTO</span>
+      <h1>Cedar Ridge Fall Festival</h1>
+      <p>Sat, Nov 14 · 10:00 AM–3:00 PM · Cedar Ridge Elementary · <a href="#">Directions</a></p>
+    </div>
+    <h2>Pick a shift</h2>
+    <div class="pjob">
+      <div class="row" style="justify-content:space-between"><h3>Parking</h3><span class="small muted">North lot</span></div>
+      <div class="pshift"><span>8:00–11:00 AM · <span class="muted">2 spots left</span></span><span class="btn" aria-disabled="true">Sign-up opens when published</span></div>
+      <div class="pshift"><span>11:00 AM–2:00 PM · <span class="muted">4 spots left</span></span><span class="btn" aria-disabled="true">Sign-up opens when published</span></div>
+    </div>
+    <div class="pjob hidden-job">
+      <div class="row" style="justify-content:space-between"><h3>Face painting</h3><span class="badge draft">Draft · volunteers won't see this</span></div>
+      <p class="small muted">No shifts yet</p>
+    </div>
+    <div class="pjob hidden-job">
+      <div class="row" style="justify-content:space-between"><h3>Bake sale items</h3><span class="badge draft">Draft · volunteers won't see this</span></div>
+      <p class="small muted">Bring: cookies (0 of 6), brownies (0 of 4)</p>
+    </div>
+  </main>
+</div>
+
+<!-- 6 · READY TO PUBLISH (event page) -->
+<main class="page" id="ready" data-screen hidden>
+  <a class="back" href="#">← My events</a>
+  <div class="row" style="justify-content:space-between">
+    <div class="stack" style="gap:6px"><h1>Cedar Ridge Fall Festival</h1><span class="row small"><span class="badge">Draft: only your team can see this</span><span class="muted">Sat, Nov 14 · 10:00 AM–3:00 PM CST · Cedar Ridge Elementary</span></span></div>
+    <a class="btn secondary" href="#">Event settings</a>
+  </div>
+  <div class="progress">
+    <div class="top"><span><b>2 of 3 steps done.</b> Last step: publish</span></div>
+    <ol class="steps" aria-label="Setup steps">
+      <li class="done"><span class="seg"></span><span class="lbl">Details <em>done</em></span></li>
+      <li class="done"><span class="seg"></span><span class="lbl">Jobs and shifts <em>done</em></span></li>
+      <li class="now"><span class="seg"></span><span class="lbl">Publish <em>now</em></span></li>
+    </ol>
+  </div>
+  <div class="layout2">
+    <div class="stack" style="gap:16px">
+      <div class="card key">
+        <h2>Ready to publish</h2>
+        <div class="stat"><span><b>2</b>jobs ready</span><span><b>6</b>shifts</span><span><b>24</b>spots</span></div>
+        <p class="small">1 draft job (Bake sale items) stays hidden until you mark it ready</p>
+        <div class="stack" style="gap:6px"><b>When you publish</b>
+          <ul class="check">
+            <li>Your event page goes online, and volunteers can sign up</li>
+            <li>You get a link and QR code to share</li>
+            <li>Nobody is emailed. People find out when you share the link.</li>
+            <li>You can keep editing, and unpublish at any time</li>
+          </ul>
+        </div>
+        <label class="opt"><input type="checkbox" id="keepclosed"> <span>Keep sign-up closed for now <span class="muted small">(the page goes online, but nobody can sign up until you open it)</span></span></label>
+        <div class="row"><a class="btn" href="#live">Publish and open sign-up</a><a class="btn quiet" href="#preview">Preview as a volunteer</a></div>
+      </div>
+      <div class="fold"><span><b>Event day</b> <span class="muted small">Check-in, badges, and messages. These open the evening before.</span></span><span class="muted small">Nov 13</span></div>
+    </div>
+    <div class="card">
+      <h3>Before the day</h3>
+      <p class="small muted">Optional. None of these stop you from publishing.</p>
+      <div class="shift"><span>Invite your team</span><a class="btn quiet" href="#">Invite</a></div>
+      <div class="shift"><span>Add maps or documents</span><a class="btn quiet" href="#">Add</a></div>
+      <div class="shift"><span>Daily sign-up email</span><span class="badge ready">On for you</span></div>
+      <div class="shift"><span>Your link</span><span class="small muted">Appears when you publish</span></div>
+    </div>
+  </div>
+  <p class="annot">One go-live action. The brand blue is used for it, and green only for status. There's no link or QR code until the event is live.</p>
+</main>
+
+<!-- 7 · LIVE -->
+<main class="page" id="live" data-screen hidden>
+  <a class="back" href="#">← My events</a>
+  <div class="stack" style="gap:6px"><h1>Cedar Ridge Fall Festival</h1><span class="row small"><span class="badge live">Live · sign-up open</span><span class="muted">Sat, Nov 14 · 10:00 AM–3:00 PM CST</span></span></div>
+  <div class="card ok">
+    <h2>Your event is live</h2>
+    <p>Volunteers can sign up now. Share the link in your group text or newsletter.</p>
+    <div class="linkbox">fieldcommandevents.com/e/cedar-ridge-fall-festival</div>
+    <div class="row"><a class="btn" href="#">Copy link</a><a class="btn secondary" href="#">QR code</a><a class="btn secondary" href="#">Preview</a></div>
+  </div>
+  <div class="card warn">
+    <h3>Needs you</h3>
+    <p class="small">Bake sale items is still a draft, so volunteers can't see it. <a href="#job-edit">Finish it</a></p>
+  </div>
+  <div class="card">
+    <h3>Volunteers</h3>
+    <div class="stat"><span><b>0 of 24</b>spots filled</span><span><b>2</b>jobs open</span></div>
+    <a class="btn secondary" href="#job-edit" style="align-self:flex-start">Manage jobs and shifts</a>
+  </div>
+</main>
+
+<!-- 8 · PLAN DOESN'T ALLOW PUBLISHING -->
+<main class="page" id="blocked" data-screen hidden>
+  <a class="back" href="#">← My events</a>
+  <div class="stack" style="gap:6px"><h1>Cedar Ridge Fall Festival</h1><span class="row small"><span class="badge">Draft: only your team can see this</span><span class="muted">Sat, Nov 14 · 10:00 AM–3:00 PM CST</span></span></div>
+  <div class="card warn">
+    <h2>Your plan can't publish this event yet</h2>
+    <p>Your free period ended Oct 20. Right now you can publish parent-teacher conferences, one at a time. Everything you set up here is saved, and you can publish it as soon as you add a plan.</p>
+    <div class="row"><a class="btn" href="#">See what's included</a><a class="btn secondary" href="#">Talk with us</a></div>
+  </div>
+  <div class="progress">
+    <div class="top"><span><b>2 of 3 steps done.</b> Publishing needs a plan</span></div>
+    <ol class="steps" aria-label="Setup steps">
+      <li class="done"><span class="seg"></span><span class="lbl">Details <em>done</em></span></li>
+      <li class="done"><span class="seg"></span><span class="lbl">Jobs and shifts <em>done</em></span></li>
+      <li><span class="seg"></span><span class="lbl">Publish <em>needs a plan</em></span></li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2>Ready when your plan is</h2>
+    <div class="stat"><span><b>2</b>jobs ready</span><span><b>6</b>shifts</span><span><b>24</b>spots</span></div>
+    <div class="row"><span class="btn" aria-disabled="true">Publish and open sign-up</span><a class="btn quiet" href="#preview">Preview as a volunteer</a></div>
+  </div>
+  <p class="annot">The same notice also shows on the type picker and the My events card, so nobody finds out only at the end.</p>
+</main>
+
+<script>
+(function () {
+  var screens = Array.prototype.slice.call(document.querySelectorAll('[data-screen]'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('.proto nav a'));
+  var bar = document.querySelector('.appbar');
+  function show() {
+    var id = (location.hash || '#picker').slice(1);
+    if (!document.getElementById(id) || !document.getElementById(id).hasAttribute('data-screen')) id = 'picker';
+    screens.forEach(function (s) { s.hidden = s.id !== id; });
+    links.forEach(function (a) { if (a.getAttribute('href') === '#' + id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    bar.hidden = id === 'preview';
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', show);
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href="#"]');
+    if (a) e.preventDefault();
+    var d = e.target.closest('[aria-disabled="true"]');
+    if (d) e.preventDefault();
+  });
+  show();
+})();
+</script>
