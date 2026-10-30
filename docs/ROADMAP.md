@@ -64,6 +64,12 @@ Last updated October 2026.
 - Copy follows the brand voice (docs/brand-voice.md)
 
 ## Next
+0. **Critical, decide by mid-November 2026: how someone gets a plan.** Nobody can buy or add a
+   plan in the app yet, so after a free period ends the setup screens can only say "write to us".
+   Decide what the "get a plan" step is (self-serve checkout, a request form, or "ask your Account
+   Host"), whether one-time event passes are offered on those screens, and the wording. Until then
+   the setup redesign uses honest placeholder wording. Raised by the design review panel
+   (docs/design-reviews/2026-10-30-setup-redesign-mockup.md, finding 1).
 1. **Privacy policy and terms of service pages**, once the attorney's review is done; swap the
    attorney's wording into the school-records reminders (src/lib/records.ts)
 
@@ -99,6 +105,14 @@ Last updated October 2026.
 - **One published conference at a time during the pilot** (Oct 2026), for every account. The app
   says so before Publish, names the conference that's already up, and offers "write to us" for
   more. Upgrading isn't offered yet: the Teacher free / Teacher paid split above comes first.
+- **After the pilot, without a plan** (Oct 2026): an account can publish one one-time
+  parent-teacher conference at a time (not a weekly recurring one). During the pilot, every
+  account gets the full Schedule Command package. The app never says "free during the pilot" next
+  to "your free period ended".
+- **Draft volunteer jobs** (Oct 2026): hidden from volunteers, enforced in the database. Hosts,
+  Co-hosts, Volunteer Directors, and that job's own lead can preview them, always labelled as a
+  preview. A job can't go back to draft while anyone is signed up for it. Its spots can still be
+  raised or lowered, but never below the number already signed up.
 - **Kept as is after the security review:** sign-in links that work on any device; "already
   registered" messages on public forms; no per-person limit on the address search (a $5 Google
   budget alert is the safety net).
