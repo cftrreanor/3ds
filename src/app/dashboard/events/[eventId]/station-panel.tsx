@@ -203,7 +203,7 @@ export function StationPanel({
               coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
               trackUnsaved
               job={Boolean(job)}
-              visibility={job ? { showing: job.showing, ready: job.ready } : undefined}
+              visibility={job ? { showing: job.showing, ready: job.ready, links: job.links } : undefined}
               draft={!station.details_saved_at}
               remaining={[
                 ...(station.details_saved_at ? [] : ["finish the details"]),

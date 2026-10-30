@@ -445,6 +445,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                         lastShowing: published && showingReady.length === 1 && showingReady[0].id === current.id,
                         previewHref,
                         published,
+                        links: {
+                          addJob: tabHref("new"),
+                          next: published
+                            ? { href: `/dashboard/events/${eventId}`, label: "Back to the event" }
+                            : { href: `/dashboard/events/${eventId}#publish`, label: "Go to publish" },
+                        },
                       }
                     : undefined
                 }

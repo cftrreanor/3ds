@@ -3,6 +3,8 @@ import { setSignupKind, setStationShowing } from "../../../actions";
 import { ActionButton } from "../forms";
 import { EyeOffIcon } from "@/components/eye-off-icon";
 
+export type JobLinks = { addJob: string; next: { href: string; label: string } };
+
 export type JobVisibilityFacts = {
   showing: boolean;
   /** Its shifts (or things to bring): a job with none has nothing to sign up for yet. */
@@ -15,6 +17,8 @@ export type JobVisibilityFacts = {
   previewHref: string;
   /** The event is published: showing means volunteers see it now. */
   published: boolean;
+  /** Ways on from the job's save bar (it's always in reach on a phone): another job, and the next step. */
+  links: JobLinks;
 };
 
 /**

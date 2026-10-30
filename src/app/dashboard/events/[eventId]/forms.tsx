@@ -11,7 +11,10 @@ import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
-import { copyDialog } from "@/components/confirm-dialog";
+import { confirmDialog, copyDialog } from "@/components/confirm-dialog";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { JobLinks } from "./volunteering/job-visibility";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -47,7 +50,7 @@ export function StationForm({
   visibility,
 }: {
   /** A volunteer event's job: whether volunteers can see it, and whether it has a shift or a thing to bring yet. */
-  visibility?: { showing: boolean; ready: boolean };
+  visibility?: { showing: boolean; ready: boolean; links?: JobLinks };
   action: Action;
   initial?: StationValues;
   /** A volunteer event's job: says "job" and "shifts" (other events keep "sign-up" and "time slots"). */
@@ -314,7 +317,7 @@ function SignupBar({
   draft: boolean;
   remaining: string[];
   submitLabel: string;
-  visibility?: { showing: boolean; ready: boolean };
+  visibility?: { showing: boolean; ready: boolean; links?: JobLinks };
   /** A volunteer event's job: showing or hidden is its own choice, so a finished one just says it's saved. */
   job: boolean;
 }) {
@@ -382,8 +385,39 @@ function SignupBar({
           </div>
         )}
       </div>
+      {job && visibility?.links && <JobBarLinks links={visibility.links} dirty={dirty} />}
     </div>,
     slot,
+  );
+}
+
+/**
+ * Under a job's save buttons: "+ Add a job" and the next step, always in reach (the bar is pinned
+ * to the bottom of a phone's screen). With changes not saved yet, they ask before leaving.
+ */
+function JobBarLinks({ links, dirty }: { links: JobLinks; dirty: boolean }) {
+  const router = useRouter();
+  const leave = async (e: React.MouseEvent, href: string) => {
+    if (!dirty) return;
+    e.preventDefault();
+    const ok = await confirmDialog({
+      title: "Leave without saving?",
+      message: "This job has changes that aren't saved yet. Save for later or Post job keeps them.",
+      confirmLabel: "Leave without saving",
+      cancelLabel: "Stay here",
+    });
+    if (ok) router.push(href);
+  };
+  const cls = "inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4";
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-4">
+      <Link href={links.addJob} scroll={false} onClick={(e) => leave(e, links.addJob)} className={cls}>
+        + Add a job
+      </Link>
+      <Link href={links.next.href} onClick={(e) => leave(e, links.next.href)} className={cls}>
+        {links.next.label} →
+      </Link>
+    </div>
   );
 }
 
