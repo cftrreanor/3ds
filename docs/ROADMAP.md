@@ -113,6 +113,11 @@ Last updated October 2026.
   Co-hosts, Volunteer Leads, and that job's own Coordinator can preview them, always labelled as a
   preview. A job can't go back to draft while anyone is signed up for it. Its spots can still be
   raised or lowered, but never below the number already signed up.
+- **Type picker and drafts** (Oct 2026): drafts of every event type are allowed, and the plan is
+  checked only at publish. The picker leads with the account's own package types; every other type
+  is in a collapsed "Interested in more?" section, marked as something to try (set up and preview,
+  publishing needs a plan). An event is saved to the account as soon as it has a name.
+- **One conference at a time counts only conferences that haven't ended** (Oct 2026).
 - **Kept as is after the security review:** sign-in links that work on any device; "already
   registered" messages on public forms; no per-person limit on the address search (a $5 Google
   budget alert is the safety net).
