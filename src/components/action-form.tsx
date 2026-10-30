@@ -35,6 +35,7 @@ export function ActionForm({
   validate,
   noValidate,
   onEdit,
+  quiet = false,
   id,
 }: {
   /** Lets a button outside the form (form={id}) submit it. */
@@ -53,6 +54,8 @@ export function ActionForm({
   noValidate?: boolean;
   /** Called as the user types or picks anything (after a reset too), with the form. */
   onEdit?: (form: HTMLFormElement) => void;
+  /** Saves itself as people type: something else shows its errors, and the cursor never jumps to them. */
+  quiet?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   // A problem found in the browser, shown instead of the last server answer.
@@ -84,7 +87,7 @@ export function ActionForm({
 
   useEffect(() => {
     const form = ref.current;
-    if (!shown.error || !form) return;
+    if (!shown.error || !form || quiet) return;
     const bad = new Set(Object.keys(shown.fieldErrors ?? {}));
     const field = [...form.elements].find(
       (el): el is HTMLElement => el instanceof HTMLElement && el.tabIndex >= 0 && bad.has(el.getAttribute("name") ?? ""),
@@ -92,7 +95,7 @@ export function ActionForm({
     const target = field ?? form.querySelector<HTMLElement>("[data-form-message]");
     target?.scrollIntoView({ block: field ? "center" : "nearest" });
     target?.focus({ preventScroll: true });
-  }, [shown]);
+  }, [shown, quiet]);
 
   return (
     <form
@@ -119,7 +122,7 @@ export function ActionForm({
     >
       <ActionPendingContext value={pending}>
         {/* Success shows as a toast (top right); errors stay with the form. */}
-        <FormMessage error={shown.error} />
+        {!quiet && <FormMessage error={shown.error} />}
         <FieldErrorsContext value={shown.fieldErrors ?? {}}>{children}</FieldErrorsContext>
       </ActionPendingContext>
     </form>

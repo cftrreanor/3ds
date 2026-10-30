@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { NumberInput } from "@/components/number-input";
 import { ZoneInput } from "@/components/zone-input";
@@ -10,6 +10,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
+import { setPending, useUnadded } from "./volunteering/pending-edits";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
 import { copyDialog } from "@/components/confirm-dialog";
 
@@ -43,9 +44,12 @@ export function StationForm({
   remaining = [],
   kind: signupKind,
   coordinators,
+  job = false,
 }: {
   action: Action;
   initial?: StationValues;
+  /** A volunteer event's job: says "job" and "shifts" (other events keep "sign-up" and "time slots"). */
+  job?: boolean;
   leads?: LeadOption[];
   /** Time slots or items to bring, and why it can't change right now (null if it can). */
   kind?: { value: SignupKind; locked: string | null };
@@ -92,8 +96,8 @@ export function StationForm({
       onSuccess={trackUnsaved ? saved : undefined}
     >
       <Field
-        label="Sign-up name"
-        hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : "e.g. Parking, Concessions, Ticket Table"}
+        label={job ? "Job name" : "Sign-up name"}
+        hint={bands ? "e.g. Spectator Parking, Concessions, Warm-Up Area A" : job ? "e.g. Parking, Litter pickup, Supplies to bring" : "e.g. Parking, Concessions, Ticket Table"}
         className={signupKind ? "sm:col-span-2" : undefined}
       >
         <Input name="name" required maxLength={80} defaultValue={initial?.name} />
@@ -104,13 +108,14 @@ export function StationForm({
             value={signup}
             onChange={setSignup}
             disabled={Boolean(signupKind.locked)}
-            note={signupKind.locked ?? "You can change this until you add time slots or items."}
+            job={job}
+            note={signupKind.locked ?? (job ? "You can change this until you add shifts or things to bring." : "You can change this until you add time slots or items.")}
           />
           {/* A locked choice still says what it is, so saving never changes it. */}
           {signupKind.locked && <input type="hidden" name="signupKind" value={signup} />}
         </div>
       )}
-      {signupKind && <h3 className="border-t border-border pt-4 text-base font-semibold sm:col-span-2">Sign-up details</h3>}
+      {signupKind && <h3 className="border-t border-border pt-4 text-base font-semibold sm:col-span-2">{job ? "Job details" : "Sign-up details"}</h3>}
       {bands && (
       <Field
         label="Check-in stop?"
@@ -175,7 +180,7 @@ export function StationForm({
         />
         <span>
           <span className="font-medium">Adults only (18+)</span>
-          <span className="block text-muted">No one under 18 can sign up for this sign-up&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
+          <span className="block text-muted">No one under 18 can sign up for this {job ? "job" : "sign-up"}&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
         </span>
       </label>
       {coordinators && <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} {...coordinators} />}
@@ -218,13 +223,24 @@ export function StationForm({
 }
 
 const SIGNUP_FORM = "signup-details";
+
 const noSubscribe = () => () => {};
 
 /**
  * A sign-up's footer: pinned to the bottom of the screen for the whole sign-up (resting at the end of its card),
  * saying what's left and saving its details form. Rendered into the card's #signup-bar slot.
  */
-function SignupBar({ dirty, draft, remaining, submitLabel }: { dirty: boolean; draft: boolean; remaining: string[]; submitLabel: string }) {
+function SignupBar({
+  dirty,
+  draft,
+  remaining,
+  submitLabel,
+}: {
+  dirty: boolean;
+  draft: boolean;
+  remaining: string[];
+  submitLabel: string;
+}) {
   const slot = useSyncExternalStore(
     noSubscribe,
     () => document.getElementById("signup-bar"),
@@ -259,20 +275,21 @@ function SignupBar({ dirty, draft, remaining, submitLabel }: { dirty: boolean; d
             )}
           </span>
         </p>
-        <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
-          {/* Always there; usable once there's something to save. Keeps it without marking the sign-up finished. */}
-          <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…" disabled={!dirty && !draft}>
-            Save for later
-          </SubmitButton>
-          <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
-            {submitLabel}
-          </SubmitButton>
-        </div>
+          <div className="flex w-full gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+            {/* Always there; usable once there's something to save. Keeps it without marking the sign-up finished. */}
+            <SubmitButton form={SIGNUP_FORM} variant="secondary" name="intent" value="later" pendingText="Saving…" disabled={!dirty && !draft}>
+              Save for later
+            </SubmitButton>
+            <SubmitButton form={SIGNUP_FORM} pendingText="Saving…" disabled={!dirty && !draft}>
+              {submitLabel}
+            </SubmitButton>
+          </div>
       </div>
     </div>,
     slot,
   );
 }
+
 
 /** Anything typed or picked in a form (hidden fields aside). */
 function hasAnswers(form: HTMLFormElement) {
@@ -303,9 +320,11 @@ export function GenerateShiftsForm({
   multiDay = false,
   existing = 0,
   signedUp = false,
+  job = false,
 }: {
   action: Action;
   windowLabel: string;
+  job?: boolean;
   /** How long the event day is, to say whether a length splits it evenly. */
   windowMinutes?: number;
   multiDay?: boolean;
@@ -315,11 +334,12 @@ export function GenerateShiftsForm({
   signedUp?: boolean;
 }) {
   const setEdited = useStepEdits("shifts");
+  const unadded = useUnadded();
   const [length, setLength] = useState(0);
   if (signedUp) {
     return (
       <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
-        Volunteers have signed up for this sign-up&apos;s time slots, so filling the day can&apos;t replace them. Edit them one at a time above, or add one shift.
+        Volunteers have signed up for this {job ? "job" : "sign-up"}&apos;s {job ? "shifts" : "time slots"}, so filling the day can&apos;t replace them. Edit them one at a time above, or add one shift.
       </p>
     );
   }
@@ -327,11 +347,14 @@ export function GenerateShiftsForm({
     <ActionForm
       action={action}
       className="space-y-4"
-      confirmMessage={existing ? `Replace this sign-up's ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
-      onEdit={(f) => setEdited(hasAnswers(f))}
+      confirmMessage={existing ? `Replace this ${job ? "job" : "sign-up"}'s ${existing} shift${existing === 1 ? "" : "s"} with new ones?` : undefined}
+      onEdit={(f) => {
+        setEdited(hasAnswers(f));
+        unadded(f);
+      }}
     >
       <p className="text-sm text-muted">
-        Split the event day ({windowLabel}) into shifts for this sign-up.
+        Split the event day ({windowLabel}) into shifts for this {job ? "job" : "sign-up"}.
         {existing > 0 && (
           <>
             {" "}
@@ -423,12 +446,16 @@ export function ShiftForm({
 }) {
   // A new shift: the button turns green once every required answer is in.
   const setEdited = useStepEdits(initial ? undefined : "shifts");
+  const unadded = useUnadded();
   return (
     <ActionForm
       action={action}
       className="grid gap-4 sm:grid-cols-2"
       resetOnSuccess={!initial}
-      onEdit={initial ? undefined : (f) => setEdited(hasAnswers(f))}
+      onEdit={(f) => {
+        if (!initial) setEdited(hasAnswers(f));
+        unadded(f);
+      }}
     >
       {initial && (
         <Field label="Title" className="sm:col-span-2">
@@ -513,8 +540,10 @@ export function BuildShifts({
   days,
   existing = 0,
   signedUp = false,
+  job = false,
 }: {
   generate: Action;
+  job?: boolean;
   create: Action;
   windowLabel: string;
   /** How long the event day is (for the even-shifts check). */
@@ -524,7 +553,8 @@ export function BuildShifts({
   existing?: number;
   signedUp?: boolean;
 }) {
-  const [mode, setMode] = useState<"auto" | "single">("auto");
+  // A job that already has shifts most likely needs one more, not a whole new day of them.
+  const [mode, setMode] = useState<"auto" | "single">(job && existing > 0 ? "single" : "auto");
   // Switching forms drops what was typed in the other one.
   const setEdited = useStepEdits("shifts");
   const options = [
@@ -560,6 +590,7 @@ export function BuildShifts({
           multiDay={days.length > 1}
           existing={existing}
           signedUp={signedUp}
+          job={job}
         />
       ) : (
         <ShiftForm action={create} days={days} />
@@ -583,15 +614,17 @@ function SignupKindPicker({
   onChange,
   disabled = false,
   note,
+  job = false,
 }: {
   value: SignupKind;
   onChange: (kind: SignupKind) => void;
   disabled?: boolean;
   note: string;
+  job?: boolean;
 }) {
   return (
     <fieldset disabled={disabled}>
-      <legend className="text-sm font-semibold">What do people sign up for?</legend>
+      <legend className="text-sm font-semibold">{job ? "What do volunteers sign up for?" : "What do people sign up for?"}</legend>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {SIGNUP_KINDS.map((k) => (
           <label
@@ -607,7 +640,7 @@ function SignupKindPicker({
               className="mt-1 h-4 w-4 shrink-0 accent-[var(--brand)]"
             />
             <span>
-              <span className="block text-sm font-semibold">{k.label}</span>
+              <span className="block text-sm font-semibold">{job ? (k.value === "shifts" ? "Shifts" : "Things to bring") : k.label}</span>
               <span className="block text-sm text-muted">{k.hint}</span>
             </span>
           </label>
@@ -621,69 +654,85 @@ function SignupKindPicker({
 /** "Time slots" or "Items to bring", for a sign-up's row. */
 export const signupKindLabel = (kind: SignupKind) => SIGNUP_KINDS.find((k) => k.value === kind)!.label;
 
-export function NewStationForm({ action, openTab = false }: { action: Action; /** Go to the new sign-up's tab once it's added. */ openTab?: boolean }) {
+export function NewStationForm({
+  action,
+  openTab = false,
+  job = false,
+}: {
+  action: Action;
+  /** Go to the new sign-up's tab once it's added. */
+  openTab?: boolean;
+  /** A volunteer event's job (see StationForm). */
+  job?: boolean;
+}) {
   const [kind, setKind] = useState<SignupKind>("shifts");
+  const picker = (
+    <SignupKindPicker
+      value={kind}
+      onChange={setKind}
+      job={job}
+      note={job ? "You can change this later, until you add shifts or things to bring." : "You can change this later, until you add time slots or items."}
+    />
+  );
   return (
     <ActionForm action={action} className="space-y-4">
       {openTab && <input type="hidden" name="openTab" value="1" />}
+      {/* A job starts with what volunteers sign up for, like the job's own page. */}
+      {job && picker}
       <Field
-        label="Sign-up name"
-        hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : "e.g. Parking, Concessions, Ticket Table"}
+        label={job ? "Job name" : "Sign-up name"}
+        hint={kind === "items" ? "e.g. Potluck, Bake Sale, Supply Drive" : job ? "e.g. Parking, Litter pickup, Setup crew" : "e.g. Parking, Concessions, Ticket Table"}
       >
         <Input name="name" required maxLength={80} />
       </Field>
-      <SignupKindPicker value={kind} onChange={setKind} note="You can change this later, until you add time slots or items." />
+      {!job && picker}
       <SubmitButton variant="go" pendingText="Adding…">
-        Add sign-up
+        {job ? "Add job" : "Add sign-up"}
       </SubmitButton>
     </ActionForm>
   );
 }
 
 /** Items to bring: one row per item (Desserts, 6 needed), edited right in the row, and a row to add another. */
+type EditableItem = { id: string; name: string; needed: number; claimed_count: number; update: Action; remove: () => Promise<ActionState> };
+
 export function ItemsEditor({
   items,
   create,
+  autosave = false,
 }: {
   /** Each item with its own save and delete (bound on the server). */
-  items: { id: string; name: string; needed: number; claimed_count: number; update: Action; remove: () => Promise<ActionState> }[];
+  items: EditableItem[];
   create: Action;
+  /** A volunteer event's job: each row saves itself a moment after a change, with no Save button. */
+  autosave?: boolean;
 }) {
+  // A thing typed into the add row but not added yet: the job's bar says so, and leaving asks first.
+  const unadded = useUnadded();
   return (
     <div className="rounded-lg border border-border bg-background">
-      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_6rem_9rem] gap-3 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted sm:grid">
+      <div className={`hidden ${itemCols(autosave)} gap-3 border-b border-border px-3 py-2 text-sm font-semibold text-muted sm:grid`}>
         <span>Item</span>
         <span>Needed</span>
-        <span>Signed up</span>
+        {/* A volunteer event's job lists who's signed up further down the page instead. */}
+        {!autosave && <span>Signed up</span>}
         <span />
       </div>
       <ul className="divide-y divide-border">
         {items.map((it) => (
-          <li key={it.id} className="px-3 py-2.5">
-            <ActionForm
-              action={it.update}
-              resetOnSuccess={false}
-              className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]"
-            >
-              <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" />
-              <NumberInput name="needed" required defaultValue={it.needed} maxLength={3} aria-label={`How many ${it.name} needed`} />
-              <span className="text-sm tabular-nums text-muted">
-                {it.claimed_count >= it.needed ? <span className="font-medium text-success">Covered</span> : `${it.claimed_count} of ${it.needed}`}
-              </span>
-              <span className="flex items-center justify-end gap-1">
-                <SubmitButton variant="secondary" pendingText="Saving…" className="min-h-9 px-3 text-sm">
-                  Save
-                </SubmitButton>
-                <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
-              </span>
-            </ActionForm>
-          </li>
+          <ItemRow key={it.id} item={it} autosave={autosave} />
         ))}
         <li className="px-3 py-2.5">
-          <ActionForm action={create} resetOnSuccess className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]">
-            <Input name="name" required maxLength={100} placeholder={items.length ? "Add another item" : "Add an item, e.g. Desserts"} aria-label="New item" />
+          <ActionForm
+            action={create}
+            resetOnSuccess
+            onEdit={autosave ? unadded : undefined}
+            className={`grid items-center gap-3 ${autosave ? itemPhone : "grid-cols-[minmax(0,1fr)_6rem]"} ${itemCols(autosave)}`}
+          >
+            <Input name="name" required maxLength={100} placeholder={items.length ? "Add another item" : "Add an item, e.g. Desserts"} aria-label="New item" className={autosave ? "col-span-3 sm:col-span-1" : undefined} />
+            {autosave && <NeededLabel />}
             <NumberInput name="needed" required defaultValue={1} maxLength={3} aria-label="How many needed" />
-            <span className="hidden sm:block" />
+            {!autosave && <span className="hidden sm:block" />}
             <span className="flex justify-end">
               <SubmitButton variant="go" pendingText="Adding…" className="min-h-9 px-4 text-sm">
                 Add
@@ -696,23 +745,117 @@ export function ItemsEditor({
   );
 }
 
+/** On a phone, a job's thing to bring stacks: its name across the row, then "Needed", how many, and Delete. */
+const itemPhone = "grid-cols-[auto_5rem_minmax(0,1fr)]";
+function NeededLabel() {
+  return (
+    <span aria-hidden className="text-sm text-muted sm:hidden">
+      Needed
+    </span>
+  );
+}
+
+/** The things-to-bring columns: item, needed, (signed up,) and its buttons. */
+const itemCols = (autosave: boolean) => (autosave ? "sm:grid-cols-[minmax(0,1fr)_7rem_6rem]" : "sm:grid-cols-[minmax(0,1fr)_7rem_6rem_9rem]");
+
+/** One thing to bring: its name and how many, saved with its Save button, or by itself a moment after a change. */
+function ItemRow({ item: it, autosave }: { item: EditableItem; autosave: boolean }) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formId = `item-${it.id}`;
+  // A lost connection throws instead of answering: show it like any other failed save.
+  const update: Action = async (prev, formData) => {
+    try {
+      return await it.update(prev, formData);
+    } catch {
+      return { error: "Check your connection, then try again." };
+    }
+  };
+  // Saves now (when the wait is over, or someone's leaving). A blank name or count can't save: the job's bar says so.
+  const save = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const form = document.getElementById(formId) as HTMLFormElement | null;
+    if (!form) return;
+    if (!form.checkValidity()) return setPending(formId, { kind: "failed" });
+    setPending(formId, { kind: "saving" });
+    form.requestSubmit();
+  }, [formId]);
+  const schedule = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setPending(formId, { kind: "saving", flush: save });
+    timer.current = setTimeout(save, 900);
+  };
+  useEffect(() => {
+    if (!autosave) return;
+    const form = document.getElementById(formId);
+    const ok = () => setPending(formId, null);
+    const failed = () => setPending(formId, { kind: "failed" });
+    form?.addEventListener("form-saved", ok);
+    form?.addEventListener("form-failed", failed);
+    return () => {
+      form?.removeEventListener("form-saved", ok);
+      form?.removeEventListener("form-failed", failed);
+      setPending(formId, null);
+    };
+  }, [autosave, formId]);
+  return (
+    // A job's row draws Delete beside its form, not inside it (a form can't hold another form).
+    <li className={autosave ? `grid items-center gap-3 px-3 py-2.5 ${itemPhone} ${itemCols(true)}` : "px-3 py-2.5"}>
+      <ActionForm
+        id={formId}
+        action={autosave ? update : it.update}
+        resetOnSuccess={false}
+        quiet={autosave}
+        onEdit={autosave ? schedule : undefined}
+        className={autosave ? "contents" : `grid items-center gap-3 grid-cols-[minmax(0,1fr)_6rem] ${itemCols(false)}`}
+      >
+        {autosave && <input type="hidden" name="auto" value="1" />}
+        <Input name="name" required maxLength={100} defaultValue={it.name} aria-label="Item" className={autosave ? "col-span-3 sm:col-span-1" : undefined} />
+        {autosave && <NeededLabel />}
+        <NumberInput name="needed" required defaultValue={it.needed} maxLength={3} aria-label={`How many ${it.name} needed`} />
+        {!autosave && (
+          <span className="text-sm tabular-nums text-muted">
+            {it.claimed_count >= it.needed ? <span className="font-medium text-success">Covered</span> : `${it.claimed_count} of ${it.needed}`}
+          </span>
+        )}
+        {!autosave && (
+          <span className="flex items-center justify-end gap-1">
+            <SubmitButton variant="secondary" pendingText="Saving…" className="min-h-9 px-3 text-sm">
+              Save
+            </SubmitButton>
+            <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
+          </span>
+        )}
+      </ActionForm>
+      {autosave && (
+        <span className="flex items-center justify-end">
+          <DeleteButton action={it.remove} label={`Delete ${it.name}`} confirmMessage={`Delete “${it.name}”?`} />
+        </span>
+      )}
+    </li>
+  );
+}
+
 /**
  * A sign-up's Coordinators: who leads it, as chips, and "+ Add", which opens a
  * window to pick people from the team or invite someone new by email (the
  * invitation also shows in Event settings → Team). Picks are saved with the
  * sign-up's Save button; an invitation goes out right away.
  */
-function CoordinatorPicker({
+export function CoordinatorPicker({
   label,
   initial,
   options,
   pending,
   invite,
   onChange,
+  formId,
 }: {
   label: string;
   initial: string[];
   options: LeadOption[];
+  /** The form these picks save with, when the picker is drawn outside it. */
+  formId?: string;
   /** Emails invited to lead this sign-up who haven't accepted yet. */
   pending: string[];
   invite: Action;
@@ -732,9 +875,9 @@ function CoordinatorPicker({
   return (
     <div className="sm:col-span-2">
       <p className="text-sm font-medium">{label}</p>
-      <input type="hidden" name="leadsField" value="1" />
+      <input type="hidden" name="leadsField" value="1" form={formId} />
       {picked.map((id) => (
-        <input key={id} type="hidden" name="leadIds" value={id} />
+        <input key={id} type="hidden" name="leadIds" value={id} form={formId} />
       ))}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {picked.map((id) => (
@@ -787,7 +930,7 @@ function CoordinatorPicker({
                         {o.label}
                       </label>
                     ))}
-                    <p className="text-xs text-muted">Click Save sign-up afterward to keep these.</p>
+                    <p className="text-xs text-muted">{formId ? "Your picks save automatically." : "Click Save sign-up afterward to keep these."}</p>
                   </div>
                 ) : (
                   <p className="mt-1 text-sm text-muted">No one on the team yet. Invite someone below.</p>
@@ -837,17 +980,29 @@ export function DeleteButton({
   /** Red text, no outline: a delete that shouldn't compete with the page's main actions. */
   quiet?: boolean;
 }) {
+  // A row's delete (the shared "Deleting" part): red text with a bin icon, full height. "Cancel" keeps its plain look.
+  const row = !destructive && !quiet;
   return (
     <ActionForm action={action} confirmMessage={confirmMessage} className="contents">
       <SubmitButton
-        variant={quiet ? "quiet-danger" : destructive ? "danger" : "ghost"}
-        pendingText={destructive || quiet ? "Deleting…" : "Working…"}
-        className={destructive || quiet ? "text-sm" : "px-2 text-xs"}
-        aria-label={destructive || quiet ? undefined : label}
+        variant={destructive ? "danger" : "quiet-danger"}
+        pendingText={text === "Cancel" ? "Working…" : "Deleting…"}
+        className={row ? "gap-1.5 px-1.5 text-sm" : "text-sm"}
+        aria-label={row ? label : undefined}
       >
+        {row && text !== "Cancel" && <BinIcon />}
         {text}
       </SubmitButton>
     </ActionForm>
+  );
+}
+
+/** The bin beside a row's Delete. */
+export function BinIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className={`${className} shrink-0`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </svg>
   );
 }
 
@@ -911,7 +1066,7 @@ export function CopyLinkButton({ url, label = "Copy invite link" }: { url: strin
     <Button
       type="button"
       variant="secondary"
-      className="min-h-9 px-3 text-xs"
+      className="min-h-11 px-3 text-sm"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(url);

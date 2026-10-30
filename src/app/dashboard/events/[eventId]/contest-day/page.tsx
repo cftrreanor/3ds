@@ -45,6 +45,7 @@ import { AttentionList, DayTiles, StatusLine } from "./on-track";
 import { loadLeadStations } from "../lead-station-data";
 import { LeadStations } from "../lead-stations";
 import { EventBannerSlot } from "@/components/event-banner-slot";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export const metadata: Metadata = { title: "Contest day" };
 
@@ -116,10 +117,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
   const other = myOther.find((s) => s.id === stationParam) ?? (mine.length === 0 ? myOther[0] : undefined);
   const station: Checkpoint | undefined = other ? undefined : (mine.find((c) => c.id === stationParam) ?? mine[0]);
   const base = `/dashboard/events/${eventId}/contest-day`;
-  const tabClass = (active: boolean) =>
-    `-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-      active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-    }`;
+  const tabClass = folderTab;
   const header = (
     <>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
@@ -140,12 +138,12 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
 
       {(mine.length + myOther.length > 1 || (bandsHere && access.canManage)) && (
         <nav aria-label="Sign-ups" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <ul className="flex min-w-max gap-1 border-b border-border">
+          <ul className={folderTabRow}>
             {bandsHere && access.canManage && (
               <li>
                 <Link href={`${base}?station=overview`} scroll={false} aria-current={overview ? "page" : undefined} className={tabClass(overview)}>
                   <span className="whitespace-nowrap">Overview</span>
-                  <span className="text-xs font-normal text-muted">On track?</span>
+                  <span className={folderTabNote()}>On track?</span>
                 </Link>
               </li>
             )}
@@ -157,7 +155,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                     <span className="whitespace-nowrap">
                       {path.indexOf(c) + 1}. {c.name}
                     </span>
-                    <span className="text-xs font-normal text-muted">{kindLabel(c.checkpoint_kind)}</span>
+                    <span className={folderTabNote()}>{kindLabel(c.checkpoint_kind)}</span>
                   </Link>
                 </li>
               );
@@ -168,7 +166,7 @@ export default async function ContestDayPage({ params, searchParams }: PageProps
                 <li key={s.id}>
                   <Link href={`${base}?station=${s.id}`} scroll={false} aria-current={active ? "page" : undefined} className={tabClass(active)}>
                     <span className="whitespace-nowrap">{s.name}</span>
-                    <span className="text-xs font-normal text-muted">Volunteers</span>
+                    <span className={folderTabNote()}>Volunteers</span>
                   </Link>
                 </li>
               );

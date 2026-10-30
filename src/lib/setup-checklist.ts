@@ -24,6 +24,10 @@ export type SetupFacts = {
   published: boolean;
   stations: number;
   shifts: number;
+  /** Volunteer jobs with a shift or a thing to bring (what publishing a volunteer event needs). */
+  readyJobs?: number;
+  /** Volunteer jobs with neither yet: volunteers won't see them on the sign-up page. */
+  emptyJobs?: { id: string; name: string; items: boolean }[];
   /** Stations marked as check-in stops (band contests). */
   checkInStops: number;
   /** People who've joined the event's team (co-hosts and leads). */
@@ -84,6 +88,31 @@ export type SetupChecklist = {
 
 // Same order as the sections on the event page: what people sign up for, the schedule, volunteers, the day, team, maps.
 const BEFORE_ORDER = ["details", "director-info", "booths", "conference", "parents-close", "rooms", "shifts", "check-in", "team", "files"];
+
+/**
+ * A volunteer event's jobs: done once a job has a shift or a thing to bring
+ * (the database won't publish without one).
+ */
+function jobsStep(f: SetupFacts, base: string): SetupStep {
+  const ready = f.readyJobs ?? (f.stations > 0 && f.shifts > 0 ? 1 : 0);
+  const empty = f.emptyJobs ?? [];
+  // Done only when every job has something to sign up for: an empty one never reaches the sign-up page.
+  return {
+    id: "shifts",
+    label: "Add volunteer jobs and shifts",
+    hint: "What volunteers sign up for.",
+    href: `${base}/volunteering${empty.length ? `?station=${empty[0].id}` : ""}`,
+    done: ready > 0 && empty.length === 0,
+    required: true,
+    partial: f.stations > 0 && (ready === 0 || empty.length > 0) ? { fraction: 0.5, note: emptyJobsNote(empty) } : undefined,
+  };
+}
+
+/** "Litter pickup needs a shift" / "2 jobs need a shift or a thing to bring". */
+export function emptyJobsNote(empty: { name: string; items: boolean }[]) {
+  if (empty.length === 1) return `${empty[0].name} needs ${empty[0].items ? "a thing to bring" : "a shift"}`;
+  return `${empty.length} jobs need a shift or a thing to bring`;
+}
 
 export function setupChecklist(f: SetupFacts): SetupChecklist {
   const base = `/dashboard/events/${f.eventId}`;
@@ -167,13 +196,13 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   // A teacher's conference (or someone's meetings) is just them: no volunteers, team or documents.
   if (!hasConferences(f.eventType)) {
     before.push(
-      {
+      volunteerEvent ? jobsStep(f, base) : {
         id: "shifts",
         label: "Add volunteer sign-ups and shifts",
-        hint: volunteerEvent ? "What volunteers sign up for." : "Only if you need volunteers.",
+        hint: "Only if you need volunteers.",
         href: `${base}/volunteering`,
         done: hasShifts,
-        required: volunteerEvent,
+        required: false,
         partial: f.stations > 0 ? { fraction: 0.5, note: `${f.stations} sign-up${f.stations === 1 ? "" : "s"}, no shifts yet` } : undefined,
       },
       {
@@ -286,7 +315,8 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
           }
         : // Everything needed is in place: a full line, with Publish as the next step.
           { label: "Ready to publish", done: 1, of: 1 },
-    complete: f.published && afterDone === after.length,
+    // A live event with a job volunteers can't see yet isn't finished: the event page says which.
+    complete: f.published && afterDone === after.length && !(f.emptyJobs ?? []).length,
   };
 }
 

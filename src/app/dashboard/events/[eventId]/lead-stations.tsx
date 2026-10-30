@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { VolunteerTags } from "@/components/volunteer-tags";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export type LeadVolunteer = {
   assignmentId: string;
@@ -66,8 +67,8 @@ export function LeadStations({
   return (
     <div>
       {stations.length > 1 && (
-        <div role="tablist" aria-label="Your sign-ups" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <div className="flex min-w-max gap-1 border-b border-border">
+        <div role="group" aria-label="Your jobs" className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className={folderTabRow}>
             {stations.map((s) => {
               const n = s.shifts.reduce((k, sh) => k + sh.volunteers.length, 0);
               const active = s.id === current.id;
@@ -75,15 +76,12 @@ export function LeadStations({
                 <button
                   key={s.id}
                   type="button"
-                  role="tab"
-                  aria-selected={active}
+                  aria-pressed={active}
                   onClick={() => setTab(s.id)}
-                  className={`-mb-px flex flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
-                    active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-                  }`}
+                  className={folderTab(active)}
                 >
                   <span className="whitespace-nowrap">{s.name}</span>
-                  <span className="text-xs font-normal tabular-nums text-muted">
+                  <span className={folderTabNote()}>
                     {n} {n === 1 ? "volunteer" : "volunteers"}
                   </span>
                 </button>
@@ -93,7 +91,7 @@ export function LeadStations({
         </div>
       )}
 
-      <div role={stations.length > 1 ? "tabpanel" : undefined} className="mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
+      <div className="mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h3 className="text-lg font-semibold">{current.name}</h3>
           {current.checkpoint && <span className="text-xs font-medium text-muted">{current.checkpoint}</span>}
@@ -167,7 +165,7 @@ export function LeadStations({
                         (v.checkedIn ? (
                           <span className="shrink-0 text-sm font-semibold text-success">✓ Arrived</span>
                         ) : (
-                          <span className="shrink-0 text-sm text-muted">Not yet</span>
+                          <span className="shrink-0 text-sm text-muted">Not checked in</span>
                         ))}
                     </li>
                   ))}

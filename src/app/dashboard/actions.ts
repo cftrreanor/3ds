@@ -281,11 +281,16 @@ export async function deleteEvent(eventId: string): Promise<ActionState> {
 }
 
 export async function setEventPublished(eventId: string, publish: boolean): Promise<ActionState> {
+  return changePublished(eventId, publish);
+}
+
+async function changePublished(eventId: string, publish: boolean, signupOpen?: boolean): Promise<ActionState> {
   await requireUser();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("events")
-    .update(publish ? { status: "published" } : { status: "draft", volunteer_signup_open: false })
+    // Publishing can set volunteer sign-up open or closed in the same step, so it never goes live half done.
+    .update(publish ? { status: "published", ...(signupOpen === undefined ? {} : { volunteer_signup_open: signupOpen }) } : { status: "draft", volunteer_signup_open: false })
     .eq("id", eventId)
     .select("id");
   if (error) {
@@ -309,10 +314,15 @@ export async function publishAndOpen(eventId: string): Promise<ActionState> {
 
 /** Volunteer Setup's one button: publish the event, open volunteer sign-ups, then go to the event's page. */
 export async function publishAndOpenSignups(eventId: string): Promise<ActionState> {
-  const result = await setEventPublished(eventId, true);
+  const result = await changePublished(eventId, true, true);
   if (result.error) return result;
-  const opened = await setVolunteerSignupOpen(eventId, true);
-  if (opened.error) return opened;
+  redirect(`/dashboard/events/${eventId}?published=1`);
+}
+
+/** A volunteer event published with sign-up closed: people see the event, and sign-up opens when the host opens it. */
+export async function publishSignupLater(eventId: string): Promise<ActionState> {
+  const result = await changePublished(eventId, true, false);
+  if (result.error) return result;
   redirect(`/dashboard/events/${eventId}?published=1`);
 }
 
@@ -434,7 +444,7 @@ export async function updateStation(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = stationSchema.safeParse(Object.fromEntries(formData));
+  const parsed = stationSchema.safeParse({ location: "", ...Object.fromEntries(formData) });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
   const leadIds = z.array(z.string().uuid()).max(20).safeParse(formData.getAll("leadIds"));
@@ -445,7 +455,7 @@ export async function updateStation(
   const kind = checkpointKind(formData);
   const { data: current } = await supabase.from("stations").select("checkpoint_order").eq("id", stationId).maybeSingle();
   const order = kind ? (current?.checkpoint_order ?? (await nextCheckpointOrder(supabase, eventId))) : null;
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("stations")
     .update({
       name: v.name,
@@ -453,7 +463,8 @@ export async function updateStation(
       checkpoint_kind: kind,
       checkpoint_order: order,
       due_minutes_before_warm_up: dueMinutes(formData, kind),
-      location: v.location,
+      // A volunteer event's job has no check-in place of its own (the event's address covers it): keep what's saved.
+      ...(formData.has("location") ? { location: v.location } : {}),
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
       ...zoneOf(formData),
@@ -462,8 +473,11 @@ export async function updateStation(
       // Save sign-up marks it finished; Save for later keeps it a draft.
       ...(formData.get("intent") === "later" ? {} : { details_saved_at: new Date().toISOString() }),
     })
-    .eq("id", stationId);
+    .eq("id", stationId)
+    .select("id");
   if (error) return { error: friendlyDbError(error) };
+  // Nothing changed: the job was deleted, or this person can't edit it. Don't say it saved.
+  if (!updated?.length) return { error: "This couldn't be saved. Reload the page and try again." };
 
   if (formData.has("leadsField")) {
     const leadError = await syncStationLeads(supabase, eventId, stationId, leadIds.data);
@@ -471,6 +485,8 @@ export async function updateStation(
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  // A volunteer event's job saves itself as people type: its form says "Saved", no message needed.
+  if (formData.get("noun") === "job") return { ok: true };
   return { ok: true, message: formData.get("intent") === "later" ? "Saved. Finish the rest when you're ready." : "Sign-up saved." };
 }
 
@@ -529,16 +545,27 @@ export async function deleteStation(eventId: string, stationId: string): Promise
     .select("id", { count: "exact", head: true })
     .eq("station_id", stationId)
     .gt("registered_count", 0);
-  if (count) return { error: "Volunteers have signed up for this sign-up's shifts, so it can't be deleted." };
+  if (count) return { error: "Volunteers have signed up for its shifts, so it can't be deleted. Move or remove them first." };
   const { count: claimed } = await supabase
     .from("station_items")
     .select("id", { count: "exact", head: true })
     .eq("station_id", stationId)
     .gt("claimed_count", 0);
-  if (claimed) return { error: "People have signed up to bring items for this sign-up, so it can't be deleted." };
+  if (claimed) return { error: "People have signed up to bring things for it, so it can't be deleted." };
 
   const { error } = await supabase.from("stations").delete().eq("id", stationId);
   if (error) return { error: friendlyDbError(error) };
+  revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  return { ok: true };
+}
+
+/** A job's Shifts / Things to bring switch: only while it has neither (the database refuses otherwise). */
+export async function setSignupKind(eventId: string, stationId: string, kind: "shifts" | "items"): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("stations").update({ signup_kind: kind }).eq("id", stationId).eq("event_id", eventId).select("id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "You don't have permission to do that." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }
@@ -578,7 +605,8 @@ export async function updateItem(eventId: string, itemId: string, _prev: ActionS
   if (error) return { error: error.code === "P0001" ? error.message : friendlyDbError(error) };
   if (!data?.length) return { error: "Only the event's hosts and Volunteer Leads can change this." };
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
-  return { ok: true, message: "Saved." };
+  // Saved as they type (a volunteer event's things to bring): the row says so, no message needed.
+  return formData.get("auto") ? { ok: true } : { ok: true, message: "Saved." };
 }
 
 export async function deleteItem(eventId: string, itemId: string): Promise<ActionState> {

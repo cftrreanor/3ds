@@ -127,7 +127,16 @@ const DAY_SCREENS = ["/contest-day", "/event-day", "/volunteers", "/conferences/
  * the next step, kept current as the host moves between pages. Sits above the
  * page (not pinned), so it never covers a page's own Save or Publish bar.
  */
-export function SetupStrip({ eventId, initial }: { eventId: string; initial: SetupChecklist }) {
+export function SetupStrip({
+  eventId,
+  initial,
+  skip = [],
+}: {
+  eventId: string;
+  initial: SetupChecklist;
+  /** Pages (after the event's own path) that show their own steps instead: a volunteer event's Details and Jobs and shifts. */
+  skip?: readonly string[];
+}) {
   const pathname = usePathname();
   const [checklist, setChecklist] = useState(initial);
   // Saving on this page refreshes the layout: take the new checklist straight away.
@@ -139,7 +148,8 @@ export function SetupStrip({ eventId, initial }: { eventId: string; initial: Set
   const base = `/dashboard/events/${eventId}`;
   // The guided setup (Event settings, ?setup=1) has its own steps along the top.
   const guided = useSearchParams().get("setup") === "1";
-  const hidden = guided || pathname === base || DAY_SCREENS.some((p) => pathname.startsWith(`${base}${p}`));
+  const hidden =
+    guided || pathname === base || DAY_SCREENS.some((p) => pathname.startsWith(`${base}${p}`)) || skip.some((p) => pathname === `${base}${p}`);
 
   // Each page change: read it again, so a step finished on the last page shows as done.
   useEffect(() => {

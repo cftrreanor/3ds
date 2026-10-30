@@ -6,12 +6,17 @@
    band. Status colors only for real signals. Every color in the UI comes
    from here. ("brand" is the system's primary color.) */
 :root {
+  /* Native checkboxes, radios, and date pickers follow the theme, in the brand color. */
+  color-scheme: light;
+  accent-color: var(--brand);
   --background: #ffffff;
   --surface: #fcfbf8;
   --raised: #ffffff;
   --foreground: #0a0a0a;
   /* Slate blue for supporting text (6.6:1 on white). */
   --muted: #4b5f72;
+  /* Greyed-out controls: readable, but plainly quieter than live ones (dark mode's muted text is white). */
+  --disabled: #5b6b7b;
   --border: #dfe3e8;
   /* Edges of text boxes, options and panels that need to read clearly. */
   --field-border: #5f6d77;
@@ -47,12 +52,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --background: #06121f;
     --surface: #0c1f33;
     --raised: #132a42;
     /* Dark mode uses white for all text, supporting text included: no grey. */
     --foreground: #ffffff;
     --muted: #ffffff;
+    --disabled: #8da2b8;
     --on-dark-mute: #ffffff;
     --border: #253a51;
     --field-border: #5f7489;
@@ -84,6 +91,7 @@
   --color-raised: var(--raised);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-disabled: var(--disabled);
   --color-border: var(--border);
   --color-field-border: var(--field-border);
   --color-brand: var(--brand);
@@ -188,6 +196,7 @@
   .event-band {
     --focus: #ffffff;
     --muted: #ffffff;
+    --disabled: #8da2b8;
     --brand: #ffffff;
     --danger: #ffffff;
   }
@@ -237,9 +246,13 @@
   font-weight: 400;
 }
 
+/* Not ready yet, but still pressable (it says what's missing): a plain outlined button with
+   full-contrast words, never a faded one that can't be read outdoors. */
 form [data-not-ready] {
-  opacity: 0.5;
-  cursor: not-allowed;
+  background: var(--surface) !important;
+  color: var(--muted) !important;
+  border: 1.5px dashed var(--field-border) !important;
+  box-shadow: none !important;
 }
 form[data-missing] :is(input, select, textarea):invalid {
   border-color: var(--danger);

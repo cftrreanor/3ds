@@ -54,8 +54,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
     supabase.rpc("public_item_board", { p_event_id: event.id }),
   ]);
   const coming = (board ?? []) as { item_id: string; first_name: string; note: string | null }[];
-  // Only jobs volunteers can sign up for. (Signed-in hosts and Coordinators can read hidden
-  // jobs too; they preview those elsewhere, never mixed into the real page.)
+  // Only jobs volunteers can sign up for. (Every job shows now; this keeps out any left hidden from before.)
   const showing = (stations ?? []).filter((st) => (st as { showing?: boolean }).showing !== false);
 
   const tz = event.timezone;
@@ -66,7 +65,8 @@ export default async function VolunteerSignupPage({ params }: Params) {
       // Only what the form shows (the query reads every column).
       id: st.id,
       name: st.name,
-      location: st.location,
+      // A volunteer event's jobs meet at the event's address: a place saved before that changed stays out of sight.
+      location: event.event_type === "volunteer" ? null : st.location,
       instructions: st.instructions,
       adults_only: st.adults_only,
       // An items station takes things to bring, never time slots.

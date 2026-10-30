@@ -25,7 +25,7 @@ import {
 import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
-import { publishAndOpen, setVolunteerSignupOpen } from "../../actions";
+import { publishAndOpen, publishAndOpenSignups, publishSignupLater, setVolunteerSignupOpen } from "../../actions";
 import { setBandRegistrationOpen } from "../../band-actions";
 import { setParentRegistrationOpen } from "./parents/actions";
 import { ActionButton } from "./forms";
@@ -42,6 +42,7 @@ import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { volunteerTotals } from "@/lib/volunteer-totals";
 import { SetupGuide } from "@/components/setup-guide";
 import { DayRail } from "@/components/event-day-nav";
 import { loadDayActions } from "@/lib/event-day-actions";
@@ -111,7 +112,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   ] = await Promise.all([
     supabase
       .from("stations")
-      .select("id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, lead_user_id")
+      // Every column: showing arrives with the 20270105000000 update.
+      .select("*")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -143,6 +145,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     supabase.from("band_stops").select("band_id, station_id, round, performed, reached_at").eq("event_id", eventId),
     supabase.from("performance_slots").select("band_id, performance_order, warm_up_at, perform_at").eq("event_id", eventId).order("performance_order"),
   ]);
+  // Things to bring count toward the volunteer totals, like shifts.
+  const { data: itemRows } = await supabase.from("station_items").select("id, station_id, name, needed, claimed_count").eq("event_id", eventId).order("sort_order");
   // Each station with everyone leading it (first-added first).
   const stations = sortStations(stationData ?? []).map((st) => ({
     ...st,
@@ -180,7 +184,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const multiDay = days.length > 1;
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
 
-  const signedUp = (shifts ?? []).reduce((n, s) => n + s.registered_count, 0);
+  // Totals count only the jobs volunteers can see (hosts and leads read hidden ones too), the same way as Volunteer jobs.
+  const totals = volunteerTotals(stations as { id: string; showing?: boolean }[], shifts ?? [], itemRows ?? []);
+  const liveShifts = totals.liveShifts;
+  const signedUp = totals.filled;
 
   // Coordinators: their sign-ups (volunteers by shift) are on the Contest day page.
   const myStations = stations.filter((s) => s.lead_ids.includes(user.id));
@@ -192,7 +199,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   for (const s of (shifts ?? []) as Shift[]) {
     shiftsByStation.set(s.station_id, [...(shiftsByStation.get(s.station_id) ?? []), s]);
   }
-  const totalSlots = (shifts ?? []).reduce((n, s) => n + s.max_capacity, 0);
+  const totalSlots = totals.capacity;
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = ((hostData ?? []) as unknown as HostRow[]).sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
   const stationName = (id: string | null) => stations.find((s) => s.id === id)?.name;
@@ -256,17 +263,23 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const doorLocked = parentsHere && !access.canManage && !isEventDay;
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
   // The emptiest shifts first: where to send the next volunteers.
-  const needsPeople = ((shifts ?? []) as Shift[])
-    .filter((s) => s.registered_count < s.max_capacity)
-    .sort((a, b) => a.registered_count / a.max_capacity - b.registered_count / b.max_capacity || a.starts_at.localeCompare(b.starts_at))
-    .slice(0, 3)
-    .map((s) => ({
-      id: s.id,
-      label: `${stationName(s.station_id) ?? "Station"} · ${s.title}`,
-      when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}`,
-      filled: s.registered_count,
-      capacity: s.max_capacity,
-    }));
+  const needsPeople = [
+    ...(liveShifts as Shift[])
+      .filter((s) => s.registered_count < s.max_capacity)
+      .map((s) => ({
+        id: s.id,
+        label: `${stationName(s.station_id) ?? "Station"} · ${s.title}`,
+        when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}`,
+        sort: s.starts_at,
+        filled: s.registered_count,
+        capacity: s.max_capacity,
+      })),
+    ...totals.liveItems
+      .filter((i) => i.claimed_count < i.needed)
+      .map((i) => ({ id: i.id, label: `${stationName(i.station_id) ?? "Station"} · ${i.name}`, when: "Things to bring", sort: "~", filled: i.claimed_count, capacity: i.needed })),
+  ]
+    .sort((a, b) => a.filled / a.capacity - b.filled / b.capacity || a.sort.localeCompare(b.sort))
+    .slice(0, 3);
 
   const publicUrl = `${await getOrigin()}/e/${event.slug}`;
 
@@ -715,6 +728,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       </PageSection>
     ) : null;
 
+  // A published volunteer event's jobs with no shift or thing to bring (hosts only, from the setup facts).
+  const liveEmpty = published && event.event_type === "volunteer" ? (setup?.emptyJobs ?? []) : [];
   const volunteers =
     access.canManage && !conferenceHere ? (
       <PageSection id="volunteers" title="Volunteers">
@@ -728,17 +743,41 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 </Badge>
               )}
               <span className="text-sm text-muted">
-                {stations.length} sign-up{stations.length === 1 ? "" : "s"} · {(shifts ?? []).length} shift
-                {(shifts ?? []).length === 1 ? "" : "s"}
+                {event.event_type === "volunteer"
+                  ? `${stations.length} ${stations.length === 1 ? "job" : "jobs"}${liveEmpty.length ? ` · ${liveEmpty.length} not on the sign-up page yet` : ""}`
+                  : `${stations.length} sign-up${stations.length === 1 ? "" : "s"} · ${(shifts ?? []).length} shift${(shifts ?? []).length === 1 ? "" : "s"}`}
               </span>
             </div>
             <Link href={`/dashboard/events/${eventId}/volunteering`} className={BTN_OUTLINE}>
-              Manage volunteers
+              {event.event_type === "volunteer" ? "Jobs and shifts" : "Manage volunteers"}
             </Link>
           </div>
+          {/* Live, with a job nobody can sign up for yet: say so where the organizer checks in, with the fix. */}
+          {liveEmpty.length > 0 && (
+            <div className="rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+              <p className="font-semibold">
+                <span aria-hidden>◆ </span>
+                {liveEmpty.length === 1 ? "1 job isn't on the sign-up page yet" : `${liveEmpty.length} jobs aren't on the sign-up page yet`}
+              </p>
+              <ul className="mt-1">
+                {liveEmpty.map((j) => (
+                  <li key={j.id}>
+                    {j.name} needs {j.items ? "a thing to bring" : "a shift"}.{" "}
+                    <Link
+                      href={`/dashboard/events/${eventId}/volunteering?station=${j.id}`}
+                      className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4"
+                    >
+                      Add {j.items ? "one" : "a shift"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <VolunteerStats
             filled={signedUp}
             capacity={totalSlots}
+            sentence={totals.sentence}
             volunteers={volunteerCount ?? 0}
             checkedIn={isEventDay ? checkedIn : null}
             needs={needsPeople}
@@ -774,7 +813,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ) : null;
 
   // Before publishing: what publishing does, and the button. (Once live, unpublishing is in event settings.)
-  const publish = setup && checklist && !published ? <PublishPanel facts={setup} remaining={checklist.remaining} /> : null;
+  const publish = setup && checklist && !published ? <PublishPanel facts={setup} remaining={checklist.remaining} previewHref={`/e/${event.slug}/volunteer`} /> : null;
 
   // Still setting up: the one thing to do next, in the main column too.
   const nextUpStep = checklist && !published ? (checklist.inProgress ?? checklist.next) : null;
@@ -825,7 +864,11 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ? ["day", "attention", "signups", "schedule", "volunteers", "files"]
     : published
       ? ["attention", "signups", "schedule", "volunteers", "day", "files"]
-      : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
+      : event.event_type === "volunteer"
+        ? // A volunteer event's last step is publishing: it leads the page (it names what's still needed).
+          // With no job volunteers can sign up for yet, there's no event day to plan, so its card waits.
+          ["publish", "attention", "signups", "schedule", "volunteers", ...((setup?.readyJobs ?? 1) > 0 ? ["day"] : []), "files"]
+        : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
   const labels: Record<string, string> = {
     day: dayTitle,
     signups: signupsLabel,
@@ -963,19 +1006,62 @@ function PageSection({ id, title, saved, children }: { id: string; title: string
 function PublishPanel({
   facts,
   remaining,
+  previewHref,
 }: {
   facts: SetupFacts;
   remaining: ReturnType<typeof setupChecklist>["remaining"];
+  /** A volunteer event's sign-up page, as the team previews it. */
+  previewHref: string;
 }) {
+  // The empty jobs are named in their own box below, so the "one more step" line skips them.
+  const others = (facts.emptyJobs ?? []).length ? remaining.filter((r) => r.id !== "shifts") : remaining;
+  // A volunteer event chooses when sign-up opens with its publish button.
+  const jobsHere = facts.eventType === "volunteer";
+  // Publishing needs a job with a shift or a thing to bring (the database checks too): until then, the way there instead of the buttons.
+  const needsJob = jobsHere && (facts.readyJobs ?? 1) === 0;
+  // Jobs with nothing to sign up for yet never reach the sign-up page: name them, with the way to fix each.
+  const empty = jobsHere ? (facts.emptyJobs ?? []) : [];
+  const jobsHref = (id?: string) => `/dashboard/events/${facts.eventId}/volunteering${id ? `?station=${id}` : ""}`;
+  const effects = publishEffects(facts).filter((line) => !(jobsHere && line.startsWith("Volunteer sign-up")));
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">{remaining.length ? "Almost ready to publish" : "Ready to publish"}</h2>
-      {remaining.length ? (
+      <h2 className="text-lg font-semibold">{needsJob ? "Not ready to publish yet" : others.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      {needsJob && (
+        // The one thing stopping them, first.
+        <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+          <p className="font-semibold">
+            {facts.stations > 0 ? "Add a shift or a thing to bring to a job first" : "Add a job before you publish"}
+          </p>
+          <p className="mt-1">Publishing needs at least one job with a shift or a thing to bring.</p>
+          <Link href={jobsHref(empty[0]?.id)} className={`${BTN} mt-3`}>
+            {empty[0] ? `Add ${empty[0].items ? "things to bring" : "shifts"} to ${empty[0].name}` : "Go to jobs and shifts"}
+          </Link>
+        </div>
+      )}
+      {!needsJob && empty.length > 0 && (
+        <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+          <p className="font-semibold">
+            <span aria-hidden>◆ </span>
+            {empty.length === 1 ? "1 job won't show on the sign-up page yet" : `${empty.length} jobs won't show on the sign-up page yet`}
+          </p>
+          <ul className="mt-1">
+            {empty.map((j) => (
+              <li key={j.id}>
+                {j.name} needs {j.items ? "a thing to bring" : "a shift"}.{" "}
+                <Link href={jobsHref(j.id)} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                  Add {j.items ? "one" : "a shift"}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {needsJob ? null : others.length ? (
         // The checklist beside the page lists every step; here, just the first one left.
         <p className="mt-2 text-sm">
-          <span className="text-muted">We recommend finishing {remaining.length === 1 ? "one more step" : `${remaining.length} more steps`} first, starting with </span>
-          <Link href={remaining[0].href} className="font-medium text-brand underline-offset-4 hover:underline">
-            {remaining[0].label}
+          <span className="text-muted">We recommend finishing {others.length === 1 ? "one more step" : `${others.length} more steps`} first, starting with </span>
+          <Link href={others[0].href} className="font-medium text-brand underline-offset-4 hover:underline">
+            {others[0].label}
           </Link>
           .
         </p>
@@ -986,14 +1072,14 @@ function PublishPanel({
       )}
       <p className="mt-4 text-sm font-semibold">When you publish:</p>
       <ul className="mt-2 space-y-1.5 text-sm text-muted">
-        {publishEffects(facts).map((line) => (
+        {effects.map((line) => (
           <li key={line} className="flex gap-2">
             <span aria-hidden className="text-success">✓</span>
             <span>{line}</span>
           </li>
         ))}
       </ul>
-      {facts.planBlock ? (
+      {needsJob ? null : facts.planBlock ? (
         // Say why before they try, and what they can do: not an error after the click.
         <div className="mt-5 rounded-md border border-brand/25 bg-brand-soft p-4 text-sm leading-6">
           <p className="font-semibold">Your plan doesn&apos;t allow publishing this yet</p>
@@ -1019,11 +1105,32 @@ function PublishPanel({
           )}
         </div>
       ) : (
-        <div className="mt-5">
-          <ActionButton action={publishAndOpen.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
-            Publish event
-          </ActionButton>
-        </div>
+        jobsHere ? (
+          <div className="mt-5 space-y-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <ActionButton action={publishAndOpenSignups.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
+                Publish and open sign-up
+              </ActionButton>
+              <a href={previewHref} target="_blank" className="inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline">
+                Preview the sign-up page
+              </a>
+            </div>
+            <div className="text-sm">
+              <p className="text-muted">Not ready for sign-ups yet? Publish now and open sign-up later. People can see the event but can&apos;t sign up.</p>
+              <div className="mt-2">
+                <ActionButton action={publishSignupLater.bind(null, facts.eventId)} variant="secondary" pendingText="Publishing…">
+                  Publish, open sign-up later
+                </ActionButton>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5">
+            <ActionButton action={publishAndOpen.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
+              Publish event
+            </ActionButton>
+          </div>
+        )
       )}
     </Card>
   );
@@ -1241,12 +1348,14 @@ function LogisticsTotals({ bands, noTrucks = false }: { bands: BandTotals[]; noT
 function VolunteerStats({
   filled,
   capacity,
+  sentence,
   volunteers,
   checkedIn,
   needs,
 }: {
   filled: number;
   capacity: number;
+  sentence: string;
   volunteers: number;
   /** Only on event day. */
   checkedIn: { done: number; of: number } | null;
@@ -1258,7 +1367,7 @@ function VolunteerStats({
       <div>
         <div className="flex items-baseline justify-between gap-2">
           <p className="text-sm font-semibold">
-            {filled} of {capacity} spots filled
+            {sentence}
           </p>
           <p className="text-sm tabular-nums text-muted">{pct}%</p>
         </div>

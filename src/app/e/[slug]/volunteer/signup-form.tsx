@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Badge, Button, Card, Field, FormMessage, Input } from "@/components/ui";
 import { GUARDIAN_CONSENT, MAX_OTHERS, groupProgress, ineligibleReason, shiftsOverlap } from "@/lib/group-signup";
 import type { SignupPayload, SignupState } from "./actions";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export type PublicShift = {
   id: string;
@@ -231,7 +232,7 @@ export function SignupForm({
           <Field label="Their email (optional)" hint="We'll send them their own confirmation, with a link to change or cancel their spot.">
             <Input type="email" inputMode="email" value={p.email} onChange={(e) => setPerson(i, { email: e.target.value })} autoComplete="off" />
           </Field>
-          <Field label="Their cell phone (optional)" hint={`Without one, their ${lead} gets your number. Only their ${lead} sees it, and only on event day.`}>
+          <Field label="Their cell phone (optional)" hint={`Without one, their ${lead} gets your number. Only the people running this event see it, and only on event day.`}>
             <Input type="tel" inputMode="tel" value={p.phone} onChange={(e) => setPerson(i, { phone: e.target.value })} autoComplete="off" />
           </Field>
         </Card>
@@ -482,7 +483,6 @@ export function SignupForm({
       onSubmit={onPicked(BOOKER)}
       buttons={nextButtons(BOOKER)}
       disabled={disabled}
-      lead={lead}
       grouped={people.length > 0}
     />
   );
@@ -505,7 +505,6 @@ function BookerStep({
   onSubmit,
   buttons,
   disabled,
-  lead,
   grouped,
 }: {
   stations: PublicStation[];
@@ -524,10 +523,11 @@ function BookerStep({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   buttons: React.ReactNode;
   disabled?: boolean;
-  lead: string;
   grouped: boolean;
 }) {
   const [activeId, setActiveId] = useState(stations[0]?.id);
+  // Tabs only once there are six or more jobs; up to five sit one under the other, so none hides.
+  const tabbed = stations.length > 5;
   const toggle = (id: string) => setMine((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const toggleItem = (id: string) =>
     setPickedItems((prev) => {
@@ -553,13 +553,13 @@ function BookerStep({
         <p className="mt-1 text-sm text-muted">
           {hasShifts && "Choose as many shifts as you like, as long as the times don't overlap."}
           {hasShifts && hasItems && " "}
-          {hasItems && "Sign up to bring something, and tell everyone what it is so there's a good mix."}
+          {hasItems && "Pick something to bring. Everyone can see what's still needed."}
         </p>
 
-        {stations.length > 1 && (
+        {tabbed && (
           // Wider screens: a tab per station. Phones list every sign-up instead, so none hide off the edge.
-          <div role="tablist" aria-label="Sign-ups" className="relative mt-4 hidden overflow-x-auto sm:block">
-            <div className="flex min-w-max gap-1 border-b border-border">
+          <div role="group" aria-label="Jobs" className="relative mt-4 hidden overflow-x-auto pt-1 sm:block">
+            <div className={folderTabRow}>
               {stations.map((st) => {
                 const active = st.id === activeId;
                 const open = st.shifts.reduce((n, sh) => n + Math.max(sh.spotsLeft, 0), 0) + st.items.reduce((n, it) => n + Math.max(it.left, 0), 0);
@@ -568,20 +568,15 @@ function BookerStep({
                   <button
                     key={st.id}
                     type="button"
-                    role="tab"
-                    id={`tab-${st.id}`}
-                    aria-selected={active}
-                    aria-controls={`panel-${st.id}`}
+                    aria-pressed={active}
                     onClick={() => setActiveId(st.id)}
-                    className={`-mb-px flex flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
-                      active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-                    }`}
+                    className={folderTab(active)}
                   >
                     <span className="flex items-center gap-1.5 whitespace-nowrap">
                       {st.name}
                       {picked > 0 && <span className="rounded-full bg-brand px-1.5 text-xs font-semibold text-brand-foreground">{picked}</span>}
                     </span>
-                    <span className="text-xs font-normal text-muted">
+                    <span className={folderTabNote()}>
                       {open > 0 ? (st.items.length ? `${open} still needed` : `${open} open spot${open === 1 ? "" : "s"}`) : st.items.length ? "All covered" : "Full"}
                     </span>
                   </button>
@@ -596,9 +591,7 @@ function BookerStep({
           <Card
             key={st.id}
             id={`panel-${st.id}`}
-            role={stations.length > 1 ? "tabpanel" : undefined}
-            aria-labelledby={stations.length > 1 ? `tab-${st.id}` : undefined}
-            className={`mt-4 p-4 sm:p-5 ${st.id !== activeId ? "sm:hidden" : ""}`}
+            className={`mt-4 p-4 sm:p-5 ${tabbed && st.id !== activeId ? "sm:hidden" : ""}`}
           >
             <h3 className="font-semibold">
               {st.name}
@@ -675,8 +668,8 @@ function BookerStep({
             label={me.minor ? "Parent or guardian's cell phone" : "Cell phone"}
             hint={
               grouped
-                ? `Also used for anyone you add without their own number. Only their ${lead} sees it, and only on event day.`
-                : `Only your ${lead} sees this, and only on event day.`
+                ? `Also used for anyone you add without their own number. Only the people running this event see it, and only on event day.`
+                : `Only the people running this event see it, and only on event day.`
             }
           >
             <Input type="tel" inputMode="tel" autoComplete="tel" required value={me.phone} onChange={(e) => set({ phone: e.target.value })} />

@@ -22,10 +22,15 @@ import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
-import { StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
+import { JobSignups, StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
+import { volunteerTotals } from "@/lib/volunteer-totals";
 
-export const metadata: Metadata = { title: "Volunteer Setup" };
+export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/volunteering">): Promise<Metadata> {
+  const { eventId } = await params;
+  const { data } = await (await createClient()).from("events").select("event_type").eq("id", eventId).maybeSingle();
+  return { title: data?.event_type === "volunteer" ? "Volunteer jobs" : "Volunteer Setup" };
+}
 
 type HostRow = { user_id: string; role: "owner" | "admin"; profiles: { full_name: string; email: string } | null };
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: { full_name: string; email: string } | null };
@@ -57,9 +62,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const [{ data: stationData, error: stationsError }, { data: shiftData }, { data: staff }, { data: leadRows }, { data: hostData }, { data: inviteData }] = await Promise.all([
     supabase
       .from("stations")
-      .select(
-        `id, name, checkpoint_kind, checkpoint_order, due_minutes_before_warm_up, location, instructions, adults_only, lead_user_id, details_saved_at, signup_kind${hasBooths(event.event_type) ? ", zone" : ""}`,
-      )
+      // Every column: showing arrives with the 20270105000000 update.
+      .select("*")
       .eq("event_id", eventId)
       .order("sort_order")
       .order("created_at"),
@@ -83,8 +87,10 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     supabase.from("invitations").select("email, station_id").eq("event_id", eventId).eq("role", "section_lead").is("accepted_at", null),
   ]);
   // Check-in stations first, in the band's order, matching the volunteer sign-up page.
-  // The newest columns are missing until the database update is run.
   if (stationsError) missing();
+  // A volunteer event's jobs: the setup redesign's words, layout, and saving as you type.
+  const jobsHere = event.event_type === "volunteer";
+  const published = event.status === "published";
   const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
     ...st,
     lead_ids: (leadRows ?? []).filter((l) => l.station_id === st.id).map((l) => l.user_id),
@@ -120,7 +126,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
 
   // The open tab: ?station=<id>, "new" to add one (also when there are none yet), the first station, or
   // one of the tabs after the sign-ups: "import" (volunteers from a spreadsheet), "order" (band contests' check-in order).
-  const other = tab === "import" ? "import" : tab === "order" && hasBands(event.event_type) ? "order" : null;
+  // A volunteer event's import sits under "More options" at the end of the page, not in the job tabs.
+  const other = tab === "import" && !jobsHere ? "import" : tab === "order" && hasBands(event.event_type) ? "order" : null;
   const adding = !other && (tab === "new" || stations.length === 0);
   const current = adding || other ? null : (stations.find((s) => s.id === tab) ?? stations[0]);
   const currentShifts = current ? shifts.filter((s) => s.station_id === current.id) : [];
@@ -164,8 +171,13 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     QRCode.toString(signupUrl, { type: "svg", margin: 1, width: 160 }),
     QRCode.toDataURL(signupUrl, { margin: 2, width: 1024 }),
   ]);
-  const filled = shifts.reduce((n, s) => n + s.registered_count, 0) + items.reduce((n, i) => n + i.claimed_count, 0);
-  const capacity = shifts.reduce((n, s) => n + s.max_capacity, 0) + items.reduce((n, i) => n + i.needed, 0);
+  // Each job's own shifts and things to bring, and the jobs volunteers can see that have some.
+  const ownShifts = (id: string) => shifts.filter((x) => x.station_id === id);
+  const ownItems = (id: string) => items.filter((x) => x.station_id === id);
+  const hasSome = (st: Station) => ownShifts(st.id).length + ownItems(st.id).length > 0;
+  // Totals count only what volunteers can see, the same way as the event page.
+  const { sentence } = volunteerTotals(stations, shifts, items);
+  const previewHref = `/e/${event.slug}/volunteer`;
 
   const nameOf = (userId: string | null) => {
     if (!userId) return null;
@@ -185,7 +197,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   ];
   // Each shift as a spreadsheet might name it: "Parking 9:00–11:00 AM", "Morning Parking"…
   const multiDay = days.length > 1;
-  const shiftChoices: Choice[] = shifts.map((sh) => {
+  // Only jobs volunteers can see take sign-ups, imported ones included.
+  const shiftChoices: Choice[] = shifts.filter((sh) => stations.some((st) => st.id === sh.station_id && st.showing !== false)).map((sh) => {
     const station = stations.find((s) => s.id === sh.station_id)?.name ?? "";
     const time = formatTimeRange(sh.starts_at, sh.ends_at, tz, { zone: false });
     const day = multiDay ? `${formatDate(utcToZonedDate(sh.starts_at, tz), { year: undefined })} ` : "";
@@ -206,19 +219,84 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
     ? null
     : { receiving: Boolean(digestPicked?.memberIds.includes(user.id)), prefs: (myDigest as DigestPrefs | null) ?? ALL_DIGEST };
 
+  // Volunteers from a spreadsheet: a tab on most events, under "More options" on a volunteer event.
+  const importVolunteersBlock = (
+    <>
+      <h3 className="text-lg font-semibold">Import volunteers</h3>
+      <p className="mt-1 mb-4 text-sm text-muted">
+        {jobsHere ? (
+          <>
+            Optional. Have names from a paper sheet or another sign-up site? Add them to their shifts here. Use one row for
+            each person and shift. People who share an email are signed up together. If a shift is full, it gets more spots.
+          </>
+        ) : (
+          <>
+            Optional. Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row
+            per person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
+            room for them.
+          </>
+        )}
+      </p>
+      {shiftChoices.length === 0 ? (
+        <p className="text-sm">
+          {jobsHere
+            ? "Add a job and its shifts first. Each volunteer you import goes onto one of your shifts."
+            : "Add a sign-up and its shifts first. Each volunteer you import goes onto one of your shifts."}
+        </p>
+      ) : (
+        <SpreadsheetImport
+          kind="volunteers"
+          fields={importFields("volunteers")}
+          choices={{ shift: shiftChoices }}
+          noun={{ one: "sign-up", many: "sign-ups" }}
+          templateName="volunteers.csv"
+          emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
+          action={importVolunteers.bind(null, eventId)}
+        />
+      )}
+    </>
+  );
+
   return (
     // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
     <div data-required-marks>
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer Setup</h1>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">{jobsHere ? "Volunteer jobs" : "Volunteer Setup"}</h1>
+        {/* A volunteer event's "+ Add a job" sits by the title, so it's never scrolled out of sight with the tabs. */}
+        {jobsHere && stations.length > 0 && (
+          <Link
+            href={tabHref("new")}
+            scroll={false}
+            className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand"
+          >
+            + Add a job
+          </Link>
+        )}
+      </div>
       <SavedBy eventId={eventId} area="volunteers" className="mt-2" />
+      {/* Volunteer events keep this note at the end, so the jobs come first. */}
+      {!jobsHere && (
       <p className="mt-1 text-sm text-muted">
         🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
         how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
       </p>
+      )}
 
+      {jobsHere && published && (
+        <p className="mt-4 flex gap-2 rounded-lg border border-brand/25 bg-brand-soft px-4 py-3 text-sm leading-6">
+          <span aria-hidden>ⓘ</span>
+          <span>
+            <span className="font-semibold">This event is published.</span> Changes reach volunteers as soon as they save. A job shows
+            on the sign-up page once it has a shift or a thing to bring. People already signed up get an email if their shift&apos;s time changes.
+          </span>
+        </p>
+      )}
+
+      {/* A volunteer event's draft publishes from its last step (the event page), so its sign-up link waits until then. */}
+      {!(jobsHere && !published) && (
       <Card className="mt-6">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -226,7 +304,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 {event.status !== "published" ? "Event not published" : event.volunteer_signup_open ? "Sign-up open" : "Sign-up closed"}
               </Badge>
               <span className="text-sm text-muted">
-                {filled} of {capacity} spots filled
+                {sentence}
               </span>
             </div>
             <div>
@@ -235,21 +313,21 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               <div className="mt-2 flex flex-wrap gap-2">
                 <CopyLinkButton url={signupUrl} label="Copy link" />
                 <a
-                  href={`/e/${event.slug}/volunteer`}
+                  href={previewHref}
                   target="_blank"
-                  className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                  className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
                 >
                   Preview page
                 </a>
                 <Link
                   href={`/dashboard/events/${eventId}/volunteers`}
-                  className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                  className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
                 >
                   Check-in
                 </Link>
                 <Link
                   href={`/dashboard/events/${eventId}/volunteering/badges`}
-                  className="inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background"
+                  className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
                 >
                   Print volunteer badges
                 </Link>
@@ -257,24 +335,27 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   <ActionButton
                     action={publishAndOpenSignups.bind(null, eventId)}
                     variant="go"
-                    className="px-3! text-xs!"
+                    className="min-h-11 px-3! text-sm!"
                     pendingText="Publishing…"
                     confirmMessage="Publish the event and open volunteer sign-ups? Your event page goes live and people can start signing up."
                   >
                     Publish and open sign-ups
                   </ActionButton>
                 )}
-                {event.status === "published" && access.isHost && (
+              </div>
+              {/* On its own line, and quiet while sign-up is open, so it isn't tapped by mistake. */}
+              {event.status === "published" && access.isHost && (
+                <div className="mt-2">
                   <ActionButton
                     action={setVolunteerSignupOpen.bind(null, eventId, !event.volunteer_signup_open)}
-                    variant={event.volunteer_signup_open ? "stop" : "go"}
-                    className="px-3! text-xs!"
-                    confirmMessage={event.volunteer_signup_open ? "Close volunteer sign-up? People won't be able to sign up for shifts." : undefined}
+                    variant={event.volunteer_signup_open ? "quiet-stop" : "go"}
+                    className="min-h-11 px-3! text-sm!"
+                    confirmMessage={event.volunteer_signup_open ? "Close volunteer sign-up? People won't be able to sign up anymore. Everyone already signed up keeps their spot." : undefined}
                   >
                     {event.volunteer_signup_open ? "Close volunteer sign-up" : "Open volunteer sign-up"}
                   </ActionButton>
-                )}
-              </div>
+                </div>
+              )}
               {/* Tucked away to keep the top of the page short; open it to show or download the code. */}
               <details className="group mt-2">
                 <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground">
@@ -301,14 +382,20 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             )}
           </div>
       </Card>
+      )}
 
-      <section className="mt-10" aria-labelledby="signups-heading">
-        <h2 id="signups-heading" className="text-xl font-semibold">
-          Volunteer sign-ups
+      <section className={jobsHere ? "mt-4" : "mt-10"} aria-labelledby="signups-heading">
+        <h2 id="signups-heading" className={jobsHere ? "sr-only" : "text-xl font-semibold"}>
+          {jobsHere ? "Jobs" : "Volunteer sign-ups"}
         </h2>
-        <p className="mt-1 mb-4 text-sm text-muted">
-          Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items.
-        </p>
+        {/* What a job is: said once, while there are none yet. */}
+        {!(jobsHere && stations.length > 0) && (
+          <p className="mt-1 mb-4 text-sm text-muted">
+            {jobsHere
+              ? "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
+              : "Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items."}
+          </p>
+        )}
         <UnsavedChangesProvider
           key={current?.id ?? "new"}
           needsDetails={false}
@@ -316,29 +403,35 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         >
           <StationTabs
             tabs={stations.map((st) => {
-              const own = shifts.filter((x) => x.station_id === st.id);
-              const ownItems = items.filter((x) => x.station_id === st.id);
+              const own = ownShifts(st.id);
+              const itemsHere = ownItems(st.id);
               return {
                 id: st.id,
                 name: st.name,
                 href: tabHref(st.id),
                 active: current?.id === st.id,
                 saved: Boolean(st.details_saved_at),
-                configured: Boolean(st.details_saved_at) && own.length + ownItems.length > 0,
+                configured: Boolean(st.details_saved_at) && own.length + itemsHere.length > 0,
                 items: st.signup_kind === "items",
-                filled: own.reduce((n, x) => n + x.registered_count, 0) + ownItems.reduce((n, x) => n + x.claimed_count, 0),
-                capacity: own.reduce((n, x) => n + x.max_capacity, 0) + ownItems.reduce((n, x) => n + x.needed, 0),
+                filled: own.reduce((n, x) => n + x.registered_count, 0) + itemsHere.reduce((n, x) => n + x.claimed_count, 0),
+                capacity: own.reduce((n, x) => n + x.max_capacity, 0) + itemsHere.reduce((n, x) => n + x.needed, 0),
+                job: jobsHere,
               };
             })}
-            add={{ href: tabHref("new"), active: adding }}
+            add={jobsHere ? (adding && stations.length > 0 ? { href: tabHref("new"), active: true, label: "New job" } : undefined) : { href: tabHref("new"), active: adding }}
+            label={jobsHere ? "Jobs" : undefined}
             extra={[
-              {
-                key: "import",
-                label: "Import volunteers",
-                status: "Optional",
-                href: tabHref("import"),
-                active: other === "import",
-              },
+              ...(jobsHere
+                ? []
+                : [
+                    {
+                      key: "import",
+                      label: "Import volunteers",
+                      status: "Optional",
+                      href: tabHref("import"),
+                      active: other === "import",
+                    },
+                  ]),
               ...(hasBands(event.event_type)
                 ? [
                     {
@@ -352,7 +445,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 : []),
             ]}
           />
-          <div className="mt-6">
+          <div className={jobsHere ? "mt-2" : "mt-6"}>
             {current ? (
               <StationPanel
                 // A fresh panel per station, so its forms never keep the previous tab's choices.
@@ -377,36 +470,34 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                     ? "A check-in stop always takes time slots."
                     : current.signup_kind === "items"
                       ? currentItems.length
-                        ? "To switch to time slots, first delete this sign-up's items."
+                        ? `To switch to ${jobsHere ? "shifts" : "time slots"}, first delete this ${jobsHere ? "job" : "sign-up"}'s items.`
                         : null
                       : currentShifts.length
-                        ? "To switch to items to bring, first delete this sign-up's time slots."
+                        ? `To switch to ${jobsHere ? "things to bring" : "items to bring"}, first delete this ${jobsHere ? "job" : "sign-up"}'s ${jobsHere ? "shifts" : "time slots"}.`
                         : null
                 }
                 leadOptions={leadOptions}
                 pendingInvites={(inviteData ?? []).filter((inv) => inv.station_id === current.id).map((inv) => inv.email)}
+                job={
+                  jobsHere
+                    ? {
+                        ready: hasSome(current),
+                        allReady: stations.every(hasSome),
+                        items: current.signup_kind === "items",
+                        links: {
+                          addJob: tabHref("new"),
+                          preview: previewHref,
+                          next: published
+                            ? { href: `/dashboard/events/${eventId}`, label: "Back to the event" }
+                            : { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish your event" },
+                        },
+                      }
+                    : undefined
+                }
               />
             ) : other === "import" ? (
               <Card>
-                <h3 className="text-lg font-semibold">Import volunteers</h3>
-                <p className="mt-1 mb-4 text-sm text-muted">
-                  Optional. Already have sign-ups from a paper sheet or another sign-up site? Add them to their shifts here. One row
-                  per person per shift; people who share an email are signed up together, on the same shifts. A full shift makes
-                  room for them.
-                </p>
-                {shifts.length === 0 ? (
-                  <p className="text-sm">Add a sign-up and its shifts first. Each volunteer you import goes onto one of your shifts.</p>
-                ) : (
-                  <SpreadsheetImport
-                    kind="volunteers"
-                    fields={importFields("volunteers")}
-                    choices={{ shift: shiftChoices }}
-                    noun={{ one: "sign-up", many: "sign-ups" }}
-                    templateName="volunteers.csv"
-                    emailOption="Email each volunteer a confirmation with their shifts and a calendar invite"
-                    action={importVolunteers.bind(null, eventId)}
-                  />
-                )}
+                {importVolunteersBlock}
               </Card>
             ) : other === "order" ? (
               <Card>
@@ -456,16 +547,22 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               </Card>
             ) : (
               <Card>
-                <h3 className="text-lg font-semibold">{stations.length ? "Add a sign-up" : "Add your first sign-up"}</h3>
-                <p className="mt-1 mb-4 text-sm text-muted">Name it and choose its type. You&apos;ll add its details, Coordinators, and time slots or items next.</p>
-                <NewStationForm action={createStation.bind(null, eventId)} openTab />
+                <h3 className="text-lg font-semibold">
+                  {jobsHere ? (stations.length ? "Add a job" : "Add your first job") : stations.length ? "Add a sign-up" : "Add your first sign-up"}
+                </h3>
+                <p className="mt-1 mb-4 text-sm text-muted">
+                  {jobsHere
+                    ? "Name it and choose shifts or things to bring. You add them next."
+                    : "Name it and choose its type. You'll add its details, Coordinators, and time slots or items next."}
+                </p>
+                <NewStationForm action={createStation.bind(null, eventId)} openTab job={jobsHere} />
               </Card>
             )}
           </div>
         </UnsavedChangesProvider>
       </section>
       {digest && (
-        <section className="mt-8">
+        <section className={jobsHere ? "mt-6" : "mt-8"}>
           <DigestCard
             action={saveMyDigestPrefs.bind(null, eventId)}
             prefs={digest.prefs}
@@ -473,6 +570,36 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
             hostsLink={access.isHost ? `/dashboard/events/${eventId}/edit?section=emails#notifications` : undefined}
           />
         </section>
+      )}
+      {/* A job's sign-ups, below the daily summary: the job's own card is just for setting it up. */}
+      {jobsHere && current && (
+        <JobSignups
+          station={current}
+          shifts={currentShifts}
+          items={currentItems}
+          itemSignups={itemSignups}
+          roster={roster}
+          event={event}
+          eventId={eventId}
+        />
+      )}
+      {jobsHere && (
+        // Away from the jobs, so it doesn't pull focus from setting them up.
+        <details open={tab === "import"} className="group mt-6 rounded-lg border border-border bg-surface">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold sm:px-6 [&::-webkit-details-marker]:hidden">
+            More options: import volunteers from a spreadsheet
+            <span aria-hidden className="text-brand transition group-open:rotate-90">
+              ›
+            </span>
+          </summary>
+          <div className="border-t border-border p-4 sm:p-6">{importVolunteersBlock}</div>
+        </details>
+      )}
+      {jobsHere && (
+        <p className="mt-6 text-sm text-muted">
+          🔒 Volunteers&apos; phone numbers, and everything about helpers under 18, are deleted 10 days after the event. Adults&apos;
+          names, emails, and how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
+        </p>
       )}
     </div>
   );

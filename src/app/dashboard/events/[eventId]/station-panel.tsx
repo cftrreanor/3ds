@@ -18,6 +18,8 @@ import {
 } from "../../actions";
 import { BuildShifts, DeleteButton, ItemsEditor, ShiftForm, StationForm, type LeadOption } from "./forms";
 import { inviteCoordinator } from "../../team-actions";
+import { JobKindSwitch, type JobFacts } from "./volunteering/job-parts";
+import { JobForm } from "./volunteering/job-form";
 
 export type Shift = {
   id: string;
@@ -46,6 +48,8 @@ export type Station = {
   lead_user_id: string | null;
   /** Everyone leading this sign-up, first-added first. */
   lead_ids: string[];
+  /** Volunteers can see it (a volunteer event's jobs start hidden; after the 20270105000000 update). */
+  showing?: boolean;
   /** When "1. Sign-up details" was last saved (null: not done yet). */
   details_saved_at?: string | null;
   /** Time slots (shifts) or things to bring (items). */
@@ -98,6 +102,7 @@ export function StationPanel({
   kindLocked = null,
   leadOptions = [],
   pendingInvites = [],
+  job,
 }: {
   eventId: string;
   station: Station;
@@ -126,7 +131,10 @@ export function StationPanel({
   leadOptions?: LeadOption[];
   /** Invited to lead it, not accepted yet. */
   pendingInvites?: string[];
+  /** A volunteer event's job: its own layout and words, saved as people type. */
+  job?: JobFacts;
 }) {
+  const noun = job ? "job" : "sign-up";
   const itemsStation = station.signup_kind === "items";
   const tz = event.timezone;
   const multiDay = days.length > 1;
@@ -139,6 +147,7 @@ export function StationPanel({
       days={days}
       existing={stationShifts.length}
       signedUp={stationShifts.some((s) => s.registered_count > 0)}
+      job={Boolean(job)}
     />
   );
   return (
@@ -156,7 +165,15 @@ export function StationPanel({
             {station.lead_ids.includes(userId) && <Badge tone="brand">You lead this</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">
-            {[station.location, leadNames.length ? `${leadNames.length > 1 ? "Leads" : "Lead"}: ${leadNames.join(", ")}` : canManage ? "No lead yet" : null]
+            {[
+              // A volunteer event's jobs meet at the event's address.
+              job ? null : station.location,
+              leadNames.length
+                ? `${job ? (leadNames.length > 1 ? "Coordinators" : "Coordinator") : leadNames.length > 1 ? "Leads" : "Lead"}: ${leadNames.join(", ")}`
+                : canManage
+                  ? job ? "No Coordinator yet" : "No lead yet"
+                  : null,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </p>
@@ -166,12 +183,28 @@ export function StationPanel({
       {canManage && (
         // Everything about the sign-up in one place: its name, type, details, and Coordinators (one Save),
         // then its items or time slots, edited right in their rows.
-        <div className="mt-5 space-y-8">
+        <div className={job ? "mt-4 space-y-5" : "mt-5 space-y-8"}>
+          {/* A volunteer event's job starts with what volunteers sign up for: shifts or things to bring. */}
+          {job && <JobKindSwitch eventId={eventId} stationId={station.id} kind={itemsStation ? "items" : "shifts"} locked={kindLocked} />}
           <div id="station-details" className="scroll-mt-6">
+            {job ? (
+              <JobForm
+                action={updateStation.bind(null, eventId, station.id)}
+                remove={deleteStation.bind(null, eventId, station.id)}
+                initial={station}
+                leadLabel={leadWords(event.event_type).many}
+                coordinators={{ options: leadOptions, pending: pendingInvites, invite: inviteCoordinator.bind(null, eventId, station.id) }}
+                links={job.links}
+                signedUp={stationShifts.some((x) => x.registered_count > 0) || (items ?? []).some((x) => x.claimed_count > 0)}
+                ready={job.ready}
+                allReady={job.allReady}
+                items={job.items}
+              />
+            ) : (
             <StationForm
               action={updateStation.bind(null, eventId, station.id)}
               initial={station}
-              submitLabel="Save sign-up"
+              submitLabel={`Save ${noun}`}
               bands={hasBands(event.event_type)}
               locations={locations}
               zones={zones}
@@ -182,20 +215,24 @@ export function StationPanel({
               draft={!station.details_saved_at}
               remaining={[
                 ...(station.details_saved_at ? [] : ["finish the details"]),
-                ...(itemsStation ? (items.length ? [] : ["add items to bring"]) : stationShifts.length ? [] : ["add time slots"]),
+                ...(itemsStation
+                  ? items.length ? [] : [job ? "add things to bring" : "add items to bring"]
+                  : stationShifts.length ? [] : [job ? "add shifts" : "add time slots"]),
               ]}
             />
+            )}
           </div>
           {itemsStation ? (
-            <section id="items" aria-labelledby="items-heading" className="scroll-mt-6 border-t border-border pt-6">
+            <section id="items" aria-labelledby="items-heading" className={`scroll-mt-6 border-t border-border ${job ? "pt-4" : "pt-6"}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h4 id="items-heading" className="text-base font-semibold">
-                  Items to bring
+                  {job ? "Things to bring" : "Items to bring"}
                 </h4>
                 <p className="text-sm text-muted">Sign-ups stop when an item is covered</p>
               </div>
               <div className="mt-3">
                 <ItemsEditor
+                  autosave={Boolean(job)}
                   create={createItem.bind(null, eventId, station.id)}
                   items={items.map((it) => ({
                     ...it,
@@ -206,11 +243,11 @@ export function StationPanel({
               </div>
             </section>
           ) : (
-            <section id="build-shifts" aria-labelledby="shifts-heading" className="scroll-mt-6 border-t border-border pt-6">
+            <section id="build-shifts" aria-labelledby="shifts-heading" className={`scroll-mt-6 border-t border-border ${job ? "pt-4" : "pt-6"}`}>
               <h4 id="shifts-heading" className="text-base font-semibold">
-                Time slots
+                {job ? "Shifts" : "Time slots"}
               </h4>
-              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage />
+              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage job={Boolean(job)} />
               {stationShifts.length > 0 ? (
                 // Once it has time slots, redoing or adding them is tucked away so it doesn't pull focus.
                 <details className="group mt-3">
@@ -218,7 +255,7 @@ export function StationPanel({
                     <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
                       ›
                     </span>
-                    Redo or add shifts
+                    {job ? "Add more shifts" : "Redo or add shifts"}
                   </summary>
                   <div className="mt-2">
                     {buildShifts}
@@ -231,22 +268,63 @@ export function StationPanel({
               )}
             </section>
           )}
+          {/* A job's "More options" (Coordinators, instructions, adults only) is drawn here, after its shifts or things to bring. */}
+          {job && <div id="job-more" />}
         </div>
       )}
-      {itemsStation ? (
-        <ItemsBoard items={items} signups={itemSignups} eventId={eventId} canManage={canManage} />
-      ) : (
-        !canManage && (
-          <>
-            <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
-            <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage={false} />
-          </>
-        )
-      )}
+      {/* A volunteer event's job lists its sign-ups below the page's daily summary instead (JobSignups). */}
+      {!job &&
+        (itemsStation ? (
+          <ItemsBoard items={items} signups={itemSignups} eventId={eventId} canManage={canManage} />
+        ) : (
+          !canManage && (
+            <>
+              <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
+              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage={false} />
+            </>
+          )
+        ))}
+      {!job && roster && !itemsStation && <RosterList roster={roster} shifts={stationShifts} tz={tz} event={event} canManage={canManage} />}
 
-      {roster && !itemsStation && (
+      {/* A job's Delete is in its pinned bar. */}
+      {canManage && !job && (
+        <div className="mt-8 border-t border-border pt-4">
+          <DeleteButton
+            action={deleteStation.bind(null, eventId, station.id)}
+            label={`Delete ${noun} ${station.name}`}
+            text={`Delete ${noun}`}
+            quiet
+            confirmMessage={`Delete “${station.name}”? Its ${job ? "shifts" : "time slots"} and items are deleted too, and this can't be undone. (A ${noun} with people signed up can't be deleted.)`}
+          />
+        </div>
+      )}
+      {canManage && (
+        // The sign-up's footer (its save bar) renders here: pinned to the bottom of the screen until the card ends.
+        <div id="signup-bar" className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 mt-6 sm:-mx-6 sm:-mb-6" />
+      )}
+    </Card>
+  );
+}
+
+/** Who's signed up for a sign-up's shifts, with their shift, who booked them, and (on event day) their phone. */
+function RosterList({
+  roster,
+  shifts,
+  tz,
+  event,
+  canManage,
+  heading = true,
+}: {
+  roster: RosterEntry[];
+  shifts: Shift[];
+  tz: string;
+  event: { starts_on: string; ends_on: string };
+  canManage: boolean;
+  heading?: boolean;
+}) {
+  return (
         <div className="mt-6">
-          <h4 className="text-sm font-semibold">{canManage ? "Who's signed up" : "Your volunteers"}</h4>
+          {heading && <h4 className="text-sm font-semibold">{canManage ? "Who's signed up" : "Your volunteers"}</h4>}
           {roster.length === 0 ? (
             <p className="mt-1 text-sm text-muted">No one has signed up yet.</p>
           ) : (
@@ -258,7 +336,7 @@ export function StationPanel({
               )}
               <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
                 {roster.map((v) => {
-                  const shift = stationShifts.find((s) => s.id === v.shift_id);
+                  const shift = shifts.find((s) => s.id === v.shift_id);
                   return (
                     <li key={v.assignment_id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <div className="min-w-0">
@@ -275,7 +353,7 @@ export function StationPanel({
                         )}
                       </div>
                       <span className="shrink-0 text-sm">
-                        {v.checked_in_at ? "✓ Arrived" : <span className="text-muted">Not yet</span>}
+                        {v.checked_in_at ? "✓ Arrived" : <span className="text-muted">Not checked in</span>}
                       </span>
                     </li>
                   );
@@ -284,24 +362,43 @@ export function StationPanel({
             </>
           )}
         </div>
-      )}
+  );
+}
 
-      {canManage && (
-        <div className="mt-8 border-t border-border pt-4">
-          <DeleteButton
-            action={deleteStation.bind(null, eventId, station.id)}
-            label={`Delete sign-up ${station.name}`}
-            text="Delete sign-up"
-            quiet
-            confirmMessage={`Delete “${station.name}”? Its time slots and items are deleted too, and this can't be undone. (A sign-up with people signed up can't be deleted.)`}
-          />
-        </div>
+/**
+ * A volunteer event's job: who's signed up for its shifts, or who's bringing what. Shown on
+ * Volunteer jobs below the daily summary, so the job's own card is just for setting it up.
+ */
+export function JobSignups({
+  station,
+  shifts,
+  items,
+  itemSignups,
+  roster,
+  event,
+  eventId,
+}: {
+  station: Station;
+  shifts: Shift[];
+  items: StationItem[];
+  itemSignups?: ItemSignup[];
+  roster?: RosterEntry[];
+  event: { timezone: string; starts_on: string; ends_on: string };
+  eventId: string;
+}) {
+  return (
+    <section id="signed-up" aria-labelledby="signed-up-heading" className="mt-6 scroll-mt-6 rounded-lg border border-border bg-surface p-4 sm:p-6">
+      <h2 id="signed-up-heading" className="text-lg font-semibold">
+        {station.signup_kind === "items" ? "Who's bringing what" : "Who's signed up"}: {station.name}
+      </h2>
+      {station.signup_kind === "items" ? (
+        <ItemsBoard items={items} signups={itemSignups} eventId={eventId} canManage heading={false} />
+      ) : shifts.length === 0 ? (
+        <p className="mt-1 text-sm text-muted">Add a shift first. People who sign up for it show here.</p>
+      ) : (
+        roster && <RosterList roster={roster} shifts={shifts} tz={event.timezone} event={event} canManage heading={false} />
       )}
-      {canManage && (
-        // The sign-up's footer (its save bar) renders here: pinned to the bottom of the screen until the card ends.
-        <div id="signup-bar" className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 mt-6 sm:-mx-6 sm:-mb-6" />
-      )}
-    </Card>
+    </section>
   );
 }
 
@@ -313,20 +410,37 @@ function ShiftList({
   multiDay,
   days,
   canManage,
+  job = false,
 }: {
   shifts: Shift[];
+  job?: boolean;
   eventId: string;
   tz: string;
   multiDay: boolean;
   days: string[];
   canManage: boolean;
 }) {
-  if (shifts.length === 0) return <p className="mt-2 text-sm text-muted">No time slots yet.</p>;
+  if (shifts.length === 0) return <p className="mt-2 text-sm text-muted">{job ? "No shifts yet. Add at least one so volunteers can sign up." : "No time slots yet."}</p>;
   return (
     <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
       {shifts.map((s) => (
         <li key={s.id} className="px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
+            {job ? (
+              // A job's shift leads with its time; a name of its own (not just "Shift") follows.
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">
+                  {multiDay && `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · `}
+                  {formatTimeRange(s.starts_at, s.ends_at, tz)}
+                  {(s.adults_only || s.min_age) && (
+                    <span className="ml-2 rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-border">
+                      {s.adults_only ? "Adults only" : `Ages ${s.min_age}+`}
+                    </span>
+                  )}
+                </p>
+                {!/^shift\b/i.test(s.title.trim()) && <p className="truncate text-sm text-muted">{s.title}</p>}
+              </div>
+            ) : (
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">
                 {s.title}
@@ -341,26 +455,28 @@ function ShiftList({
                 {formatTimeRange(s.starts_at, s.ends_at, tz)}
               </p>
             </div>
+            )}
             <div className="flex shrink-0 items-center gap-1">
               <span className="mr-1 text-sm tabular-nums text-muted">
                 {s.registered_count} / {s.max_capacity} filled
               </span>
-              {canManage && (
+              {/* A job's shift with people on it can't be deleted, so it doesn't offer to. */}
+              {canManage && !(job && s.registered_count > 0) && (
                 <DeleteButton action={deleteShift.bind(null, eventId, s.id)} label={`Delete shift ${s.title}`} confirmMessage={`Delete “${s.title}”?`} />
               )}
             </div>
           </div>
           {canManage && (
             <details className="mt-1">
-              <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
-                Edit time slot
+              <summary className={`inline-flex min-h-11 cursor-pointer items-center text-sm font-medium ${job ? "text-brand underline underline-offset-4" : "text-muted hover:text-foreground"}`}>
+                {job ? "Edit shift" : "Edit time slot"}
               </summary>
               <div className="mt-3 pb-1">
                 <ShiftForm
                   action={updateShift.bind(null, eventId, s.id)}
                   days={days}
                   registered={s.registered_count}
-                  submitLabel="Save time slot"
+                  submitLabel={job ? "Save shift" : "Save time slot"}
                   initial={{
                     title: s.title,
                     day: utcToZonedDate(s.starts_at, tz),
@@ -387,15 +503,18 @@ function ItemsBoard({
   signups,
   eventId,
   canManage,
+  heading = true,
 }: {
   items: StationItem[];
   signups?: ItemSignup[];
   eventId: string;
   canManage: boolean;
+  /** Its own "Who's bringing what" heading (off when the section around it has one). */
+  heading?: boolean;
 }) {
   return (
     <>
-      <h4 className="mt-6 text-sm font-semibold">Who&apos;s bringing what</h4>
+      {heading && <h4 className="mt-6 text-sm font-semibold">Who&apos;s bringing what</h4>}
       {items.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No items yet.</p>
       ) : (

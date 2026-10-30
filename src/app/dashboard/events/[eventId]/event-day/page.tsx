@@ -14,6 +14,7 @@ import { pushRoomScheduleBack } from "../rooms/actions";
 import { RoomPushBackForm } from "../rooms/push-back-form";
 import { tapGroup } from "./actions";
 import { EventBannerSlot } from "@/components/event-banner-slot";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export const metadata: Metadata = { title: "Event day" };
 
@@ -71,10 +72,7 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
   const time = (iso: string) => formatTime(iso, tz);
   const room = rooms.find((r) => r.id === roomParam);
   const base = `/dashboard/events/${eventId}/event-day`;
-  const tabClass = (active: boolean) =>
-    `-mb-px flex flex-col border-b-2 px-4 py-2 text-sm ${
-      active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-    }`;
+  const tabClass = folderTab;
 
   // "Push the schedule back" (hosts): the saved order, each with its first time;
   // the default is the first group that hasn't started yet.
@@ -154,11 +152,11 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
           )}
 
           <nav aria-label="Rooms" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <ul className="flex min-w-max gap-1 border-b border-border">
+            <ul className={folderTabRow}>
               <li>
                 <Link href={base} scroll={false} aria-current={!room ? "page" : undefined} className={tabClass(!room)}>
                   <span className="whitespace-nowrap">All groups</span>
-                  <span className="text-xs font-normal text-muted">Who&apos;s here?</span>
+                  <span className={folderTabNote()}>Who&apos;s here?</span>
                 </Link>
               </li>
               {rooms.map((r) => (
@@ -167,7 +165,7 @@ export default async function EventDayPage({ params, searchParams }: PageProps<"
                     <span className="whitespace-nowrap">
                       {r.path_order}. {r.name}
                     </span>
-                    <span className="text-xs font-normal text-muted">{r.note || "Room"}</span>
+                    <span className={folderTabNote()}>{r.note || "Room"}</span>
                   </Link>
                 </li>
               ))}

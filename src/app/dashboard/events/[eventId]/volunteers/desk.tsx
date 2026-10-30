@@ -7,6 +7,7 @@ import { Button, Input } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { confirmDialog } from "@/components/confirm-dialog";
 import { VolunteerTags } from "@/components/volunteer-tags";
+import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
 
 export type DeskVolunteer = {
   assignmentId: string;
@@ -145,7 +146,7 @@ export function Desk({
       </div>
       {!open && (
         <p className="mt-4 rounded-md border border-border bg-surface px-3 py-2 text-sm">
-          Check-in and walk-ups turn on {opensOn}, so no one gets checked in early.
+          Check-in and walk-ups turn on the day before the event, {opensOn}, so no one gets checked in early.
         </p>
       )}
 
@@ -163,9 +164,9 @@ export function Desk({
         </section>
       ) : (
         <>
-          <div role="tablist" aria-label="Sign-ups" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <div className="flex min-w-max gap-1 border-b border-border">
-              <TabButton active={tab === "overview"} onClick={() => setTab("overview")} label="Overview" sub="Who's not here yet?" />
+          <div role="group" aria-label="Jobs" className="relative -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <div className={folderTabRow}>
+              <TabButton active={tab === "overview"} onClick={() => setTab("overview")} label="Overview" sub="Who's not here yet" />
               {optimistic.map((s) => {
                 const people = s.shifts.flatMap((sh) => sh.volunteers);
                 return (
@@ -174,7 +175,7 @@ export function Desk({
                     active={tab === s.id}
                     onClick={() => setTab(s.id)}
                     label={s.name}
-                    sub={`${people.filter((v) => v.checkedIn).length}/${people.length} here`}
+                    sub={people.length ? `${people.filter((v) => v.checkedIn).length} of ${people.length} here` : "No one signed up yet"}
                   />
                 );
               })}
@@ -201,15 +202,12 @@ function TabButton({ active, onClick, label, sub }: { active: boolean; onClick: 
   return (
     <button
       type="button"
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       onClick={onClick}
-      className={`-mb-px flex flex-col items-start border-b-2 px-4 py-2 text-left text-sm ${
-        active ? "border-brand font-semibold text-foreground" : "border-transparent text-muted hover:text-foreground"
-      }`}
+      className={folderTab(active)}
     >
       <span className="whitespace-nowrap">{label}</span>
-      <span className="text-xs font-normal tabular-nums text-muted">{sub}</span>
+      <span className={folderTabNote()}>{sub}</span>
     </button>
   );
 }
