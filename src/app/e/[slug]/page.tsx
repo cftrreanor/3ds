@@ -20,6 +20,7 @@ import { ScheduleUpdateBanner } from "@/components/schedule-update-banner";
 import { EventBannerSlot } from "@/components/event-banner-slot";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { FairBooths } from "./fair-booths";
+import { LineIcon } from "@/components/line-icon";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -333,7 +334,7 @@ export default async function EventPublicPage({ params }: Params) {
             )}
             {finals.length > 0 && (
               <>
-                <h3 className="mt-8 text-lg font-semibold">🏆 Finals</h3>
+                <h3 className="mt-8 text-lg font-semibold"><LineIcon name="trophy" inline />Finals</h3>
                 <ScheduleList lines={finals} breaks={breaks} currentKey={isEventDay ? (live ? next?.key : current?.key) : undefined} currentLabel={live ? "Up next" : "Now"} at={at} />
               </>
             )}
@@ -371,7 +372,7 @@ function ScheduleList({
           <Fragment key={r.key}>
             {between.map((b) => (
               <li key={b.starts_at} className="flex items-center gap-3 bg-background px-4 py-2 text-sm text-muted">
-                <span className="w-8 shrink-0 text-center">☕</span>
+                <span aria-hidden className="flex w-8 shrink-0 justify-center"><LineIcon name="coffee" className="size-5" /></span>
                 <span className="flex-1 font-medium">{b.label}</span>
                 <span className="shrink-0 tabular-nums">
                   {at(b.starts_at)} · {b.minutes} min

@@ -5,6 +5,7 @@ import { Button, Field, Select } from "@/components/ui";
 import { displayTime, toMinutes, toTime } from "@/lib/schedule";
 import { formatDate } from "@/lib/time";
 import { BreakDividers, TimesEditor, type BreakDraft, type OrderBand, type Times } from "./schedule-parts";
+import { LineIcon } from "@/components/line-icon";
 
 /** One row of a round in the view: a band in the preliminaries, or a finals slot. */
 export type Row = { key: string; number: string; title: string; subtitle: string; conflicts: string | null; times: Times };
@@ -119,7 +120,7 @@ function RowDetails({
         <Detail label="Ready position">{ready ? displayTime(ready) : "—"}</Detail>
         <Detail label="Performs">{t.perform ? displayTime(t.perform) : "TBA"}</Detail>
       </dl>
-      {r.conflicts && <p className="mt-3 text-sm">⚠️ {r.conflicts}</p>}
+      {r.conflicts && <p className="mt-3 text-sm"><LineIcon name="warning" inline />{r.conflicts}</p>}
       <Button type="button" variant="secondary" className="mt-4" disabled={!canEdit} onClick={onEdit}>
         Edit
       </Button>
@@ -182,7 +183,7 @@ export function RowEditor({
       {later > 0 && (
         <div className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-3 text-sm">
           <p className="font-medium">
-            ⚠️ Changing this time doesn&apos;t move the {later} {later === 1 ? "band" : "bands"} after it.
+            <LineIcon name="warning" inline />Changing this time doesn&apos;t move the {later} {later === 1 ? "band" : "bands"} after it.
           </p>
           {delta !== 0 && (
             <label className="mt-2 flex items-start gap-2">

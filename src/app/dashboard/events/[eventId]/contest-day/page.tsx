@@ -46,6 +46,7 @@ import { loadLeadStations } from "../lead-station-data";
 import { LeadStations } from "../lead-stations";
 import { EventBannerSlot } from "@/components/event-banner-slot";
 import { folderTab, folderTabNote, folderTabRow } from "@/components/folder-tabs";
+import { LineIcon } from "@/components/line-icon";
 
 export const metadata: Metadata = { title: "Contest day" };
 
@@ -830,7 +831,7 @@ function BandNotes({
       {notes.map((n) => (
         <li key={n.id} className="flex items-start gap-2">
           <span className="min-w-0 flex-1">
-            📝 {n.body}{" "}
+            <LineIcon name="note" inline />{n.body}{" "}
             <span className="text-muted">
               · {n.created_by === userId ? "You" : (n.author_name ?? "Team")}, {time(n.created_at)}
             </span>

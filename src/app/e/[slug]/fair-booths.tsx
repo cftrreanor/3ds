@@ -1,16 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
+import { LineIcon } from "@/components/line-icon";
+import type { IconName } from "@/lib/icons";
 
 type PublicBooth = { id: string; title: string; host_name: string | null; zone: string | null; location: string | null; description: string | null };
 
-const ZONE_ICON: Record<string, string> = {
-  "game zone": "🎯",
-  "activity stations": "🎨",
-  marketplace: "🛍️",
-  showcase: "🎭",
-  "food & drinks": "🍿",
+const ZONE_ICON: Record<string, IconName> = {
+  "game zone": "target",
+  "activity stations": "palette",
+  marketplace: "bag",
+  showcase: "masks",
+  "food & drinks": "popcorn",
 };
 
-const zoneIcon = (zone: string) => ZONE_ICON[zone.toLowerCase()] ?? "✨";
+const zoneIcon = (zone: string) => <LineIcon name={ZONE_ICON[zone.toLowerCase()] ?? "sparkle"} className="size-[1.1em]" />;
 
 /** A fair's public "What's at the event": booths by zone, with a thank-you to who hosts each one. */
 export async function FairBooths({ slug }: { slug: string }) {
@@ -32,7 +34,7 @@ export async function FairBooths({ slug }: { slug: string }) {
               href={`#zone-${i}`}
               className="inline-flex min-h-11 items-center rounded-full border border-border bg-surface px-3 text-sm font-medium hover:border-brand hover:text-brand"
             >
-              <span aria-hidden className="mr-1.5">
+              <span aria-hidden className="mr-1.5 text-brand">
                 {zoneIcon(zone)}
               </span>
               {zone || "And more"}
@@ -46,7 +48,7 @@ export async function FairBooths({ slug }: { slug: string }) {
           return (
             <section key={zone || "more"} id={`zone-${i}`} aria-labelledby={`zone-${i}-heading`} className="scroll-mt-6">
               <h3 id={`zone-${i}-heading`} className="flex items-baseline gap-2 border-b-2 border-foreground pb-2 text-xl font-semibold">
-                <span aria-hidden>{zoneIcon(zone)}</span>
+                <span aria-hidden className="self-center text-brand">{zoneIcon(zone)}</span>
                 {zone || "And more"}
                 <span className="ml-auto text-sm font-normal text-muted">
                   {inZone.length} {inZone.length === 1 ? "attraction" : "attractions"}

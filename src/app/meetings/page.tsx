@@ -11,6 +11,7 @@ import { requestPilot } from "@/app/pilot-actions";
 import { MEETINGS_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 import { PILOT_END_LABEL } from "@/lib/pilot";
+import { LineIcon } from "@/components/line-icon";
 
 // Copy follows docs/brand-voice.md.
 
@@ -144,7 +145,7 @@ export default function MeetingsPage() {
         <section className="hero-sky text-white">
           <div className="mx-auto max-w-6xl px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-20">
             <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white ring-1 ring-white/20">
-              <span aria-hidden>{MEETINGS_PAGE.icon}</span>
+              <LineIcon name={MEETINGS_PAGE.icon} className="size-4" />
               Meetings
             </p>
             <h1 className="mt-6 max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">Office hours and appointments that book themselves</h1>

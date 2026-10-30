@@ -1,3 +1,4 @@
+import { LineIcon } from "@/components/line-icon";
 /** What families are told about their child's privacy (booking page and their own page). */
 export function PrivacyNote({
   teacher,
@@ -16,7 +17,7 @@ export function PrivacyNote({
   return (
     <section aria-labelledby="privacy-heading" className="rounded-xl border border-border bg-brand-soft p-4 text-sm leading-6 sm:p-5">
       <h2 id="privacy-heading" className="text-base font-semibold">
-        <span aria-hidden>🔒</span> {askChild ? <>Your child&apos;s privacy</> : "Your privacy"}
+        <LineIcon name="lock" inline />{askChild ? <>Your child&apos;s privacy</> : "Your privacy"}
       </h2>
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {/* Only when families give their child's name. */}

@@ -12,6 +12,7 @@ import { sortStations, whereIs, type BandDay, type Checkpoint, type Round, type 
 import { formatDate, formatTime, utcToZonedDate, zoneName } from "@/lib/time";
 import { HostSchedule } from "./host-schedule";
 import { SavedBy } from "@/components/saved-by";
+import { LineIcon } from "@/components/line-icon";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/schedule">): Promise<Metadata> {
   const { eventId } = await params;
@@ -158,7 +159,7 @@ export default async function SchedulePage({ params }: PageProps<"/dashboard/eve
 
       {finals.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-xl font-semibold">🏆 Finals</h2>
+          <h2 className="text-xl font-semibold"><LineIcon name="trophy" inline />Finals</h2>
           {!event.finalists_revealed && <p className="mt-1 text-sm text-muted">Finalists are announced by the host.</p>}
           <ScheduleRows slots={finals} byId={byId} breaks={breaks} at={at} round="finals" track={track} />
         </section>
@@ -206,7 +207,7 @@ function ScheduleRows({
           <Fragment key={s.number}>
             {between.map((b) => (
               <li key={b.starts_at} className="flex items-center gap-3 bg-background px-4 py-2 text-sm text-muted">
-                <span className="w-8 shrink-0 text-center">☕</span>
+                <span aria-hidden className="flex w-8 shrink-0 justify-center"><LineIcon name="coffee" className="size-5" /></span>
                 <span className="flex-1 font-medium">{b.label}</span>
                 <span className="shrink-0 tabular-nums">
                   {at(b.starts_at)} · {b.minutes} min

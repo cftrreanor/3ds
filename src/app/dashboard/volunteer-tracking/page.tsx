@@ -9,6 +9,7 @@ import { brand } from "@/lib/brand";
 import { loadAccountPlan } from "@/lib/plan";
 import { removeFromVolunteerHistory } from "./actions";
 import { HistoryTable, type HistoryRow } from "./history-table";
+import { LineIcon } from "@/components/line-icon";
 
 export const metadata: Metadata = { title: "Volunteer tracking" };
 
@@ -113,7 +114,7 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
         </div>
       )}
       <p className="mt-8 max-w-3xl text-sm text-muted">
-        🔒 Only your Hosts, Co-hosts, and Volunteer Leads see this. Names, emails, and shift counts are kept for 2 years after
+        <LineIcon name="lock" inline />Only your Hosts, Co-hosts, and Volunteer Leads see this. Names, emails, and shift counts are kept for 2 years after
         someone&apos;s last event; phone numbers are deleted 10 days after each event, and under-18 helpers aren&apos;t included.
         {account.isHost ? " If someone asks to be forgotten, use Remove next to their name." : ""}
       </p>

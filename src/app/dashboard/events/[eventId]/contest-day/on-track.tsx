@@ -8,7 +8,7 @@ const span = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 
 
 const DOT = { green: "bg-success", gold: "bg-warning", red: "bg-danger", neutral: "bg-border" } as const;
 
-/** One line: 🔴 2 behind · 🟡 1 due soon, or On track / Parking hasn't started / Contest day is Sat, Oct 24. */
+/** One line: 2 behind · 1 due soon, or On track / Parking hasn't started / Contest day is Sat, Oct 24. */
 export function StatusLine({
   status,
   hasPath,

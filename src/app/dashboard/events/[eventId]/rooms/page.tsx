@@ -218,7 +218,7 @@ export default async function RoomsPage({ params, searchParams }: PageProps<"/da
                 </h2>
                 <p className="mt-1 mb-4 text-sm text-muted">
                   Every group follows the path in order. Groups start one gap apart, so a room is never double-booked.
-                  Directors&apos; scheduling conflicts are marked ⚠️. Post it from the outlined bar: each director is emailed
+                  Directors&apos; scheduling conflicts are marked with a warning sign. Post it from the outlined bar: each director is emailed
                   their group&apos;s times.
                 </p>
                 <ScheduleEditor

@@ -10,6 +10,7 @@ import Link from "next/link";
 import { US_TIMEZONES } from "@/lib/time";
 import { hasConferences, isMeeting } from "@/lib/event-types";
 import { SetupFooter } from "./setup-steps";
+import { LineIcon } from "@/components/line-icon";
 
 export type EventFormValues = {
   name?: string;
@@ -144,7 +145,7 @@ export function EventForm({
 
       {eventType === "school_visit" && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
-          🔒 <strong>Student privacy:</strong> parents enter their children&apos;s names, teachers, and grades. Only your
+          <LineIcon name="lock" inline /><strong>Student privacy:</strong> parents enter their children&apos;s names, teachers, and grades. Only your
           event team can see them, and they&apos;re permanently deleted 30 days after the event ends. Parents are told
           this when they register.
         </p>
@@ -174,14 +175,14 @@ export function EventForm({
 
       {meeting && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
-          🔒 <strong>Privacy:</strong> people see only the open times, never who else booked. Names, contact details, and
+          <LineIcon name="lock" inline /><strong>Privacy:</strong> people see only the open times, never who else booked. Names, contact details, and
           notes are seen only by you and are permanently deleted 30 days after each meeting.
         </p>
       )}
 
       {conference && !meeting && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm leading-6">
-          🔒 <strong>Family privacy:</strong> families see only the open times, never who else booked. Children&apos;s
+          <LineIcon name="lock" inline /><strong>Family privacy:</strong> families see only the open times, never who else booked. Children&apos;s
           names and parents&apos; notes are seen only by you and are permanently deleted 30 days after the conference.
         </p>
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { LineIcon } from "@/components/line-icon";
 
 export type EventBannerItem = { id: string; body: string; priority: "emergency" | "schedule" | "routine"; time: string; eventName?: string };
 
@@ -29,7 +30,7 @@ const parse = (raw: string): Record<string, number> => {
 };
 
 const LOOK = {
-  emergency: { box: "border-danger bg-danger/10", label: "⚠️ Emergency", text: "text-danger" },
+  emergency: { box: "border-danger bg-danger/10", label: "Emergency", text: "text-danger" },
   schedule: { box: "border-warning/40 bg-warning-soft", label: "Schedule change", text: "text-foreground" },
   routine: { box: "border-brand/25 bg-brand-soft", label: "Announcement", text: "text-muted" },
 } as const;
@@ -42,6 +43,8 @@ function BannerCard({ b, fading }: { b: EventBannerItem; fading?: boolean }) {
       className={`rounded-md border-2 px-4 py-3 transition-opacity duration-700 ${look.box} ${fading ? "opacity-0" : "opacity-100"}`}
     >
       <p className={`text-xs font-bold tracking-wide uppercase ${look.text}`}>
+        {b.priority === "emergency" && <LineIcon name="warning" inline />}
+        {b.priority === "emergency" && <LineIcon name="warning" inline />}
         {look.label} · {b.time}
         {b.eventName ? ` · ${b.eventName}` : ""}
       </p>

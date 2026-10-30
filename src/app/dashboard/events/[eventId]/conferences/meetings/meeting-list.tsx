@@ -8,6 +8,7 @@ import type { ActionState } from "@/lib/action-state";
 import { RECORDS_NOTE } from "@/lib/records";
 import { CancelMeetingButton, RescheduleButton, type DayRange, type OpenSlot } from "./meeting-dialogs";
 import { copyDialog } from "@/components/confirm-dialog";
+import { LineIcon } from "@/components/line-icon";
 
 export type Outcome = "met" | "no_show" | null;
 
@@ -203,7 +204,7 @@ export function MeetingList({
                 href={`tel:${r.booking.call.tel}`}
                 className="inline-flex min-h-11 items-center gap-2 rounded-md border border-brand px-3 text-sm font-semibold text-brand hover:bg-brand-soft print:min-h-0 print:border-0 print:px-0"
               >
-                <span aria-hidden>📞</span> Call {r.booking.call.display}
+                <LineIcon name="phone" inline />Call {r.booking.call.display}
               </a>
             )}
             <ul className="text-sm">

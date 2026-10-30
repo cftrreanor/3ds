@@ -12,6 +12,7 @@ import { formatDateRange, formatTimeRange } from "@/lib/time";
 import { getOrigin } from "@/lib/data";
 import { cancelParents, updateParents } from "../../actions";
 import { ParentsForm } from "../../parents-form";
+import { LineIcon } from "@/components/line-icon";
 
 export const metadata: Metadata = { title: "Your registration" };
 
@@ -108,7 +109,7 @@ export default async function ParentRegistrationLinkPage({ params }: PageProps<"
               )}
             </Card>
 
-            <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium">🪪 {ID_REMINDER}</p>
+            <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 font-medium"><LineIcon name="id" inline />{ID_REMINDER}</p>
 
             <Card>
               {event && !parentRegistrationClosed(event) ? (

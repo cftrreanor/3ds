@@ -14,6 +14,7 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { eachDate, formatDate, formatDateRange } from "@/lib/time";
 import { BadgeColorScope, PrintBadgesButton } from "./badge-controls";
 import { MapBack } from "./map-back";
+import { LineIcon } from "@/components/line-icon";
 
 export const metadata: Metadata = { title: "Volunteer badges" };
 
@@ -39,7 +40,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, slug, status, organization_id, timezone, starts_on, ends_on")
+    .select("id, name, slug, status, organization_id, timezone, starts_on, ends_on, event_type")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -68,6 +69,8 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
   const back = maps.find((m) => m.id === backId);
   const backUrl = back ? (await admin.storage.from(FILES_BUCKET).createSignedUrl(back.path, 60 * 30)).data?.signedUrl : undefined;
 
+  // Nobody signed up at all (not just none matching the choices): said up front, since there's nothing to print yet.
+  const nobody = badges.length === 0 && (station || day ? (await loadBadges(eventId, event.timezone, days.length > 1, {})).length === 0 : true);
   const cards: (Badge | null)[] = [...badges, ...Array.from({ length: blanks }, () => null)];
   const perSheet = paper === "letter" ? 2 : 1;
   const sheets: (Badge | null)[][] = [];
@@ -90,13 +93,22 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
 
       <div className="print:hidden">
         <Link href={`/dashboard/events/${eventId}/volunteering`} className="text-sm text-muted hover:text-foreground">
-          ← Back to Volunteer Setup
+          ← Back to {event.event_type === "volunteer" ? "Volunteer jobs" : "Volunteer Setup"}
         </Link>
         <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Volunteer badges</h1>
         <p className="mt-2 max-w-2xl text-muted">
-          4 × 6 inch badges for lanyard holders, with each volunteer&apos;s schedule. Under-18 volunteers show a first name and last
-          initial only.
+          Create and print out badges for lanyard holders, with each volunteer&apos;s schedule. Under-18 volunteers show a first name and
+          last initial only.
         </p>
+        {nobody && (
+          <p role="note" className="mt-4 flex max-w-2xl gap-2 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm leading-6">
+            <LineIcon name="warning" className="mt-0.5 size-5 text-warning" />
+            <span>
+              <strong>No one has signed up yet, so there are no badges to print.</strong> Badges fill in as people sign up. To print some
+              now, add blank badges for walk-ups below.
+            </span>
+          </p>
+        )}
 
         <Card className="mt-6 space-y-6">
           <form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" method="get">
@@ -152,7 +164,7 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
             </label>
             <div className="flex items-end sm:col-span-2">
               <button type="submit" className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand">
-                Update badges
+                Update preview
               </button>
             </div>
           </form>
@@ -181,12 +193,15 @@ export default async function BadgesPage({ params, searchParams }: PageProps<"/d
                 {event.status !== "published" && " The QR code opens your public event page once the event is published."}
               </p>
             </div>
-            <PrintBadgesButton disabled={cards.length === 0} />
+            <div className="flex flex-col items-start gap-1 sm:items-end">
+              <PrintBadgesButton disabled={cards.length === 0} />
+              {cards.length === 0 && <p className="text-sm text-muted">{nobody ? "Nothing to print until someone signs up" : "No badges match these choices"}</p>}
+            </div>
           </div>
           <p className="text-xs leading-5 text-muted">{RECORDS_NOTE}</p>
         </Card>
 
-        {cards.length === 0 && (
+        {cards.length === 0 && !nobody && (
           <p className="mt-6 text-muted">No volunteers match. Choose another sign-up or day, or add blank badges for walk-ups.</p>
         )}
       </div>

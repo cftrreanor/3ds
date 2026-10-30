@@ -1,5 +1,6 @@
 import { EVENT_TYPES } from "@/lib/event-types";
 import { normalizePhone } from "@/lib/phone";
+import type { IconName } from "./icons";
 
 /** The pilot ends January 1, 2027 for everyone: the last free day of a pilot account. */
 export const PILOT_END = "2027-01-01";
@@ -9,12 +10,12 @@ export const PILOT_END_LABEL = "January 1, 2027";
 const HOME_ORDER = ["band_contest", "group_event", "fair", "volunteer", "school_visit", "conference", "meeting"];
 
 /** The event types a pilot request can ask about (every kind, plus "something else"). */
-export const PILOT_EVENT_TYPES = [
+export const PILOT_EVENT_TYPES: { value: string; label: string; icon: IconName }[] = [
   // Teachers ask for parent-teacher conferences here too: every account is set up by us.
-  ...EVENT_TYPES.map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as string })).sort(
+  ...EVENT_TYPES.map((t) => ({ value: t.value as string, label: t.label, icon: t.icon as IconName })).sort(
     (a, b) => HOME_ORDER.indexOf(a.value) - HOME_ORDER.indexOf(b.value),
   ),
-  { value: "other", label: "Something else", icon: "✨" },
+  { value: "other", label: "Something else", icon: "sparkle" },
 ];
 
 export const pilotEventTypeLabels = (values: readonly string[] | null | undefined) =>

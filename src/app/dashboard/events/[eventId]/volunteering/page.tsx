@@ -25,6 +25,7 @@ import { TapButton } from "../contest-day/controls";
 import { JobSignups, StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
 import { volunteerTotals } from "@/lib/volunteer-totals";
+import { LineIcon } from "@/components/line-icon";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/volunteering">): Promise<Metadata> {
   const { eventId } = await params;
@@ -280,7 +281,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       {/* Volunteer events keep this note at the end, so the jobs come first. */}
       {!jobsHere && (
       <p className="mt-1 text-sm text-muted">
-        🔒 Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
+        <LineIcon name="lock" inline />Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
         how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
       </p>
       )}
@@ -597,7 +598,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       )}
       {jobsHere && (
         <p className="mt-6 text-sm text-muted">
-          🔒 Volunteers&apos; phone numbers, and everything about helpers under 18, are deleted 10 days after the event. Adults&apos;
+          <LineIcon name="lock" inline />Volunteers&apos; phone numbers, and everything about helpers under 18, are deleted 10 days after the event. Adults&apos;
           names, emails, and how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
         </p>
       )}

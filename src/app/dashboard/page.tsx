@@ -26,6 +26,8 @@ import { PlanAsk } from "@/components/plan-ask";
 import { setupChecklist, type SetupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { loadSetupFacts } from "@/lib/setup-facts";
 import { SuccessToast } from "@/components/toaster";
+import { IconTile, LineIcon } from "@/components/line-icon";
+import type { IconName } from "@/lib/icons";
 
 export const metadata: Metadata = { title: "My events" };
 
@@ -319,7 +321,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       </div>
       {org && (
         <Section
-          icon={teacher ? "🍎" : "🏟️"}
+          icon={teacher ? "apple" : "stadium"}
           title={teacher ? "Your conferences" : "Hosting"}
           description={
             teacher
@@ -380,7 +382,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       {live.size > 0 && <AutoRefresh seconds={30} />}
       {myBands.length > 0 && (
         <Section
-          icon="🎺"
+          icon="band"
           title="Competing"
           description="Your bands' registrations at contests."
           items={bandsByEvent.map((bands) => ({
@@ -393,7 +395,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       {helping.length > 0 && (
         <Section
-          icon="🙋"
+          icon="volunteer"
           title="Helping run"
           description="Events where you're on the host's team."
           items={helping.map((r) => ({
@@ -420,7 +422,7 @@ function Section({
   empty,
   nothingUpcoming,
 }: {
-  icon: string;
+  icon: IconName;
   title: string;
   description: string;
   action?: ReactNode;
@@ -445,7 +447,10 @@ function Section({
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">
-            <span aria-hidden="true">{icon}</span> {title}
+            <span className="flex items-center gap-2">
+              <IconTile name={icon} size="sm" />
+              {title}
+            </span>
           </h2>
           <p className="mt-1 text-sm text-muted">{description}</p>
         </div>
@@ -644,7 +649,7 @@ function bandStatus(b: DirectorBand): { text: string; tone: "brand" | "accent" |
     `${e.starts_on !== e.ends_on ? `${formatDate(utcToZonedDate(iso, e.timezone), { year: undefined })}, ` : ""}${formatTime(iso, e.timezone)} ${zoneAbbreviation(iso, e.timezone)}`;
   if (isPast(e)) return { text: "Completed", tone: "neutral" };
   const finals = e.finalists_revealed ? b.finals_slots[0] : undefined;
-  if (finals) return { text: finals.perform_at ? `🏆 Finalist · performs ${at(finals.perform_at)}` : "🏆 Finalist", tone: "accent" };
+  if (finals) return { text: finals.perform_at ? `Finalist · performs ${at(finals.perform_at)}` : "Finalist", tone: "accent" };
   const slot = Array.isArray(b.performance_slots) ? b.performance_slots[0] : b.performance_slots;
   const perform = e.performance_order_published ? slot?.perform_at : null;
   if (perform) return { text: `Performs ${at(perform)}`, tone: "brand" };
@@ -709,7 +714,7 @@ function BandCard({ bands, live }: { bands: DirectorBand[]; live: Map<string, Da
               </span>
               <span className="mt-2 block">
                 {now ? (
-                  <DayStatusPill status={now} doneText={hasRooms(e.event_type) ? "Finished every room 🎉" : "Performed 🎉"} />
+                  <DayStatusPill status={now} doneText={hasRooms(e.event_type) ? "Finished every room" : "Performed"} />
                 ) : (
                   <Badge tone={status.tone}>{status.text}</Badge>
                 )}
@@ -756,7 +761,7 @@ function HostYourOwn({ invited }: { invited: boolean }) {
   return (
     <section aria-labelledby="host-your-own" className="rounded-lg border border-brand/25 bg-brand-soft p-5 sm:p-6">
       <h2 id="host-your-own" className="text-lg font-semibold">
-        <span aria-hidden="true">🏟️</span> Host your own event
+        <LineIcon name="stadium" inline /> Host your own event
       </h2>
       <p className="mt-1 leading-7 text-muted">
         Set up and run your contest, festival, or school event in one place.

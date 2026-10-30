@@ -5,6 +5,7 @@ import { NumberInput } from "@/components/number-input";
 import { Field, Input, Select } from "@/components/ui";
 import { displayTime, formatDuration, toMinutes, toTime, type Span } from "@/lib/schedule";
 import { formatDate } from "@/lib/time";
+import { LineIcon } from "@/components/line-icon";
 
 // Pieces shared by the schedule builder (editing) and the schedule view
 // (published, read-only with per-band edits).
@@ -120,10 +121,10 @@ export function Timeline({ times: t, readyMinutes, breaks }: { times: Times; rea
           </span>
         ))}
       </p>
-      {overlap && <p className="mt-1 text-danger">⚠️ Warm-up runs past the ready position.</p>}
+      {overlap && <p className="mt-1 text-danger"><LineIcon name="warning" inline />Warm-up runs past the ready position.</p>}
       {during && (
         <p className="mt-1 text-danger">
-          ⚠️ Performs during {during.label} ({displayTime(toTime(during.start))} – {displayTime(toTime(during.end))}).
+          <LineIcon name="warning" inline />Performs during {during.label} ({displayTime(toTime(during.start))} – {displayTime(toTime(during.end))}).
         </p>
       )}
     </div>
@@ -163,7 +164,7 @@ export function BreakDividers({
           <>
             <span className="h-px flex-1 bg-border" />
             <span className="whitespace-nowrap font-medium">
-              ☕ {b.label} · {displayTime(toTime(b.start))} – {displayTime(toTime(b.end))}
+              <LineIcon name="coffee" inline />{b.label} · {displayTime(toTime(b.start))} – {displayTime(toTime(b.end))}
             </span>
             <span className="h-px flex-1 bg-border" />
           </>

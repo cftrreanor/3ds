@@ -1,5 +1,6 @@
 import type { HowStep } from "@/components/how-it-works";
 import { brand } from "@/lib/brand";
+import type { IconName } from "./icons";
 
 /**
  * The pages for each kind of school event (/band-contests, /choir-festivals…),
@@ -11,7 +12,7 @@ export type Audience = {
   path: `/${string}`;
   /** The event type (src/lib/event-types.ts) ticked on this page's pilot form. */
   eventType: string;
-  icon: string;
+  icon: IconName;
   /** Short name, for links between the pages. */
   name: string;
   /** The browser tab and search result title (the brand is added after it). */
@@ -34,7 +35,7 @@ export const audiences = {
   bands: {
     path: "/band-contests",
     eventType: "band_contest",
-    icon: "🎺",
+    icon: "band",
     name: "Band contests",
     metaTitle: "Band Contest Registration, Scheduling & Check-in Software",
     metaDescription:
@@ -173,7 +174,7 @@ export const audiences = {
   groups: {
     path: "/choir-festivals",
     eventType: "group_event",
-    icon: "👥",
+    icon: "group",
     name: "Choir & group festivals",
     metaTitle: "Choir, Orchestra & Group Festival Scheduling Software",
     metaDescription:
@@ -312,7 +313,7 @@ export const audiences = {
   fairs: {
     path: "/school-fairs",
     eventType: "fair",
-    icon: "🎪",
+    icon: "fair",
     name: "School fairs & fundraisers",
     metaTitle: "School Fair, Carnival & Fundraiser Planning Software for PTOs",
     metaDescription:
@@ -441,7 +442,7 @@ export const audiences = {
   volunteers: {
     path: "/volunteer-events",
     eventType: "volunteer",
-    icon: "🙋",
+    icon: "volunteer",
     name: "Volunteer events",
     metaTitle: "Volunteer Sign-up, Scheduling & Check-in Software",
     metaDescription:
@@ -570,7 +571,7 @@ export const audiences = {
   parents: {
     path: "/parent-check-in",
     eventType: "school_visit",
-    icon: "🏫",
+    icon: "school",
     name: "Parent & visitor check-in",
     metaTitle: "Parent & Visitor Check-in for School Events",
     metaDescription:
@@ -712,14 +713,14 @@ export const audiences = {
 /** In the order of the home page's event-type cards. */
 /** Parent-teacher conferences have their own page (free for teachers during the pilot, so no pilot form). */
 /** For principals and district staff (not an event type, so it has its own page). */
-export const ADMINISTRATORS_PAGE = { path: "/school-administrators", name: "For administrators", icon: "🏛️" } as const;
+export const ADMINISTRATORS_PAGE = { path: "/school-administrators", name: "For administrators", icon: "building" } as const;
 
 /** How student and family data is handled, for district technology and legal teams. */
-export const STUDENT_PRIVACY_PAGE = { path: "/student-data-privacy", name: "Student data privacy", icon: "🔒" } as const;
+export const STUDENT_PRIVACY_PAGE = { path: "/student-data-privacy", name: "Student data privacy", icon: "lock" } as const;
 
-export const CONFERENCES_PAGE = { path: "/parent-teacher-conferences", name: "Parent-teacher conferences", icon: "🍎" } as const;
+export const CONFERENCES_PAGE = { path: "/parent-teacher-conferences", name: "Parent-teacher conferences", icon: "apple" } as const;
 
 /** Meetings: office hours and appointments anyone can book (not a school-event audience, so its own page). */
-export const MEETINGS_PAGE = { path: "/meetings", name: "Meetings", icon: "🤝" } as const;
+export const MEETINGS_PAGE = { path: "/meetings", name: "Meetings", icon: "calendar" } as const;
 
 export const AUDIENCES: Audience[] = [audiences.bands, audiences.groups, audiences.fairs, audiences.volunteers, audiences.parents];

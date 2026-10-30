@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Field, FieldError, Input, Textarea } from "@/components/ui";
 import { fieldErrorState, type ActionState } from "@/lib/action-state";
 import { checkPilotRequest, PILOT_EVENT_TYPES } from "@/lib/pilot";
+import { LineIcon } from "@/components/line-icon";
 
 /** Check every answer in the browser, so each problem shows under its field before anything is sent. */
 function validate(data: FormData) {
@@ -147,7 +148,7 @@ function Fields({
                 className="size-4 accent-brand"
                 {...describe("eventTypes")}
               />
-              <span aria-hidden>{t.icon}</span>
+              <LineIcon name={t.icon} className="size-4 text-brand dark:text-foreground" />
               <span>{t.label}</span>
             </label>
           ))}
