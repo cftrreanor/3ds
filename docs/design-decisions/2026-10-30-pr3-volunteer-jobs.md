@@ -32,3 +32,16 @@ Review: docs/design-reviews/2026-10-30-pr3-volunteer-jobs-v3.md
 | 3 | Old check-in places still show to volunteers | 3 | Take the advice | Volunteer events don't show a job's own place; the event's address covers it. Stored values stay |
 | 1, 2, 4–7 | Ready-but-missing jobs, lost edits, dark-mode controls, phone item rows, faded buttons, publish blocker wording | 3 | Take the advice | All in this PR |
 | Severity 2 | The smaller list | 2 | Take the advice | All in this PR |
+
+## Fourth-round review (owner, 2026-10-30)
+
+Review: docs/design-reviews/2026-10-30-pr3-volunteer-jobs-v4.md
+
+| # | Finding | Severity | Decision | Notes |
+|---|---|---|---|---|
+| 1 | A published event says "Setup complete" while a job has no shift | 3 | Take the advice | The Volunteers card names each job that isn't on the sign-up page, with a link to fix it; setup isn't complete until it's fixed |
+| 2 | Shift edits, new shifts, and typed things to bring can be lost; a failed save moves the cursor | 3 | Take the advice | One record of unsaved edits feeds the bar and the leave check; failed autosaves stay where you are |
+| 3 | Greyed "Add another job" next to a working "+ Add a job" | 2 | Fix it differently | Both work. Only "Next up" stays greyed until the job has a shift or a thing to bring |
+| 4 | Phone note promises only the Coordinator sees the number | 3 | Take the advice | "Only the people running this event see it, and only on event day." |
+| Dark mode | Greyed buttons look live in dark mode | 3 | Take the advice | New greyed-out color for dark mode |
+| Later | Folder-tab shape, tab-row edge fade on phones, shift-row layout, daily summary placement, wording consistency across pages, checklist "needed to publish" count | 2 | Later | Logged for the renames and checklist pieces |
