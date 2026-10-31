@@ -1,0 +1,23 @@
+{
+  "small-control": {
+    "src/app/dashboard/events/[eventId]/bands/page.tsx": 1,
+    "src/app/dashboard/events/[eventId]/booths/booth-form.tsx": 3,
+    "src/app/dashboard/events/[eventId]/booths/page.tsx": 1,
+    "src/app/dashboard/events/[eventId]/conferences/page.tsx": 1,
+    "src/app/dashboard/events/[eventId]/contest-day/controls.tsx": 1,
+    "src/app/dashboard/events/[eventId]/contest-day/page.tsx": 2,
+    "src/app/dashboard/events/[eventId]/edit/files-manager.tsx": 2,
+    "src/app/dashboard/events/[eventId]/forms.tsx": 2,
+    "src/app/dashboard/events/[eventId]/parents/page.tsx": 1,
+    "src/app/dashboard/volunteer-tracking/history-table.tsx": 1
+  },
+  "faded-container": {
+    "src/app/dashboard/events/[eventId]/conferences/conference-forms.tsx": 1,
+    "src/app/dashboard/events/[eventId]/contest-day/page.tsx": 2,
+    "src/app/dashboard/events/[eventId]/event-day/page.tsx": 1,
+    "src/app/dashboard/events/[eventId]/forms.tsx": 1,
+    "src/app/dashboard/events/[eventId]/lead-stations.tsx": 1,
+    "src/app/e/[slug]/book/day-calendar.tsx": 1,
+    "src/app/e/[slug]/volunteer/signup-form.tsx": 3
+  }
+}

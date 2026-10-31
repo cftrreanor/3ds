@@ -55,6 +55,12 @@ Reviewers see the work, not our reasons for it.
 
 Write down what is **not** being reviewed (out of scope), so reviewers don't wander.
 
+## 2b. Self-check against the lessons
+
+Before any reviewer sees the work, go through the self-check at the end of
+`docs/design-lessons.md` for every screen, in light and dark, at phone and desktop. Fix what fails
+first. The panel's time is for new problems, not ones we've already learned.
+
 ## 3. Review cold, in parallel
 
 Run each reviewer as its **own subagent, in parallel**, using the Agent tool. Give each one only:
@@ -64,9 +70,10 @@ Run each reviewer as its **own subagent, in parallel**, using the Agent tool. Gi
 - the material and the brief from step 2,
 - the report format for findings (below).
 
-**Never give a reviewer** the chat history, our design rationale, earlier review findings, or
+**Never give a reviewer** `docs/design-lessons.md`, the chat history, our design rationale, earlier review findings, or
 the other reviewers' output. A reviewer that knows why we chose something tends to agree with it.
-That is the whole point of this panel.
+That is the whole point of this panel. Each brief's "Do not read" list names `docs/design-lessons.md`,
+`docs/design-reviews/*.md`, `docs/design-decisions/`, and earlier screenshot folders.
 
 **What to photograph.** Every screen gets six shots: phone, tablet, and desktop, each in light and
 dark.
@@ -125,6 +132,16 @@ can't be built or shipped until they have a decision. Don't make these decisions
 
 After fixes, run a **light check** on just the changed parts, using the roles that raised the
 findings.
+
+## 7. Update the lessons
+
+After the owner decides, open `docs/design-lessons.md`:
+- A finding that matches a lesson: add this review to its "Seen in". If the lesson was already
+  there and still got dinged, sharpen its rule, or add an automatic check to
+  `scripts/design-lint.mjs` when a computer can catch it.
+- A finding seen for the second time (in this review and an earlier one): add a new lesson, with
+  the rule, why, and where it was seen.
+- Commit the lessons with the review report.
 
 ## What this panel is not
 

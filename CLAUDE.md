@@ -15,5 +15,7 @@
 - Designs go through the design-review skill (.claude/skills/design-review): mock-ups before
   building, screenshots before a PR goes out. Severity 3–4 findings block until the owner decides,
   and decisions are logged in docs/design-decisions/.
+- Before mocking up or building anything people see, read docs/design-lessons.md (what the review panel
+  keeps finding). Run its self-check before every review, and add repeat findings to it afterward.
 - When a page's main data is missing, call `missing()` from src/lib/schema-check.ts, not
   `notFound()`: it shows "a database update is needed" when a migration hasn't been run yet.
