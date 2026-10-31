@@ -2,8 +2,9 @@ import { DayBar } from "@/components/event-day-nav";
 import { SetupStrip } from "@/components/setup-guide";
 import { loadDayActions } from "@/lib/event-day-actions";
 import { loadSetupFacts } from "@/lib/setup-facts";
-import { emptyJobsNote, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
-import { VOLUNTEER_STEP_PATHS, VolunteerSteps, type VolunteerStepFacts } from "@/components/volunteer-steps";
+import { bandRegistrationMissing, emptyJobsNote, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { SetupSteps } from "@/components/volunteer-steps";
+import { STEP_PATHS, type SetupStepFacts, type StepsKind } from "@/lib/setup-steps";
 
 /**
  * Every page of an event. On the day itself, the team's jobs of the day are a
@@ -14,13 +15,16 @@ export default async function EventLayout({ children, params }: LayoutProps<"/da
   const { eventId } = await params;
   const day = await loadDayActions(eventId);
   const facts = day ? null : await loadSetupFacts(eventId);
-  // A volunteer event being set up: Details, Jobs and shifts, and Publish as three steps along the top of those pages.
-  const steps = facts && facts.eventType === "volunteer" && !facts.published ? volunteerSteps(facts) : null;
+  // A volunteer event or band contest being set up: Details, its middle step (Jobs and shifts, or
+  // Registration), and Publish as three steps along the top of those pages.
+  const kind: StepsKind | null =
+    facts && !facts.published ? (facts.eventType === "volunteer" ? "volunteer" : facts.eventType === "band_contest" ? "band" : null) : null;
+  const steps = facts && kind ? (kind === "volunteer" ? volunteerSteps(facts) : bandSteps(facts)) : null;
   return (
     <>
       {day && <DayBar day={day} />}
-      {steps && <VolunteerSteps eventId={eventId} facts={steps} />}
-      {facts && <SetupStrip eventId={eventId} initial={setupChecklist(facts)} skip={steps ? VOLUNTEER_STEP_PATHS : undefined} />}
+      {steps && kind && <SetupSteps eventId={eventId} kind={kind} facts={steps} />}
+      {facts && <SetupStrip eventId={eventId} initial={setupChecklist(facts)} skip={kind ? STEP_PATHS[kind] : undefined} />}
       {children}
       {/* Room for the tab bar along the bottom of a phone. */}
       {day && <div aria-hidden className="h-16 lg:hidden print:hidden" />}
@@ -28,8 +32,18 @@ export default async function EventLayout({ children, params }: LayoutProps<"/da
   );
 }
 
-function volunteerSteps(f: SetupFacts): VolunteerStepFacts {
+function volunteerSteps(f: SetupFacts): SetupStepFacts {
   const empty = f.emptyJobs ?? [];
-  const jobsDone = (f.readyJobs ?? 0) > 0 && empty.length === 0;
-  return { jobsDone, jobsNote: jobsDone ? null : f.stations === 0 ? "Add a job" : emptyJobsNote(empty), jobs: f.stations };
+  const middleDone = (f.readyJobs ?? 0) > 0 && empty.length === 0;
+  return {
+    middleDone,
+    middleNote: middleDone ? null : f.stations === 0 ? "Add a job" : emptyJobsNote(empty),
+    count: f.stations ? `${f.stations} ${f.stations === 1 ? "job" : "jobs"}` : null,
+  };
+}
+
+function bandSteps(f: SetupFacts): SetupStepFacts {
+  const missing = bandRegistrationMissing(f);
+  const n = f.classifications ?? 0;
+  return { middleDone: missing === null, middleNote: missing, count: n ? `${n} ${n === 1 ? "classification" : "classifications"}` : null };
 }

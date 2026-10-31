@@ -23,6 +23,7 @@ import { SavedBy } from "@/components/saved-by";
 import { RegisteredBands } from "./registered-bands";
 import { SetupTabs } from "../../_components/setup-tabs";
 import { ReopenRegistration } from "./reopen-registration";
+import { RegistrationSettings } from "./registration-settings";
 
 export const metadata: Metadata = { title: "Registration" };
 
@@ -42,7 +43,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
+    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications, payment_link")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -124,6 +125,49 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
     QRCode.toString(registrationUrl, { type: "svg", margin: 1, width: 160 }),
     QRCode.toDataURL(registrationUrl, { margin: 2, width: 1024 }),
   ]);
+  const contest = event.event_type === "band_contest";
+  // Bands in each classification (withdrawn bands don't count): those classifications stay.
+  const bandsIn: Record<string, number> = {};
+  for (const b of bands) if (!b.scratched_at) bandsIn[b.classification] = (bandsIn[b.classification] ?? 0) + 1;
+  const contactValues = {
+    name: contact?.name || profile?.full_name || "",
+    phone: formatPhone(contact ? contactPhone : profile?.phone),
+    email: contact?.email || user.email || "",
+  };
+  const registrationForm = (next?: { href: string; label: string }) => (
+    <RegistrationSettings
+      eventId={eventId}
+      initial={{
+        classifications: event.classifications ?? [],
+        deadline: event.band_registration_deadline ?? "",
+        directorInfo: event.director_info ?? "",
+        paymentLink: event.payment_link ?? "",
+        chaperoneLimit: event.chaperone_limit,
+        contact: contactValues,
+      }}
+      bandsIn={bandsIn}
+      contactSaved={settingsDone}
+      next={next}
+      draft={!published}
+    />
+  );
+
+  // A band contest before it's published: step 2 of its setup (the steps sit above, from the layout).
+  if (contest && !published) {
+    return (
+      <div data-required-marks>
+        <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
+          ← Back to {event.name}
+        </Link>
+        <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Band registration</h1>
+        <p className="mt-2 max-w-2xl text-muted">
+          What directors pick and read when they register. You can invite directors and share the link once you publish.
+        </p>
+        <div className="mt-6">{registrationForm({ href: `/dashboard/events/${eventId}`, label: "Next up: Publish" })}</div>
+      </div>
+    );
+  }
+
   const smallButton = "inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background";
 
   return (
@@ -205,7 +249,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                 </ActionButton>
               )}
               {/* Opens a new-deadline box, which takes its own line. */}
-              {published && pastDeadline && <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} />}
+              {published && pastDeadline && <ReopenRegistration action={reopenBandRegistration.bind(null, eventId)} today={today} deadlineRequired={contest} />}
             </div>
             <p className="mt-2 text-sm text-muted">
               Directors who use this link confirm their email with a code after they fill in the form. Directors you{" "}
@@ -266,7 +310,14 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
               fileName={`${event.name.replace(/[^\w -]+/g, "").trim() || "registrations"} ${w.many}.csv`}
             />
           )}
-          {current === "settings" && (
+          {current === "settings" && contest && (
+            <div>
+              <h2 className="text-lg font-semibold">Registration settings</h2>
+              <p className="mt-1 mb-4 text-sm text-muted">What directors see and agree to when they register.</p>
+              {registrationForm()}
+            </div>
+          )}
+          {current === "settings" && !contest && (
             <Card>
               <h2 className="text-lg font-semibold">Registration settings</h2>
               <p className="mt-1 mb-4 text-sm text-muted">What directors see and agree to when they register.</p>

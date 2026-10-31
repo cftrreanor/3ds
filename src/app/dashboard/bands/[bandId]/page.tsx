@@ -53,7 +53,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase
       .from("events")
       .select(
-        "name, slug, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed, schedule_updated_at",
+        "name, slug, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, payment_link, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed, schedule_updated_at",
       )
       .eq("id", band.event_id)
       .single(),
@@ -352,10 +352,17 @@ export default async function BandContestPage({ params, searchParams }: PageProp
 
       {times}
 
-      {(hasContact || event.director_info || files.length > 0) && (
+      {(hasContact || event.director_info || event.payment_link || files.length > 0) && (
         <Card className="mt-6">
           <h2 className="font-semibold">From the organizer</h2>
           {contactButtons && <div className="mt-3">{contactButtons}</div>}
+          {event.payment_link && (
+            <p className="mt-3">
+              <a href={event.payment_link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+              Pay the entry fee <span className="sr-only">(opens in a new tab)</span>
+            </a>
+            </p>
+          )}
           {event.director_info && (
             <CollapsibleInfo initialOpen={infoOpen} label={`${group ? "Event" : "Contest"} info: fees, arrival, and parking`}>
               <p className="mt-1 whitespace-pre-line text-sm leading-6">{event.director_info}</p>

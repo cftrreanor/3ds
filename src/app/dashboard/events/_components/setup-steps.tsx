@@ -23,6 +23,13 @@ export const VOLUNTEER_SETUP_STEPS: SetupStep[] = [
   { id: "publish", label: "Publish" },
 ];
 
+/** A band contest's setup: Details, what directors need to register, then publishing. */
+export const BAND_SETUP_STEPS: SetupStep[] = [
+  { id: "details", label: "Details" },
+  { id: "registration", label: "Registration" },
+  { id: "publish", label: "Publish" },
+];
+
 /** The setup page for a step (the first one is the new-event form, then Event settings with ?setup=1). */
 export function setupHref(eventId: string, step: string) {
   return `/dashboard/events/${eventId}/edit?setup=1&section=${step}`;
@@ -60,7 +67,7 @@ export function SetupHeader({
         Step {at + 1} of {steps.length}.{" "}
         {steps === SETUP_STEPS
           ? "Skip anything for now: it's all in Event settings later."
-          : "Team, emails, and maps wait in Event settings for whenever you want them."}{" "}
+          : "Add your team, maps, and volunteer jobs whenever you're ready, from Event settings."}{" "}
         Boxes marked * are required. {children}
       </p>
       <ol className={`mt-5 grid gap-2 ${steps.length === 3 ? "grid-cols-3" : "grid-cols-5"}`} aria-label="Setup steps">

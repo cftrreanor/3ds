@@ -1,5 +1,6 @@
 "use server";
 
+import { ensureDirectorContact } from "./band-registration-actions";
 import { revalidatePath } from "next/cache";
 import { brand } from "@/lib/brand";
 import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
@@ -160,6 +161,8 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
     .from("events")
     .insert({
       event_type: isEventType(eventType) ? eventType : "band_contest",
+      // A band contest starts with no classifications: the host picks them in step 2 (Registration).
+      ...(eventType === "band_contest" ? { classifications: [] } : {}),
       organization_id: v.organizationId,
       name: v.name,
       slug: slugify(v.name),
@@ -183,14 +186,17 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
 
   revalidatePath("/dashboard");
   // Conferences and meetings go straight to their setup, where the day or weekly hours are set. A
-  // volunteer event's step 2 is its jobs (team, emails, and maps wait in Event settings). Other events
-  // go on to the rest of their guided setup (Event settings, a step at a time).
+  // volunteer event's step 2 is its jobs, and a band contest's is registration (team, emails, and maps
+  // wait in Event settings). Other events go on to the rest of their guided setup (Event settings, a
+  // step at a time).
   redirect(
     hasConferences(eventType as string)
       ? `/dashboard/events/${data.id}/conferences`
       : eventType === "volunteer"
         ? `/dashboard/events/${data.id}/volunteering`
-        : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
+        : eventType === "band_contest"
+          ? `/dashboard/events/${data.id}/bands`
+          : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
   );
 }
 
@@ -297,7 +303,7 @@ async function changePublished(eventId: string, publish: boolean, signupOpen?: b
     // Publishing can set volunteer sign-up open or closed in the same step, so it never goes live half done.
     .update(publish ? { status: "published", ...(signupOpen === undefined ? {} : { volunteer_signup_open: signupOpen }) } : { status: "draft", volunteer_signup_open: false })
     .eq("id", eventId)
-    .select("id");
+    .select("id, event_type");
   if (error) {
     // Plan limits say what's included and how to get more (friendlyDbError passes them through).
     if (error.code === "42501" && !error.message.startsWith("Your ")) {
@@ -306,6 +312,8 @@ async function changePublished(eventId: string, publish: boolean, signupOpen?: b
     return { error: friendlyDbError(error) };
   }
   if (!data?.length) return { error: "Only the event's host can publish it." };
+  // Directors always have someone to call: the host's details, if no contact was saved.
+  if (publish && data[0].event_type === "band_contest") await ensureDirectorContact(eventId);
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }

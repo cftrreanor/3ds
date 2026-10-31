@@ -6,7 +6,7 @@ import { getMyOrganization } from "@/lib/data";
 import { isPlacesConfigured } from "@/lib/places";
 import { createEvent } from "../../actions";
 import { EventForm } from "../_components/event-form";
-import { SetupHeader, VOLUNTEER_SETUP_STEPS } from "../_components/setup-steps";
+import { BAND_SETUP_STEPS, SetupHeader, VOLUNTEER_SETUP_STEPS } from "../_components/setup-steps";
 import { SetupLogo } from "../_components/setup-logo";
 import { loadBrand } from "@/lib/badges";
 import { EventTypeChoices } from "@/components/event-type-picker";
@@ -98,7 +98,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
         <SetupHeader
           current="details"
           back={{ href: "/dashboard", label: "My events" }}
-          steps={type === "volunteer" ? VOLUNTEER_SETUP_STEPS : undefined}
+          steps={type === "volunteer" ? VOLUNTEER_SETUP_STEPS : type === "band_contest" ? BAND_SETUP_STEPS : undefined}
         >
           {changeKind}
         </SetupHeader>

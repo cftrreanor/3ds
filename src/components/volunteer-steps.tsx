@@ -2,54 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-/** The volunteer event steps, and where each one lives under the event. */
-const STEPS = [
-  { key: "details", label: "Details", path: "/edit" },
-  { key: "jobs", label: "Jobs and shifts", path: "/volunteering" },
-  { key: "publish", label: "Publish", path: "" },
-] as const;
-
-/** The pages that show the steps (every other page keeps the setup strip). */
-export const VOLUNTEER_STEP_PATHS = STEPS.map((s) => s.path);
-
-export type VolunteerStepFacts = {
-  /** Volunteers can see a job with a shift or a thing to bring. */
-  jobsDone: boolean;
-  /** What the jobs step still needs, when it isn't done ("2 jobs are hidden…"). */
-  jobsNote: string | null;
-  jobs: number;
-};
+import { SETUP_STEPS as STEPS, type SetupStepFacts, type StepsKind } from "@/lib/setup-steps";
 
 /**
- * A volunteer event before it's published: three steps along the top of
- * Details, Jobs and shifts, and the event page (Publish), each a link, with
- * the one you're on marked "Now".
+ * An event before it's published: three steps along the top of Details, its middle step (Jobs
+ * and shifts, or Registration), and the event page (Publish), each a link, with the one you're
+ * on marked "Now". Status is said in words at every width, not by color alone.
  */
-export function VolunteerSteps({ eventId, facts }: { eventId: string; facts: VolunteerStepFacts }) {
+export function SetupSteps({ eventId, kind, facts }: { eventId: string; kind: StepsKind; facts: SetupStepFacts }) {
   const pathname = usePathname();
   const base = `/dashboard/events/${eventId}`;
-  const here = STEPS.findIndex((s) => pathname === `${base}${s.path}`);
+  const steps = STEPS[kind];
+  const here = steps.findIndex((s) => pathname === `${base}${s.path}`);
   if (here < 0) return null;
-  const done = [true, facts.jobsDone, false];
-  const counts = facts.jobs ? `${facts.jobs} ${facts.jobs === 1 ? "job" : "jobs"}` : null;
+  const done = [true, facts.middleDone, false];
   const doneCount = done.filter(Boolean).length;
   return (
-    <nav aria-label="Volunteer event setup" className="mb-6 print:hidden">
+    <nav aria-label="Event setup" className="mb-6 print:hidden">
       <p className="text-sm">
-        <span className="font-semibold">
-          Step {here + 1} of 3:
-        </span>{" "}
-        {STEPS[here].label}
-        {here === 1 && counts && <span className="text-muted"> · {counts}</span>}
+        <span className="font-semibold">Step {here + 1} of 3:</span> {steps[here].label}
+        {here === 1 && facts.count && <span className="text-muted"> · {facts.count}</span>}
         <span className="sr-only">. {doneCount} of 3 done.</span>
       </p>
       <ol className="mt-2 grid grid-cols-3 gap-2">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const now = i === here;
-          // The jobs step, when a job still needs something: amber, saying what (like the tabs' ◆ lines).
-          const needs = i === 1 && !done[i] && Boolean(facts.jobsNote);
-          const note = done[i] && !now ? "Done" : needs ? facts.jobsNote : now ? "Now" : "Not yet";
+          // The middle step, when it still needs something: amber, saying what.
+          const needs = i === 1 && !done[i] && Boolean(facts.middleNote);
+          const note = done[i] && !now ? "Done" : needs ? facts.middleNote : now ? "Now" : "Not yet";
           return (
             <li key={s.key} className="min-w-0">
               <span
@@ -57,7 +37,7 @@ export function VolunteerSteps({ eventId, facts }: { eventId: string; facts: Vol
                 className={`block rounded-full ${now ? "h-2 bg-brand" : done[i] ? "h-1.5 bg-success" : needs ? "h-1.5 bg-warning" : "h-1.5 border border-field-border bg-surface"}`}
               />
               {now ? (
-                <span aria-current="step" className="mt-2 block text-sm font-semibold">
+                <span aria-current="step" className="mt-1 flex min-h-11 items-center text-sm font-semibold">
                   {s.label}
                 </span>
               ) : (
@@ -77,8 +57,8 @@ export function VolunteerSteps({ eventId, facts }: { eventId: string; facts: Vol
       {/* Details (step 1) has no bar of its own: the way on to step 2. */}
       {here === 0 && (
         <p className="mt-1 text-right">
-          <Link href={`${base}${STEPS[1].path}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4">
-            Next up: Jobs and shifts →
+          <Link href={`${base}${steps[1].path}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4">
+            Next up: {steps[1].label} →
           </Link>
         </p>
       )}

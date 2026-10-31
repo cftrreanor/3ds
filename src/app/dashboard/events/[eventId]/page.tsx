@@ -26,7 +26,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { publishAndOpen, publishAndOpenSignups, publishSignupLater, setVolunteerSignupOpen } from "../../actions";
-import { setBandRegistrationOpen } from "../../band-actions";
+import { publishAndOpenBandRegistration, setBandRegistrationOpen } from "../../band-actions";
 import { setParentRegistrationOpen } from "./parents/actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
@@ -41,7 +41,7 @@ import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
-import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { bandRegistrationMissing, publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { volunteerTotals } from "@/lib/volunteer-totals";
 import { SetupGuide } from "@/components/setup-guide";
 import { DayRail } from "@/components/event-day-nav";
@@ -1024,10 +1024,13 @@ function PublishPanel({
   // Jobs with nothing to sign up for yet never reach the sign-up page: name them, with the way to fix each.
   const empty = jobsHere ? (facts.emptyJobs ?? []) : [];
   const jobsHref = (id?: string) => `/dashboard/events/${facts.eventId}/volunteering${id ? `?station=${id}` : ""}`;
+  // A band contest needs a deadline and a classification before it can publish (the database checks too).
+  const bandsHere = facts.eventType === "band_contest";
+  const bandMissing = bandsHere ? bandRegistrationMissing(facts) : null;
   const effects = publishEffects(facts).filter((line) => !(jobsHere && line.startsWith("Volunteer sign-up")));
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">{needsJob ? "Not ready to publish yet" : others.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      <h2 className="text-lg font-semibold">{needsJob || bandMissing ? "Not ready to publish yet" : others.length ? "Almost ready to publish" : "Ready to publish"}</h2>
       {needsJob && (
         // The one thing stopping them, first.
         <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
@@ -1037,6 +1040,15 @@ function PublishPanel({
           <p className="mt-1">Publishing needs at least one job with a shift or a thing to bring.</p>
           <Link href={jobsHref(empty[0]?.id)} className={`${BTN} mt-3`}>
             {empty[0] ? `Add ${empty[0].items ? "things to bring" : "shifts"} to ${empty[0].name}` : "Go to jobs and shifts"}
+          </Link>
+        </div>
+      )}
+      {bandMissing && (
+        <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+          <p className="font-semibold">{bandMissing} before you publish</p>
+          <p className="mt-1">Directors pick a classification when they register, and registration closes at the deadline.</p>
+          <Link href={`/dashboard/events/${facts.eventId}/bands`} className={`${BTN} mt-3`}>
+            Go to registration
           </Link>
         </div>
       )}
@@ -1058,7 +1070,7 @@ function PublishPanel({
           </ul>
         </div>
       )}
-      {needsJob ? null : others.length ? (
+      {needsJob || bandMissing ? null : others.length ? (
         // The checklist beside the page lists every step; here, just the first one left.
         <p className="mt-2 text-sm">
           <span className="text-muted">We recommend finishing {others.length === 1 ? "one more step" : `${others.length} more steps`} first, starting with </span>
@@ -1081,7 +1093,7 @@ function PublishPanel({
           </li>
         ))}
       </ul>
-      {needsJob ? null : facts.planBlock ? (
+      {needsJob || bandMissing ? null : facts.planBlock ? (
         // Say why before they try, and what they can do: not an error after the click.
         <div className="mt-5 rounded-md border border-brand/25 bg-brand-soft p-4 text-sm leading-6">
           <p className="font-semibold">Your plan doesn&apos;t allow publishing this yet</p>
@@ -1125,6 +1137,12 @@ function PublishPanel({
                 </ActionButton>
               </div>
             </div>
+          </div>
+        ) : bandsHere ? (
+          <div className="mt-5">
+            <ActionButton action={publishAndOpenBandRegistration.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
+              Publish and open registration
+            </ActionButton>
           </div>
         ) : (
           <div className="mt-5">

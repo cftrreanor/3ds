@@ -39,7 +39,7 @@ itself, not only the bar. Save one field at a time, so two co-hosts don't undo e
 - **Why:** "Saved" while something wasn't is the worst kind of surprise.
 - **Seen in:** setup redesign v2 and v3 (three kinds of saving), volunteer jobs v3 and v4 (lost
   edits, offline, typed shifts), band contest v1 and v2 (Next up leaves with a failed save).
-- **Build with:** `src/app/dashboard/events/[eventId]/volunteering/pending-edits.ts`.
+- **Build with:** `src/components/pending-edits.ts` (`setPending`, `useLeaveGuard`).
 
 ## L4. The screen's rules are the database's rules
 Anything the page says can't happen ("publishing needs a deadline", "can't delete a job with

@@ -235,12 +235,12 @@ async function registrationShare(eventId: string): Promise<ActionState> {
 export async function reopenBandRegistration(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const deadline = String(formData.get("deadline") ?? "");
   if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return { error: "Pick a valid deadline date." };
-  if (deadline) {
-    const supabase = await createClient();
-    const { data: event } = await supabase.from("events").select("timezone").eq("id", eventId).maybeSingle();
-    if (event && deadline < utcToZonedDate(new Date().toISOString(), event.timezone))
-      return { error: "Pick today or a later date for the new deadline." };
-  }
+  const supabase = await createClient();
+  const { data: event } = await supabase.from("events").select("timezone, event_type").eq("id", eventId).maybeSingle();
+  // A band contest always has a deadline (the database checks too).
+  if (!deadline && event?.event_type === "band_contest") return { error: "Pick a new deadline to reopen registration." };
+  if (deadline && event && deadline < utcToZonedDate(new Date().toISOString(), event.timezone))
+    return { error: "Pick today or a later date for the new deadline." };
   const result = await updateEventRow(eventId, { band_registration_open: true, band_registration_deadline: deadline || null });
   return result.error ? result : registrationShare(eventId);
 }

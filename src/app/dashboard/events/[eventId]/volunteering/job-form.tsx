@@ -10,7 +10,7 @@ import { Field, Input, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { BinIcon, CoordinatorPicker, type LeadOption } from "../forms";
 import type { JobLinks } from "./job-parts";
-import { flushPending, pendingCounts, setPending, settled, usePendingCounts } from "./pending-edits";
+import { flushPending, pendingCounts, setPending, settled, usePendingCounts } from "@/components/pending-edits";
 import { useStepEdits } from "./station-steps";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;

@@ -41,7 +41,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications")
+    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications, payment_link")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -182,12 +182,19 @@ export default async function BandRegistrationPage({ params }: Params) {
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {!band && heading}
 
-      {(event.director_info || (open && event.band_registration_deadline)) && (
+      {(event.director_info || event.payment_link || (open && event.band_registration_deadline)) && (
         <Card className="mt-8 space-y-3">
           {open && event.band_registration_deadline && (
             <p className="font-medium">Registration closes at the end of {formatDate(event.band_registration_deadline)}.</p>
           )}
           {event.director_info && <p className="whitespace-pre-line leading-7">{event.director_info}</p>}
+          {event.payment_link && (
+            <p>
+              <a href={event.payment_link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+              Pay the entry fee <span className="sr-only">(opens in a new tab)</span>
+            </a>
+            </p>
+          )}
         </Card>
       )}
 

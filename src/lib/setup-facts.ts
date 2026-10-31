@@ -18,7 +18,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, status, event_type, volunteer_signup_open, band_registration_open, performance_order_published, director_info, finals_published, finalists_revealed, parent_registration_open, parent_registration_closes_at, venue_address",
+      "id, organization_id, status, event_type, volunteer_signup_open, band_registration_open, performance_order_published, director_info, band_registration_deadline, classifications, finals_published, finalists_revealed, parent_registration_open, parent_registration_closes_at, venue_address",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -70,6 +70,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     finalsPublished: Boolean(event.finals_published),
     finalistsRevealed: Boolean(event.finalists_revealed),
     directorInfo: Boolean(event.director_info?.trim()),
+    registrationDeadline: Boolean(event.band_registration_deadline),
+    classifications: (event.classifications ?? []).length,
     pathRooms,
     rooms,
     scheduleSlots,

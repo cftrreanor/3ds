@@ -1962,11 +1962,12 @@ reset role;
 -- ---------------------------------------------------------------------------
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-0000000000e1', 'past@example.com', '{"full_name":"Pat Past"}');
-insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address)
+insert into public.events (id, organization_id, name, slug, status, starts_on, ends_on, window_start, window_end, venue_address,
+                           band_registration_deadline)
 values ('10000000-0000-0000-0000-00000000000f',
         (select organization_id from public.events where id = '10000000-0000-0000-0000-00000000000a'),
         'Next Classic', 'next-classic', 'draft', current_date + 40, current_date + 40,
-        now() + interval '40 days', now() + interval '40 days 10 hours', '1 Stadium Rd');
+        now() + interval '40 days', now() + interval '40 days 10 hours', '1 Stadium Rd', current_date + 20);
 insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
                           contact_email, head_director_name, head_director_email, head_director_phone,
                           student_count, chaperone_count)
@@ -6039,19 +6040,19 @@ declare ok boolean := false;
 begin
   assert (select count(*) from public.event_passes where organization_id = '70000000-0000-0000-0000-000000000001') = 2,
          'hosts see their own passes';
-  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address, band_registration_deadline)
   values ('70000000-0000-0000-0000-0000000000e3', '70000000-0000-0000-0000-000000000001', 'Marching Contest', 'pk-band', 'band_contest',
-          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Field Rd');
+          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Field Rd', current_date + 5);
   update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e3';
   assert (select event_id from public.event_passes where id = current_setting('pk.pass')::uuid) = '70000000-0000-0000-0000-0000000000e3',
          'publishing uses the pass';
   update public.events set status = 'draft' where id = '70000000-0000-0000-0000-0000000000e3';
   update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e3';
-  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+  insert into public.events (id, organization_id, name, slug, event_type, starts_on, ends_on, window_start, window_end, venue_address, band_registration_deadline)
   values ('70000000-0000-0000-0000-0000000000e5', '70000000-0000-0000-0000-000000000001', 'Second Contest', 'pk-band2', 'band_contest',
-          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Field Rd'),
+          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Field Rd', current_date + 5),
          ('70000000-0000-0000-0000-0000000000e6', '70000000-0000-0000-0000-000000000001', 'Fall Fair', 'pk-fair', 'fair',
-          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Fair Rd');
+          current_date + 9, current_date + 9, now() + interval '9 days', now() + interval '9 days 3 hours', '1 Fair Rd', null);
   begin
     update public.events set status = 'published' where id = '70000000-0000-0000-0000-0000000000e5';
   exception when insufficient_privilege then ok := true;
@@ -7315,5 +7316,121 @@ delete from public.events where id = '10000000-0000-0000-0000-0000000000b7';
 do $$ begin
   assert not exists (select 1 from public.shifts where id = '10000000-0000-0000-0000-0000000000bb'), 'deleting the event removes its signed-up shifts too';
 end $$;
+
+-- Band registration rules (20270107000000): publishing needs a deadline and a classification,
+-- registration needs a deadline to open, classifications bands use stay, one at a time, https links.
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end,
+                           venue_address, classifications)
+values ('10000000-0000-0000-0000-0000000000d1', :'org_id', 'Rules Invitational', 'rules-invitational', 'draft', 'band_contest',
+        current_date + 50, current_date + 50, now() + interval '50 days', now() + interval '50 days 10 hours', '1 Field Rd', '{}');
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean; msg text; ev uuid := '10000000-0000-0000-0000-0000000000d1'; cls text[];
+begin
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = ev;
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Publishing needs a registration deadline%', 'a band contest can''t publish without a deadline';
+
+  update public.events set band_registration_deadline = current_date + 30 where id = ev;
+  ok := false;
+  begin
+    update public.events set status = 'published' where id = ev;
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Publishing needs at least one classification%', 'or without a classification';
+
+  cls := public.add_event_classification(ev, ' 1A ');
+  cls := public.add_event_classification(ev, '1A');
+  assert cls = array['1A'], 'classifications are added once, trimmed';
+  cls := public.add_event_classification(ev, 'Class AA');
+  assert cls = array['1A', 'Class AA'], 'and added one at a time';
+  ok := false;
+  begin
+    perform public.add_event_classification(ev, '   ');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a blank classification is refused';
+
+  update public.events set status = 'published' where id = ev;
+
+  ok := false;
+  begin
+    update public.events set band_registration_deadline = null where id = ev;
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a live band contest''s deadline can''t be cleared';
+
+  cls := public.remove_event_classification(ev, 'Class AA');
+  ok := false;
+  begin
+    perform public.remove_event_classification(ev, '1A');
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Publishing needs at least one classification%', 'a live band contest keeps at least one classification';
+end $$;
+reset role;
+-- A band registered in 1A keeps 1A on the list.
+update public.events set band_registration_open = true where id = '10000000-0000-0000-0000-0000000000d1';
+insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                          contact_email, head_director_name, head_director_email, head_director_phone,
+                          student_count, chaperone_count)
+values ('10000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000005', 'Rule HS', 'Rule Band', '1A', 'addr',
+        'rule@example.com', 'Ru Le', 'rule@example.com', '+15125550111', 60, 5);
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean; msg text; ev uuid := '10000000-0000-0000-0000-0000000000d1';
+begin
+  perform public.add_event_classification(ev, '2A');
+  ok := false;
+  begin
+    update public.events set classifications = array['2A'] where id = ev;
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Bands are registered in 1A%', 'a classification bands are registered in can''t be removed';
+  perform public.remove_event_classification(ev, '2A');
+
+  -- Reopening registration needs a deadline (closing first, as superuser can't clear it while live).
+  update public.events set band_registration_open = false where id = ev;
+
+  ok := false;
+  begin
+    update public.events set payment_link = 'http://example.com/pay' where id = ev;
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'a payment link must be https';
+  update public.events set payment_link = 'https://example.com/pay' where id = ev;
+end $$;
+reset role;
+-- Reopening with no deadline: set up as the server (unpublished, no deadline), then try as the host.
+update public.events set status = 'draft', band_registration_deadline = null where id = '10000000-0000-0000-0000-0000000000d1';
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    update public.events set band_registration_open = true where id = '10000000-0000-0000-0000-0000000000d1';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Pick a registration deadline%', 'registration can''t open without a deadline';
+end $$;
+-- Someone outside the event can't add or remove classifications.
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.add_event_classification('10000000-0000-0000-0000-0000000000d1', '9A');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a stranger can''t add a classification';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
 
 \echo 'All database security tests passed.'

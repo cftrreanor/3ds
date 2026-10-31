@@ -43,6 +43,9 @@ export type SetupFacts = {
   finalsPublished: boolean;
   finalistsRevealed: boolean;
   directorInfo: boolean;
+  /** Band contests: a registration deadline is set, and how many classifications there are. */
+  registrationDeadline?: boolean;
+  classifications?: number;
   pathRooms: number;
   /** Group events: every room, on the path or not. */
   rooms: number;
@@ -109,6 +112,15 @@ function jobsStep(f: SetupFacts, base: string): SetupStep {
 }
 
 /** "Litter pickup needs a shift" / "2 jobs need a shift or a thing to bring". */
+/** What a band contest still needs before directors can register ("Add a deadline"), or null. */
+export function bandRegistrationMissing(f: Pick<SetupFacts, "registrationDeadline" | "classifications">) {
+  const cls = (f.classifications ?? 0) > 0;
+  if (!f.registrationDeadline && !cls) return "Add a deadline and a classification";
+  if (!f.registrationDeadline) return "Add a deadline";
+  if (!cls) return "Add a classification";
+  return null;
+}
+
 export function emptyJobsNote(empty: { name: string; items: boolean }[]) {
   if (empty.length === 1) return `${empty[0].name} needs ${empty[0].items ? "a thing to bring" : "a shift"}`;
   return `${empty.length} jobs need a shift or a thing to bring`;
@@ -143,7 +155,17 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     });
   }
   if (f.eventType === "band_contest") {
+    const missing = bandRegistrationMissing(f);
     before.push(
+      {
+        id: "registration",
+        label: "Set up band registration",
+        hint: "Classifications and a deadline: what directors need to register.",
+        href: `${base}/bands`,
+        done: missing === null,
+        required: true,
+        partial: missing && (f.registrationDeadline || (f.classifications ?? 0) > 0) ? { fraction: 0.5, note: missing } : undefined,
+      },
       {
         id: "director-info",
         label: "Add information for directors",
@@ -345,7 +367,9 @@ export function publishEffects(f: SetupFacts): string[] {
         : "Volunteer sign-up stays closed until you open it.",
     );
   }
-  if (hasEnsembles(f.eventType)) {
+  if (f.eventType === "band_contest") {
+    lines.push("Band registration opens, and directors can register until your deadline.");
+  } else if (hasEnsembles(f.eventType)) {
     lines.push(
       f.bandRegistrationOpen
         ? `${words.One} registration opens right away (it was left on).`

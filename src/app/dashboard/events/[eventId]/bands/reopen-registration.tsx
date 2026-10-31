@@ -15,10 +15,13 @@ import type { ActionState } from "@/lib/action-state";
 export function ReopenRegistration({
   action,
   today,
+  deadlineRequired = false,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   /** Today in the event's time zone (YYYY-MM-DD): the earliest new deadline. */
   today: string;
+  /** A band contest always has a deadline. */
+  deadlineRequired?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -28,8 +31,12 @@ export function ReopenRegistration({
       </Button>
       {open && (
         <ActionForm action={action} className="mt-1 basis-full space-y-3 rounded-lg border border-border bg-background p-4" onSuccess={() => setOpen(false)}>
-          <Field label="New deadline" hint="Leave blank for no deadline. Registration closes at the end of this day." className="max-w-xs">
-            <Input type="date" name="deadline" min={today} />
+          <Field
+            label="New deadline"
+            hint={deadlineRequired ? "Registration closes at the end of this day." : "Leave blank for no deadline. Registration closes at the end of this day."}
+            className="max-w-xs"
+          >
+            <Input type="date" name="deadline" min={today} required={deadlineRequired} />
           </Field>
           <div className="flex flex-wrap gap-2">
             <SubmitButton variant="go" pendingText="Reopening…">
