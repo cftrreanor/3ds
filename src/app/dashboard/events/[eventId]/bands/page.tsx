@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
-import { publishAndOpenBandRegistration, reopenBandRegistration, setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
+import { openBandRegistrationNow, publishAndOpenBandRegistration, reopenBandRegistration, setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { sendBandInvites } from "@/app/dashboard/band-invite-actions";
+import { fixInviteAddress, sendBandInvites } from "@/app/dashboard/band-invite-actions";
 import { importBandPrefills } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields } from "@/lib/imports";
@@ -70,13 +70,23 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
   const [{ data: pastData }, { data: prefillData }, { data: inviteData }] = await Promise.all([
     supabase.rpc("past_band_directors", { p_event: eventId }),
     supabase.from("band_prefills").select("email, band_name, school_name, head_director_name").eq("event_id", eventId).order("created_at"),
-    supabase.from("band_invitations").select("email, sent_at, failed_at").eq("event_id", eventId),
+    supabase.from("band_invitations").select("email, sent_at, failed_at, scheduled_for, replaced_by").eq("event_id", eventId),
   ]);
   const invitedLabel = (iso: string) => `Invited ${formatDate(utcToZonedDate(iso, event.timezone), { year: undefined })}`;
   // Saved wording for the invitation (Email settings), so the preview shows what's sent.
   const inviteWording = await loadSystemEmail("director_invite");
-  const invitedAt = new Map((inviteData ?? []).map((i) => [i.email.toLowerCase(), i.sent_at as string]));
-  const failedTo = new Set((inviteData ?? []).filter((i) => i.failed_at).map((i) => i.email.toLowerCase()));
+  type InviteRow = { email: string; sent_at: string | null; failed_at: string | null; scheduled_for: string | null; replaced_by: string | null };
+  const invites = new Map(((inviteData ?? []) as InviteRow[]).map((i) => [i.email.toLowerCase(), i]));
+  const invitedAt = new Map([...invites].filter(([, i]) => i.sent_at).map(([e, i]) => [e, i.sent_at as string]));
+  // Each director's invitation state, beyond "Invited <date>".
+  const inviteState = (email: string) => {
+    const i = invites.get(email.toLowerCase());
+    return {
+      failed: Boolean(i?.failed_at),
+      movedTo: i?.replaced_by ?? null,
+      scheduled: i && !i.sent_at && i.scheduled_for ? `Goes out ${formatDate(i.scheduled_for, { year: undefined })}` : null,
+    };
+  }
   const registeredEmails = new Set(((bandData ?? []) as BandRow[]).map((b) => b.head_director_email.toLowerCase()));
   // Directors whose details the host imported, one line per director.
   const imported = new Map<string, PastDirector>();
@@ -125,11 +135,14 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
 
   const settingsDone = Boolean(contact);
   const published = event.status === "published";
-  const invitesSent = (inviteData ?? []).length > 0;
+  const invitedCount = [...invites.values()].filter((i) => i.sent_at && !i.replaced_by).length;
+  const scheduledCount = [...invites.values()].filter((i) => !i.sent_at && i.scheduled_for && !i.replaced_by).length;
   // Registered bands shows once registration has opened (or closed after it did): before that there's nothing to see.
   const showBands = regOpen || pastDeadline || bands.length > 0;
   // Directors who were emailed an invitation and haven't registered yet.
   const invitedWaiting = directors.filter((d) => d.invited && !d.registered).length;
+  // The preview is addressed to the first director on the list.
+  const previewTo = directors.find((d) => !d.registered) ?? directors[0];
 
   // The open tab: ?tab=, else the bands once there are any to show, else the settings.
   const tabs = [...(showBands ? ["bands"] : []), "settings", "invite"] as const;
@@ -165,6 +178,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
       next={next}
       draft={!published}
       today={today}
+      alreadyOpen={regOpen}
       contest={{ day: event.starts_on, label: formatDate(event.starts_on, { weekday: undefined, year: undefined }), lastDeadline: dayBefore(event.starts_on) }}
     />
   );
@@ -188,7 +202,6 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
     );
   }
 
-  const smallButton = "inline-flex min-h-9 items-center rounded-md border border-border bg-surface px-3 text-xs font-medium hover:bg-background";
 
   return (
     // data-required-marks: a small asterisk on each box that has to be filled in (globals.css).
@@ -244,7 +257,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
             <p className="mt-1 break-all text-sm text-muted">{registrationUrl}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <CopyLinkButton url={registrationUrl} label="Copy link" />
-              <a href={`/e/${event.slug}/bands`} target="_blank" className={smallButton}>
+              <a href={`/e/${event.slug}/bands`} target="_blank" className="inline-flex min-h-11 items-center rounded-md border border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand">
                 Preview page
               </a>
               {!published && (
@@ -258,16 +271,32 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                   Publish and open registration
                 </ActionButton>
               )}
-              {published && !pastDeadline && (
+              {published && regLater && (
+                <>
+                  <ActionButton
+                    action={openBandRegistrationNow.bind(null, eventId)}
+                    variant="secondary"
+                    pendingText="Opening…"
+                    confirmMessage={`Open ${w.one} registration now? Directors can register from today instead of ${formatDate(event.band_registration_opens_on!, { year: undefined })}.`}
+                    confirmLabel="Open now"
+                  >
+                    Open now
+                  </ActionButton>
+                  <Link href={`${base}?tab=settings`} scroll={false} className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-brand underline underline-offset-4">
+                    Change opening day
+                  </Link>
+                </>
+              )}
+              {published && !regLater && !pastDeadline && (
                 <ActionButton
                   action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
-                  variant={event.band_registration_open ? "stop" : "go"}
-                  className="px-3! text-xs!"
+                  variant={event.band_registration_open ? "quiet-stop" : "go"}
                   confirmMessage={
                     event.band_registration_open
-                      ? `Close ${w.one} registration early? Directors can't register or change their registration until you reopen it.${invitedWaiting > 0 ? ` ${invitedWaiting} invited ${invitedWaiting === 1 ? "director hasn't" : "directors haven't"} registered yet.` : ""} You can reopen it with a new deadline.`
+                      ? `Close ${w.one} registration early? Directors can't register or change their registration until you reopen it.${invitedWaiting > 0 ? ` ${invitedWaiting} invited ${invitedWaiting === 1 ? "director hasn't" : "directors haven't"} registered yet.` : ""}`
                       : undefined
                   }
+                  confirmLabel={event.band_registration_open ? "Close registration" : undefined}
                 >
                   {event.band_registration_open ? "Close registration" : "Open registration"}
                 </ActionButton>
@@ -321,7 +350,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
               href: `${base}?tab=settings`,
               active: current === "settings",
             },
-            { key: "invite", label: "Invite directors", status: invitesSent ? "Invitations sent" : "Optional", href: `${base}?tab=invite`, active: current === "invite" },
+            { key: "invite", label: "Invite directors", status: invitedCount ? `${invitedCount} invited` : scheduledCount ? `${scheduledCount} scheduled` : "Optional", href: `${base}?tab=invite`, active: current === "invite" },
           ]}
         />
         <div className="mt-6">
@@ -367,52 +396,37 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
               <p className="mt-1 mb-6 text-sm text-muted">
                 Optional. Bring in {w.many} you already work with, and email their directors an invitation to register.
               </p>
-              <div className="space-y-6">
-                <div>
-                  <h3 id="import" className="scroll-mt-6 font-semibold">Import from a spreadsheet</h3>
-                  <p className="mt-1 mb-3 text-sm text-muted">
-                    Each director&apos;s details are saved for them. Nobody is registered yet: invite the directors below, and
-                    each one checks their details and registers.
-                  </p>
-                  <SpreadsheetImport
-                    kind="bands"
-                    fields={importFields("bands", { words: w, trucks: !roomsHere })}
-                    choices={{ classification: event.classifications.map((c: string) => ({ value: c, label: c })) }}
-                    chaperoneLimit={event.chaperone_limit}
-                    noun={{ one: w.one, many: w.many }}
-                    templateName={`${w.one}-registrations.csv`}
-                    action={importBandPrefills.bind(null, eventId)}
-                  />
-                </div>
+              <div className="space-y-8">
                 <div>
                   <h3 className="font-semibold">Send invitations</h3>
                   {directors.length > 0 ? (
                     <>
                       <p className="mt-1 mb-3 text-sm text-muted">
-                        {imported.size > 0 ? "Directors from your spreadsheet" : "Directors who registered at your earlier events"}
-                        {imported.size > 0 && !roomsHere && pastDirectors.length > 0 ? " and your earlier events" : ""}. Their
-                        {` ${w.one}`}&apos;s details are saved, so registering only takes a moment.
+                        {imported.size > 0 && !roomsHere && pastDirectors.length > 0
+                          ? "From your spreadsheet and your earlier contests"
+                          : imported.size > 0
+                            ? "From your spreadsheet"
+                            : "From your earlier contests"}
+                        . Their {w.one}&apos;s details are filled in for them.
                       </p>
                       <InvitePastBands
-                        directors={directors.map((d) => ({ ...d, failed: failedTo.has(d.email.toLowerCase()) }))}
-                        canSend={regOpen}
-                        cantSendReason={
-                          regLater
-                            ? `You can send invitations from ${formatDate(event.band_registration_opens_on!)}, when registration opens.`
-                            : `Publish the event and open ${w.one} registration to send invitations.`
-                        }
+                        directors={directors.map((d) => ({ ...d, ...inviteState(d.email) }))}
+                        canSend={regOpen || regLater}
+                        cantSendReason={pastDeadline ? `Registration has closed. Reopen it to send invitations.` : `Publish the event and open ${w.one} registration to send invitations.`}
+                        scheduleFor={regLater ? formatDate(event.band_registration_opens_on!, { year: undefined }) : null}
                         send={sendBandInvites.bind(null, eventId)}
+                        fixAddress={fixInviteAddress.bind(null, eventId)}
                         one={w.one}
                         preview={bandInviteEmail({
-                          firstName: "Jordan",
+                          firstName: previewTo?.name?.split(" ")[0] || null,
                           host: profile?.full_name || "You",
                           one: w.one,
                           event,
                           fromSpreadsheet: imported.size > 0,
                           reminder: false,
-                          email: "director@school.org",
+                          email: previewTo?.email ?? "director@school.org",
                           custom: customWords("director_invite", inviteWording, {
-                            first_name: "Jordan",
+                            first_name: previewTo?.name?.split(" ")[0] ?? "",
                             host: profile?.full_name || "You",
                             group: w.one,
                             event_name: event.name,
@@ -424,9 +438,25 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                     </>
                   ) : (
                     <p className="mt-1 text-sm text-muted">
-                      Directors from your spreadsheet{roomsHere ? "" : " and your earlier events"} show up here to invite.
+                      No directors to invite yet. Import your list below, and they show up here.
                     </p>
                   )}
+                </div>
+                <div>
+                  <h3 id="import" className="scroll-mt-6 font-semibold">{directors.length ? "Someone else? Import a spreadsheet" : "Import your director list"}</h3>
+                  <p className="mt-1 mb-3 text-sm text-muted">
+                    Importing doesn&apos;t register anyone. The directors show up {directors.length ? "in the list above" : "here"} to invite, and each one
+                    checks their details and registers.
+                  </p>
+                  <SpreadsheetImport
+                    kind="bands"
+                    fields={importFields("bands", { words: w, trucks: !roomsHere })}
+                    choices={{ classification: event.classifications.map((c: string) => ({ value: c, label: c })) }}
+                    chaperoneLimit={event.chaperone_limit}
+                    noun={{ one: w.one, many: w.many }}
+                    templateName={`${w.one}-registrations.csv`}
+                    action={importBandPrefills.bind(null, eventId)}
+                  />
                 </div>
               </div>
             </Card>

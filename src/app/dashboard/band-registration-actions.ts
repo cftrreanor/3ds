@@ -87,12 +87,16 @@ export async function saveRegistrationField(eventId: string, field: Registration
   if ((field === "deadline" || field === "opensOn") && parsed.data) {
     const { data: event } = await supabase
       .from("events")
-      .select("timezone, band_registration_deadline, band_registration_opens_on")
+      .select("timezone, status, band_registration_open, band_registration_deadline, band_registration_opens_on")
       .eq("id", eventId)
       .maybeSingle();
     const was = field === "deadline" ? event?.band_registration_deadline : event?.band_registration_opens_on;
-    if (event && parsed.data !== was && String(parsed.data) < utcToZonedDate(new Date().toISOString(), event.timezone))
-      return { error: "Pick today or a later date." };
+    const today = event ? utcToZonedDate(new Date().toISOString(), event.timezone) : "";
+    if (event && parsed.data !== was && String(parsed.data) < today) return { error: "Pick today or a later date." };
+    // Once registration has opened, it can't be moved later: registered directors would be locked out.
+    const openNow = event?.status === "published" && event.band_registration_open && (!event.band_registration_opens_on || event.band_registration_opens_on <= today);
+    if (field === "opensOn" && openNow && String(parsed.data) > today)
+      return { error: "Registration is already open, so the opening day can't move later. Close registration instead if you need to pause it." };
   }
 
   const column = EVENT_COLUMN[field];

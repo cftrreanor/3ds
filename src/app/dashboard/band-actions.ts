@@ -219,6 +219,12 @@ export async function publishAndOpenBandRegistration(eventId: string): Promise<A
   return opened.error ? opened : { ok: true, goTo: `/dashboard/events/${eventId}?published=1` };
 }
 
+/** Registration set to open on a later day: open it today instead. */
+export async function openBandRegistrationNow(eventId: string): Promise<ActionState> {
+  const result = await updateEventRow(eventId, { band_registration_opens_on: null, band_registration_open: true });
+  return result.error ? result : registrationShare(eventId);
+}
+
 /** Registration just opened: the link to send directors. */
 async function registrationShare(eventId: string): Promise<ActionState> {
   const event = await eventForShare(eventId);

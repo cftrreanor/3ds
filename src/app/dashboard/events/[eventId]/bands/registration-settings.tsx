@@ -199,6 +199,7 @@ export function RegistrationSettings({
   draft,
   today,
   contest,
+  alreadyOpen = false,
 }: {
   eventId: string;
   initial: {
@@ -220,6 +221,8 @@ export function RegistrationSettings({
   draft: boolean;
   /** Today in the event's time zone (YYYY-MM-DD). */
   today: string;
+  /** Published with registration already open: the opening day can't move later. */
+  alreadyOpen?: boolean;
   /** Contest day: the deadline falls before it. */
   contest: { day: string; label: string; lastDeadline: string };
 }) {
@@ -481,15 +484,18 @@ export function RegistrationSettings({
           id="reg-opens"
           label="Registration opens"
           hint={
-            draft
-              ? "Optional. Leave it empty to open registration when you publish. Before this day, your event page is live and the registration page says when it opens."
-              : "Optional. Before this day, the registration page says when it opens. Leave it empty to keep registration open now."
+            alreadyOpen
+              ? "Registration is already open, so the opening day can't move later. To pause it, close registration at the top of this page."
+              : draft
+                ? "Optional. Leave it empty to open registration when you publish. Before this day, your event page is live and the registration page says when it opens."
+                : "Optional. Before this day, the registration page says when it opens."
           }
           saver={opensOn}
         >
           <Input
             type="date"
             value={opensOn.value}
+            disabled={alreadyOpen}
             min={initial.opensOn && initial.opensOn < today ? initial.opensOn : today}
             max={deadline.value || contest.lastDeadline}
             onChange={(e) => opensOn.change(e.target.value)}

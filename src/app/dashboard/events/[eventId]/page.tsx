@@ -26,7 +26,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { publishAndOpen, publishAndOpenSignups, publishSignupLater, setVolunteerSignupOpen } from "../../actions";
-import { publishAndOpenBandRegistration, setBandRegistrationOpen } from "../../band-actions";
+import { openBandRegistrationNow, publishAndOpenBandRegistration, setBandRegistrationOpen } from "../../band-actions";
 import { setParentRegistrationOpen } from "./parents/actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
@@ -43,7 +43,7 @@ import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { bandRegistrationMissing, publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { volunteerTotals } from "@/lib/volunteer-totals";
-import { opensLater } from "@/lib/bands";
+import { opensLater, registrationIsOpen } from "@/lib/bands";
 import { SetupGuide } from "@/components/setup-guide";
 import { DayRail } from "@/components/event-day-nav";
 import { loadDayActions } from "@/lib/event-day-actions";
@@ -677,8 +677,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               {access.isHost
                 ? event.event_type === "band_contest"
                   ? published
-                    ? "Registration settings, and inviting directors."
-                    : "Registration opens when you publish."
+                    ? "Change registration settings or invite directors."
+                    : setup?.registrationOpensOn
+                      ? `Registration opens ${formatDate(setup.registrationOpensOn, { year: undefined })}.`
+                      : "Registration opens when you publish."
                   : `Settings, opening registration, and inviting ${words.one} directors.`
                 : roomsHere
                   ? "See each group's times in every room."
@@ -699,17 +701,35 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           </div>
         </div>
         {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
-        {access.isHost && published && !past && (
-          <OpenClose
+        {access.isHost && published && !past && regLater ? (
+          // Set to open on a later day: say when, and the two things to do about it. Nothing to close yet.
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <p className="flex flex-wrap items-center gap-2 text-sm">
+              <Badge tone="neutral">Opens {formatDate(regLater, { year: undefined })}</Badge>
+              <Link href={`/dashboard/events/${eventId}/bands?tab=settings`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                Change opening day
+              </Link>
+            </p>
+            <ActionButton action={openBandRegistrationNow.bind(null, eventId)} variant="secondary" pendingText="Opening…" confirmMessage={`Open ${words.one} registration now? Directors can register from today instead of ${formatDate(regLater, { year: undefined })}.`} confirmLabel="Open now">
+              Open now
+            </ActionButton>
+          </div>
+        ) : (
+          access.isHost &&
+          published &&
+          !past && (
+            <OpenClose
               shareName={contestLive ? "word" : "links"}
-            on={event.band_registration_open}
-            onText="Registration open"
-            offText="Registration closed"
-            action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
-            openLabel="Open registration"
-            closeLabel="Close registration"
-            confirm={`Close ${words.one} registration? Directors can't register new ${words.many} until you open it again.`}
-          />
+              on={event.band_registration_open}
+              onText="Registration open"
+              offText="Registration closed"
+              action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
+              openLabel="Open registration"
+              closeLabel="Close registration"
+              confirmLabel="Close registration"
+              confirm={`Close ${words.one} registration early? Directors can't register or change their registration until you reopen it.`}
+            />
+          )
         )}
       </Card>
     </PageSection>
@@ -959,6 +979,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             qrs={shareQrs}
             inviteable={inviteable}
             opensOn={regLater}
+            closed={!registrationIsOpen(event) && !regLater}
             justPublished={justPublished}
             deadline={event.band_registration_deadline}
             volunteersReady={totals.capacity > 0}
@@ -1192,15 +1213,20 @@ type TeamUpdate = { tone: "warn" | "good"; text: string; tab: string | null };
 /** Directors a band contest's host can invite: from their earlier contests, and their imported list. */
 async function countInviteable(eventId: string) {
   const supabase = await createClient();
-  const [{ data: past }, { data: imported }, { data: invited }] = await Promise.all([
+  const [{ data: past }, { data: imported }, { data: invited }, { data: bands }] = await Promise.all([
     supabase.rpc("past_band_directors", { p_event: eventId }),
     supabase.from("band_prefills").select("email").eq("event_id", eventId),
-    supabase.from("band_invitations").select("email").eq("event_id", eventId),
+    supabase.from("band_invitations").select("email").eq("event_id", eventId).is("replaced_by", null),
+    supabase.from("bands").select("head_director_email").eq("event_id", eventId),
   ]);
-  const people = new Set([
-    ...((past ?? []) as { email: string; registered: boolean }[]).filter((d) => !d.registered).map((d) => d.email.toLowerCase()),
-    ...((imported ?? []) as { email: string }[]).map((p) => p.email.toLowerCase()),
-  ]);
+  // Registered directors aren't counted, wherever they came from (the invite list does the same).
+  const registered = new Set(((bands ?? []) as { head_director_email: string }[]).map((b) => b.head_director_email.toLowerCase()));
+  const people = new Set(
+    [
+      ...((past ?? []) as { email: string; registered: boolean }[]).filter((d) => !d.registered).map((d) => d.email.toLowerCase()),
+      ...((imported ?? []) as { email: string }[]).map((p) => p.email.toLowerCase()),
+    ].filter((e) => !registered.has(e)),
+  );
   // Invited, of the people who can still be invited (one who registered isn't counted).
   const invitedHere = ((invited ?? []) as { email: string }[]).filter((i) => people.has(i.email.toLowerCase())).length;
   return { people: people.size, invited: invitedHere, earlier: ((past ?? []) as unknown[]).length };
@@ -1220,7 +1246,10 @@ function GetTheWordOut({
   justPublished,
   deadline,
   volunteersReady,
+  closed,
 }: {
+  /** Registration is closed (or its deadline has passed): no inviting until it reopens. */
+  closed: boolean;
   eventId: string;
   slug: string;
   rows: ShareRow[];
@@ -1282,14 +1311,18 @@ function GetTheWordOut({
                 Band directors
               </p>
               <p className="text-sm text-muted">
-                {opensOn
-                  ? `You can send invitations from ${short(opensOn)}, when registration opens.`
+                {closed
+                  ? "Registration is closed. Reopen it to invite directors."
+                  : opensOn
+                  ? inviteable.people > 0
+                    ? `Choose directors now, and their invitations go out on ${short(opensOn)}, when registration opens.`
+                    : `Have last year's director list? Import it now, and invitations go out on ${short(opensOn)}.`
                   : inviteable.people > 0
-                    ? `${inviteable.people} ${inviteable.people === 1 ? "director" : "directors"} you can invite${inviteable.invited ? `, ${inviteable.invited} already invited` : ""}. Each gets an email with their band's details filled in.`
+                    ? `${inviteable.people} ${inviteable.people === 1 ? "director" : "directors"} to invite${inviteable.invited ? ` (${inviteable.invited} already invited)` : ""}. Each gets an email with their band's details filled in.`
                     : "Have last year's director list? Import it from a spreadsheet, then invite everyone at once."}
               </p>
             </div>
-            {!opensOn && (
+            {!closed && (
               <Link href={`${base}/bands?tab=invite`} className={`${BTN} shrink-0`}>
                 {inviteable.people > 0 ? "Invite directors" : "Import directors"}
               </Link>
@@ -1398,8 +1431,11 @@ function OpenClose({
   openLabel,
   closeLabel,
   confirm,
+  confirmLabel,
   shareName = "links",
 }: {
+  /** The confirm window's button ("Close registration"). */
+  confirmLabel?: string;
   /** Where the link is: Get the word out (a live band contest) or Links to share. */
   shareName?: "word" | "links";
   on: boolean;
@@ -1424,6 +1460,7 @@ function OpenClose({
         action={action as never}
         variant={on ? "quiet-stop" : "go"}
         confirmMessage={on ? confirm : undefined}
+        confirmLabel={on ? confirmLabel : undefined}
         pendingText={on ? "Closing…" : "Opening…"}
       >
         {on ? closeLabel : openLabel}

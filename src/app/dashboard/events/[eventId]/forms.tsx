@@ -1119,6 +1119,7 @@ export function ActionButton({
   children,
   variant = "primary",
   confirmMessage,
+  confirmLabel,
   pendingText = "Saving…",
   className,
 }: {
@@ -1127,12 +1128,14 @@ export function ActionButton({
   /** "go" (green) and "stop" (red outline) for switching something on or off; "quiet-stop" is red text. */
   variant?: "primary" | "secondary" | "go" | "stop" | "quiet-stop";
   confirmMessage?: string;
+  /** The confirm window's button, naming what happens ("Close registration"). */
+  confirmLabel?: string;
   pendingText?: string;
   /** For the button itself (e.g. a smaller one in a row of links). */
   className?: string;
 }) {
   return (
-    <ActionForm action={action} confirmMessage={confirmMessage} className="space-y-2" resetOnSuccess={false}>
+    <ActionForm action={action} confirmMessage={confirmMessage} confirmLabel={confirmLabel} className="space-y-2" resetOnSuccess={false}>
       <SubmitButton
         variant={variant === "stop" ? "danger" : variant === "quiet-stop" ? "quiet-danger" : variant}
         pendingText={pendingText}
