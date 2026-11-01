@@ -207,6 +207,11 @@ export async function setBandRegistrationOpen(eventId: string, open: boolean) {
  * registration, then the link to send directors, on the Registered bands tab.
  */
 export async function publishAndOpenBandRegistration(eventId: string): Promise<ActionState> {
+  // Opening with a deadline that's already passed would close registration straight away.
+  const supabase = await createClient();
+  const { data: ev } = await supabase.from("events").select("timezone, band_registration_deadline").eq("id", eventId).maybeSingle();
+  if (ev?.band_registration_deadline && ev.band_registration_deadline < utcToZonedDate(new Date().toISOString(), ev.timezone))
+    return { error: "The registration deadline has passed. Pick a new one in Registration first." };
   const published = await setEventPublished(eventId, true);
   if (published.error) return published;
   const opened = await setBandRegistrationOpen(eventId, true);
@@ -235,12 +240,12 @@ async function registrationShare(eventId: string): Promise<ActionState> {
 export async function reopenBandRegistration(eventId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const deadline = String(formData.get("deadline") ?? "");
   if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return { error: "Pick a valid deadline date." };
-  if (deadline) {
-    const supabase = await createClient();
-    const { data: event } = await supabase.from("events").select("timezone").eq("id", eventId).maybeSingle();
-    if (event && deadline < utcToZonedDate(new Date().toISOString(), event.timezone))
-      return { error: "Pick today or a later date for the new deadline." };
-  }
+  const supabase = await createClient();
+  const { data: event } = await supabase.from("events").select("timezone, event_type").eq("id", eventId).maybeSingle();
+  // A band contest always has a deadline (the database checks too).
+  if (!deadline && event?.event_type === "band_contest") return { error: "Pick a new deadline to reopen registration." };
+  if (deadline && event && deadline < utcToZonedDate(new Date().toISOString(), event.timezone))
+    return { error: "Pick today or a later date for the new deadline." };
   const result = await updateEventRow(eventId, { band_registration_open: true, band_registration_deadline: deadline || null });
   return result.error ? result : registrationShare(eventId);
 }

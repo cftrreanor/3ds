@@ -43,6 +43,11 @@ export type SetupFacts = {
   finalsPublished: boolean;
   finalistsRevealed: boolean;
   directorInfo: boolean;
+  /** Band contests: a registration deadline is set, and how many classifications there are. */
+  registrationDeadline?: boolean;
+  /** A draft band contest's deadline has already passed: it needs a new one before publishing. */
+  registrationDeadlinePast?: boolean;
+  classifications?: number;
   pathRooms: number;
   /** Group events: every room, on the path or not. */
   rooms: number;
@@ -109,6 +114,16 @@ function jobsStep(f: SetupFacts, base: string): SetupStep {
 }
 
 /** "Litter pickup needs a shift" / "2 jobs need a shift or a thing to bring". */
+/** What a band contest still needs before directors can register ("Add a deadline"), or null. */
+export function bandRegistrationMissing(f: Pick<SetupFacts, "registrationDeadline" | "classifications" | "registrationDeadlinePast" | "published">) {
+  const cls = (f.classifications ?? 0) > 0;
+  if (f.registrationDeadlinePast && !f.published) return cls ? "Pick a new deadline: it has passed" : "Pick a new deadline and add a classification";
+  if (!f.registrationDeadline && !cls) return "Add a deadline and a classification";
+  if (!f.registrationDeadline) return "Add a deadline";
+  if (!cls) return "Add a classification";
+  return null;
+}
+
 export function emptyJobsNote(empty: { name: string; items: boolean }[]) {
   if (empty.length === 1) return `${empty[0].name} needs ${empty[0].items ? "a thing to bring" : "a shift"}`;
   return `${empty.length} jobs need a shift or a thing to bring`;
@@ -143,14 +158,16 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     });
   }
   if (f.eventType === "band_contest") {
+    const missing = bandRegistrationMissing(f);
     before.push(
       {
-        id: "director-info",
-        label: "Add information for directors",
-        hint: "Entry fee, arrival, parking: shown when bands register.",
+        id: "registration",
+        label: "Set up band registration",
+        hint: "Classifications and a deadline: what directors need to register.",
         href: `${base}/bands`,
-        done: f.directorInfo,
-        required: false,
+        done: missing === null,
+        required: true,
+        partial: missing && (f.registrationDeadline || (f.classifications ?? 0) > 0) ? { fraction: 0.5, note: missing } : undefined,
       },
       {
         id: "check-in",
@@ -231,7 +248,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   const publish: SetupStep = {
     id: "publish",
     label: "Publish your event",
-    hint: "Puts your public page online. You can unpublish anytime.",
+    hint: "Puts your public page online. You can unpublish at any time.",
     href: `${base}#publish`,
     done: f.published,
     required: true,
@@ -249,19 +266,21 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     });
   }
   if (groups) {
-    after.push(
-      {
+    // A band contest opens registration when it publishes: no separate step for it.
+    if (f.eventType !== "band_contest")
+      after.push({
         id: "registration",
         label: `Open ${words.one} registration`,
         hint: `So ${words.one} directors can register.`,
         href: `${base}/bands`,
         done: f.published && f.bandRegistrationOpen,
         required: false,
-      },
+      });
+    after.push(
       {
         id: "schedule",
         label: hasRooms(f.eventType) ? "Build and post the room schedule" : "Build and publish the performance schedule",
-        hint: "Directors are emailed their times when you publish it.",
+        hint: "Directors are emailed their times when you publish the schedule.",
         href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/schedule`,
         done: f.scheduleShared,
         required: false,
@@ -293,11 +312,13 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   return {
     eventId: f.eventId,
     inProgress,
-    segments: counted.map((s) => ({
-      id: s.id,
-      state: s.done ? "done" : s.partial ? "partial" : "todo",
-      fraction: s.done ? 1 : (s.partial?.fraction ?? 0),
-    })),
+    // The line fills from the left (done first, then part-way), and fills up once everything needed is in place.
+    segments: [...counted]
+      .sort((a, b) => rank(a) - rank(b))
+      .map((s) => {
+        const full = s.done || (!f.published && remaining.length === 0);
+        return { id: s.id, state: full ? "done" : s.partial ? "partial" : "todo", fraction: full ? 1 : (s.partial?.fraction ?? 0) };
+      }),
     before,
     publish,
     after,
@@ -318,6 +339,10 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     // A live event with a job volunteers can't see yet isn't finished: the event page says which.
     complete: f.published && afterDone === after.length && !(f.emptyJobs ?? []).length,
   };
+}
+
+function rank(s: SetupStep) {
+  return s.done ? 0 : s.partial ? 1 : 2;
 }
 
 /** What publishing changes for this event, in plain words (shown next to the Publish button). */
@@ -345,7 +370,9 @@ export function publishEffects(f: SetupFacts): string[] {
         : "Volunteer sign-up stays closed until you open it.",
     );
   }
-  if (hasEnsembles(f.eventType)) {
+  if (f.eventType === "band_contest") {
+    lines.push("Band registration opens, and directors can register until your deadline.");
+  } else if (hasEnsembles(f.eventType)) {
     lines.push(
       f.bandRegistrationOpen
         ? `${words.One} registration opens right away (it was left on).`

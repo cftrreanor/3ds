@@ -38,8 +38,15 @@ Leaving waits for pending saves; if one failed, stay and say which field. Mark t
 itself, not only the bar. Save one field at a time, so two co-hosts don't undo each other.
 - **Why:** "Saved" while something wasn't is the worst kind of surprise.
 - **Seen in:** setup redesign v2 and v3 (three kinds of saving), volunteer jobs v3 and v4 (lost
-  edits, offline, typed shifts), band contest v1 and v2 (Next up leaves with a failed save).
-- **Build with:** `src/app/dashboard/events/[eventId]/volunteering/pending-edits.ts`.
+  edits, offline, typed shifts), band contest v1 and v2 (Next up leaves with a failed save), band
+  PR 1 built (failed field's red border hidden by the focus ring; "Please try again. Retry"; errors
+  shown mid-typing; leaving the box added half-typed text).
+- **Sharper rules:** the failed box stays red *while it has focus* (`aria-invalid` plus an
+  important border). Offer Retry only when trying again can work (a dropped connection), and name
+  the connection. Check a value's format before saving; say what's wrong when the person leaves the
+  box, never while they type. Nothing typed is added or saved on leaving the box: it waits for Add,
+  and leaving the page asks.
+- **Build with:** `src/components/pending-edits.ts` (`setPending`, `useLeaveGuard`).
 
 ## L4. The screen's rules are the database's rules
 Anything the page says can't happen ("publishing needs a deadline", "can't delete a job with
@@ -47,7 +54,11 @@ sign-ups", "can't remove a classification with bands") is refused by the databas
 `supabase/tests/security_test.sql`. Hiding a button is not enforcement.
 - **Why:** a second tab, a co-host, or an old link goes around the page.
 - **Seen in:** event setup (drafts went live), setup redesign v3 (hidden jobs), volunteer jobs v1,
-  band contest v1 and v2 (publish rule, classifications, reopen).
+  band contest v1 and v2 (publish rule, classifications, reopen), band PR 1 built (any deadline
+  date accepted; clearing a number box saved 0).
+- **Every date and number has limits:** a date picker gets `min`/`max` and the database agrees
+  (a deadline before the event); an empty number box is not 0; a limit can't drop below what
+  people already signed up for.
 
 ## L5. One word per thing, one thing per word
 Pick one name and use it everywhere: in buttons, headings, emails, and the website. Never reuse
@@ -57,6 +68,9 @@ a word for two things on one screen.
   "Parking" (stop and job), "Import" (three names), "post" vs "publish" the schedule, role names
   ("Volunteer Lead", "Coordinator"), "sign-up" vs "job" on volunteer events.
 - **Before naming:** check `docs/brand-voice.md` and grep the app for the word.
+- **Also seen in:** band PR 1 built ("Publish and open registration" next to a checklist step
+  "Open band registration"; "emailed when you publish" meaning the *schedule*). When one button
+  does two things, no other step may offer either one again, and "publish" always names its object.
 
 ## L6. Dark mode: muted text is white
 In dark mode `--muted` is pure white, so anything that relies on grey looks live or filled in.
@@ -133,6 +147,20 @@ sees them and when. Defaults filled in from someone's profile are suggestions un
 - **Seen in:** setup redesign v3 (Coordinators and phone numbers), volunteer jobs v4 (phone note
   promised the wrong people), band contest v1 and v2 (director contact).
 
+## L17. When a step is ready, its one action comes first
+Once everything a step needs is in place, the button that finishes it moves to the top of the
+page, not below the cards. While it isn't ready, the same spot names what's missing, with one
+button to fix it. One prompt for "what next", not four.
+- **Seen in:** volunteer jobs (publish card leads the page), band PR 1 built (publish button
+  1,500 px down once ready, 5 of 8 reviewers; step bar, sidebar, Next step card, and publish card
+  all pointing at the same task).
+
+## L18. Sibling steps save the same way
+Steps in one flow use one save model and one "next" spot: they all save themselves with the same
+bar (status left, Next up right), or they all use a Save button.
+- **Seen in:** setup redesign (three kinds of saving), band PR 1 built (Details had Save changes
+  and a Next link at the top; Registration saved itself with Next in the bar, 5 of 8 reviewers).
+
 ---
 
 ## Self-check before a review
@@ -156,4 +184,6 @@ before the panel sees it.
 - [ ] **L14** No emoji
 - [ ] **L15** Same layout as its sibling pages
 - [ ] **L16** Personal details say who sees them
+- [ ] **L17** A ready step's action is at the top; a blocked one names its fix there
+- [ ] **L18** Sibling steps save the same way, with Next in the same place
 - [ ] `npm run lint` passes (includes the automatic checks)

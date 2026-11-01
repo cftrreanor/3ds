@@ -1,5 +1,6 @@
 "use server";
 
+import { ensureDirectorContact } from "./band-registration-actions";
 import { revalidatePath } from "next/cache";
 import { brand } from "@/lib/brand";
 import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
@@ -16,7 +17,7 @@ import { slugify } from "@/lib/slug";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { asksChildName } from "@/lib/conference-settings";
 import { FILES_BUCKET } from "@/lib/event-files";
-import { eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
+import { formatDate, eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
 import { loadCalendarEntries, sendShiftUpdates } from "@/lib/volunteer-emails";
 
 // Every action re-checks who is signed in; the database's Row Level Security
@@ -160,6 +161,8 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
     .from("events")
     .insert({
       event_type: isEventType(eventType) ? eventType : "band_contest",
+      // A band contest starts with no classifications: the host picks them in step 2 (Registration).
+      ...(eventType === "band_contest" ? { classifications: [] } : {}),
       organization_id: v.organizationId,
       name: v.name,
       slug: slugify(v.name),
@@ -183,14 +186,17 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
 
   revalidatePath("/dashboard");
   // Conferences and meetings go straight to their setup, where the day or weekly hours are set. A
-  // volunteer event's step 2 is its jobs (team, emails, and maps wait in Event settings). Other events
-  // go on to the rest of their guided setup (Event settings, a step at a time).
+  // volunteer event's step 2 is its jobs, and a band contest's is registration (team, emails, and maps
+  // wait in Event settings). Other events go on to the rest of their guided setup (Event settings, a
+  // step at a time).
   redirect(
     hasConferences(eventType as string)
       ? `/dashboard/events/${data.id}/conferences`
       : eventType === "volunteer"
         ? `/dashboard/events/${data.id}/volunteering`
-        : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
+        : eventType === "band_contest"
+          ? `/dashboard/events/${data.id}/bands`
+          : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
   );
 }
 
@@ -203,9 +209,15 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   const supabase = await createClient();
   const { data: before } = await supabase
     .from("events")
-    .select("timezone, starts_on, window_start, venue_name, venue_address, name, event_type")
+    .select("timezone, starts_on, window_start, venue_name, venue_address, name, event_type, status, band_registration_deadline")
     .eq("id", eventId)
     .maybeSingle();
+  // Saving by itself is for drafts: a live event's changes can email volunteers, so they wait for Save.
+  if (formData.get("autosave") === "1" && before?.status === "published")
+    return { error: "This event is live now. Reload the page to edit it." };
+  // A band contest's deadline falls before contest day (the database checks too): say so before saving anything.
+  if (before?.event_type === "band_contest" && before.band_registration_deadline && before.band_registration_deadline >= v.startsOn)
+    return { error: `The registration deadline is ${formatDate(before.band_registration_deadline)}. Move it before the new date in Registration first.` };
   // A conference's school is set in Conference Setup, not here.
   const conference = hasConferences(before?.event_type);
   if (!conference && !v.venueAddress) return { error: "Venue: Required" };
@@ -259,6 +271,8 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  // Saved by itself as the host types (a draft's Details): stay on the page.
+  if (formData.get("autosave") === "1") return { ok: true };
   // In the guided setup, on to the next step.
   const next = String(formData.get("next") ?? "");
   redirect(next.startsWith(`/dashboard/events/${eventId}/edit?`) ? next : `/dashboard/events/${eventId}`);
@@ -297,7 +311,7 @@ async function changePublished(eventId: string, publish: boolean, signupOpen?: b
     // Publishing can set volunteer sign-up open or closed in the same step, so it never goes live half done.
     .update(publish ? { status: "published", ...(signupOpen === undefined ? {} : { volunteer_signup_open: signupOpen }) } : { status: "draft", volunteer_signup_open: false })
     .eq("id", eventId)
-    .select("id");
+    .select("id, event_type");
   if (error) {
     // Plan limits say what's included and how to get more (friendlyDbError passes them through).
     if (error.code === "42501" && !error.message.startsWith("Your ")) {
@@ -306,6 +320,8 @@ async function changePublished(eventId: string, publish: boolean, signupOpen?: b
     return { error: friendlyDbError(error) };
   }
   if (!data?.length) return { error: "Only the event's host can publish it." };
+  // Directors always have someone to call: the host's details, if no contact was saved.
+  if (publish && data[0].event_type === "band_contest") await ensureDirectorContact(eventId);
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
   return { ok: true };
 }

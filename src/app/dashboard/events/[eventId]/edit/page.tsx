@@ -40,7 +40,7 @@ import { LogoForm } from "@/components/logo-form";
 import { SetupLogo } from "../../_components/setup-logo";
 import { loadBrand } from "@/lib/badges";
 
-export const metadata: Metadata = { title: "Event Settings" };
+export const metadata: Metadata = { title: "Event settings" };
 
 const TYPE_SUMMARY = {
   band_contest: "Bands register, get performance times, and are checked in on contest day, alongside your volunteers.",
@@ -90,8 +90,8 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
   const asked = ALL_SECTIONS.find((x) => x === sectionParam) ?? (typeof step === "string" ? fromStep[step] : undefined);
   const section: Section = asked && SECTIONS.includes(asked) ? asked : "details";
   // The guided setup, step by step (conferences and meetings have their own setup page instead).
-  // A volunteer event's setup is its three steps (shown by the layout), not the guided Event settings.
-  const guided = setupParam === "1" && !hasConferences(event.event_type) && event.event_type !== "volunteer";
+  // Volunteer events and band contests set up in three steps (shown by the layout), not the guided Event settings.
+  const guided = setupParam === "1" && !hasConferences(event.event_type) && event.event_type !== "volunteer" && event.event_type !== "band_contest";
   const at = SETUP_STEPS.findIndex((s) => s.id === section);
   const prevStep = guided && at > 0 ? setupHref(eventId, SETUP_STEPS[at - 1].id) : undefined;
   const nextStep = guided && at < SETUP_STEPS.length - 1 ? setupHref(eventId, SETUP_STEPS[at + 1].id) : undefined;
@@ -291,7 +291,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
             ← Back to {event.name}
           </Link>
-          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event Settings</h1>
+          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{!published && (event.event_type === "volunteer" || event.event_type === "band_contest") ? "Event details" : "Event settings"}</h1>
           <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
           <p className="mt-1 text-sm text-muted">Boxes marked * are required.</p>
         </>
@@ -330,6 +330,14 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   eventType={event.event_type}
                   when={when}
                   stickySave={!guided}
+                  autosave={!guided && !published}
+                  next={
+                    !published && (event.event_type === "volunteer" || event.event_type === "band_contest")
+                      ? event.event_type === "volunteer"
+                        ? { href: `/dashboard/events/${eventId}/volunteering`, label: "Next up: Jobs and shifts" }
+                        : { href: `/dashboard/events/${eventId}/bands`, label: "Next up: Registration" }
+                      : undefined
+                  }
                   setup={guided ? { next: nextStep } : undefined}
                   extra={guided && badgesHere ? <SetupLogo eventId={eventId} logo={brand.logo} color={brand.color} /> : undefined}
                 />

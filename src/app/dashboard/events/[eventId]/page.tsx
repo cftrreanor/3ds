@@ -26,7 +26,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { eventPhase, nextUp, onTrack, sortStations, stationTiles, type BandDay, type Checkpoint, type Stop } from "@/lib/contest-day";
 import { AttentionList, DayTiles, StatusLine } from "./contest-day/on-track";
 import { publishAndOpen, publishAndOpenSignups, publishSignupLater, setVolunteerSignupOpen } from "../../actions";
-import { setBandRegistrationOpen } from "../../band-actions";
+import { publishAndOpenBandRegistration, setBandRegistrationOpen } from "../../band-actions";
 import { setParentRegistrationOpen } from "./parents/actions";
 import { ActionButton } from "./forms";
 import { type Shift } from "./station-panel";
@@ -41,7 +41,7 @@ import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
-import { publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { bandRegistrationMissing, publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { volunteerTotals } from "@/lib/volunteer-totals";
 import { SetupGuide } from "@/components/setup-guide";
 import { DayRail } from "@/components/event-day-nav";
@@ -669,7 +669,11 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             </span>{" "}
             <span className="text-muted">
               {access.isHost
-                ? `Settings, opening registration, and inviting ${words.one} directors.`
+                ? event.event_type === "band_contest"
+                  ? published
+                    ? "Registration settings, and inviting directors."
+                    : "Registration opens when you publish."
+                  : `Settings, opening registration, and inviting ${words.one} directors.`
                 : roomsHere
                   ? "See each group's times in every room."
                   : "See the performance order and each band's status on the day."}
@@ -720,7 +724,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             <span className="text-sm text-muted">
               {roomsHere
                 ? "Your rooms, the path every group follows, and each group's times."
-                : "The running order, breaks, and finals. Directors are emailed their times when you publish."}
+                : "The running order, breaks, and finals. Directors are emailed their times when you publish the schedule."}
             </span>
           </div>
           <Link href={`/dashboard/events/${eventId}/${roomsHere ? "rooms" : "schedule"}`} className={BTN_OUTLINE}>
@@ -870,7 +874,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         ? // A volunteer event's last step is publishing: it leads the page (it names what's still needed).
           // With no job volunteers can sign up for yet, there's no event day to plan, so its card waits.
           ["publish", "attention", "signups", "schedule", "volunteers", ...((setup?.readyJobs ?? 1) > 0 ? ["day"] : []), "files"]
-        : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
+        : event.event_type === "band_contest"
+          ? // A band contest too: the publish card leads, naming what registration still needs, or with the button.
+            ["publish", "attention", "signups", "schedule", "volunteers", "day", "files"]
+          : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
   const labels: Record<string, string> = {
     day: dayTitle,
     signups: signupsLabel,
@@ -1024,10 +1031,13 @@ function PublishPanel({
   // Jobs with nothing to sign up for yet never reach the sign-up page: name them, with the way to fix each.
   const empty = jobsHere ? (facts.emptyJobs ?? []) : [];
   const jobsHref = (id?: string) => `/dashboard/events/${facts.eventId}/volunteering${id ? `?station=${id}` : ""}`;
+  // A band contest needs a deadline and a classification before it can publish (the database checks too).
+  const bandsHere = facts.eventType === "band_contest";
+  const bandMissing = bandsHere ? bandRegistrationMissing(facts) : null;
   const effects = publishEffects(facts).filter((line) => !(jobsHere && line.startsWith("Volunteer sign-up")));
   return (
     <Card id="publish" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">{needsJob ? "Not ready to publish yet" : others.length ? "Almost ready to publish" : "Ready to publish"}</h2>
+      <h2 className="text-lg font-semibold">{needsJob || bandMissing ? "Not ready to publish yet" : others.length ? "Almost ready to publish" : "Ready to publish"}</h2>
       {needsJob && (
         // The one thing stopping them, first.
         <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
@@ -1037,6 +1047,15 @@ function PublishPanel({
           <p className="mt-1">Publishing needs at least one job with a shift or a thing to bring.</p>
           <Link href={jobsHref(empty[0]?.id)} className={`${BTN} mt-3`}>
             {empty[0] ? `Add ${empty[0].items ? "things to bring" : "shifts"} to ${empty[0].name}` : "Go to jobs and shifts"}
+          </Link>
+        </div>
+      )}
+      {bandMissing && (
+        <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
+          <p className="font-semibold">{bandMissing}</p>
+          <p className="mt-1">Publishing needs a registration deadline that hasn&apos;t passed and at least one classification.</p>
+          <Link href={`/dashboard/events/${facts.eventId}/bands`} className={`${BTN} mt-3`}>
+            Go to registration
           </Link>
         </div>
       )}
@@ -1058,7 +1077,7 @@ function PublishPanel({
           </ul>
         </div>
       )}
-      {needsJob ? null : others.length ? (
+      {needsJob || bandMissing ? null : others.length ? (
         // The checklist beside the page lists every step; here, just the first one left.
         <p className="mt-2 text-sm">
           <span className="text-muted">We recommend finishing {others.length === 1 ? "one more step" : `${others.length} more steps`} first, starting with </span>
@@ -1081,7 +1100,7 @@ function PublishPanel({
           </li>
         ))}
       </ul>
-      {needsJob ? null : facts.planBlock ? (
+      {needsJob || bandMissing ? null : facts.planBlock ? (
         // Say why before they try, and what they can do: not an error after the click.
         <div className="mt-5 rounded-md border border-brand/25 bg-brand-soft p-4 text-sm leading-6">
           <p className="font-semibold">Your plan doesn&apos;t allow publishing this yet</p>
@@ -1125,6 +1144,12 @@ function PublishPanel({
                 </ActionButton>
               </div>
             </div>
+          </div>
+        ) : bandsHere ? (
+          <div className="mt-5">
+            <ActionButton action={publishAndOpenBandRegistration.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
+              Publish and open registration
+            </ActionButton>
           </div>
         ) : (
           <div className="mt-5">
