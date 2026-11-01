@@ -180,8 +180,8 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         id: "check-in",
         label: "Set your contest day check-in stops",
         hint: f.startsOn
-          ? `Like Parking, Check-in, and the Gate. Due by ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}, so volunteers can be placed.`
-          : "Like Parking, Check-in, and the Gate.",
+          ? `Like parking, check-in, and the gate. Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })} if you have volunteers, so they can be placed.`
+          : "Like parking, check-in, and the gate.",
         href: `${base}/volunteering`,
         done: f.checkInStops > 0,
         required: false,

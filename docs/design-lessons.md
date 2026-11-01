@@ -22,7 +22,10 @@ per page and shown from that one result. Don't repeat the same fact in three pla
 - **Why:** the moment two numbers disagree, people trust neither.
 - **Seen in:** event setup (four different step counts), My events (three names for what ended),
   volunteer jobs v1 (totals: "2 of 8" vs "2 of 20"), band contest v2 ("0 bands" next to
-  "12 registered", 8 of 8 reviewers).
+  "12 registered", 8 of 8 reviewers), band PR3 ("2 already invited" in one card, "1 of 3 invited"
+  in the next: both true, counted differently, 4 of 4 reviewers).
+- **Same word, same count:** if two cards say "invited", they count the same people. Define the
+  count once, in one helper, and say what it is ("invited who haven't registered").
 - **Mock-ups too:** sample data follows one timeline. Check every number against every other screen.
 
 ## L2. Design every state, not just the happy one

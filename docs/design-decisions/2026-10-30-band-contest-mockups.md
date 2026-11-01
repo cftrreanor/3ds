@@ -41,3 +41,19 @@ Review: docs/design-reviews/2026-10-30-band-contest-mockups-v2.md
 | # | Finding | Severity | Decision | Notes |
 |---|---|---|---|---|
 | — | Band contests' event page as a separate stage-bar dashboard (stage bar, one main card, "Before contest day", "Your contest" grid) | — | Fix it differently | Owner: one dashboard for every event type. Band contests keep the shared event page; the mock-ups' useful facts (registration counts, invited who haven't registered, "post times by" with the reason, check-in stops due date) go into the existing cards and checklist. Supersedes decisions 5 and light-check 1 above for the event page layout |
+
+## PR3 light check (2026-11-03)
+
+Review: Content Manager, UX Designer, UI Designer, and the usability consultant, on the screenshots in
+docs/design-reviews/2026-11-03-band-pr3/ (open, closed, and opens-later states).
+
+| # | Finding | Severity | Decision | Notes |
+|---|---|---|---|---|
+| 1 | Invited counts disagree between Get the word out and Band registration | 3 | Take the advice | One count from one helper: "N invited directors haven't registered". Get the word out says "N not invited yet, and N invited who haven't registered" |
+| — | "See who hasn't" and "invite directors" while registration is closed | 2 | Take the advice | Closed: "Reopen registration to remind them", and the summary drops "or invite directors" |
+| — | "Bands in 3 of 4 classifications" doesn't name the empty one | 2 | Take the advice | "No bands yet in 1A"; hidden with no bands or one classification |
+| — | "Closes in 320 days" | 2 | Take the advice | "Closes Fri, Sep 17", bold; "Closes in N days" only in the last two weeks; shown in the opens-later state too |
+| — | "Post times by …, 2027" | 2 | Take the advice | "Publish by Sat, Sep 25, two weeks before contest day, so directors can book buses" |
+| — | Check-in stops step: "Optional" next to "Due by" | 2 | Take the advice | "Like parking, check-in, and the gate. Due Sat, Sep 25 if you have volunteers, so they can be placed." |
+| — | Volunteers card says "no jobs" twice; inline "Add a job" easy to miss; box inside a card | 1–2 | Take the advice | No zero-count line; "No jobs yet" sentence; the card's button becomes "Add a job"; no nested box |
+| — | "Add jobs first" vs "Add a job" | 1 | Take the advice | Both say "Add a job" |

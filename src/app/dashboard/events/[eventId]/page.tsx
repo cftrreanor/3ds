@@ -366,6 +366,20 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const contestLive = published && event.event_type === "band_contest" && access.isHost;
   const inviteable = contestLive ? await countInviteable(eventId) : null;
   const regLater = contestLive && event.band_registration_open && opensLater(event) ? event.band_registration_opens_on : null;
+  // The registration card's facts for a live contest (none when there's nothing to say).
+  const regFacts = (() => {
+    if (!contestLive || !inviteable) return null;
+    const classes = (event.classifications ?? []) as string[];
+    const empty = classes.filter((c) => !bands.some((b) => b.classification === c));
+    const closing = event.band_registration_deadline && (registrationIsOpen(event) || regLater) ? closesOn(event.band_registration_deadline, today) : null;
+    const classLine =
+      bands.length > 0 && classes.length > 1
+        ? empty.length
+          ? <>No {words.many} yet in <span className="font-semibold">{listAnd(empty)}</span></>
+          : `${words.Many} in every classification`
+        : null;
+    return closing || classLine || inviteable.waiting ? { closing, classLine, waiting: inviteable.waiting } : null;
+  })();
   const daysToGo = Math.round((Date.parse(event.starts_on) - Date.parse(today)) / 864e5);
   const words2 = leadWords(event.event_type);
 
@@ -677,7 +691,9 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               {access.isHost
                 ? event.event_type === "band_contest"
                   ? published
-                    ? "Change registration settings or invite directors."
+                    ? registrationIsOpen(event) || regLater
+                      ? "Change registration settings or invite directors."
+                      : "Change registration settings."
                     : setup?.registrationOpensOn
                       ? `Registration opens ${formatDate(setup.registrationOpensOn, { year: undefined })}.`
                       : "Registration opens when you publish."
@@ -700,32 +716,30 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             )}
           </div>
         </div>
-        {contestLive && inviteable && (
-          // A live contest's registration at a glance: where bands are, when it closes, and who hasn't answered.
+        {regFacts && (
+          // A live contest's registration at a glance: when it closes, where bands are missing, and who hasn't answered.
           <div className="space-y-2 border-t border-border pt-4 text-sm leading-6">
-            <p>
-              {[
-                (event.classifications ?? []).length
-                  ? `Bands in ${new Set(bands.map((b) => b.classification)).size} of ${(event.classifications ?? []).length} classifications`
-                  : null,
-                registrationIsOpen(event) && event.band_registration_deadline ? closesIn(event.band_registration_deadline, today) : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            {inviteable.sent > 0 && (
+            {(regFacts.closing || regFacts.classLine) && (
+              <p>
+                {regFacts.closing && <span className="font-semibold">{regFacts.closing}</span>}
+                {regFacts.closing && regFacts.classLine && " · "}
+                {regFacts.classLine}
+              </p>
+            )}
+            {regFacts.waiting > 0 && (
               <p>
                 <span className="font-semibold">
-                  {inviteable.sentRegistered} of {inviteable.sent} invited directors
-                </span>{" "}
-                have registered.
-                {inviteable.sent > inviteable.sentRegistered && (
+                  {regFacts.waiting} invited {regFacts.waiting === 1 ? "director hasn't" : "directors haven't"} registered
+                </span>
+                {registrationIsOpen(event) ? (
                   <>
-                    {" "}
+                    {" · "}
                     <Link href={`/dashboard/events/${eventId}/bands?tab=invite`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
-                      See who hasn&apos;t
+                      See who hasn&apos;t registered
                     </Link>
                   </>
+                ) : regLater ? null : (
+                  <span className="text-muted"> · Reopen registration to remind them</span>
                 )}
               </p>
             )}
@@ -787,8 +801,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             {event.event_type === "band_contest" && published && !event.performance_order_published && !past && (
               // When to post times by, and why: directors book buses from them.
               <span className="basis-full text-sm">
-                <span className="font-semibold">Post times by {formatDate(twoWeeksBefore(event.starts_on))}</span>
-                <span className="text-muted">, two weeks before contest day, so directors can book buses.</span>
+                <span className="font-semibold">Publish by {formatDate(twoWeeksBefore(event.starts_on), { year: undefined })}</span>
+                <span className="text-muted">, two weeks before contest day, so directors can book buses</span>
               </span>
             )}
           </div>
@@ -801,6 +815,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   // A published volunteer event's jobs with no shift or thing to bring (hosts only, from the setup facts).
   const liveEmpty = published && event.event_type === "volunteer" ? (setup?.emptyJobs ?? []) : [];
+  // A published event with no volunteer jobs at all: the card's button becomes "Add a job".
+  const noJobsYet = published && stations.length === 0;
   const volunteers =
     access.canManage && !conferenceHere ? (
       <PageSection id="volunteers" title="Volunteers">
@@ -813,14 +829,23 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                   {!published ? "Event not published" : event.volunteer_signup_open ? "Sign-up open" : "Sign-up closed"}
                 </Badge>
               )}
+              {!noJobsYet && (
               <span className="text-sm text-muted">
                 {event.event_type === "volunteer"
                   ? `${stations.length} ${stations.length === 1 ? "job" : "jobs"}${liveEmpty.length ? ` · ${liveEmpty.length} not on the sign-up page yet` : ""}`
                   : `${stations.length} sign-up${stations.length === 1 ? "" : "s"} · ${(shifts ?? []).length} shift${(shifts ?? []).length === 1 ? "" : "s"}`}
               </span>
+              )}
+              {noJobsYet && (
+                // Nothing to sign up for yet: say so, not "Sign-up open" or a row of zeros.
+                <p className="text-sm leading-6">
+                  <span className="font-semibold">No jobs yet.</span>{" "}
+                  <span className="text-muted">Add one with shifts, and its sign-up link appears in {contestLive ? "Get the word out" : "Links to share"}.</span>
+                </p>
+              )}
             </div>
             <Link href={`/dashboard/events/${eventId}/volunteering`} className={BTN_OUTLINE}>
-              {event.event_type === "volunteer" ? "Jobs and shifts" : "Manage volunteers"}
+              {noJobsYet ? "Add a job" : event.event_type === "volunteer" ? "Jobs and shifts" : "Manage volunteers"}
             </Link>
           </div>
           {/* Live, with a job nobody can sign up for yet: say so where the organizer checks in, with the fix. */}
@@ -845,16 +870,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               </ul>
             </div>
           )}
-          {stations.length === 0 && published ? (
-            // Nothing to sign up for yet: say so, not "Sign-up open".
-            <p className="rounded-md border border-border bg-background px-4 py-3 text-sm leading-6">
-              <span className="font-semibold">No jobs yet.</span>{" "}
-              <span className="text-muted">Add a job with shifts, and its sign-up link shows up where you share links.</span>{" "}
-              <Link href={`/dashboard/events/${eventId}/volunteering`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
-                Add a job
-              </Link>
-            </p>
-          ) : (
+          {!noJobsYet && (
           <VolunteerStats
             filled={signedUp}
             capacity={totalSlots}
@@ -1276,16 +1292,16 @@ async function countInviteable(eventId: string) {
       ...((imported ?? []) as { email: string }[]).map((p) => p.email.toLowerCase()),
     ].filter((e) => !registered.has(e)),
   );
-  // Invited, of the people who can still be invited (one who registered isn't counted).
-  const invitedHere = ((invited ?? []) as { email: string }[]).filter((i) => people.has(i.email.toLowerCase())).length;
-  // Of the directors actually emailed, how many have registered since.
-  const sentTo = ((invited ?? []) as { email: string; sent_at: string | null }[]).filter((i) => i.sent_at).map((i) => i.email.toLowerCase());
+  const rows = (invited ?? []) as { email: string; sent_at: string | null }[];
+  const hasInvite = new Set(rows.map((i) => i.email.toLowerCase()));
+  // One count, used by both cards: directors emailed an invitation who haven't registered yet.
+  const waiting = new Set(rows.filter((i) => i.sent_at && !registered.has(i.email.toLowerCase())).map((i) => i.email.toLowerCase())).size;
   return {
     people: people.size,
-    invited: invitedHere,
+    /** Can be invited and haven't been (an invitation waiting for opening day counts as invited). */
+    notInvited: [...people].filter((e) => !hasInvite.has(e)).length,
+    waiting,
     earlier: ((past ?? []) as unknown[]).length,
-    sent: sentTo.length,
-    sentRegistered: sentTo.filter((e) => registered.has(e)).length,
   };
 }
 
@@ -1311,7 +1327,7 @@ function GetTheWordOut({
   slug: string;
   rows: ShareRow[];
   qrs: (string | null)[];
-  inviteable: { people: number; invited: number; earlier: number; sent: number; sentRegistered: number };
+  inviteable: { people: number; notInvited: number; waiting: number; earlier: number };
   opensOn: string | null;
   justPublished: boolean;
   deadline: string | null;
@@ -1375,7 +1391,7 @@ function GetTheWordOut({
                     ? `Choose directors now, and their invitations go out on ${short(opensOn)}, when registration opens.`
                     : `Have last year's director list? Import it now, and invitations go out on ${short(opensOn)}.`
                   : inviteable.people > 0
-                    ? `${inviteable.people} ${inviteable.people === 1 ? "director" : "directors"} to invite${inviteable.invited ? ` (${inviteable.invited} already invited)` : ""}. Each gets an email with their band's details filled in.`
+                    ? `${inviteable.notInvited} ${inviteable.notInvited === 1 ? "director" : "directors"} not invited yet${inviteable.waiting ? `, and ${inviteable.waiting} invited who haven't registered` : ""}. Each gets an email with their band's details filled in.`
                     : "Have last year's director list? Import it from a spreadsheet, then invite everyone at once."}
               </p>
             </div>
@@ -1395,7 +1411,7 @@ function GetTheWordOut({
                 <p className="text-sm text-muted">Add a volunteer job with shifts first, then share its link here.</p>
               </div>
               <Link href={`${base}/volunteering`} className={`${linkClass} shrink-0`}>
-                Add jobs first
+                Add a job
               </Link>
             </li>
           )}
@@ -1406,10 +1422,16 @@ function GetTheWordOut({
   );
 }
 
-/** "Closes in 9 days" (or today, or tomorrow), from the deadline day in the event's time zone. */
-function closesIn(deadline: string, today: string) {
+/** "Closes Sat, Aug 28", or in the last two weeks "Closes in 9 days" (or today, or tomorrow), in the event's time zone. */
+function closesOn(deadline: string, today: string) {
   const days = Math.round((Date.parse(deadline) - Date.parse(today)) / 864e5);
+  if (days > 14) return `Closes ${formatDate(deadline, { year: undefined })}`;
   return days <= 0 ? "Closes at the end of today" : days === 1 ? "Closes at the end of tomorrow" : `Closes in ${days} days`;
+}
+
+/** "5A", "4A and 5A", "3A, 4A, and 5A". */
+function listAnd(items: string[]) {
+  return items.length < 3 ? items.join(" and ") : `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
 type ShareRow = {
