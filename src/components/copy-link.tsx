@@ -4,7 +4,7 @@ import { toast } from "./toaster";
 import { copyDialog } from "@/components/confirm-dialog";
 
 /** Copies a link to the clipboard and says so with a toast. */
-export function CopyLink({ url, className }: { url: string; className?: string }) {
+export function CopyLink({ url, className, label = "Copy link" }: { url: string; className?: string; label?: string }) {
   return (
     <button
       type="button"
@@ -18,7 +18,7 @@ export function CopyLink({ url, className }: { url: string; className?: string }
       }}
       className={className}
     >
-      Copy link
+      {label}
     </button>
   );
 }
