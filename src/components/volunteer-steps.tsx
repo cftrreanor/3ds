@@ -35,7 +35,7 @@ export function SetupSteps({ eventId, kind, facts }: { eventId: string; kind: St
           . {doneCount} of {steps.length} done.
         </span>
       </p>
-      <ol className={`mt-2 grid gap-2 ${steps.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+      <ol className={`mt-2 grid gap-x-3 gap-y-1 ${steps.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
         {steps.map((s, i) => {
           const now = i === here;
           // A required middle step that still needs something: amber, saying what. An optional one stays neutral.
@@ -53,14 +53,14 @@ export function SetupSteps({ eventId, kind, facts }: { eventId: string; kind: St
                     ? done[i] && i < last
                       ? "Now · ready"
                       : optionalNote
-                        ? `Now · ${optionalNote.toLowerCase() === "optional" ? "optional" : optionalNote}`
+                        ? `Now · ${optionalNote.charAt(0).toLowerCase()}${optionalNote.slice(1)}`
                         : "Now"
                     : (optionalNote ?? "Not yet");
           return (
             <li key={s.key} className="min-w-0">
               <span
                 aria-hidden
-                className={`block rounded-full ${now ? "h-2 bg-brand" : done[i] ? "h-1.5 bg-success" : needs ? "h-1.5 bg-warning" : s.optional ? "h-1.5 border border-dashed border-field-border bg-surface" : "h-1.5 border border-field-border bg-surface"}`}
+                className={`block rounded-full ${now ? "h-2 bg-brand" : done[i] ? "h-1.5 bg-success" : needs ? "h-1.5 bg-warning" : s.optional ? "h-1.5 border-[1.5px] border-dashed border-muted bg-surface" : "h-1.5 border border-field-border bg-surface"}`}
               />
               {now ? (
                 <span aria-current="step" className="mt-1 flex min-h-11 items-center text-sm font-semibold">

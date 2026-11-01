@@ -80,3 +80,23 @@ More options, Check-in order tab).
 | — | Order rows hide deadlines; heading size; intro wording | 1 | Take the advice | "Due 60 minutes before warm-up" under each stop; job heading style; clearer intro |
 | — | Empty-job bar not shown | 1 | Take the advice | Screenshot 6 added |
 | — | Event page amber box for an optional step; stops line on the event page | 1 | Keep as is | The amber box names a job volunteers can't see yet; event page layout is out of scope |
+
+## Setup order (owner, 2026-11-04)
+
+Owner: a band contest sets up as 1) Event details, 2) Band registration, 3) Volunteers (optional),
+4) Publish registration. Team and maps stay optional before publishing (Event settings). Check-in
+order and the performance schedule come after publishing, each due two weeks before contest day.
+
+Light check (UX Designer, usability consultant) on docs/design-reviews/2026-11-04-band-pr4-order/:
+
+| # | Finding | Severity | Decision | Notes |
+|---|---|---|---|---|
+| 1 | Checklist and phone bar said "Next: Add volunteer jobs" while the step bar said Publish | 3 | Take the advice | Before publishing, only a step publishing needs can be "in progress" ahead of Publish; all three now say Publish registration |
+| — | "Optional" disappeared when a job needed something | 2 | Take the advice | "Optional · Check-in table needs a shift"; darker dashed bar |
+| — | Unfinished volunteer work stayed under "Before you publish" once live | 2 | Take the advice | Moves to "After you publish" as "Finish volunteer jobs", before Open volunteer sign-up |
+| — | "Optional" next to a due date | 2 | Take the advice | Check-in order and the schedule show "Due Sep 25" as their tag |
+| — | Draft page invites after-publish work | 2 | Take the advice | Volunteers card before Schedule; schedule card says "After you publish registration, by …"; check-in order tab says "After you publish · Due …" |
+| — | Step bar cramped on phones | 2 | Take the advice | Two rows of two on phones |
+| — | Sticky bar covers content; sidebar clipped with no cue | 2 | Later | Shared by every event type; separate fix |
+| — | "Publish registration" narrower than what publishing does | 1 | Keep as is | Owner's name; the step's hint says the contest page goes online |
+| — | Skip-to-publish link on the Registration step | 1 | Keep as is | The step bar links to Publish registration |

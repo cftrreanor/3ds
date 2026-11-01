@@ -17,6 +17,8 @@ export type SetupStep = {
   required: boolean;
   /** Started but not finished (something's saved): how far along, and what's there so far. */
   partial?: { fraction: number; note: string };
+  /** Has a due date: shown as its tag ("Due Sep 25") instead of "Optional". */
+  due?: string;
 };
 
 export type SetupFacts = {
@@ -215,7 +217,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       volunteerEvent
         ? jobsStep(f, base)
         : f.eventType === "band_contest"
-          ? // A band contest's jobs work the same way, but publishing doesn't need them.
+          ? // A band contest's jobs work the same way, but publishing doesn't need them. (Once live, unfinished jobs move after publishing.)
             { ...jobsStep(f, base), hint: "Only if you need volunteers.", required: false }
           : {
         id: "shifts",
@@ -288,9 +290,8 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     after.push({
       id: "check-in",
       label: "Set your band check-in order",
-      hint: f.startsOn
-        ? `The stops bands go through, like parking, check-in, and the gate. Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}, so volunteers can be placed.`
-        : "The stops bands go through, like parking, check-in, and the gate.",
+      hint: "The stops bands go through, like parking, check-in, and the gate, so volunteers can be placed.",
+      due: f.startsOn ? `Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}` : undefined,
       // The stops are set in each job; their order has its own tab.
       href: `${base}/volunteering?station=order`,
       done: f.checkInStops > 0,
@@ -313,9 +314,10 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         id: "schedule",
         label: hasRooms(f.eventType) ? "Build and post the room schedule" : "Build and publish the performance schedule",
         hint:
-          f.eventType === "band_contest" && f.startsOn
-            ? `Directors are emailed their times when you publish it. Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}, so they can book buses.`
+          f.eventType === "band_contest"
+            ? "Directors are emailed their times when you publish it, so they can book buses."
             : "Directors are emailed their times when you publish the schedule.",
+        due: f.eventType === "band_contest" && f.startsOn ? `Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}` : undefined,
         href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/schedule`,
         done: f.scheduleShared,
         required: false,
@@ -334,6 +336,18 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     });
   }
 
+  // A live band contest: volunteer jobs still being finished belong with the after-publishing steps,
+  // just before opening sign-up; finished ones simply drop out of "before".
+  if (f.eventType === "band_contest" && f.published) {
+    const jobs = before.findIndex((s) => s.id === "shifts");
+    if (jobs >= 0) {
+      const [step] = before.splice(jobs, 1);
+      if (!step.done && f.stations > 0) {
+        const at = after.findIndex((s) => s.id === "signup");
+        after.splice(at < 0 ? 0 : at, 0, { ...step, label: "Finish volunteer jobs" });
+      }
+    }
+  }
   before.sort((a, b) => BEFORE_ORDER.indexOf(a.id) - BEFORE_ORDER.indexOf(b.id));
   // Only open steps can be part-way; a finished one just shows done.
   for (const st of [...before, ...after]) if (st.done) delete st.partial;
@@ -343,7 +357,8 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   const afterDone = after.filter((s) => s.done).length;
   const next = !f.published ? (remaining[0] ?? publish) : (after.find((s) => !s.done) ?? null);
   const counted = f.published ? after : needed;
-  const inProgress = (f.published ? after : [...before, ...after]).find((s) => !s.done && s.partial) ?? null;
+  // Before publishing, only a step publishing needs can be "in progress" ahead of Publish: an optional one never jumps the queue.
+  const inProgress = (f.published ? after : before.filter((s) => s.required)).find((s) => !s.done && s.partial) ?? null;
   return {
     eventId: f.eventId,
     inProgress,

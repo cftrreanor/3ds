@@ -436,7 +436,7 @@ function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & St
               )}
               {!st.required && !st.done && (
                 <span className="rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold text-muted ring-1 ring-border">
-                  Optional
+                  {st.due ?? "Optional"}
                 </span>
               )}
             </span>

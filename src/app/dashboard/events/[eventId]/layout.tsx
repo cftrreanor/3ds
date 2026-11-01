@@ -51,6 +51,6 @@ function bandSteps(f: SetupFacts): SetupStepFacts {
     count: null,
     // Optional: done once there's a job volunteers can see, and every job has something to sign up for.
     volunteersDone: (f.readyJobs ?? 0) > 0 && empty.length === 0,
-    volunteersNote: empty.length ? emptyJobsNote(empty) : "Optional",
+    volunteersNote: empty.length ? `Optional · ${emptyJobsNote(empty)}` : "Optional",
   };
 }

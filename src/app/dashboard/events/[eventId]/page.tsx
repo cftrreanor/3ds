@@ -798,10 +798,12 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 ? "Your rooms, the path every group follows, and each group's times."
                 : "The running order, breaks, and finals. Directors are emailed their times when you publish the schedule."}
             </span>
-            {event.event_type === "band_contest" && published && !event.performance_order_published && !past && (
-              // When to post times by, and why: directors book buses from them.
+            {event.event_type === "band_contest" && !event.performance_order_published && !past && (
+              // When to post times by, and why: directors book buses from them. Before publishing, it's later work.
               <span className="basis-full text-sm">
-                <span className="font-semibold">Publish by {formatDate(twoWeeksBefore(event.starts_on), { year: undefined })}</span>
+                <span className="font-semibold">
+                  {published ? "Publish by" : "After you publish registration, by"} {formatDate(twoWeeksBefore(event.starts_on), { year: undefined })}
+                </span>
                 <span className="text-muted">, two weeks before contest day, so directors can book buses</span>
               </span>
             )}
@@ -969,7 +971,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           ["publish", "attention", "signups", "schedule", "volunteers", ...((setup?.readyJobs ?? 1) > 0 ? ["day"] : []), "files"]
         : event.event_type === "band_contest"
           ? // A band contest too: the publish card leads, naming what registration still needs, or with the button.
-            ["publish", "attention", "signups", "schedule", "volunteers", "day", "files"]
+            // Then the setup order: registration, volunteers (optional), and the schedule, which comes after publishing.
+            ["publish", "attention", "signups", "volunteers", "schedule", "day", "files"]
           : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
   const labels: Record<string, string> = {
     day: dayTitle,

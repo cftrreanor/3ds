@@ -22,6 +22,7 @@ import { StationTabs, UnsavedChangesProvider } from "./station-steps";
 import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords, usesJobs } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { CheckInOrderList } from "./check-in-order";
+import { twoWeeksBefore } from "@/lib/setup-checklist";
 import { JobSignups, StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
 import { volunteerTotals } from "@/lib/volunteer-totals";
@@ -443,7 +444,12 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                     {
                       key: "order",
                       label: jobsHere ? "Band check-in order" : "Check-in order",
-                      status: checkpoints.length ? `${checkpoints.length} ${checkpoints.length === 1 ? "stop" : "stops"}` : "No stops yet",
+                      // Before publishing, the order is later work: say when it's due instead.
+                      status: checkpoints.length
+                        ? `${checkpoints.length} ${checkpoints.length === 1 ? "stop" : "stops"}`
+                        : !published && jobsHere
+                          ? `After you publish · Due ${formatDate(twoWeeksBefore(event.starts_on), { year: undefined })}`
+                          : "No stops yet",
                       href: tabHref("order"),
                       active: other === "order",
                     },
