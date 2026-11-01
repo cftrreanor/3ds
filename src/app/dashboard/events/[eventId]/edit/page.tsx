@@ -40,7 +40,7 @@ import { LogoForm } from "@/components/logo-form";
 import { SetupLogo } from "../../_components/setup-logo";
 import { loadBrand } from "@/lib/badges";
 
-export const metadata: Metadata = { title: "Event Settings" };
+export const metadata: Metadata = { title: "Event settings" };
 
 const TYPE_SUMMARY = {
   band_contest: "Bands register, get performance times, and are checked in on contest day, alongside your volunteers.",
@@ -291,7 +291,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
             ← Back to {event.name}
           </Link>
-          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event Settings</h1>
+          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event settings</h1>
           <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
           <p className="mt-1 text-sm text-muted">Boxes marked * are required.</p>
         </>

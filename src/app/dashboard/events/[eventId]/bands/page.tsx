@@ -176,7 +176,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
       <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
         ← Back to {event.name}
       </Link>
-      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{w.One} Registration</h1>
+      <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{w.One} registration</h1>
       <SavedBy eventId={eventId} area="bands" className="mt-2" />
 
       {/* Where registration stands, its link, and the one button for what's next. */}
@@ -313,14 +313,14 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
           {current === "settings" && contest && (
             <div>
               <h2 className="text-lg font-semibold">Registration settings</h2>
-              <p className="mt-1 mb-4 text-sm text-muted">What directors see and agree to when they register.</p>
+              <p className="mt-1 mb-4 text-sm text-muted">What directors pick and read when they register.</p>
               {registrationForm()}
             </div>
           )}
           {current === "settings" && !contest && (
             <Card>
               <h2 className="text-lg font-semibold">Registration settings</h2>
-              <p className="mt-1 mb-4 text-sm text-muted">What directors see and agree to when they register.</p>
+              <p className="mt-1 mb-4 text-sm text-muted">What directors pick and read when they register.</p>
               <BandSettingsForm
                 action={updateBandSettings.bind(null, eventId)}
                 chaperoneLimit={event.chaperone_limit}

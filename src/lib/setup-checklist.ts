@@ -167,14 +167,6 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         partial: missing && (f.registrationDeadline || (f.classifications ?? 0) > 0) ? { fraction: 0.5, note: missing } : undefined,
       },
       {
-        id: "director-info",
-        label: "Add information for directors",
-        hint: "Entry fee, arrival, parking: shown when bands register.",
-        href: `${base}/bands`,
-        done: f.directorInfo,
-        required: false,
-      },
-      {
         id: "check-in",
         label: "Set your contest day check-in stops",
         hint: "Like Parking, Check-in, and the Gate.",
@@ -253,7 +245,7 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   const publish: SetupStep = {
     id: "publish",
     label: "Publish your event",
-    hint: "Puts your public page online. You can unpublish anytime.",
+    hint: "Puts your public page online. You can unpublish at any time.",
     href: `${base}#publish`,
     done: f.published,
     required: true,
@@ -271,19 +263,21 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     });
   }
   if (groups) {
-    after.push(
-      {
+    // A band contest opens registration when it publishes: no separate step for it.
+    if (f.eventType !== "band_contest")
+      after.push({
         id: "registration",
         label: `Open ${words.one} registration`,
         hint: `So ${words.one} directors can register.`,
         href: `${base}/bands`,
         done: f.published && f.bandRegistrationOpen,
         required: false,
-      },
+      });
+    after.push(
       {
         id: "schedule",
         label: hasRooms(f.eventType) ? "Build and post the room schedule" : "Build and publish the performance schedule",
-        hint: "Directors are emailed their times when you publish it.",
+        hint: "Directors are emailed their times when you publish the schedule.",
         href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/schedule`,
         done: f.scheduleShared,
         required: false,
@@ -315,11 +309,13 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   return {
     eventId: f.eventId,
     inProgress,
-    segments: counted.map((s) => ({
-      id: s.id,
-      state: s.done ? "done" : s.partial ? "partial" : "todo",
-      fraction: s.done ? 1 : (s.partial?.fraction ?? 0),
-    })),
+    // The line fills from the left (done first, then part-way), and fills up once everything needed is in place.
+    segments: [...counted]
+      .sort((a, b) => rank(a) - rank(b))
+      .map((s) => {
+        const full = s.done || (!f.published && remaining.length === 0);
+        return { id: s.id, state: full ? "done" : s.partial ? "partial" : "todo", fraction: full ? 1 : (s.partial?.fraction ?? 0) };
+      }),
     before,
     publish,
     after,
@@ -340,6 +336,10 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     // A live event with a job volunteers can't see yet isn't finished: the event page says which.
     complete: f.published && afterDone === after.length && !(f.emptyJobs ?? []).length,
   };
+}
+
+function rank(s: SetupStep) {
+  return s.done ? 0 : s.partial ? 1 : 2;
 }
 
 /** What publishing changes for this event, in plain words (shown next to the Publish button). */

@@ -669,7 +669,11 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             </span>{" "}
             <span className="text-muted">
               {access.isHost
-                ? `Settings, opening registration, and inviting ${words.one} directors.`
+                ? event.event_type === "band_contest"
+                  ? published
+                    ? "Registration settings, and inviting directors."
+                    : "Registration opens when you publish."
+                  : `Settings, opening registration, and inviting ${words.one} directors.`
                 : roomsHere
                   ? "See each group's times in every room."
                   : "See the performance order and each band's status on the day."}
@@ -720,7 +724,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             <span className="text-sm text-muted">
               {roomsHere
                 ? "Your rooms, the path every group follows, and each group's times."
-                : "The running order, breaks, and finals. Directors are emailed their times when you publish."}
+                : "The running order, breaks, and finals. Directors are emailed their times when you publish the schedule."}
             </span>
           </div>
           <Link href={`/dashboard/events/${eventId}/${roomsHere ? "rooms" : "schedule"}`} className={BTN_OUTLINE}>
@@ -870,7 +874,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         ? // A volunteer event's last step is publishing: it leads the page (it names what's still needed).
           // With no job volunteers can sign up for yet, there's no event day to plan, so its card waits.
           ["publish", "attention", "signups", "schedule", "volunteers", ...((setup?.readyJobs ?? 1) > 0 ? ["day"] : []), "files"]
-        : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
+        : event.event_type === "band_contest"
+          ? // A band contest too: the publish card leads, naming what registration still needs, or with the button.
+            ["publish", "attention", "signups", "schedule", "volunteers", "day", "files"]
+          : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
   const labels: Record<string, string> = {
     day: dayTitle,
     signups: signupsLabel,
