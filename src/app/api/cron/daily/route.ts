@@ -12,6 +12,8 @@ import { isSchemaError } from "@/lib/schema-check";
 import { loadCalendarEntries, sendItemsReminder, sendShiftReminder } from "@/lib/volunteer-emails";
 import { sendVolunteerDigests } from "@/lib/volunteer-digest";
 import { utcToZonedDate } from "@/lib/time";
+import { registrationIsOpen } from "@/lib/bands";
+import { deliverBandInvites, type InviteEvent } from "@/lib/band-invite-send";
 
 // Once a day (vercel.json): remind parents to bring their photo ID the day
 // before a school visitor event, remind volunteers of their shifts (and what they're
@@ -267,6 +269,9 @@ async function runDailyJob() {
     await pause();
   }
 
+  // Band invitations that waited for registration's opening day: sent once it's open.
+  const bandInvitesSent = Date.now() - started < 240_000 ? await sendScheduledBandInvites(admin, origin) : 0;
+
   // Volunteer sign-up summaries for the people each event's hosts picked, then forget dropped sign-ups after a week.
   const volunteerSummaries = Date.now() - started < 270_000 ? await sendVolunteerDigests(admin, origin, started) : 0;
   const { error: droppedPurgeError } = await admin.rpc("purge_dropped_shifts");
@@ -286,5 +291,35 @@ async function runDailyJob() {
     volunteersUnsent,
     itemsReminded,
     volunteerSummaries,
+    bandInvitesSent,
   });
+}
+
+/** Invitations a host chose before registration opened: each event's, once its registration is open. */
+async function sendScheduledBandInvites(admin: ReturnType<typeof createAdminClient>, origin: string) {
+  const { data: waiting, error } = await admin
+    .from("band_invitations")
+    .select("email, invited_by, events(id, slug, name, status, event_type, timezone, starts_on, ends_on, venue_name, band_registration_open, band_registration_deadline, band_registration_opens_on)")
+    .is("sent_at", null)
+    .is("replaced_by", null)
+    .not("scheduled_for", "is", null)
+    .lte("scheduled_for", new Date(Date.now() + 86_400_000).toISOString().slice(0, 10));
+  if (error) {
+    if (!isSchemaError(error)) console.error("Daily job: waiting band invitations lookup failed", error);
+    return 0;
+  }
+  type Ev = InviteEvent & Parameters<typeof registrationIsOpen>[0];
+  const byEvent = new Map<string, { event: Ev; emails: string[]; invitedBy: string | null }>();
+  for (const row of (waiting ?? []) as unknown as { email: string; invited_by: string | null; events: Ev | null }[]) {
+    if (!row.events || !registrationIsOpen(row.events)) continue;
+    const entry = byEvent.get(row.events.id) ?? { event: row.events, emails: [], invitedBy: row.invited_by };
+    entry.emails.push(row.email);
+    byEvent.set(row.events.id, entry);
+  }
+  let sent = 0;
+  for (const { event, emails, invitedBy } of byEvent.values()) {
+    const { data: host } = invitedBy ? await admin.from("profiles").select("full_name").eq("id", invitedBy).maybeSingle() : { data: null };
+    sent += await deliverBandInvites({ event, emails, reminder: false, host: host?.full_name ?? "The organizer", origin });
+  }
+  return sent;
 }

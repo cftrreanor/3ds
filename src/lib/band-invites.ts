@@ -31,7 +31,8 @@ export async function findBandInvite(token: string) {
     ? "closed"
     : data.used_at
       ? "used"
-      : (data.sent_at as string) < emailLinkCutoff()
+      : // Not sent yet (waiting for opening day), or sent over a week ago.
+        !data.sent_at || (data.sent_at as string) < emailLinkCutoff()
         ? "expired"
         : null;
   return { email: data.email as string, usable: !blocked, blocked, event };

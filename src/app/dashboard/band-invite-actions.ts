@@ -7,22 +7,22 @@ import { z } from "zod";
 import type { ActionState } from "@/lib/action-state";
 import { getUser, requireUser } from "@/lib/auth";
 import { findBandInvite } from "@/lib/band-invites";
-import { registrationIsOpen } from "@/lib/bands";
+import { opensLater, registrationIsOpen } from "@/lib/bands";
+import { deliverBandInvites } from "@/lib/band-invite-send";
 import { groupWords } from "@/lib/event-types";
 import { getOrigin } from "@/lib/data";
-import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
-import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
-import { formatDateRange } from "@/lib/time";
-import { bandInviteEmail } from "@/lib/band-invite-email";
+import { formatDate } from "@/lib/time";
 
 const emailsSchema = z.array(z.string().trim().toLowerCase().email()).min(1, "Pick at least one director to invite.").max(500);
 
 /**
  * Email directors from the organization's earlier events, or whose details the host imported from
  * a spreadsheet, an invitation to register for this one (or, with `reminder`, a reminder to those
- * invited who haven't registered). Sending again keeps a director's earlier link working: the same
- * link, good for another week. Only a link that was already used is replaced.
+ * invited who haven't registered). Before registration's opening day, invitations wait and the
+ * daily job sends them that morning. Sending again keeps a director's earlier link working (the
+ * same link, good for another week); only a link that was already used is replaced. Directors who
+ * have registered are never emailed, whatever the page sent.
  */
 export async function sendBandInvites(eventId: string, emails: string[], reminder = false): Promise<ActionState> {
   const user = await requireUser();
@@ -30,7 +30,7 @@ export async function sendBandInvites(eventId: string, emails: string[], reminde
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const supabase = await createClient();
-  const [{ data: event }, { data: past }, { data: prefills }, { data: existing }] = await Promise.all([
+  const [{ data: event }, { data: past }, { data: prefills }, { data: existing }, { data: bands }] = await Promise.all([
     supabase
       .from("events")
       .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, venue_name, band_registration_open, band_registration_deadline, band_registration_opens_on")
@@ -40,87 +40,115 @@ export async function sendBandInvites(eventId: string, emails: string[], reminde
     // directors whose details they imported from a spreadsheet.
     supabase.rpc("past_band_directors", { p_event: eventId }),
     supabase.from("band_prefills").select("email, head_director_name").eq("event_id", eventId),
-    supabase.from("band_invitations").select("email, used_at").eq("event_id", eventId),
+    supabase.from("band_invitations").select("email, used_at, sent_at, replaced_by").eq("event_id", eventId),
+    supabase.from("bands").select("head_director_email").eq("event_id", eventId),
   ]);
   if (!event || (!past?.length && !prefills?.length)) return { error: "Only the event's hosts can send invitations." };
   const w = groupWords(event.event_type);
-  if (!registrationIsOpen(event)) return { error: `Open ${w.one} registration first, so invited directors can register.` };
+  // Before the opening day, they wait for it; otherwise registration has to be open.
+  const waitFor = event.status === "published" && event.band_registration_open && opensLater(event) ? event.band_registration_opens_on : null;
+  if (!waitFor && !registrationIsOpen(event)) return { error: `Open ${w.one} registration first, so invited directors can register.` };
+  if (waitFor && reminder) return { error: "Reminders can go out once registration opens." };
 
-  const filledIn = new Set((prefills ?? []).map((p) => p.email.toLowerCase()));
-  const allowed = new Map<string, { full_name: string | null; registered?: boolean }>([
-    ...(prefills ?? []).map((p) => [p.email.toLowerCase(), { full_name: p.head_director_name }] as const),
-    ...((past ?? []) as { email: string; full_name: string; registered: boolean }[]).map((p) => [p.email.toLowerCase(), p] as const),
+  const registered = new Set([
+    ...((bands ?? []) as { head_director_email: string }[]).map((b) => b.head_director_email.toLowerCase()),
+    ...((past ?? []) as { email: string; registered: boolean }[]).filter((p) => p.registered).map((p) => p.email.toLowerCase()),
   ]);
-  const before = new Map(((existing ?? []) as { email: string; used_at: string | null }[]).map((i) => [i.email.toLowerCase(), i]));
-  // A reminder goes only to directors already invited who haven't registered.
-  const to = [...new Set(parsed.data)].filter((e) => allowed.has(e) && !allowed.get(e)?.registered && (!reminder || before.has(e)));
+  const allowed = new Set([
+    ...(prefills ?? []).map((p) => p.email.toLowerCase()),
+    ...((past ?? []) as { email: string }[]).map((p) => p.email.toLowerCase()),
+  ]);
+  const before = new Map(
+    ((existing ?? []) as { email: string; used_at: string | null; sent_at: string | null; replaced_by: string | null }[]).map((i) => [i.email.toLowerCase(), i]),
+  );
+  // A reminder goes only to directors already emailed; moved addresses are never emailed again.
+  const to = [...new Set(parsed.data)].filter(
+    (e) => allowed.has(e) && !registered.has(e) && !before.get(e)?.replaced_by && (!reminder || before.get(e)?.sent_at),
+  );
   if (to.length === 0) return { error: reminder ? "Everyone invited has registered." : "Pick at least one director to invite." };
 
   const admin = createAdminClient();
-  const now = new Date().toISOString();
   // New invitations get a link; an earlier, unused link is kept (and works for another week).
   const fresh = to.filter((e) => !before.has(e) || before.get(e)!.used_at);
   const kept = to.filter((e) => before.has(e) && !before.get(e)!.used_at);
   const { error } = await admin.from("band_invitations").upsert(
-    fresh.map((email) => ({ event_id: eventId, email, token: crypto.randomUUID(), invited_by: user.id, sent_at: now, used_at: null, failed_at: null })),
+    fresh.map((email) => ({
+      event_id: eventId,
+      email,
+      token: crypto.randomUUID(),
+      invited_by: user.id,
+      sent_at: null,
+      scheduled_for: waitFor,
+      used_at: null,
+      failed_at: null,
+      failed_reason: null,
+    })),
     { onConflict: "event_id,email" },
   );
   const keptUpdate = kept.length
-    ? await admin.from("band_invitations").update({ sent_at: now, failed_at: null }).eq("event_id", eventId).in("email", kept)
+    ? await admin.from("band_invitations").update({ scheduled_for: waitFor, failed_at: null, failed_reason: null }).eq("event_id", eventId).in("email", kept)
     : { error: null };
   // The database holds back invitations from a "try it" event (its type isn't in the plan).
   if (error?.code === "42501") return { error: `Your plan doesn't include this kind of event, so it can't send invitations. You can keep setting it up and previewing it.` };
   if (error || keptUpdate.error) {
     console.error("Saving band invitations failed", error ?? keptUpdate.error);
-    return { error: "We couldn't send the invitations. Check your connection, then try again." };
+    return { error: "We couldn't save the invitations. Check your connection, then try again." };
   }
-  const { data: rows } = await admin.from("band_invitations").select("email, token").eq("event_id", eventId).in("email", to);
+  revalidatePath(`/dashboard/events/${eventId}/bands`);
+  const n = to.length;
+  if (waitFor) {
+    return {
+      ok: true,
+      message: `${n} ${n === 1 ? "invitation is" : "invitations are"} set to go out on ${formatDate(waitFor)}, when registration opens.`,
+    };
+  }
 
   const origin = await getOrigin();
   const { data: host } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-  after(async () => {
-    const saved = reminder ? null : await loadSystemEmail("director_invite");
-    for (const row of (rows ?? []) as { email: string; token: string }[]) {
-      const name = allowed.get(row.email)?.full_name;
-      const custom = customWords("director_invite", saved, {
-        first_name: name ? name.split(" ")[0] : "",
-        host: host?.full_name ?? "The host",
-        group: w.one,
-        event_name: event.name,
-        event_dates: formatDateRange(event.starts_on, event.ends_on),
-        at_venue: event.venue_name ? `at ${event.venue_name}` : "",
-      });
-      const words = bandInviteEmail({
-        firstName: name ? name.split(" ")[0] : null,
-        host: host?.full_name ?? "The host",
-        one: w.one,
-        event,
-        fromSpreadsheet: filledIn.has(row.email),
-        reminder,
-        email: row.email,
-        custom,
-      });
-      const { html, text } = emailLayout({
-        heading: words.heading,
-        paragraphs: words.paragraphs,
-        button: { label: words.button, url: `${origin}/e/${event.slug}/bands/invite/${row.token}` },
-        footer: words.footer,
-      });
-      const sent = await sendEmail({ to: row.email, subject: words.subject, html, text, eventId });
-      // Shown on the list as "Couldn't send", so the host can check the address.
-      if (!sent) await admin.from("band_invitations").update({ failed_at: new Date().toISOString() }).eq("event_id", eventId).eq("email", row.email);
-      await pause();
-    }
-  });
-
-  revalidatePath(`/dashboard/events/${eventId}/bands`);
-  const n = to.length;
+  after(() => deliverBandInvites({ event, emails: to, reminder, host: host?.full_name ?? "The organizer", origin }).then(() => undefined));
   return {
     ok: true,
     message: reminder
       ? `Sending ${n} ${n === 1 ? "reminder" : "reminders"} now.`
-      : `Sending ${n} ${n === 1 ? "invitation" : "invitations"} now. Each director shows as Invited below; one that can't be delivered says so.`,
+      : `Sending ${n} ${n === 1 ? "invitation" : "invitations"} now. Each one shows as Invited below once it's sent, or says if it couldn't be sent.`,
   };
+}
+
+/**
+ * An invitation that couldn't be sent, moved to a corrected address: the director's band details
+ * are saved under the new address (from the spreadsheet row, or their last contest), the old
+ * address is marked as moved, and the new one is invited (now, or on the opening day).
+ */
+export async function fixInviteAddress(eventId: string, oldEmail: string, newEmail: string): Promise<ActionState> {
+  await requireUser();
+  const parsed = z.object({ from: z.string().trim().toLowerCase().email(), to: z.string().trim().toLowerCase().email("Enter a full email address.") }).safeParse({ from: oldEmail, to: newEmail });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { from, to } = parsed.data;
+  if (from === to) return { error: "That's the same address. Type the corrected one." };
+  const supabase = await createClient();
+  const [{ data: prefill }, { data: past }] = await Promise.all([
+    supabase.from("band_prefills").select("*").eq("event_id", eventId).eq("email", from),
+    supabase.rpc("past_band_directors", { p_event: eventId }),
+  ]);
+  const pastRow = ((past ?? []) as { email: string; full_name: string; bands: string[] }[]).find((d) => d.email.toLowerCase() === from);
+  if (!prefill?.length && !pastRow) return { error: "Only the event's hosts can change this." };
+  // Saved under the new address; the host's own update rights decide (band_prefills RLS).
+  const rows = prefill?.length
+    ? prefill.map((p) => {
+        const row: Record<string, unknown> = { ...p, email: to };
+        delete row.id;
+        delete row.created_at;
+        return row;
+      })
+    : pastRow!.bands.map((b) => {
+        const m = b.match(/^(.*) \((.*)\)$/);
+        return { event_id: eventId, email: to, band_name: m ? m[1] : b, school_name: m ? m[2] : null, head_director_name: pastRow!.full_name };
+      });
+  const { error } = await supabase.from("band_prefills").upsert(rows, { onConflict: "event_id,email,band_name" });
+  if (error) return { error: "We couldn't save the new address. Check your connection, then try again." };
+  await createAdminClient().from("band_invitations").update({ replaced_by: to }).eq("event_id", eventId).eq("email", from);
+  const sent = await sendBandInvites(eventId, [to]);
+  return sent.error ? sent : { ok: true, message: `Moved to ${to}. ${sent.message ?? ""}`.trim() };
 }
 
 /** The invitation's button: sign in as the invited director, then on to registration. */

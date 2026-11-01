@@ -1997,6 +1997,8 @@ do $$ begin
   assert (select invited_at is not null from public.past_band_directors('10000000-0000-0000-0000-00000000000f')
            where email = 'past@example.com'), 'the list shows who was invited';
   assert (select count(*) from public.band_invitations) = 1, 'a host sees their event''s invitations';
+  -- 20270109000000: when one waits for opening day, why one failed, and where it moved.
+  perform scheduled_for, failed_reason, replaced_by, failed_at from public.band_invitations;
   begin
     perform token from public.band_invitations;
     raise exception 'FAIL: a browser read an invitation''s sign-in token';
