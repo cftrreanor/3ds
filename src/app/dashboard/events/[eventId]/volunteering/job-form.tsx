@@ -11,7 +11,7 @@ import type { ActionState } from "@/lib/action-state";
 import { AdultsNeededField, BinIcon, CheckInStopFields, CoordinatorPicker, type LeadOption } from "../forms";
 import type { CheckpointKind } from "@/lib/contest-day";
 import type { JobLinks } from "./job-parts";
-import { flushPending, pendingCounts, setPending, settled, usePendingCounts } from "@/components/pending-edits";
+import { flushPending, onRetry, pendingCounts, setPending, settled, usePendingCounts } from "@/components/pending-edits";
 import { useStepEdits } from "./station-steps";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -109,6 +109,19 @@ export function JobForm({
     setSave("saving");
     setPending(FORM, { kind: "saving" });
     form.requestSubmit();
+  }, []);
+  // Sending it again if it never gets an answer.
+  useEffect(() => onRetry(FORM, submit), [submit]);
+
+  // A save that never got an answer (see pending-edits): say so, with Try again.
+  useEffect(() => {
+    const noAnswer = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== FORM) return;
+      setWhy("It's taking too long. Check your connection, then try again.");
+      setSave("failed");
+    };
+    window.addEventListener("save-no-answer", noAnswer);
+    return () => window.removeEventListener("save-no-answer", noAnswer);
   }, []);
 
   const changed = useCallback(() => {
@@ -311,6 +324,13 @@ function JobBar({
 }) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A thing to bring that just finished saving says "Saved" too, not just the job's own fields.
+  const [itemSaved, setItemSaved] = useState(false);
+  const [wasSaving, setWasSaving] = useState(pending.saving);
+  if (pending.saving !== wasSaving) {
+    setWasSaving(pending.saving);
+    setItemSaved(wasSaving > 0 && pending.saving === 0 && pending.failed === 0);
+  }
   const button = "inline-flex min-h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition";
   const filled = `${button} bg-brand text-brand-foreground hover:bg-brand-hover`;
   const outline = `${button} border-[1.5px] border-brand bg-surface text-brand hover:bg-brand-soft`;
@@ -332,7 +352,12 @@ function JobBar({
               </button>
             </span>
           ) : itemFailed ? (
-            <span className="font-semibold text-danger">Not saved. Give each thing to bring a name and a number, and check your connection.</span>
+            <span className="font-semibold text-danger">
+              Not saved. Give each thing to bring a name and a number, and check your connection.{" "}
+              <button type="button" onClick={flushPending} className="underline underline-offset-2">
+                Try again
+              </button>
+            </span>
           ) : saving ? (
             <span className="text-muted">Saving…</span>
           ) : unadded ? (
@@ -341,9 +366,9 @@ function JobBar({
               {unadded === 1 ? "1 change isn't added yet." : `${unadded} changes aren't added yet.`} Finish with the button under it, like Create shifts, Add, or Save.
             </span>
           ) : (
-            <span className={save === "saved" ? "font-medium" : "text-muted"}>
-              {save === "saved" && <span aria-hidden className="text-success">✓ </span>}
-              {SAVE_WORDS[save]}
+            <span className={save === "saved" || (save === "idle" && itemSaved) ? "font-medium" : "text-muted"}>
+              {(save === "saved" || (save === "idle" && itemSaved)) && <span aria-hidden className="text-success">✓ </span>}
+              {save === "idle" && itemSaved ? "Saved" : SAVE_WORDS[save]}
             </span>
           )}
         </p>
