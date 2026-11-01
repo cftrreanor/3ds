@@ -7419,6 +7419,55 @@ begin
   end;
   assert ok and msg like 'Pick a registration deadline%', 'registration can''t open without a deadline';
 end $$;
+-- The deadline falls before contest day; the chaperone limit stays at or above what bands bring;
+-- classifications match without case, and rename moves their bands.
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean; msg text; ev uuid := '10000000-0000-0000-0000-0000000000d1'; cls text[];
+begin
+  ok := false;
+  begin
+    update public.events set band_registration_deadline = current_date + 50 where id = ev;
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'The registration deadline needs to be before contest day%', 'a deadline on contest day is refused';
+  update public.events set band_registration_deadline = current_date + 30 where id = ev;
+  ok := false;
+  begin
+    update public.events set starts_on = current_date + 20, ends_on = current_date + 20 where id = ev;
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'The registration deadline needs to be before contest day%', 'moving contest day before the deadline is refused';
+
+  ok := false;
+  begin
+    update public.events set chaperone_limit = 3 where id = ev;
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Rule Band registered 5 chaperones%', 'the chaperone limit can''t drop below a registered band';
+  update public.events set chaperone_limit = 5 where id = ev;
+
+  cls := public.add_event_classification(ev, '1a');
+  assert cls = array['1A'], 'a classification differing only in case isn''t added twice';
+
+  cls := public.rename_event_classification(ev, '1A', '1A Small');
+  assert cls = array['1A Small'], 'a classification with bands can be renamed';
+  perform public.add_event_classification(ev, '2A');
+  ok := false;
+  begin
+    perform public.rename_event_classification(ev, '2A', '1a small');
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like '1a small is already a classification%', 'a rename can''t duplicate another classification';
+  perform public.remove_event_classification(ev, '2A');
+end $$;
+reset role;
+do $$ begin
+  assert (select classification from public.bands where event_id = '10000000-0000-0000-0000-0000000000d1') = '1A Small',
+    'renaming a classification moves its bands with it';
+end $$;
+set role authenticated;
 -- Someone outside the event can't add or remove classifications.
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
 do $$
@@ -7429,6 +7478,12 @@ begin
   exception when insufficient_privilege then ok := true;
   end;
   assert ok, 'a stranger can''t add a classification';
+  ok := false;
+  begin
+    perform public.rename_event_classification('10000000-0000-0000-0000-0000000000d1', '1A Small', 'Mine');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'or rename one';
 end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';

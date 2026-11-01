@@ -11,6 +11,9 @@
 --      (add_event_classification / remove_event_classification), so two people
 --      editing at once don't undo each other.
 --   5. An optional payment link (https only), shown to directors.
+--   6. A band contest's registration deadline falls before contest day.
+--   7. The chaperone limit can't drop below what a registered band is bringing.
+--   8. A classification can be renamed (rename_event_classification); its bands move with it.
 -- Like events_publish_needs_job, rules 1 and 2 hold for people using the app
 -- (signed in or not); the server's own jobs and direct database sessions aren't
 -- held to them.
@@ -27,13 +30,16 @@ language plpgsql security definer set search_path = public
 as $$
 declare
   in_use text;
+  over record;
 begin
   if current_setting('role', true) not in ('authenticated', 'anon') then
     return new;
   end if;
 
-  -- 3. A classification bands are registered in stays (any event that has bands).
-  if tg_op = 'UPDATE' and old.classifications is distinct from new.classifications then
+  -- 3. A classification bands are registered in stays (any event that has bands). A rename moves
+  -- its bands in the same step (rename_event_classification), so it's let through.
+  if tg_op = 'UPDATE' and old.classifications is distinct from new.classifications
+     and coalesce(current_setting('app.renaming_classification', true), '') <> 'on' then
     select b.classification into in_use
       from bands b
      where b.event_id = new.id and b.scratched_at is null
@@ -41,6 +47,19 @@ begin
      limit 1;
     if in_use is not null then
       raise exception 'Bands are registered in %. Move them to another classification first.', in_use using errcode = 'P0001';
+    end if;
+  end if;
+
+  -- 7. The chaperone limit stays at or above what each registered band is bringing (any event).
+  if tg_op = 'UPDATE' and new.chaperone_limit is distinct from old.chaperone_limit then
+    select coalesce(nullif(b.band_name, ''), b.school_name) as name, b.chaperone_count into over
+      from bands b
+     where b.event_id = new.id and b.scratched_at is null and b.chaperone_count > new.chaperone_limit
+     order by b.chaperone_count desc
+     limit 1;
+    if found then
+      raise exception '% registered % chaperones. Set the limit to at least %.', over.name, over.chaperone_count, over.chaperone_count
+        using errcode = 'P0001';
     end if;
   end if;
 
@@ -64,6 +83,15 @@ begin
     end if;
   end if;
 
+  -- 6. The deadline falls before contest day.
+  if new.band_registration_deadline is not null and new.starts_on is not null
+     and new.band_registration_deadline >= new.starts_on
+     and (new.band_registration_deadline is distinct from old.band_registration_deadline
+          or new.starts_on is distinct from old.starts_on or old.event_type is distinct from new.event_type) then
+    raise exception 'The registration deadline needs to be before contest day (%).', to_char(new.starts_on, 'Mon FMDD')
+      using errcode = 'P0001';
+  end if;
+
   -- 2. Opening registration.
   if new.band_registration_open and new.band_registration_deadline is null
      and not old.band_registration_open then
@@ -75,7 +103,7 @@ end;
 $$;
 revoke execute on function public.events_registration_rules() from public, anon, authenticated;
 create trigger events_registration_rules
-  before insert or update of status, event_type, classifications, band_registration_deadline, band_registration_open
+  before insert or update of status, event_type, classifications, band_registration_deadline, band_registration_open, starts_on, chaperone_limit
   on public.events
   for each row execute function public.events_registration_rules();
 
@@ -93,10 +121,14 @@ begin
     raise exception 'A classification is 1 to 40 characters, like 1A or Class AA.' using errcode = 'P0001';
   end if;
   update events
-     set classifications = case when v_name = any (classifications) then classifications
+     set classifications = case when exists (select 1 from unnest(classifications) c where lower(c) = lower(v_name))
+                                then classifications
                                 else array_append(classifications, v_name) end
    where id = p_event
   returning classifications into result;
+  if cardinality(result) > 30 then
+    raise exception 'A contest can have up to 30 classifications.' using errcode = 'P0001';
+  end if;
   if not found then
     raise exception 'You don''t have permission to change this event.' using errcode = '42501';
   end if;
@@ -121,6 +153,47 @@ begin
   return result;
 end;
 $$;
+
+-- 8. Rename one, moving its bands with it (a typo fixed after bands registered). Runs as the
+-- owner so the bands move too; only the event's admins may.
+create function public.rename_event_classification(p_event uuid, p_old text, p_new text)
+returns text[]
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_old text := btrim(coalesce(p_old, ''));
+  v_new text := btrim(coalesce(p_new, ''));
+  result text[];
+begin
+  if not public.is_event_admin(p_event) then
+    raise exception 'You don''t have permission to change this event.' using errcode = '42501';
+  end if;
+  if v_new = '' or length(v_new) > 40 then
+    raise exception 'A classification is 1 to 40 characters, like 1A or Class AA.' using errcode = 'P0001';
+  end if;
+  if v_new = v_old then
+    select classifications into result from events where id = p_event;
+    return result;
+  end if;
+  if exists (select 1 from events e, unnest(e.classifications) c
+              where e.id = p_event and lower(c) = lower(v_new) and c <> v_old) then
+    raise exception '% is already a classification.', v_new using errcode = 'P0001';
+  end if;
+  perform set_config('app.renaming_classification', 'on', true);
+  update events set classifications = array_replace(classifications, v_old, v_new)
+   where id = p_event and v_old = any (classifications)
+  returning classifications into result;
+  if not found then
+    raise exception '% isn''t a classification here anymore. Reload the page.', v_old using errcode = 'P0001';
+  end if;
+  update bands set classification = v_new where event_id = p_event and classification = v_old;
+  perform set_config('app.renaming_classification', '', true);
+  return result;
+end;
+$$;
+
+revoke all on function public.rename_event_classification(uuid, text, text) from public, anon;
+grant execute on function public.rename_event_classification(uuid, text, text) to authenticated;
 
 revoke all on function public.add_event_classification(uuid, text) from public, anon;
 revoke all on function public.remove_event_classification(uuid, text) from public, anon;
