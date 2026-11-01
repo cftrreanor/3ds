@@ -55,14 +55,6 @@ export function SetupSteps({ eventId, kind, facts }: { eventId: string; kind: St
           );
         })}
       </ol>
-      {/* Details (step 1) has no bar of its own: the way on to step 2. */}
-      {here === 0 && (
-        <p className="mt-1 text-right">
-          <Link href={`${base}${steps[1].path}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4">
-            Next up: {steps[1].label} →
-          </Link>
-        </p>
-      )}
     </nav>
   );
 }

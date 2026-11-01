@@ -36,6 +36,7 @@ export function ActionForm({
   noValidate,
   onEdit,
   quiet = false,
+  onError,
   id,
 }: {
   /** Lets a button outside the form (form={id}) submit it. */
@@ -56,6 +57,8 @@ export function ActionForm({
   onEdit?: (form: HTMLFormElement) => void;
   /** Saves itself as people type: something else shows its errors, and the cursor never jumps to them. */
   quiet?: boolean;
+  /** Called with each error the server sends back (for a form that shows them somewhere of its own). */
+  onError?: (error: string) => void;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   // A problem found in the browser, shown instead of the last server answer.
@@ -71,6 +74,7 @@ export function ActionForm({
   useEffect(() => {
     // For whoever's waiting on this save (the guided setup's Skip for now).
     if (state.ok || state.error) ref.current?.dispatchEvent(new Event(state.ok ? "form-saved" : "form-failed", { bubbles: true }));
+    if (state.error) onError?.(state.error);
     if (state.ok) {
       if (resetOnSuccess) ref.current?.reset();
       // Something went public: show its link to share, not just a toast.

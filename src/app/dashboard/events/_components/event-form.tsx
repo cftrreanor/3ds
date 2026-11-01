@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { setPending, useLeaveGuard } from "@/components/pending-edits";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Select } from "@/components/ui";
@@ -37,6 +38,8 @@ export function EventForm({
   stickySave = false,
   setup,
   extra,
+  autosave = false,
+  next,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -57,8 +60,17 @@ export function EventForm({
   setup?: { next?: string; back?: string };
   /** More to set up on this step, just above the Save button (the logo and color, which save on their own). */
   extra?: ReactNode;
+  /**
+   * A draft's Details: saves itself a moment after each change, like the other setup steps, with
+   * the pinned bar saying Saving…, Saved, or why not. (A live event keeps its Save button, since
+   * saving can email volunteers about the change.)
+   */
+  autosave?: boolean;
+  /** The way on from the bar, in a three-step setup (Details → the middle step). */
+  next?: { href: string; label: string };
 }) {
   const [dirty, setDirty] = useState(false);
+  const auto = useAutosaveForm(autosave);
   // Venue search favors the part of the country in the event's time zone.
   const [timezone, setTimezone] = useState(initial.timezone);
   const conference = hasConferences(eventType);
@@ -70,10 +82,13 @@ export function EventForm({
       action={action}
       className="space-y-6"
       resetOnSuccess={false}
-      onEdit={stickySave ? () => setDirty(true) : undefined}
-      onSuccess={stickySave ? () => setDirty(false) : undefined}
+      onEdit={autosave ? auto.edited : stickySave ? () => setDirty(true) : undefined}
+      onSuccess={autosave ? auto.saved : stickySave ? () => setDirty(false) : undefined}
+      onError={autosave ? auto.failed : undefined}
+      quiet={autosave}
     >
       <input type="hidden" name="organizationId" value={organizationId} />
+      {autosave && <input type="hidden" name="autosave" value="1" />}
       {eventType && <input type="hidden" name="eventType" value={eventType} />}
       <Field label="Event name">
         <Input name="name" required defaultValue={initial.name} placeholder={meeting ? "e.g. Fall Advising Meetings" : conference ? "e.g. Fall Parent-Teacher Conferences" : eventType === "volunteer" ? "e.g. Community Cleanup Day" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "group_event" ? "e.g. Spring Arts Festival" : eventType === "fair" ? "e.g. Oak Hills Spring Carnival" : "e.g. Cedar Ridge Marching Invitational"} />
@@ -194,6 +209,8 @@ export function EventForm({
           {setup.next && <input type="hidden" name="next" value={setup.next} />}
           <SetupFooter back={setup.back} inCard submit={<SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>} />
         </>
+      ) : autosave ? (
+        <AutosaveBar status={auto.status} retry={auto.retry} next={next} />
       ) : stickySave ? (
         // The same footer as a sign-up in Volunteer Setup.
         <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:-mx-6 sm:-mb-6 sm:px-6">
@@ -215,6 +232,98 @@ export function EventForm({
         <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
       )}
     </ActionForm>
+  );
+}
+
+type AutoStatus = { kind: "idle" | "waiting" | "saving" | "saved" } | { kind: "incomplete"; what: string } | { kind: "failed"; error: string };
+
+/** Saves the form a moment after each change, once every required box is filled in. */
+function useAutosaveForm(on: boolean) {
+  const key = useId();
+  const [status, setStatus] = useState<AutoStatus>({ kind: "idle" });
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const form = useRef<HTMLFormElement | null>(null);
+  useLeaveGuard("A change to the details");
+
+  const submit = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const f = form.current;
+    if (!f) return;
+    const bad = [...f.elements].find((el): el is HTMLInputElement => el instanceof HTMLInputElement && !el.checkValidity());
+    if (bad) {
+      const what = bad.labels?.[0]?.textContent?.replace("*", "").trim() || "A box";
+      setStatus({ kind: "incomplete", what });
+      setPending(key, { kind: "failed" });
+      return;
+    }
+    setStatus({ kind: "saving" });
+    setPending(key, { kind: "saving" });
+    f.requestSubmit();
+  };
+
+  useEffect(() => () => setPending(key, null), [key]);
+  return {
+    status,
+    retry: submit,
+    edited: (f: HTMLFormElement) => {
+      if (!on) return;
+      form.current = f;
+      setStatus({ kind: "waiting" });
+      setPending(key, { kind: "saving", flush: submit });
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(submit, 1200);
+    },
+    saved: () => {
+      // A newer change waiting to save keeps it "waiting".
+      if (timer.current) return;
+      setStatus({ kind: "saved" });
+      setPending(key, null);
+    },
+    failed: (error: string) => {
+      setStatus({ kind: "failed", error });
+      setPending(key, { kind: "failed", flush: submit });
+    },
+  };
+}
+
+/** The pinned bar under a draft's Details: whether everything is saved. */
+function AutosaveBar({ status, retry, next }: { status: AutoStatus; retry: () => void; next?: { href: string; label: string } }) {
+  return (
+    <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:-mx-6 sm:-mb-6 sm:px-6">
+      <div className="min-w-0 flex-1 text-sm" aria-live="polite">
+        {status.kind === "failed" ? (
+          <p role="alert" className="flex flex-wrap items-center gap-x-2 font-semibold text-danger">
+            <span>
+              <span aria-hidden>▲ </span>Not saved. {status.error}
+            </span>
+            <button type="button" onClick={retry} className="inline-flex min-h-11 items-center underline underline-offset-4">
+              Retry
+            </button>
+          </p>
+        ) : status.kind === "incomplete" ? (
+          <p className="font-medium text-warning">
+            <span aria-hidden>◆ </span>Not saved yet. Fill in “{status.what}”.
+          </p>
+        ) : status.kind === "saving" || status.kind === "waiting" ? (
+          <p className="text-muted">Saving…</p>
+        ) : status.kind === "saved" ? (
+          <p className="font-medium">
+            <span aria-hidden className="text-success">
+              ✓{" "}
+            </span>
+            Saved
+          </p>
+        ) : (
+          <p className="text-muted">Changes save automatically</p>
+        )}
+      </div>
+      {next && (
+        <Link href={next.href} className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+          {next.label} →
+        </Link>
+      )}
+    </div>
   );
 }
 

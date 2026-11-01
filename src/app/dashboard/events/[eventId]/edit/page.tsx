@@ -330,6 +330,14 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
                   eventType={event.event_type}
                   when={when}
                   stickySave={!guided}
+                  autosave={!guided && !published}
+                  next={
+                    !published && (event.event_type === "volunteer" || event.event_type === "band_contest")
+                      ? event.event_type === "volunteer"
+                        ? { href: `/dashboard/events/${eventId}/volunteering`, label: "Next up: Jobs and shifts" }
+                        : { href: `/dashboard/events/${eventId}/bands`, label: "Next up: Registration" }
+                      : undefined
+                  }
                   setup={guided ? { next: nextStep } : undefined}
                   extra={guided && badgesHere ? <SetupLogo eventId={eventId} logo={brand.logo} color={brand.color} /> : undefined}
                 />

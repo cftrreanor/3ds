@@ -265,6 +265,8 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   }
 
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  // Saved by itself as the host types (a draft's Details): stay on the page.
+  if (formData.get("autosave") === "1") return { ok: true };
   // In the guided setup, on to the next step.
   const next = String(formData.get("next") ?? "");
   redirect(next.startsWith(`/dashboard/events/${eventId}/edit?`) ? next : `/dashboard/events/${eventId}`);
