@@ -16,6 +16,7 @@ import { emailLayout, pause, sendEmail } from "@/lib/email";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { createRegistration } from "@/lib/band-registration";
+import { sendBandInvites } from "./band-invite-actions";
 import { setEventPublished } from "./actions";
 import { formatDate, formatTime, utcToZonedDate, zoneAbbreviation, zonedToUtc } from "@/lib/time";
 
@@ -222,7 +223,12 @@ export async function publishAndOpenBandRegistration(eventId: string): Promise<A
 /** Registration set to open on a later day: open it today instead. */
 export async function openBandRegistrationNow(eventId: string): Promise<ActionState> {
   const result = await updateEventRow(eventId, { band_registration_opens_on: null, band_registration_open: true });
-  return result.error ? result : registrationShare(eventId);
+  if (result.error) return result;
+  // Invitations that were waiting for the opening day go out now.
+  const supabase = await createClient();
+  const { data: waiting } = await supabase.from("band_invitations").select("email").eq("event_id", eventId).is("sent_at", null).not("scheduled_for", "is", null);
+  if (waiting?.length) await sendBandInvites(eventId, waiting.map((w) => w.email));
+  return registrationShare(eventId);
 }
 
 /** Registration just opened: the link to send directors. */

@@ -86,7 +86,12 @@ export async function sendBandInvites(eventId: string, emails: string[], reminde
     { onConflict: "event_id,email" },
   );
   const keptUpdate = kept.length
-    ? await admin.from("band_invitations").update({ scheduled_for: waitFor, failed_at: null, failed_reason: null }).eq("event_id", eventId).in("email", kept)
+    ? await admin
+        .from("band_invitations")
+        // Waiting for the opening day: not sent yet, whatever went before (the daily job sends rows with no sent_at).
+        .update(waitFor ? { scheduled_for: waitFor, sent_at: null, failed_at: null, failed_reason: null } : { scheduled_for: null, failed_at: null, failed_reason: null })
+        .eq("event_id", eventId)
+        .in("email", kept)
     : { error: null };
   // The database holds back invitations from a "try it" event (its type isn't in the plan).
   if (error?.code === "42501") return { error: `Your plan doesn't include this kind of event, so it can't send invitations. You can keep setting it up and previewing it.` };
@@ -105,7 +110,8 @@ export async function sendBandInvites(eventId: string, emails: string[], reminde
 
   const origin = await getOrigin();
   const { data: host } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
-  after(() => deliverBandInvites({ event, emails: to, reminder, host: host?.full_name ?? "The organizer", origin }).then(() => undefined));
+  const stopAt = Date.now() + 270_000;
+  after(() => deliverBandInvites({ event, emails: to, reminder, host: host?.full_name ?? "The organizer", origin, stopAt }).then(() => undefined));
   return {
     ok: true,
     message: reminder
@@ -120,7 +126,7 @@ export async function sendBandInvites(eventId: string, emails: string[], reminde
  * address is marked as moved, and the new one is invited (now, or on the opening day).
  */
 export async function fixInviteAddress(eventId: string, oldEmail: string, newEmail: string): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = z.object({ from: z.string().trim().toLowerCase().email(), to: z.string().trim().toLowerCase().email("Enter a full email address.") }).safeParse({ from: oldEmail, to: newEmail });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { from, to } = parsed.data;
@@ -132,23 +138,45 @@ export async function fixInviteAddress(eventId: string, oldEmail: string, newEma
   ]);
   const pastRow = ((past ?? []) as { email: string; full_name: string; bands: string[] }[]).find((d) => d.email.toLowerCase() === from);
   if (!prefill?.length && !pastRow) return { error: "Only the event's hosts can change this." };
+  // Only when an invitation can go out (now, or on the opening day): otherwise nothing changes.
+  const { data: event } = await supabase
+    .from("events")
+    .select("status, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (!event || (!registrationIsOpen(event) && !(event.status === "published" && event.band_registration_open && opensLater(event))))
+    return { error: "Registration is closed. Reopen it to send invitations." };
   // Saved under the new address; the host's own update rights decide (band_prefills RLS).
   const rows = prefill?.length
     ? prefill.map((p) => {
-        const row: Record<string, unknown> = { ...p, email: to };
+        const row: Record<string, unknown> = { ...p, email: to, created_by: user.id };
         delete row.id;
         delete row.created_at;
         return row;
       })
     : pastRow!.bands.map((b) => {
         const m = b.match(/^(.*) \((.*)\)$/);
-        return { event_id: eventId, email: to, band_name: m ? m[1] : b, school_name: m ? m[2] : null, head_director_name: pastRow!.full_name };
+        return { event_id: eventId, email: to, band_name: m ? m[1] : b, school_name: m ? m[2] : null, head_director_name: pastRow!.full_name, created_by: user.id };
       });
   const { error } = await supabase.from("band_prefills").upsert(rows, { onConflict: "event_id,email,band_name" });
   if (error) return { error: "We couldn't save the new address. Check your connection, then try again." };
-  await createAdminClient().from("band_invitations").update({ replaced_by: to }).eq("event_id", eventId).eq("email", from);
   const sent = await sendBandInvites(eventId, [to]);
-  return sent.error ? sent : { ok: true, message: `Moved to ${to}. ${sent.message ?? ""}`.trim() };
+  if (sent.error) return sent;
+  // Marked as moved only once the new address's invitation is on its way (or scheduled).
+  await createAdminClient().from("band_invitations").update({ replaced_by: to }).eq("event_id", eventId).eq("email", from);
+  return { ok: true, message: `Moved to ${to}. ${sent.message ?? ""}`.trim() };
+}
+
+/** A scheduled invitation the host no longer wants: removed before it goes out. */
+export async function cancelScheduledInvite(eventId: string, email: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  // Hosts can read their event's invitations (RLS): that's the check that this is theirs.
+  const { data: mine } = await supabase.from("band_invitations").select("email").eq("event_id", eventId).eq("email", email.toLowerCase()).is("sent_at", null);
+  if (!mine?.length) return { error: "That invitation has already gone out, or isn't yours to change." };
+  await createAdminClient().from("band_invitations").delete().eq("event_id", eventId).eq("email", email.toLowerCase()).is("sent_at", null);
+  revalidatePath(`/dashboard/events/${eventId}/bands`);
+  return { ok: true, message: "It won't be sent." };
 }
 
 /** The invitation's button: sign in as the invited director, then on to registration. */

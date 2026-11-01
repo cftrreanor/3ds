@@ -2,7 +2,8 @@ import { type NextRequest } from "next/server";
 import { opensLater } from "@/lib/bands";
 import { buildIcs } from "@/lib/ics";
 import { createClient } from "@/lib/supabase/server";
-import { zonedToUtc } from "@/lib/time";
+import { formatDate, zonedToUtc } from "@/lib/time";
+import { groupWords } from "@/lib/event-types";
 
 // "Add to calendar" on a band contest's registration page before it opens: a 15-minute reminder
 // at 8:00 AM on the opening day, linking back to the page. Only for a published event whose
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, status, timezone, band_registration_open, band_registration_opens_on, band_registration_deadline")
+    .select("id, name, status, event_type, timezone, band_registration_open, band_registration_opens_on, band_registration_deadline")
     .eq("slug", slug)
     .maybeSingle();
   if (!event || event.status !== "published" || !event.band_registration_open || !event.band_registration_opens_on || !opensLater(event)) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     start,
     end: new Date(start.getTime() + 15 * 60_000),
     summary: `Register for ${event.name}`,
-    description: `Band registration opens today.${event.band_registration_deadline ? ` It closes at the end of ${event.band_registration_deadline}.` : ""}`,
+    description: `${groupWords(event.event_type).One} registration opens today.${event.band_registration_deadline ? ` It closes at the end of ${formatDate(event.band_registration_deadline)}.` : ""}`,
     url: `${request.nextUrl.origin}/e/${slug}/bands`,
     alarm: false,
   });

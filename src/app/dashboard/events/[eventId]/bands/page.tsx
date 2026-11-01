@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import { openBandRegistrationNow, publishAndOpenBandRegistration, reopenBandRegistration, setBandRegistrationOpen, updateBandSettings } from "@/app/dashboard/band-actions";
 import { Badge, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { fixInviteAddress, sendBandInvites } from "@/app/dashboard/band-invite-actions";
+import { cancelScheduledInvite, fixInviteAddress, sendBandInvites } from "@/app/dashboard/band-invite-actions";
 import { importBandPrefills } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields } from "@/lib/imports";
@@ -72,21 +72,27 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
   const [{ data: pastData }, { data: prefillData }, { data: inviteData }] = await Promise.all([
     supabase.rpc("past_band_directors", { p_event: eventId }),
     supabase.from("band_prefills").select("email, band_name, school_name, head_director_name").eq("event_id", eventId).order("created_at"),
-    supabase.from("band_invitations").select("email, sent_at, failed_at, scheduled_for, replaced_by").eq("event_id", eventId),
+    supabase.from("band_invitations").select("email, sent_at, failed_at, failed_reason, scheduled_for, replaced_by").eq("event_id", eventId),
   ]);
   const invitedLabel = (iso: string) => `Invited ${formatDate(utcToZonedDate(iso, event.timezone), { year: undefined })}`;
   // Saved wording for the invitation (Email settings), so the preview shows what's sent.
   const inviteWording = await loadSystemEmail("director_invite");
-  type InviteRow = { email: string; sent_at: string | null; failed_at: string | null; scheduled_for: string | null; replaced_by: string | null };
+  type InviteRow = { email: string; sent_at: string | null; failed_at: string | null; failed_reason: "address" | "service" | null; scheduled_for: string | null; replaced_by: string | null };
   const invites = new Map(((inviteData ?? []) as InviteRow[]).map((i) => [i.email.toLowerCase(), i]));
   const invitedAt = new Map([...invites].filter(([, i]) => i.sent_at).map(([e, i]) => [e, i.sent_at as string]));
   // Each director's invitation state, beyond "Invited <date>".
   const inviteState = (email: string) => {
     const i = invites.get(email.toLowerCase());
     return {
-      failed: Boolean(i?.failed_at),
+      failed: i?.failed_at ? (i.failed_reason ?? "service") : (false as const),
       movedTo: i?.replaced_by ?? null,
-      scheduled: i && !i.sent_at && i.scheduled_for ? `Goes out ${formatDate(i.scheduled_for, { year: undefined })}` : null,
+      // Waiting for registration to open: the day it opens now (it may have moved since they were chosen).
+      scheduled:
+        i && !i.sent_at && i.scheduled_for
+          ? event.band_registration_opens_on && regLater
+            ? `Goes out ${formatDate(event.band_registration_opens_on, { year: undefined })}`
+            : "Goes out with the next send"
+          : null,
     };
   }
   const registeredEmails = new Set(((bandData ?? []) as BandRow[]).map((b) => b.head_director_email.toLowerCase()));
@@ -279,10 +285,10 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                     action={openBandRegistrationNow.bind(null, eventId)}
                     variant="secondary"
                     pendingText="Opening…"
-                    confirmMessage={`Open ${w.one} registration now? Directors can register from today instead of ${formatDate(event.band_registration_opens_on!, { year: undefined })}.`}
-                    confirmLabel="Open now"
+                    confirmMessage={`Open ${w.one} registration now? Directors can register from today instead of ${formatDate(event.band_registration_opens_on!, { year: undefined })}, and any invitations you scheduled go out now.`}
+                    confirmLabel="Open registration now"
                   >
-                    Open now
+                    Open registration now
                   </ActionButton>
                   <Link href={`${base}?tab=settings`} scroll={false} className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-brand underline underline-offset-4">
                     Change opening day
@@ -295,7 +301,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                   variant={event.band_registration_open ? "quiet-stop" : "go"}
                   confirmMessage={
                     event.band_registration_open
-                      ? `Close ${w.one} registration early? Directors can't register or change their registration until you reopen it.${invitedWaiting > 0 ? ` ${invitedWaiting} invited ${invitedWaiting === 1 ? "director hasn't" : "directors haven't"} registered yet.` : ""}`
+                      ? `Close ${w.one} registration early? Directors can't register or change a registration until you reopen it${invitedWaiting > 0 ? `, including the ${invitedWaiting} invited ${invitedWaiting === 1 ? "director who hasn't" : "directors who haven't"} registered yet` : ""}. Invitation links show that registration is closed. Nobody is emailed.`
                       : undefined
                   }
                   confirmLabel={event.band_registration_open ? "Close registration" : undefined}
@@ -418,6 +424,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                         scheduleFor={regLater ? formatDate(event.band_registration_opens_on!, { year: undefined }) : null}
                         send={sendBandInvites.bind(null, eventId)}
                         fixAddress={fixInviteAddress.bind(null, eventId)}
+                        cancelScheduled={cancelScheduledInvite.bind(null, eventId)}
                         one={w.one}
                         preview={bandInviteEmail({
                           firstName: previewTo?.name?.split(" ")[0] || null,

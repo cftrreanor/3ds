@@ -193,8 +193,8 @@ export default async function BandRegistrationPage({ params }: Params) {
             {w.One} registration opens {formatDate(event.band_registration_opens_on!)}
           </p>
           <p className="mt-1 text-sm text-muted">
-            From 12:00 AM that day, {zoneAbbreviation(`${event.band_registration_opens_on}T12:00:00Z`, event.timezone)}
-            {event.band_registration_deadline ? `, through the end of ${formatDate(event.band_registration_deadline)}` : ""}.
+            Opens at midnight ({zoneAbbreviation(`${event.band_registration_opens_on}T12:00:00Z`, event.timezone)})
+            {event.band_registration_deadline ? `. Closes at the end of ${formatDate(event.band_registration_deadline)}` : ""}.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <a href={`/e/${slug}/bands/opens`} className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
@@ -256,7 +256,7 @@ export default async function BandRegistrationPage({ params }: Params) {
             </p>
             <p className="mt-1 text-sm text-muted">
               {later
-                ? `The form appears here on ${formatDate(event.band_registration_opens_on!, { year: undefined })}.`
+                ? "The form appears here when registration opens."
                 : event.status === "published"
                 ? mine.length > 0
                   ? `To change your registration now, contact the organizer from your ${w.one}'s page.`

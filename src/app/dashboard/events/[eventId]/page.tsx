@@ -710,8 +710,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 Change opening day
               </Link>
             </p>
-            <ActionButton action={openBandRegistrationNow.bind(null, eventId)} variant="secondary" pendingText="Opening…" confirmMessage={`Open ${words.one} registration now? Directors can register from today instead of ${formatDate(regLater, { year: undefined })}.`} confirmLabel="Open now">
-              Open now
+            <ActionButton action={openBandRegistrationNow.bind(null, eventId)} variant="secondary" pendingText="Opening…" confirmMessage={`Open ${words.one} registration now? Directors can register from today instead of ${formatDate(regLater, { year: undefined })}, and any invitations you scheduled go out now.`} confirmLabel="Open registration now">
+              Open registration now
             </ActionButton>
           </div>
         ) : (
@@ -1328,7 +1328,7 @@ function GetTheWordOut({
               </Link>
             )}
           </li>
-          {reg >= 0 && linkRow(reg, "Registration link", opensOn ? `For directors. Until ${short(opensOn)} it says when registration opens.` : "For directors who weren't invited, or a group email.")}
+          {reg >= 0 && linkRow(reg, "Registration link", opensOn ? `For directors. Before ${short(opensOn)}, it shows when registration opens.` : "For directors who weren't invited, or a group email.")}
           {vol >= 0 && volunteersReady ? (
             linkRow(vol, "Volunteer sign-up", "For your band parents' group text.")
           ) : (

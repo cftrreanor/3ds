@@ -20,3 +20,8 @@ grant select (scheduled_for, failed_reason, replaced_by) on public.band_invitati
 
 -- The daily job finds waiting invitations by day.
 create index on public.band_invitations (scheduled_for) where sent_at is null;
+
+-- An invitation being sent right now (claimed by one sender, so a second sender at the same
+-- moment, like the daily job and a host pressing Send, skips it). A claim older than ten minutes
+-- is treated as abandoned.
+alter table public.band_invitations add column claimed_at timestamptz;

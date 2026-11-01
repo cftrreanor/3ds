@@ -118,7 +118,10 @@ Before an email goes out, the sender can see and untick every recipient. Mark pe
 emailed. Say "Sending…" until it's sent, and show what couldn't be delivered. Sending again never
 breaks the link in an earlier email.
 - **Seen in:** event setup (try-it events emailing outsiders), My events, band contest v1 (and 14
-  more, 8 of 8 reviewers) and v2 (re-sent links, "Sent" too early).
+  more, 8 of 8 reviewers) and v2 (re-sent links, "Sent" too early), band PR 2 built (ticked
+  directors hidden in a scrolling box; the question didn't name them; reminders to failed addresses).
+- **Sharper rule:** no list of recipients scrolls inside its own box, and the question before
+  sending names them. Claim each email before sending, so two senders never double up.
 
 ## L12. Phone basics
 Buttons and links people tap are 44 px tall with 14 px words. **Checked automatically**
@@ -146,6 +149,14 @@ Wherever a phone number, email, or child's details are entered or shown, say in 
 sees them and when. Defaults filled in from someone's profile are suggestions until saved.
 - **Seen in:** setup redesign v3 (Coordinators and phone numbers), volunteer jobs v4 (phone note
   promised the wrong people), band contest v1 and v2 (director contact).
+
+## L19. A state that depends on a date is a state everywhere
+When something can be "scheduled" or "opens later", every badge, button, count, email, and
+background job says so. No screen falls back to the open or closed wording, and no button acts on
+a state that hasn't started (no "Close" before it opens). Moving the date, or starting early, also
+moves everything waiting on it.
+- **Seen in:** band PR 2 built ("Registration open" and "Close registration" before the opening
+  day, 8 of 8 reviewers; "Open now" left scheduled invitations waiting for the old date).
 
 ## L17. When a step is ready, its one action comes first
 Once everything a step needs is in place, the button that finishes it moves to the top of the
@@ -186,4 +197,5 @@ before the panel sees it.
 - [ ] **L16** Personal details say who sees them
 - [ ] **L17** A ready step's action is at the top; a blocked one names its fix there
 - [ ] **L18** Sibling steps save the same way, with Next in the same place
+- [ ] **L19** Every date-based state (opens later, scheduled) shows on every badge, button, and job
 - [ ] `npm run lint` passes (includes the automatic checks)

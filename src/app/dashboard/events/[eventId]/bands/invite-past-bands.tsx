@@ -16,8 +16,8 @@ export type PastDirector = {
   invited: string | null;
   /** "Goes out Aug 15": waiting for registration's opening day. */
   scheduled?: string | null;
-  /** The last email to them couldn't be sent. */
-  failed?: boolean;
+  /** The last email to them couldn't be sent: "address" (refused), or "service" (on our side). */
+  failed?: false | "address" | "service";
   /** Moved to a corrected address. */
   movedTo?: string | null;
 };
@@ -41,6 +41,7 @@ export function InvitePastBands({
   scheduleFor,
   send,
   fixAddress,
+  cancelScheduled,
   one = "band",
   preview,
 }: {
@@ -52,6 +53,7 @@ export function InvitePastBands({
   scheduleFor?: string | null;
   send: (emails: string[], reminder: boolean) => Promise<ActionState>;
   fixAddress: (from: string, to: string) => Promise<ActionState>;
+  cancelScheduled: (email: string) => Promise<ActionState>;
   /** "band" or "group". */
   one?: string;
   /** What the invitation says, for "Preview the email". */
@@ -89,10 +91,10 @@ export function InvitePastBands({
         reminder
           ? "Each gets one more email. Their earlier link still works."
           : scheduleFor
-            ? `They go out the morning of ${scheduleFor}, when registration opens. Nobody is added to your team.`
+            ? `They go out early on ${scheduleFor}, when registration opens. Nobody is added to your team.`
             : "Each gets one email with the registration link and the deadline. Nobody is added to your team."
       }`,
-      confirmLabel: scheduleFor ? "Schedule" : reminder ? "Send reminders" : "Send invitations",
+      confirmLabel: scheduleFor ? "Schedule invitations" : reminder ? "Send reminders" : "Send invitations",
       cancelLabel: "Not yet",
     });
     if (!ok) return;
@@ -114,7 +116,7 @@ export function InvitePastBands({
       {!canSend && cantSendReason && <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm">{cantSendReason}</p>}
       {scheduleFor && (
         <p className="rounded-md border border-border bg-brand-soft px-3 py-2 text-sm">
-          Registration opens {scheduleFor}. Choose directors now, and their invitations go out that morning.
+          Registration opens {scheduleFor}. Choose directors now. Their invitations go out early that day.
         </p>
       )}
       <div>
@@ -160,7 +162,21 @@ export function InvitePastBands({
                   ) : d.failed ? (
                     <Badge tone="warning">Couldn&apos;t send</Badge>
                   ) : d.scheduled ? (
-                    <Badge tone="info">{d.scheduled}</Badge>
+                    <>
+                      <Badge tone="info">{d.scheduled}</Badge>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() =>
+                          start(async () => {
+                            setResult(await cancelScheduled(d.email));
+                          })
+                        }
+                        className="inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4"
+                      >
+                        Don&apos;t send
+                      </button>
+                    </>
                   ) : (
                     d.invited && <Badge tone="info">{d.invited}</Badge>
                   )}
@@ -183,7 +199,7 @@ export function InvitePastBands({
                       });
                     }}
                   >
-                    <label className="min-w-0 flex-1 text-sm font-semibold">
+                    <label className="min-w-0 basis-full text-sm font-semibold sm:flex-1 sm:basis-auto">
                       Corrected email
                       <Input type="email" required autoFocus value={fixing.to} onChange={(e) => setFixing({ email: d.email, to: e.target.value })} className="mt-1" />
                     </label>
@@ -194,9 +210,29 @@ export function InvitePastBands({
                       Cancel
                     </button>
                   </form>
+                ) : d.failed === "service" ? (
+                  // Our side failed, not their address: try again first.
+                  <p className="flex flex-wrap items-center gap-x-3 text-sm">
+                    <span className="text-muted">We couldn&apos;t send this one. Try again in a moment.</span>
+                    <button
+                      type="button"
+                      disabled={pending || !canSend}
+                      onClick={() =>
+                        start(async () => {
+                          setResult(await send([d.email], false));
+                        })
+                      }
+                      className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4"
+                    >
+                      Send again
+                    </button>
+                    <button type="button" onClick={() => setFixing({ email: d.email, to: d.email })} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                      Change address
+                    </button>
+                  </p>
                 ) : (
                   <p className="flex flex-wrap items-center gap-x-2 text-sm">
-                    <span className="text-muted">The email to this address couldn&apos;t be sent.</span>
+                    <span className="text-muted">This address didn&apos;t accept our email. Check it for typos, or ask the school for the right one.</span>
                     <button type="button" onClick={() => setFixing({ email: d.email, to: d.email })} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
                       Fix address
                     </button>
@@ -219,7 +255,7 @@ export function InvitePastBands({
           {pending
             ? "Saving…"
             : scheduleFor
-              ? `Schedule ${chosen.length} for ${scheduleFor}`
+              ? `Schedule ${chosen.length} ${chosen.length === 1 ? "invitation" : "invitations"} for ${scheduleFor}`
               : `Send ${chosen.length} ${chosen.length === 1 ? "invitation" : "invitations"}`}
         </button>
         {remindable.length > 0 && !scheduleFor && (
@@ -250,8 +286,8 @@ export function InvitePastBands({
         </div>
       </details>
       <p className="text-sm text-muted">
-        Each email&apos;s button works once in the next 7 days and fills in their {one}&apos;s details. After that, directors
-        confirm their email with a code. Sending again doesn&apos;t cancel the first email.
+        Each email&apos;s button works once, for 7 days after it arrives, and fills in their {one}&apos;s details. After that,
+        directors confirm their email with a code. Sending again doesn&apos;t cancel the first email.
       </p>
     </div>
   );
