@@ -24,6 +24,8 @@ export type PublicShift = {
   adultsOnly: boolean;
   /** For minors: the youngest age allowed. */
   minAge: number | null;
+  /** Spots saved for adults (18+) that the shift still needs: under-18s can't take them. */
+  adultsNeeded: number;
 };
 /** Something to bring (Desserts), how many are still needed, and who's bringing what so far. */
 export type PublicItem = {
@@ -104,7 +106,12 @@ export function SignupForm({
   };
   const whyNot = (shiftId: string, who: number) => {
     const s = shiftById.get(shiftId);
-    return s ? ineligibleReason({ minor: minorOf(who), age: ageOf(who) }, s) : null;
+    if (!s) return null;
+    const rule = ineligibleReason({ minor: minorOf(who), age: ageOf(who) }, s);
+    if (rule || !minorOf(who) || !s.adultsNeeded) return rule;
+    // Spots saved for adults: adults in this group picking the shift count toward them first, like the server.
+    const groupAdults = [BOOKER, ...people.map((_, j) => j)].filter((j) => j !== who && !minorOf(j) && shiftsOf(j).includes(shiftId)).length;
+    return spotsFor(shiftId, who) <= Math.max(0, s.adultsNeeded - groupAdults) ? "Open spots are for adults (18+)" : null;
   };
   // A shift that's at the same time as one this person already picked: "Same time as your Concessions shift".
   const clash = (shiftId: string, who: number) => {
@@ -730,6 +737,11 @@ function ShiftChoices({
                   {s.description ? ` · ${s.description}` : ""}
                 </span>
                 {reason && <span className="block text-sm font-semibold">{reason}</span>}
+                {!reason && s.adultsNeeded > 0 && left > 0 && (
+                  <span className="block text-sm font-medium">
+                    {Math.min(s.adultsNeeded, left)} of these saved for adults (18+)
+                  </span>
+                )}
               </span>
               <span className="shrink-0 text-sm font-medium">{left <= 0 && !isChosen ? "Full" : `${Math.max(left, 0)} left`}</span>
             </label>

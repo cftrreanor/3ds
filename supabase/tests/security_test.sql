@@ -7531,4 +7531,110 @@ end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d2';
 
+-- ---------------------------------------------------------------------------
+-- Spots held for adults (20270110000000): a job's shifts keep spots for adults;
+-- under-18s can't take them (signing up or switching), adults go first in a
+-- group, an organizer adding over capacity isn't held back, and the counts
+-- show on a published event's sign-up page.
+-- ---------------------------------------------------------------------------
+set role service_role;
+do $$
+declare
+  day   timestamptz := date_trunc('day', now() + interval '16 days');
+  sh    uuid := '9c000000-0000-0000-0000-000000000001';
+  sh2   uuid := '9c000000-0000-0000-0000-000000000002';
+  t1 uuid; t2 uuid; t3 uuid; ad uuid; ad2 uuid; t4 uuid;
+  ok boolean;
+begin
+  update public.stations set min_adults = 2 where id = '20000000-0000-0000-0000-00000000000a';
+  insert into public.shifts (id, station_id, title, starts_at, ends_at, max_capacity) values
+    (sh,  '20000000-0000-0000-0000-00000000000a', 'Teen concessions', day + interval '17 hours', day + interval '19 hours', 3),
+    (sh2, '20000000-0000-0000-0000-00000000000a', 'Late concessions', day + interval '20 hours', day + interval '22 hours', 3);
+  insert into public.volunteers (event_id, full_name, email, phone, minor) values
+    ('10000000-0000-0000-0000-00000000000a', 'Teen A.', 'held.t1@example.com', '+15125550301', true) returning id into t1;
+  insert into public.volunteers (event_id, full_name, email, phone, minor) values
+    ('10000000-0000-0000-0000-00000000000a', 'Teen B.', 'held.t2@example.com', '+15125550302', true) returning id into t2;
+  insert into public.volunteers (event_id, full_name, email, phone, minor) values
+    ('10000000-0000-0000-0000-00000000000a', 'Teen C.', 'held.t3@example.com', '+15125550303', true) returning id into t3;
+  insert into public.volunteers (event_id, full_name, email, phone, minor) values
+    ('10000000-0000-0000-0000-00000000000a', 'Teen D.', 'held.t4@example.com', '+15125550304', true) returning id into t4;
+  insert into public.volunteers (event_id, full_name, email, phone) values
+    ('10000000-0000-0000-0000-00000000000a', 'Ada Adult', 'held.ad@example.com', '+15125550305') returning id into ad;
+  insert into public.volunteers (event_id, full_name, email, phone) values
+    ('10000000-0000-0000-0000-00000000000a', 'Abe Adult', 'held.ad2@example.com', '+15125550306') returning id into ad2;
+
+  assert public.adults_still_needed(sh) = 2, 'an empty shift needs both its adults';
+  -- 3 spots, 2 held for adults: one under-18 fits, a second doesn't.
+  perform public.book_group('10000000-0000-0000-0000-00000000000a', array[t1], array[sh], false, false);
+  ok := false;
+  begin
+    perform public.book_group('10000000-0000-0000-0000-00000000000a', array[t2], array[sh], false, false);
+  exception when sqlstate 'P0005' then ok := true;
+  end;
+  assert ok, 'an under-18 can''t take a spot held for adults';
+  -- An adult can, and it's still held for the other adult.
+  perform public.book_group('10000000-0000-0000-0000-00000000000a', array[ad], array[sh], false, false);
+  assert public.adults_still_needed(sh) = 1, 'one adult signed up, one still needed';
+  ok := false;
+  begin
+    perform public.book_group('10000000-0000-0000-0000-00000000000a', array[t2], array[sh], false, false);
+  exception when sqlstate 'P0005' then ok := true;
+  end;
+  assert ok, 'the last spot stays held for an adult';
+  -- An organizer adding over capacity (a walk-up) isn't held back.
+  perform public.book_group('10000000-0000-0000-0000-00000000000a', array[t2], array[sh], true, true);
+  assert exists (select 1 from public.volunteer_assignments where shift_id = sh and volunteer_id = t2), 'an organizer can still add an under-18';
+
+  -- A parent and teen signing up together: the adult goes first, so both fit in the order given teen-first.
+  perform public.book_group('10000000-0000-0000-0000-00000000000a', array[t3, ad2], array[sh2], false, false);
+  assert (select count(*) from public.volunteer_assignments where shift_id = sh2) = 2, 'a teen and adult together both fit';
+  -- Now 1 spot left, 1 adult still needed: no more under-18s.
+  ok := false;
+  begin
+    perform public.book_group('10000000-0000-0000-0000-00000000000a', array[t4], array[sh2], false, false);
+  exception when sqlstate 'P0005' then ok := true;
+  end;
+  assert ok, 'with one spot left and one adult needed, an under-18 is refused';
+
+  -- Adults-only jobs don't hold spots (nobody under 18 can sign up anyway).
+  update public.stations set adults_only = true where id = '20000000-0000-0000-0000-00000000000a';
+  assert public.adults_still_needed(sh2) = 0, 'an adults-only job holds no spots';
+  update public.stations set adults_only = false where id = '20000000-0000-0000-0000-00000000000a';
+end $$;
+
+-- Switching to a shift whose open spot is held for an adult is refused for an under-18.
+do $$
+declare ok boolean := false; asg uuid; tok uuid;
+begin
+  select va.id, v.access_token into asg, tok from public.volunteer_assignments va join public.volunteers v on v.id = va.volunteer_id
+   where v.email = 'held.t1@example.com';
+  update public.events set volunteer_signup_open = true where id = '10000000-0000-0000-0000-00000000000a';
+  begin
+    perform public.swap_shift_with_pass(asg, '9c000000-0000-0000-0000-000000000002', array[tok], null);
+  exception when sqlstate 'P0005' then ok := true;
+  end;
+  assert ok, 'an under-18 can''t switch into a spot held for adults';
+end $$;
+
+-- The sign-up page can read each shift's adults still needed (counts only).
+set role anon;
+do $$
+begin
+  assert (select adults_needed from public.shift_adult_needs('10000000-0000-0000-0000-00000000000a')
+           where shift_id = '9c000000-0000-0000-0000-000000000002') = 1, 'a published event shows adults still needed';
+end $$;
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.adults_still_needed('9c000000-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'the public can''t call the per-shift helper directly';
+end $$;
+reset role;
+delete from public.volunteers where email like 'held.%@example.com';
+delete from public.shifts where id in ('9c000000-0000-0000-0000-000000000001', '9c000000-0000-0000-0000-000000000002');
+update public.stations set min_adults = null where id = '20000000-0000-0000-0000-00000000000a';
+
 \echo 'All database security tests passed.'

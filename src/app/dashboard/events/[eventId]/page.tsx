@@ -264,6 +264,13 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   // Coordinators see children's details (and work the door) on event day only.
   const doorLocked = parentsHere && !access.canManage && !isEventDay;
   const checkedIn = { done: (checkins ?? []).filter((c) => c.checked_in_at).length, of: (checkins ?? []).length };
+  // Spots saved for adults each shift still needs (after the 20270110000000 update).
+  const adultNeeds = new Map(
+    (((await supabase.rpc("shift_adult_needs", { p_event_id: eventId })).data ?? []) as { shift_id: string; adults_needed: number }[]).map((r) => [
+      r.shift_id,
+      r.adults_needed,
+    ]),
+  );
   // The emptiest shifts first: where to send the next volunteers.
   const needsPeople = [
     ...(liveShifts as Shift[])
@@ -271,7 +278,9 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
       .map((s) => ({
         id: s.id,
         label: `${stationName(s.station_id) ?? "Station"} · ${s.title}`,
-        when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}`,
+        when: `${multiDay ? `${formatDate(utcToZonedDate(s.starts_at, tz), { year: undefined })} · ` : ""}${formatTimeRange(s.starts_at, s.ends_at, tz)}${
+          (adultNeeds.get(s.id) ?? 0) > 0 ? ` · needs ${adultNeeds.get(s.id)} more adult${adultNeeds.get(s.id) === 1 ? "" : "s"}` : ""
+        }`,
         sort: s.starts_at,
         filled: s.registered_count,
         capacity: s.max_capacity,

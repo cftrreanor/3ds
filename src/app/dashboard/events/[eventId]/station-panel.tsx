@@ -44,6 +44,8 @@ export type Station = {
   location: string | null;
   instructions: string | null;
   adults_only?: boolean;
+  /** Spots on each shift held for volunteers 18 or older (after the 20270110000000 update). */
+  min_adults?: number | null;
   zone?: string | null;
   lead_user_id: string | null;
   /** Everyone leading this sign-up, first-added first. */
@@ -90,7 +92,7 @@ export function StationPanel({
   event,
   days,
   windowLabel,
-  windowMinutes,
+  windowTimes,
   userId,
   canManage,
   leadNames,
@@ -103,6 +105,7 @@ export function StationPanel({
   leadOptions = [],
   pendingInvites = [],
   job,
+  adultsNeeded = {},
 }: {
   eventId: string;
   station: Station;
@@ -111,7 +114,8 @@ export function StationPanel({
   days: string[];
   windowLabel: string;
   /** How long the event day is, in minutes. */
-  windowMinutes?: number;
+  /** The event day's start and end ("07:00", "21:00"), where Fill the day starts out. */
+  windowTimes?: { start: string; end: string };
   userId: string;
   canManage: boolean;
   leadNames: string[];
@@ -133,6 +137,8 @@ export function StationPanel({
   pendingInvites?: string[];
   /** A volunteer event's job: its own layout and words, saved as people type. */
   job?: JobFacts;
+  /** Adults each shift still needs (its job saves spots for adults). */
+  adultsNeeded?: Record<string, number>;
 }) {
   const noun = job ? "job" : "sign-up";
   const itemsStation = station.signup_kind === "items";
@@ -143,11 +149,12 @@ export function StationPanel({
       generate={generateShifts.bind(null, eventId, station.id)}
       create={createShift.bind(null, eventId, station.id)}
       windowLabel={windowLabel}
-      windowMinutes={windowMinutes}
+      windowTimes={windowTimes}
       days={days}
       existing={stationShifts.length}
       signedUp={stationShifts.some((s) => s.registered_count > 0)}
       job={Boolean(job)}
+      minAdults={station.adults_only ? null : station.min_adults}
     />
   );
   return (
@@ -251,7 +258,7 @@ export function StationPanel({
               <h4 id="shifts-heading" className="text-base font-semibold">
                 {job ? "Shifts" : "Time slots"}
               </h4>
-              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage job={Boolean(job)} />
+              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage job={Boolean(job)} adultsNeeded={adultsNeeded} />
               {stationShifts.length > 0 ? (
                 // Once it has time slots, redoing or adding them is tucked away so it doesn't pull focus.
                 <details className="group mt-3">
@@ -284,7 +291,7 @@ export function StationPanel({
           !canManage && (
             <>
               <h4 className="mt-6 text-sm font-semibold">Shift schedule</h4>
-              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage={false} />
+              <ShiftList shifts={stationShifts} eventId={eventId} tz={tz} multiDay={multiDay} days={days} canManage={false} adultsNeeded={adultsNeeded} />
             </>
           )
         ))}
@@ -415,9 +422,12 @@ function ShiftList({
   days,
   canManage,
   job = false,
+  adultsNeeded = {},
 }: {
   shifts: Shift[];
   job?: boolean;
+  /** Adults each shift still needs (its job saves spots for adults). */
+  adultsNeeded?: Record<string, number>;
   eventId: string;
   tz: string;
   multiDay: boolean;
@@ -461,8 +471,14 @@ function ShiftList({
             </div>
             )}
             <div className="flex shrink-0 items-center gap-1">
-              <span className="mr-1 text-sm tabular-nums text-muted">
-                {s.registered_count} / {s.max_capacity} filled
+              <span className="mr-1 text-right text-sm tabular-nums text-muted">
+                {s.registered_count} of {s.max_capacity} filled
+                {(adultsNeeded[s.id] ?? 0) > 0 && (
+                  <span className="block font-medium text-warning">
+                    <span aria-hidden>◆ </span>
+                    needs {adultsNeeded[s.id]} more adult{adultsNeeded[s.id] === 1 ? "" : "s"}
+                  </span>
+                )}
               </span>
               {/* A job's shift with people on it can't be deleted, so it doesn't offer to. */}
               {canManage && !(job && s.registered_count > 0) && (
