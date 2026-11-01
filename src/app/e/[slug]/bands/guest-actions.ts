@@ -24,7 +24,7 @@ const RESEND_SECONDS = 60;
 async function loadEvent(eventId: string) {
   const { data } = await createAdminClient()
     .from("events")
-    .select("id, slug, name, status, event_type, timezone, band_registration_open, band_registration_deadline, chaperone_limit, classifications")
+    .select("id, slug, name, status, event_type, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on, chaperone_limit, classifications")
     .eq("id", eventId)
     .maybeSingle();
   return data;

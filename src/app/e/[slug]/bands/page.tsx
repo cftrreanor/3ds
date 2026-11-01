@@ -7,11 +7,12 @@ import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
 import { registerAgain, registerBand } from "@/app/dashboard/band-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
-import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, deadlinePassed, opensLater, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateRange, formatTimeRange } from "@/lib/time";
+import { formatDate, formatDateRange, formatTimeRange, zoneAbbreviation } from "@/lib/time";
+import { LineIcon } from "@/components/line-icon";
 import { GuestRegister } from "./guest-register";
 import { RegisterForm, type PreviousBand } from "./register-form";
 
@@ -41,7 +42,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications, payment_link")
+    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on, director_info, chaperone_limit, classifications, payment_link")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -120,6 +121,8 @@ export default async function BandRegistrationPage({ params }: Params) {
   previous.unshift(...prefilled);
 
   const open = registrationIsOpen(event);
+  // Published with registration set to open on a later day: say when.
+  const later = event.status === "published" && event.band_registration_open && opensLater(event);
   const here = `/e/${slug}/bands`;
   const form = user && (
     <RegisterForm
@@ -182,6 +185,25 @@ export default async function BandRegistrationPage({ params }: Params) {
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {!band && heading}
 
+      {later && (
+        // Before it opens, the opening day comes first, with a way to remember it.
+        <Card className="mt-8 border-2 border-brand">
+          <p className="text-lg font-semibold">
+            <LineIcon name="calendar" inline />
+            {w.One} registration opens {formatDate(event.band_registration_opens_on!)}
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            Opens at midnight ({zoneAbbreviation(`${event.band_registration_opens_on}T12:00:00Z`, event.timezone)})
+            {event.band_registration_deadline ? `. Closes at the end of ${formatDate(event.band_registration_deadline)}` : ""}.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a href={`/e/${slug}/bands/opens`} className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+              Add to calendar
+            </a>
+          </div>
+        </Card>
+      )}
+
       {(event.director_info || event.payment_link || (open && event.band_registration_deadline)) && (
         <Card className="mt-8 space-y-3">
           {open && event.band_registration_deadline && (
@@ -190,7 +212,13 @@ export default async function BandRegistrationPage({ params }: Params) {
           {event.director_info && <p className="whitespace-pre-line leading-7">{event.director_info}</p>}
           {event.payment_link && (
             <p>
-              <a href={event.payment_link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+              <a
+                href={event.payment_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                // Until registration opens, paying isn't the next step: an outline button.
+                className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${open ? "bg-brand text-brand-foreground hover:bg-brand-hover" : "border-[1.5px] border-field-border bg-surface hover:border-brand"}`}
+              >
               Pay the entry fee <span className="sr-only">(opens in a new tab)</span>
             </a>
             </p>
@@ -220,12 +248,16 @@ export default async function BandRegistrationPage({ params }: Params) {
             <p className="font-medium">
               {event.status !== "published"
                 ? "Preview: this page isn't public yet."
-                : deadlinePassed(event) && event.band_registration_open
+                : later
+                  ? `Not open yet`
+                  : deadlinePassed(event) && event.band_registration_open
                   ? `${w.One} registration closed on ${formatDate(event.band_registration_deadline!)}.`
                   : `${w.One} registration is closed.`}
             </p>
             <p className="mt-1 text-sm text-muted">
-              {event.status === "published"
+              {later
+                ? "The form appears here when registration opens."
+                : event.status === "published"
                 ? mine.length > 0
                   ? `To change your registration now, contact the organizer from your ${w.one}'s page.`
                   : `If you still need to register a ${w.one}, contact the organizer directly.`

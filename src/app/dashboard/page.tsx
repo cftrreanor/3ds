@@ -52,6 +52,7 @@ type MyBand = {
     | (EventSummary & {
         band_registration_open: boolean;
         band_registration_deadline: string | null;
+        band_registration_opens_on: string | null;
         performance_order_published: boolean;
         finalists_revealed: boolean;
         ready_minutes_before: number;
@@ -168,7 +169,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       .from("bands")
       .select(
         `id, band_name, school_name,
-         events(${EVENT_COLUMNS}, band_registration_open, band_registration_deadline, performance_order_published, finalists_revealed, ready_minutes_before, finals_ready_minutes_before),
+         events(${EVENT_COLUMNS}, band_registration_open, band_registration_deadline, band_registration_opens_on, performance_order_published, finalists_revealed, ready_minutes_before, finals_ready_minutes_before),
          performance_slots(perform_at), finals_slots(perform_at)`,
       )
       .eq("director_user_id", user.id),

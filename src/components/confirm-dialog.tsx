@@ -50,7 +50,7 @@ const subscribe = (fn: () => void) => {
  */
 export function confirmFromText(text: string, extra?: Partial<ConfirmOptions>): ConfirmOptions {
   const m = /^([^?]+\?)\s+([\s\S]+)$/.exec(text.trim());
-  const danger = /\b(delete|remove|can't be undone|cannot be undone|permanently|cancel|discard|close the account|suspend)\b/i.test(text);
+  const danger = /\b(delete|remove|can't be undone|cannot be undone|permanently|cancel|discard|close the account|suspend|close [a-z ]*(registration|sign-up))\b/i.test(text);
   return { title: m ? m[1] : text.trim(), message: m ? m[2] : undefined, danger, ...extra };
 }
 

@@ -1997,6 +1997,8 @@ do $$ begin
   assert (select invited_at is not null from public.past_band_directors('10000000-0000-0000-0000-00000000000f')
            where email = 'past@example.com'), 'the list shows who was invited';
   assert (select count(*) from public.band_invitations) = 1, 'a host sees their event''s invitations';
+  -- 20270109000000: when one waits for opening day, why one failed, and where it moved.
+  perform scheduled_for, failed_reason, replaced_by, failed_at from public.band_invitations;
   begin
     perform token from public.band_invitations;
     raise exception 'FAIL: a browser read an invitation''s sign-in token';
@@ -7487,5 +7489,46 @@ begin
 end $$;
 reset role;
 delete from public.events where id = '10000000-0000-0000-0000-0000000000d1';
+
+-- Registration that opens on a set day (20270108000000): not open before it, open from it, and it
+-- can't open after the deadline.
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end,
+                           venue_address, classifications, band_registration_deadline, band_registration_open, band_registration_opens_on)
+values ('10000000-0000-0000-0000-0000000000d2', :'org_id', 'Opens Later Classic', 'opens-later-classic', 'published', 'band_contest',
+        current_date + 60, current_date + 60, now() + interval '60 days', now() + interval '60 days 10 hours', '1 Field Rd',
+        '{1A}', current_date + 30, true, current_date + 5);
+do $$ begin
+  assert not public.band_registration_is_open('10000000-0000-0000-0000-0000000000d2'), 'registration isn''t open before its opening day';
+end $$;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000005","email":"director@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    insert into public.bands (event_id, director_user_id, school_name, band_name, classification, school_address,
+                              contact_email, head_director_name, head_director_email, head_director_phone, student_count, chaperone_count)
+    values ('10000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-000000000005', 'Early HS', 'Early Band', '1A', 'addr',
+            'early@example.com', 'Ear Ly', 'early@example.com', '+15125550112', 50, 2);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a director can''t register before registration opens';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  begin
+    update public.events set band_registration_opens_on = current_date + 40 where id = '10000000-0000-0000-0000-0000000000d2';
+  exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Registration has to open on or before its deadline%', 'registration can''t open after its deadline';
+  update public.events set band_registration_opens_on = current_date where id = '10000000-0000-0000-0000-0000000000d2';
+  assert public.band_registration_is_open('10000000-0000-0000-0000-0000000000d2'), 'registration is open from its opening day';
+  update public.events set band_registration_opens_on = null where id = '10000000-0000-0000-0000-0000000000d2';
+  assert public.band_registration_is_open('10000000-0000-0000-0000-0000000000d2'), 'with no opening day, it''s open once published';
+end $$;
+reset role;
+delete from public.events where id = '10000000-0000-0000-0000-0000000000d2';
 
 \echo 'All database security tests passed.'

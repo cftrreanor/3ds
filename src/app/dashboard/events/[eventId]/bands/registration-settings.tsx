@@ -14,6 +14,7 @@ import { NumberInput } from "@/components/number-input";
 import { setPending, useLeaveGuard } from "@/components/pending-edits";
 import { Input, Textarea } from "@/components/ui";
 import { normalizePhone } from "@/lib/phone";
+import { formatDate } from "@/lib/time";
 
 /** How long after the last keystroke a field saves itself. */
 const SAVE_AFTER_MS = 900;
@@ -198,11 +199,14 @@ export function RegistrationSettings({
   draft,
   today,
   contest,
+  alreadyOpen = false,
 }: {
   eventId: string;
   initial: {
     classifications: string[];
     deadline: string;
+    /** The day registration opens; empty opens it when the event is published. */
+    opensOn: string;
     directorInfo: string;
     paymentLink: string;
     chaperoneLimit: number;
@@ -217,6 +221,8 @@ export function RegistrationSettings({
   draft: boolean;
   /** Today in the event's time zone (YYYY-MM-DD). */
   today: string;
+  /** Published with registration already open: the opening day can't move later. */
+  alreadyOpen?: boolean;
   /** Contest day: the deadline falls before it. */
   contest: { day: string; label: string; lastDeadline: string };
 }) {
@@ -230,6 +236,16 @@ export function RegistrationSettings({
         ? `Pick today or a later date, before contest day (${contest.label}).`
         : v && v > contest.lastDeadline
           ? `Pick a date before contest day (${contest.label}).`
+          : null,
+  });
+  const opensOn = useAutosave(eventId, "opensOn", initial.opensOn, {
+    immediate: true,
+    restore: true,
+    check: (v) =>
+      v && v !== initial.opensOn && v < today
+        ? "Pick today or a later date."
+        : v && deadline.value && v > deadline.value
+          ? `Pick a day on or before the deadline (${formatDate(deadline.value, { weekday: undefined, year: undefined })}).`
           : null,
   });
   const info = useAutosave(eventId, "directorInfo", initial.directorInfo);
@@ -246,7 +262,7 @@ export function RegistrationSettings({
   const contactEmail = useAutosave(eventId, "contactEmail", initial.contact.email, {
     check: (v) => (v.trim() && !/^\S+@\S+\.\S+$/.test(v.trim()) ? "Enter a full email address." : null),
   });
-  const fields = [deadline, info, pay, chaperones, contactName, contactPhone, contactEmail];
+  const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail];
 
   // Classifications: added, renamed, and removed one at a time.
   const [list, setList] = useState(initial.classifications);
@@ -463,6 +479,29 @@ export function RegistrationSettings({
             </p>
           )}
         </fieldset>
+
+        <AutoField
+          id="reg-opens"
+          label="Registration opens"
+          hint={
+            alreadyOpen
+              ? "Registration is already open, so the opening day can't move later. To pause it, close registration at the top of this page."
+              : draft
+                ? "Optional. Leave it empty to open registration when you publish. Before this day, your event page is live and the registration page says when it opens."
+                : "Optional. Before this day, the registration page says when it opens."
+          }
+          saver={opensOn}
+        >
+          <Input
+            type="date"
+            value={opensOn.value}
+            disabled={alreadyOpen}
+            min={initial.opensOn && initial.opensOn < today ? initial.opensOn : today}
+            max={deadline.value || contest.lastDeadline}
+            onChange={(e) => opensOn.change(e.target.value)}
+            {...withClass(marked("reg-opens", opensOn), "max-w-xs")}
+          />
+        </AutoField>
 
         <AutoField
           id="reg-deadline"

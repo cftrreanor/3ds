@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { Fragment } from "react";
 import { Badge, Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
-import { registrationIsOpen } from "@/lib/bands";
+import { opensLater, registrationIsOpen } from "@/lib/bands";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTime, formatTimeRange, utcToZonedDate, zoneAbbreviation, zoneName } from "@/lib/time";
@@ -55,7 +55,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, performance_order_published, finals_published, schedule_updated_at, parent_registration_open, parent_registration_closes_at, parent_walk_ins_allowed")
+    .select("id, name, status, event_type, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, public_notes, volunteer_signup_open, band_registration_open, band_registration_deadline, band_registration_opens_on, performance_order_published, finals_published, schedule_updated_at, parent_registration_open, parent_registration_closes_at, parent_walk_ins_allowed")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -143,6 +143,8 @@ export default async function EventPublicPage({ params }: Params) {
   const bandsHere = hasBands(event.event_type);
   const words = groupWords(event.event_type);
   const bandsOpen = hasEnsembles(event.event_type) && registrationIsOpen(event);
+  // Registration set to open on a later day: directors see when.
+  const bandsLater = hasEnsembles(event.event_type) && event.band_registration_open && opensLater(event) ? event.band_registration_opens_on : null;
   const tz = event.timezone;
   const isEventDay = utcToZonedDate(new Date().toISOString(), tz) >= event.starts_on && utcToZonedDate(new Date().toISOString(), tz) <= event.ends_on;
   // On fair day, volunteers who show up are added at the desk, not online.
@@ -213,7 +215,7 @@ export default async function EventPublicPage({ params }: Params) {
 
       {hasBooths(event.event_type) && event.status === "published" && <FairBooths slug={slug} />}
 
-      {(isVolunteer || bandsOpen || signUp || parentsOpen || parentWalkIns) && event.status === "published" && (
+      {(isVolunteer || bandsOpen || bandsLater || signUp || parentsOpen || parentWalkIns) && event.status === "published" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
           {parentWalkIns && (
             <Link href={`/e/${slug}/parents`} className="block">
@@ -254,6 +256,12 @@ export default async function EventPublicPage({ params }: Params) {
                 </p>
               </Card>
             </Link>
+          )}
+          {bandsLater && (
+            <Card className="h-full">
+              <p className="font-semibold">{words.One} directors</p>
+              <p className="mt-1 text-sm text-muted">Registration opens on {formatDate(bandsLater)}.</p>
+            </Card>
           )}
           {bandsOpen && (
             <Link href={`/e/${slug}/bands`} className="block">
