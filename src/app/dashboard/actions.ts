@@ -17,7 +17,7 @@ import { slugify } from "@/lib/slug";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { asksChildName } from "@/lib/conference-settings";
 import { FILES_BUCKET } from "@/lib/event-files";
-import { eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
+import { formatDate, eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
 import { loadCalendarEntries, sendShiftUpdates } from "@/lib/volunteer-emails";
 
 // Every action re-checks who is signed in; the database's Row Level Security
@@ -209,9 +209,15 @@ export async function updateEvent(eventId: string, _prev: ActionState, formData:
   const supabase = await createClient();
   const { data: before } = await supabase
     .from("events")
-    .select("timezone, starts_on, window_start, venue_name, venue_address, name, event_type")
+    .select("timezone, starts_on, window_start, venue_name, venue_address, name, event_type, status, band_registration_deadline")
     .eq("id", eventId)
     .maybeSingle();
+  // Saving by itself is for drafts: a live event's changes can email volunteers, so they wait for Save.
+  if (formData.get("autosave") === "1" && before?.status === "published")
+    return { error: "This event is live now. Reload the page to edit it." };
+  // A band contest's deadline falls before contest day (the database checks too): say so before saving anything.
+  if (before?.event_type === "band_contest" && before.band_registration_deadline && before.band_registration_deadline >= v.startsOn)
+    return { error: `The registration deadline is ${formatDate(before.band_registration_deadline)}. Move it before the new date in Registration first.` };
   // A conference's school is set in Conference Setup, not here.
   const conference = hasConferences(before?.event_type);
   if (!conference && !v.venueAddress) return { error: "Venue: Required" };

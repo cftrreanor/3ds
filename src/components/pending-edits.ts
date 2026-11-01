@@ -9,7 +9,8 @@ import { confirmDialog } from "@/components/confirm-dialog";
  * saving itself ("saving", or "failed"), and a shift or thing to bring typed in but not added
  * ("unadded"). The job's pinned bar reads it to say what's not saved, and to wait or ask before leaving.
  */
-type Entry = { kind: "saving" | "failed" | "unadded"; flush?: () => void };
+/** "incomplete": typed but not saveable yet (a half-typed phone number); leaving asks, nothing shows as saving. */
+type Entry = { kind: "saving" | "failed" | "unadded" | "incomplete"; flush?: () => void };
 
 const entries = new Map<string, Entry>();
 const listeners = new Set<() => void>();
@@ -28,7 +29,7 @@ function subscribe(listener: () => void) {
 }
 
 export function pendingCounts() {
-  const counts = { saving: 0, failed: 0, unadded: 0 };
+  const counts = { saving: 0, failed: 0, unadded: 0, incomplete: 0 };
   entries.forEach((e) => counts[e.kind]++);
   return counts;
 }
@@ -96,7 +97,7 @@ export function useUnadded() {
 export function useLeaveGuard(what = "A change") {
   const router = useRouter();
   const counts = usePendingCounts();
-  const unsaved = counts.saving + counts.failed + counts.unadded > 0;
+  const unsaved = counts.saving + counts.failed + counts.unadded + counts.incomplete > 0;
   const leaving = useRef(false);
 
   useEffect(() => {
@@ -121,7 +122,7 @@ export function useLeaveGuard(what = "A change") {
   useEffect(() => {
     const guard = (e: MouseEvent) => {
       const c = pendingCounts();
-      if (!c.saving && !c.failed && !c.unadded) return;
+      if (!c.saving && !c.failed && !c.unadded && !c.incomplete) return;
       const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a || a.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
       const href = a.getAttribute("href") ?? "";
@@ -134,10 +135,10 @@ export function useLeaveGuard(what = "A change") {
         flushPending();
         const saved = await settled();
         const go =
-          (saved && !pendingCounts().unadded) ||
+          (saved && !pendingCounts().unadded && !pendingCounts().incomplete) ||
           (await confirmDialog(
             saved
-              ? { title: "Leave without adding it?", message: "Something you typed isn't added yet.", confirmLabel: "Leave anyway", cancelLabel: "Stay here" }
+              ? { title: "Leave without saving it?", message: "Something you typed isn't added or saved yet.", confirmLabel: "Leave anyway", cancelLabel: "Stay here" }
               : { title: "Leave before it saves?", message: `${what} isn't saved.`, confirmLabel: "Leave anyway", cancelLabel: "Stay here" },
           ));
         leaving.current = false;

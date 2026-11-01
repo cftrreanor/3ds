@@ -43,7 +43,8 @@ begin
     select b.classification into in_use
       from bands b
      where b.event_id = new.id and b.scratched_at is null
-       and not (b.classification = any (coalesce(new.classifications, '{}')))
+       and b.classification = any (coalesce(old.classifications, '{}'))       -- only the ones being removed,
+       and not (b.classification = any (coalesce(new.classifications, '{}')))  -- so one stray band can't lock the rest
      limit 1;
     if in_use is not null then
       raise exception 'Bands are registered in %. Move them to another classification first.', in_use using errcode = 'P0001';
@@ -168,6 +169,8 @@ begin
   if not public.is_event_admin(p_event) then
     raise exception 'You don''t have permission to change this event.' using errcode = '42501';
   end if;
+  -- One change to the list at a time: a co-host adding the same name waits for this.
+  perform 1 from events where id = p_event for update;
   if v_new = '' or length(v_new) > 40 then
     raise exception 'A classification is 1 to 40 characters, like 1A or Class AA.' using errcode = 'P0001';
   end if;
@@ -191,6 +194,32 @@ begin
   return result;
 end;
 $$;
+
+-- A registration reads the event's classifications and chaperone limit with a lock, so a rename or a
+-- lower limit at the same moment waits for it (and sees the new band) instead of slipping past.
+-- Runs as the owner: a director registering can't lock the event row on their own.
+create or replace function public.bands_validate()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  ev public.events;
+begin
+  select * into ev from public.events where id = new.event_id for share;
+  if new.chaperone_count > ev.chaperone_limit then
+    raise exception 'This event allows at most % chaperones per band', ev.chaperone_limit
+      using errcode = 'check_violation';
+  end if;
+  if not (new.classification = any (ev.classifications)) then
+    raise exception 'Classification % is not offered at this event', new.classification
+      using errcode = 'check_violation';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke execute on function public.bands_validate() from public, anon, authenticated;
 
 revoke all on function public.rename_event_classification(uuid, text, text) from public, anon;
 grant execute on function public.rename_event_classification(uuid, text, text) to authenticated;

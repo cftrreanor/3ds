@@ -45,6 +45,8 @@ export type SetupFacts = {
   directorInfo: boolean;
   /** Band contests: a registration deadline is set, and how many classifications there are. */
   registrationDeadline?: boolean;
+  /** A draft band contest's deadline has already passed: it needs a new one before publishing. */
+  registrationDeadlinePast?: boolean;
   classifications?: number;
   pathRooms: number;
   /** Group events: every room, on the path or not. */
@@ -113,8 +115,9 @@ function jobsStep(f: SetupFacts, base: string): SetupStep {
 
 /** "Litter pickup needs a shift" / "2 jobs need a shift or a thing to bring". */
 /** What a band contest still needs before directors can register ("Add a deadline"), or null. */
-export function bandRegistrationMissing(f: Pick<SetupFacts, "registrationDeadline" | "classifications">) {
+export function bandRegistrationMissing(f: Pick<SetupFacts, "registrationDeadline" | "classifications" | "registrationDeadlinePast" | "published">) {
   const cls = (f.classifications ?? 0) > 0;
+  if (f.registrationDeadlinePast && !f.published) return cls ? "Pick a new deadline: it has passed" : "Pick a new deadline and add a classification";
   if (!f.registrationDeadline && !cls) return "Add a deadline and a classification";
   if (!f.registrationDeadline) return "Add a deadline";
   if (!cls) return "Add a classification";

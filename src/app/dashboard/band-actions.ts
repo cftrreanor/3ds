@@ -207,6 +207,11 @@ export async function setBandRegistrationOpen(eventId: string, open: boolean) {
  * registration, then the link to send directors, on the Registered bands tab.
  */
 export async function publishAndOpenBandRegistration(eventId: string): Promise<ActionState> {
+  // Opening with a deadline that's already passed would close registration straight away.
+  const supabase = await createClient();
+  const { data: ev } = await supabase.from("events").select("timezone, band_registration_deadline").eq("id", eventId).maybeSingle();
+  if (ev?.band_registration_deadline && ev.band_registration_deadline < utcToZonedDate(new Date().toISOString(), ev.timezone))
+    return { error: "The registration deadline has passed. Pick a new one in Registration first." };
   const published = await setEventPublished(eventId, true);
   if (published.error) return published;
   const opened = await setBandRegistrationOpen(eventId, true);

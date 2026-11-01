@@ -291,7 +291,7 @@ export default async function EditEventPage({ params, searchParams }: PageProps<
           <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
             ← Back to {event.name}
           </Link>
-          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">Event settings</h1>
+          <h1 className="mt-3 text-3xl font-medium tracking-tight sm:text-4xl">{!published && (event.event_type === "volunteer" || event.event_type === "band_contest") ? "Event details" : "Event settings"}</h1>
           <SavedBy eventId={eventId} area={["details", "files"]} className="mt-2" />
           <p className="mt-1 text-sm text-muted">Boxes marked * are required.</p>
         </>

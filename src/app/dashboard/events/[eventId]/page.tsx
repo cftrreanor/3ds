@@ -1052,8 +1052,8 @@ function PublishPanel({
       )}
       {bandMissing && (
         <div className="mt-3 rounded-md border border-warning/40 bg-warning-soft p-4 text-sm leading-6">
-          <p className="font-semibold">{bandMissing} before you publish</p>
-          <p className="mt-1">Directors pick a classification when they register, and registration closes at the deadline.</p>
+          <p className="font-semibold">{bandMissing}</p>
+          <p className="mt-1">Publishing needs a registration deadline that hasn&apos;t passed and at least one classification.</p>
           <Link href={`/dashboard/events/${facts.eventId}/bands`} className={`${BTN} mt-3`}>
             Go to registration
           </Link>

@@ -235,7 +235,7 @@ export function EventForm({
   );
 }
 
-type AutoStatus = { kind: "idle" | "waiting" | "saving" | "saved" } | { kind: "incomplete"; what: string } | { kind: "failed"; error: string };
+type AutoStatus = { kind: "idle" | "waiting" | "saving" | "saved" } | { kind: "incomplete"; what: string } | { kind: "failed"; error: string; retry: boolean };
 
 /** Saves the form a moment after each change, once every required box is filled in. */
 function useAutosaveForm(on: boolean) {
@@ -254,7 +254,7 @@ function useAutosaveForm(on: boolean) {
     if (bad) {
       const what = bad.labels?.[0]?.textContent?.replace("*", "").trim() || "A box";
       setStatus({ kind: "incomplete", what });
-      setPending(key, { kind: "failed" });
+      setPending(key, { kind: "incomplete", flush: submit });
       return;
     }
     setStatus({ kind: "saving" });
@@ -281,8 +281,10 @@ function useAutosaveForm(on: boolean) {
       setPending(key, null);
     },
     failed: (error: string) => {
-      setStatus({ kind: "failed", error });
-      setPending(key, { kind: "failed", flush: submit });
+      // Trying again only helps when the connection dropped; a refusal says why and waits for a change.
+      const retry = error.startsWith("Something went wrong");
+      setStatus({ kind: "failed", error: retry ? "Check your connection, then select Retry." : error, retry });
+      setPending(key, { kind: "failed", flush: retry ? submit : undefined });
     },
   };
 }
@@ -291,15 +293,17 @@ function useAutosaveForm(on: boolean) {
 function AutosaveBar({ status, retry, next }: { status: AutoStatus; retry: () => void; next?: { href: string; label: string } }) {
   return (
     <div className="sticky bottom-[var(--day-bar,0px)] z-10 -mx-4 -mb-4 flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 rounded-b-lg border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:-mx-6 sm:-mb-6 sm:px-6">
-      <div className="min-w-0 flex-1 text-sm" aria-live="polite">
+      <div className="min-w-0 flex-1 text-sm" role="status">
         {status.kind === "failed" ? (
-          <p role="alert" className="flex flex-wrap items-center gap-x-2 font-semibold text-danger">
+          <p className="flex flex-wrap items-center gap-x-2 font-semibold text-danger">
             <span>
               <span aria-hidden>▲ </span>Not saved. {status.error}
             </span>
-            <button type="button" onClick={retry} className="inline-flex min-h-11 items-center underline underline-offset-4">
-              Retry
-            </button>
+            {status.retry && (
+              <button type="button" onClick={retry} className="inline-flex min-h-11 items-center rounded-md border-[1.5px] border-danger px-3">
+                Retry
+              </button>
+            )}
           </p>
         ) : status.kind === "incomplete" ? (
           <p className="font-medium text-warning">

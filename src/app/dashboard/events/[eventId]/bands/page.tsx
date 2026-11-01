@@ -172,6 +172,9 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
         <p className="mt-2 max-w-2xl text-muted">
           What directors pick and read when they register. You can invite directors and share the link once you publish.
         </p>
+        <a href={`/e/${event.slug}/bands`} target="_blank" className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4">
+          Preview what directors see <span className="sr-only">(opens in a new tab)</span>
+        </a>
         <div className="mt-6">{registrationForm({ href: `/dashboard/events/${eventId}`, label: "Next up: Publish" })}</div>
       </div>
     );

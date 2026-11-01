@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { usePendingCounts } from "@/components/pending-edits";
 import { SETUP_STEPS as STEPS, type SetupStepFacts, type StepsKind } from "@/lib/setup-steps";
 
 /**
@@ -11,6 +12,9 @@ import { SETUP_STEPS as STEPS, type SetupStepFacts, type StepsKind } from "@/lib
  */
 export function SetupSteps({ eventId, kind, facts }: { eventId: string; kind: StepsKind; facts: SetupStepFacts }) {
   const pathname = usePathname();
+  // Something on this page isn't saved: the step it's on doesn't say ready.
+  const pending = usePendingCounts();
+  const unsaved = pending.failed + pending.incomplete + pending.unadded > 0;
   const base = `/dashboard/events/${eventId}`;
   const steps = STEPS[kind];
   const here = steps.findIndex((s) => pathname === `${base}${s.path}`);
@@ -29,8 +33,9 @@ export function SetupSteps({ eventId, kind, facts }: { eventId: string; kind: St
           const now = i === here;
           // The middle step, when it still needs something: amber, saying what.
           const needs = i === 1 && !done[i] && Boolean(facts.middleNote);
-          // The step you're on says "Now", or "Now · done" once it has everything it needs.
-          const note = done[i] && !now ? "Done" : needs ? facts.middleNote : now ? (done[i] && i < 2 ? "Now · done" : "Now") : "Not yet";
+          // The step you're on says "Now", "Now · ready" once it has everything it needs, or "Now · not saved".
+          const note =
+            done[i] && !now ? "Done" : now && unsaved ? "Now · not saved" : needs ? facts.middleNote : now ? (done[i] && i < 2 ? "Now · ready" : "Now") : "Not yet";
           return (
             <li key={s.key} className="min-w-0">
               <span

@@ -106,8 +106,13 @@ function useAutosave(
       return;
     }
     setState("waiting");
+    if (check?.(v)) {
+      // A date is picked whole: say why at once. A half-typed value waits, and says why when they leave the box.
+      if (immediate) return void save();
+      setPending(key, { kind: "incomplete", flush: () => void save() });
+      return;
+    }
     setPending(key, { kind: "saving", flush: () => void save() });
-    if (check?.(v)) return; // Not saveable yet: it says why when they leave the box.
     if (immediate) void save();
     else timer.current = setTimeout(() => void save(), SAVE_AFTER_MS);
   };
@@ -157,7 +162,7 @@ function AutoField({
             <span aria-hidden>▲ </span>Not saved. {f.message}
           </span>
           {f.retry && (
-            <button type="button" onClick={() => void saver.retry()} className="inline-flex min-h-11 items-center underline underline-offset-4">
+            <button type="button" onClick={() => void saver.retry()} className="inline-flex min-h-11 items-center rounded-md border-[1.5px] border-danger px-3">
               Retry
             </button>
           )}
@@ -222,7 +227,7 @@ export function RegistrationSettings({
     restore: true,
     check: (v) =>
       v && v !== initial.deadline && v < today
-        ? "Pick today or a later date."
+        ? `Pick today or a later date, before contest day (${contest.label}).`
         : v && v > contest.lastDeadline
           ? `Pick a date before contest day (${contest.label}).`
           : null,
@@ -248,6 +253,8 @@ export function RegistrationSettings({
   const [bandsIn, setBandsIn] = useState(initialBandsIn);
   const [typed, setTyped] = useState("");
   const [cls, setCls] = useState<{ busy: boolean; failure: Failure; saved: boolean }>({ busy: false, failure: null, saved: false });
+  // The last classification change, for Retry when the connection dropped.
+  const lastOp = useRef<(() => void) | null>(null);
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
   const typedKey = useId();
   const clsKey = useId();
@@ -257,11 +264,13 @@ export function RegistrationSettings({
     return () => setPending(typedKey, null);
   }, [typed, typedKey]);
   useEffect(() => {
-    setPending(clsKey, cls.busy ? { kind: "saving" } : cls.failure ? { kind: "failed" } : null);
+    // Only a dropped connection leaves something unsaved; a refusal ("already a classification") just says why.
+    setPending(clsKey, cls.busy ? { kind: "saving" } : cls.failure?.retry ? { kind: "failed", flush: () => lastOp.current?.() } : null);
     return () => setPending(clsKey, null);
   }, [cls, clsKey]);
 
-  async function run(op: () => Promise<FieldSaveState & { classifications?: string[] }>, after?: () => void) {
+  async function run(op: () => Promise<FieldSaveState & { classifications?: string[] }>, after?: () => void): Promise<boolean> {
+    lastOp.current = () => void run(op, after);
     setCls({ busy: true, failure: null, saved: false });
     let r: FieldSaveState & { classifications?: string[] };
     try {
@@ -281,7 +290,7 @@ export function RegistrationSettings({
   }
   const add = (names: string[]) => {
     const clean = names.flatMap((n) => n.split(",")).map((n) => n.trim()).filter(Boolean);
-    if (clean.length) void run(() => addClassifications(eventId, clean), () => setTyped(""));
+    if (clean.length && !cls.busy) void run(() => addClassifications(eventId, clean), () => setTyped(""));
   };
   const remove = (name: string) => void run(() => removeClassification(eventId, name));
   const rename = async () => {
@@ -323,16 +332,16 @@ export function RegistrationSettings({
             Classifications<span aria-hidden> *</span>
           </legend>
           <p id="cls-hint" className="mt-1 text-sm text-muted">
-            Bands pick one when they register, and the schedule is grouped by these. Add them one at a time, the way your
-            directors know them: 1A through 6A, Class AA, Division I, or Varsity and Non-Varsity.
+            Bands pick one when they register, and the schedule is grouped by these. Use the names your directors know, like
+            1A, Class AA, Division I, or Varsity.
           </p>
           {list.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-2" aria-label="Classifications">
+            <ul className="mt-3 flex flex-wrap items-start gap-2" aria-label="Classifications">
               {list.map((c) => {
                 const n = bandsIn[c] ?? 0;
                 if (renaming?.from === c)
                   return (
-                    <li key={c} className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                    <li key={c} className="flex w-full flex-wrap items-center gap-2">
                       <Input
                         autoFocus
                         value={renaming.to}
@@ -349,11 +358,14 @@ export function RegistrationSettings({
                         className="w-40 min-w-0"
                       />
                       <button type="button" disabled={cls.busy} onClick={() => void rename()} className={outline}>
-                        Save
+                        Save name
                       </button>
-                      <button type="button" onClick={() => setRenaming(null)} className="inline-flex min-h-11 items-center px-2 text-sm font-semibold underline underline-offset-4">
+                      <button type="button" onClick={() => setRenaming(null)} className="inline-flex min-h-11 items-center px-3 text-sm font-semibold underline underline-offset-4">
                         Cancel
                       </button>
+                      <p className="basis-full text-sm text-muted">
+                        {n > 0 ? `The ${n === 1 ? "band" : `${n} bands`} in ${c} will see the new name. Nobody is emailed.` : "Nobody is emailed."}
+                      </p>
                     </li>
                   );
                 return (
@@ -363,7 +375,7 @@ export function RegistrationSettings({
                       disabled={cls.busy}
                       onClick={() => setRenaming({ from: c, to: c })}
                       aria-label={`Rename ${c}`}
-                      className="inline-flex min-h-11 items-center pl-3 hover:underline hover:underline-offset-4"
+                      className="inline-flex min-h-11 items-center gap-1.5 pl-3 underline decoration-dotted underline-offset-4 hover:decoration-solid"
                     >
                       {c}
                     </button>
@@ -389,7 +401,7 @@ export function RegistrationSettings({
           )}
           {list.length > 0 && (
             <p className="mt-2 text-sm text-muted">
-              Select a name to fix a typo.
+              Select a name to rename it.
               {Object.values(bandsIn).some((n) => n > 0) && " A classification with bands in it can't be removed, but it can be renamed."}
             </p>
           )}
@@ -398,6 +410,7 @@ export function RegistrationSettings({
               value={typed}
               onChange={(e) => {
                 const v = e.target.value;
+                if (cls.failure && !cls.failure.retry) setCls((c) => ({ ...c, failure: null }));
                 // A comma adds what's before it.
                 if (v.includes(",")) add([v]);
                 else setTyped(v);
@@ -410,7 +423,8 @@ export function RegistrationSettings({
               }}
               placeholder={list.length ? "Add another" : "Like 1A or Class AA"}
               aria-labelledby="cls-label"
-              aria-describedby={typed.trim() ? "cls-typed cls-hint" : "cls-hint"}
+              aria-describedby={[cls.failure && "cls-error", typed.trim() && "cls-typed", "cls-hint"].filter(Boolean).join(" ")}
+              aria-invalid={cls.failure ? true : undefined}
               maxLength={40}
               className="min-w-0 flex-1"
             />
@@ -437,8 +451,15 @@ export function RegistrationSettings({
             </div>
           )}
           {cls.failure && (
-            <p role="alert" className="mt-2 text-sm font-semibold text-danger">
-              <span aria-hidden>▲ </span>Not saved. {cls.failure.message}
+            <p id="cls-error" role="alert" className="mt-2 flex flex-wrap items-center gap-x-2 text-sm font-semibold text-danger">
+              <span>
+                <span aria-hidden>▲ </span>Not saved. {cls.failure.message}
+              </span>
+              {cls.failure.retry && (
+                <button type="button" onClick={() => lastOp.current?.()} className="inline-flex min-h-11 items-center rounded-md border-[1.5px] border-danger px-3">
+                  Retry
+                </button>
+              )}
             </p>
           )}
         </fieldset>
@@ -447,7 +468,7 @@ export function RegistrationSettings({
           id="reg-deadline"
           label="Registration deadline"
           required
-          hint={`Registration stays open through this day, until 11:59 PM in your event's time zone, and closes before contest day (${contest.label}). Most contests close about three weeks before, so directors have their times in time to book buses.`}
+          hint={`Directors can register until 11:59 PM on this day, in your event's time zone. Pick a date before contest day (${contest.label}). Most contests close about three weeks early, so bands can book buses.`}
           saver={deadline}
         >
           <Input
@@ -506,9 +527,9 @@ export function RegistrationSettings({
       {/* Pinned to the bottom of the screen: whether everything is saved, and the way on. */}
       <div className="sticky bottom-[var(--day-bar,0px)] z-10 rounded-b-xl border-t-2 border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_rgb(0_0_0/0.10)] sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <div className="min-w-0 flex-1 text-sm" aria-live="polite">
+          <div className="min-w-0 flex-1 text-sm" role="status">
             {failed ? (
-              <p role="alert" className="flex flex-wrap items-center gap-x-2 font-semibold text-danger">
+              <p className="flex flex-wrap items-center gap-x-2 font-semibold text-danger">
                 <span>
                   <span aria-hidden>▲ </span>Something isn&apos;t saved.
                 </span>
@@ -518,16 +539,18 @@ export function RegistrationSettings({
               </p>
             ) : saving ? (
               <p className="text-muted">Saving…</p>
+            ) : counts.incomplete ? (
+              <p className="text-muted">Not saved yet. Finish the box you&apos;re typing in.</p>
             ) : counts.unadded ? (
               <p className="font-medium text-warning">
-                <span aria-hidden>◆ </span>A classification isn&apos;t added yet. Select Add next to it.
+                <span aria-hidden>◆ </span>“{typed.trim()}” isn&apos;t added yet.
               </p>
             ) : draft && missing.length === 0 ? (
               <p className="font-medium">
                 <span aria-hidden className="text-success">
                   ✓{" "}
                 </span>
-                Saved. Registration is ready to publish.
+                Saved · Ready to publish
               </p>
             ) : anySaved ? (
               <p className="font-medium">
