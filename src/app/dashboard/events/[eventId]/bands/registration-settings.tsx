@@ -502,8 +502,8 @@ export function RegistrationSettings({
         <fieldset>
           <legend className="text-sm font-semibold">Contact for directors</legend>
           <p className="mt-1 text-sm text-muted">
-            Directors get Call and Text buttons for this person the day before and the day of the contest. Only registered
-            directors and your team see it.
+            Directors get Call and Text buttons for this person the day before and the day of the contest. Only directors
+            who registered for this contest (even if they later withdraw) and your team see it.
             {!contactSaved && " We filled in your details. Change them if someone else handles bands."}
           </p>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
