@@ -101,7 +101,7 @@ export async function withdrawBand(bandId: string): Promise<ActionState> {
   if (!band || band.director_user_id !== user.id) return { error: "Only the band's director can withdraw it." };
   const { data: event } = await supabase
     .from("events")
-    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, performance_order_published")
+    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on, performance_order_published")
     .eq("id", band.event_id)
     .maybeSingle();
   if (!event) return { error: "We couldn't find this event." };

@@ -32,7 +32,7 @@ export async function sendBandInvites(eventId: string, emails: string[]): Promis
   const [{ data: event }, { data: past }, { data: prefills }] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, venue_name, band_registration_open, band_registration_deadline")
+      .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, venue_name, band_registration_open, band_registration_deadline, band_registration_opens_on")
       .eq("id", eventId)
       .maybeSingle(),
     // Only hosts get rows back: directors from their own earlier events, and

@@ -1,4 +1,5 @@
 import { groupWords, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, isMeeting } from "@/lib/event-types";
+import { formatDate } from "@/lib/time";
 
 /**
  * The host's setup checklist for one event: what to do before publishing,
@@ -47,6 +48,8 @@ export type SetupFacts = {
   registrationDeadline?: boolean;
   /** A draft band contest's deadline has already passed: it needs a new one before publishing. */
   registrationDeadlinePast?: boolean;
+  /** The day band registration opens (null: when the event is published). */
+  registrationOpensOn?: string | null;
   classifications?: number;
   pathRooms: number;
   /** Group events: every room, on the path or not. */
@@ -371,7 +374,11 @@ export function publishEffects(f: SetupFacts): string[] {
     );
   }
   if (f.eventType === "band_contest") {
-    lines.push("Band registration opens, and directors can register until your deadline.");
+    lines.push(
+      f.registrationOpensOn
+        ? `Band registration opens on ${formatDate(f.registrationOpensOn)}, and directors can register until your deadline. Before then, the registration page says when it opens.`
+        : "Band registration opens, and directors can register until your deadline.",
+    );
   } else if (hasEnsembles(f.eventType)) {
     lines.push(
       f.bandRegistrationOpen

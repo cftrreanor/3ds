@@ -53,7 +53,7 @@ export default async function BandContestPage({ params, searchParams }: PageProp
     supabase
       .from("events")
       .select(
-        "name, slug, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, director_info, payment_link, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed, schedule_updated_at",
+        "name, slug, status, event_type, timezone, starts_on, ends_on, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, band_registration_opens_on, director_info, payment_link, performance_order_published, ready_minutes_before, finals_ready_minutes_before, finals_published, finalists_revealed, schedule_updated_at",
       )
       .eq("id", band.event_id)
       .single(),

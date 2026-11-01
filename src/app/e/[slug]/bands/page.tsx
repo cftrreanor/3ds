@@ -7,7 +7,7 @@ import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
 import { registerAgain, registerBand } from "@/app/dashboard/band-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
-import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, deadlinePassed, opensLater, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
@@ -41,7 +41,7 @@ async function loadEvent(slug: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, timezone, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications, payment_link")
+    .select("id, name, status, event_type, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on, director_info, chaperone_limit, classifications, payment_link")
     .eq("slug", slug)
     .maybeSingle();
   return data;
@@ -120,6 +120,8 @@ export default async function BandRegistrationPage({ params }: Params) {
   previous.unshift(...prefilled);
 
   const open = registrationIsOpen(event);
+  // Published with registration set to open on a later day: say when.
+  const later = event.status === "published" && event.band_registration_open && opensLater(event);
   const here = `/e/${slug}/bands`;
   const form = user && (
     <RegisterForm
@@ -220,12 +222,16 @@ export default async function BandRegistrationPage({ params }: Params) {
             <p className="font-medium">
               {event.status !== "published"
                 ? "Preview: this page isn't public yet."
-                : deadlinePassed(event) && event.band_registration_open
+                : later
+                  ? `${w.One} registration opens on ${formatDate(event.band_registration_opens_on!)}.`
+                  : deadlinePassed(event) && event.band_registration_open
                   ? `${w.One} registration closed on ${formatDate(event.band_registration_deadline!)}.`
                   : `${w.One} registration is closed.`}
             </p>
             <p className="mt-1 text-sm text-muted">
-              {event.status === "published"
+              {later
+                ? `Come back that day to register${event.band_registration_deadline ? `. It stays open through ${formatDate(event.band_registration_deadline)}` : ""}.`
+                : event.status === "published"
                 ? mine.length > 0
                   ? `To change your registration now, contact the organizer from your ${w.one}'s page.`
                   : `If you still need to register a ${w.one}, contact the organizer directly.`

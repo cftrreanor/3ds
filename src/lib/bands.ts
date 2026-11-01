@@ -142,11 +142,21 @@ type RegistrationWindow = {
   timezone: string;
   band_registration_open: boolean;
   band_registration_deadline: string | null;
+  /** The day registration opens (empty: when the event is published). Select it wherever this is used. */
+  band_registration_opens_on: string | null;
 };
+
+/** The columns registrationIsOpen() needs. */
+export const REGISTRATION_WINDOW = "status, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on";
 
 /** Is band registration open right now? Mirrors public.band_registration_is_open(). */
 export function registrationIsOpen(e: RegistrationWindow) {
-  return e.status === "published" && e.band_registration_open && !deadlinePassed(e);
+  return e.status === "published" && e.band_registration_open && !opensLater(e) && !deadlinePassed(e);
+}
+
+/** Registration is set to open on a day that hasn't come yet (in the event's time zone). */
+export function opensLater(e: Pick<RegistrationWindow, "timezone" | "band_registration_opens_on">) {
+  return e.band_registration_opens_on != null && utcToZonedDate(new Date().toISOString(), e.timezone) < e.band_registration_opens_on;
 }
 
 /** Has the deadline day ended, in the event's time zone? */

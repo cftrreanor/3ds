@@ -14,10 +14,11 @@ import { createClient } from "@/lib/supabase/server";
  * other's changes, and a failed save names the field it was.
  */
 
-export type RegistrationField = "deadline" | "directorInfo" | "paymentLink" | "chaperoneLimit" | "contactName" | "contactPhone" | "contactEmail";
+export type RegistrationField = "opensOn" | "deadline" | "directorInfo" | "paymentLink" | "chaperoneLimit" | "contactName" | "contactPhone" | "contactEmail";
 
 const FIELDS: Record<RegistrationField, z.ZodType<string | number | null>> = {
   deadline: z.union([z.literal("").transform(() => null), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.")]),
+  opensOn: z.union([z.literal("").transform(() => null), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.")]),
   directorInfo: z
     .string()
     .trim()
@@ -49,6 +50,7 @@ const FIELDS: Record<RegistrationField, z.ZodType<string | number | null>> = {
 
 const EVENT_COLUMN: Partial<Record<RegistrationField, string>> = {
   deadline: "band_registration_deadline",
+  opensOn: "band_registration_opens_on",
   directorInfo: "director_info",
   paymentLink: "payment_link",
   chaperoneLimit: "chaperone_limit",
@@ -82,9 +84,14 @@ export async function saveRegistrationField(eventId: string, field: Registration
   const supabase = await createClient();
 
   // A new deadline is today or later (one already set can stay as it is); the database keeps it before contest day.
-  if (field === "deadline" && parsed.data) {
-    const { data: event } = await supabase.from("events").select("timezone, band_registration_deadline").eq("id", eventId).maybeSingle();
-    if (event && parsed.data !== event.band_registration_deadline && String(parsed.data) < utcToZonedDate(new Date().toISOString(), event.timezone))
+  if ((field === "deadline" || field === "opensOn") && parsed.data) {
+    const { data: event } = await supabase
+      .from("events")
+      .select("timezone, band_registration_deadline, band_registration_opens_on")
+      .eq("id", eventId)
+      .maybeSingle();
+    const was = field === "deadline" ? event?.band_registration_deadline : event?.band_registration_opens_on;
+    if (event && parsed.data !== was && String(parsed.data) < utcToZonedDate(new Date().toISOString(), event.timezone))
       return { error: "Pick today or a later date." };
   }
 

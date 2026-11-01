@@ -20,7 +20,7 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
   if (!band) missing();
   const { data: event } = await supabase
     .from("events")
-    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, chaperone_limit, classifications, performance_order_published")
+    .select("name, status, event_type, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on, chaperone_limit, classifications, performance_order_published")
     .eq("id", band.event_id)
     .single();
   if (!event) missing();

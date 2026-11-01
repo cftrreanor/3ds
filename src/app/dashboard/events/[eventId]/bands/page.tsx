@@ -11,7 +11,7 @@ import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields } from "@/lib/imports";
 import { InvitePastBands, type PastDirector } from "./invite-past-bands";
 import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
-import { BAND_COLUMNS, deadlinePassed, registrationIsOpen, type BandRow } from "@/lib/bands";
+import { BAND_COLUMNS, deadlinePassed, opensLater, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
@@ -50,7 +50,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, director_info, chaperone_limit, classifications, payment_link")
+    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, band_registration_opens_on, director_info, chaperone_limit, classifications, payment_link")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -108,6 +108,8 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
   // Past directors are band directors so far; group events start fresh.
   const directors = [...imported.values(), ...(roomsHere ? [] : pastDirectors.filter((d) => !imported.has(d.email.toLowerCase())))];
   const regOpen = registrationIsOpen(event);
+  // Published, and set to open on a day still to come.
+  const regLater = event.status === "published" && event.band_registration_open && opensLater(event);
   const today = utcToZonedDate(new Date().toISOString(), event.timezone);
   const pastDeadline = event.band_registration_open && deadlinePassed(event);
   const bands = (bandData ?? []) as BandRow[];
@@ -147,6 +149,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
       initial={{
         classifications: event.classifications ?? [],
         deadline: event.band_registration_deadline ?? "",
+        opensOn: event.band_registration_opens_on ?? "",
         directorInfo: event.director_info ?? "",
         paymentLink: event.payment_link ?? "",
         chaperoneLimit: event.chaperone_limit,
@@ -197,7 +200,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
           <div className="space-y-1">
             <p className="flex flex-wrap items-center gap-2 text-sm">
               <Badge tone={!published ? "neutral" : regOpen ? "live" : "neutral"}>
-                {!published ? "Event not published" : regOpen ? "Registration open" : "Registration closed"}
+                {!published ? "Event not published" : regOpen ? "Registration open" : regLater ? `Opens ${formatDate(event.band_registration_opens_on!, { weekday: undefined, year: undefined })}` : "Registration closed"}
               </Badge>
               <span className="text-muted">
                 {[

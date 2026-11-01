@@ -1148,7 +1148,9 @@ function PublishPanel({
         ) : bandsHere ? (
           <div className="mt-5">
             <ActionButton action={publishAndOpenBandRegistration.bind(null, facts.eventId)} variant="go" pendingText="Publishing…">
-              Publish and open registration
+              {facts.registrationOpensOn
+                ? `Publish, registration opens ${formatDate(facts.registrationOpensOn, { weekday: undefined, year: undefined })}`
+                : "Publish and open registration"}
             </ActionButton>
           </div>
         ) : (

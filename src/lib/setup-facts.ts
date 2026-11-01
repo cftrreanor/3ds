@@ -18,7 +18,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, status, event_type, volunteer_signup_open, band_registration_open, performance_order_published, director_info, band_registration_deadline, classifications, finals_published, finalists_revealed, parent_registration_open, parent_registration_closes_at, venue_address, timezone",
+      "id, organization_id, status, event_type, volunteer_signup_open, band_registration_open, performance_order_published, director_info, band_registration_deadline, band_registration_opens_on, classifications, finals_published, finalists_revealed, parent_registration_open, parent_registration_closes_at, venue_address, timezone",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -71,6 +71,11 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     finalistsRevealed: Boolean(event.finalists_revealed),
     directorInfo: Boolean(event.director_info?.trim()),
     registrationDeadline: Boolean(event.band_registration_deadline),
+    // Only a day still to come: one that's here already just means "open".
+    registrationOpensOn:
+      event.band_registration_opens_on && event.band_registration_opens_on > utcToZonedDate(new Date().toISOString(), event.timezone)
+        ? event.band_registration_opens_on
+        : null,
     registrationDeadlinePast: Boolean(
       event.band_registration_deadline && event.band_registration_deadline < utcToZonedDate(new Date().toISOString(), event.timezone),
     ),
