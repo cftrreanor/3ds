@@ -652,6 +652,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         {access.isHost && published && !past && (
           <div className="mt-5">
             <OpenClose
+              shareName={contestLive ? "word" : "links"}
               on={event.parent_registration_open}
               onText="Registration open"
               offText="Registration closed"
@@ -700,6 +701,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
         {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
         {access.isHost && published && !past && (
           <OpenClose
+              shareName={contestLive ? "word" : "links"}
             on={event.band_registration_open}
             onText="Registration open"
             offText="Registration closed"
@@ -795,6 +797,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           />
           {access.isHost && published && !past && (
             <OpenClose
+              shareName={contestLive ? "word" : "links"}
               on={event.volunteer_signup_open}
               onText="Sign-up open"
               offText="Sign-up closed"
@@ -1198,7 +1201,9 @@ async function countInviteable(eventId: string) {
     ...((past ?? []) as { email: string; registered: boolean }[]).filter((d) => !d.registered).map((d) => d.email.toLowerCase()),
     ...((imported ?? []) as { email: string }[]).map((p) => p.email.toLowerCase()),
   ]);
-  return { people: people.size, invited: (invited ?? []).length, earlier: ((past ?? []) as unknown[]).length };
+  // Invited, of the people who can still be invited (one who registered isn't counted).
+  const invitedHere = ((invited ?? []) as { email: string }[]).filter((i) => people.has(i.email.toLowerCase())).length;
+  return { people: people.size, invited: invitedHere, earlier: ((past ?? []) as unknown[]).length };
 }
 
 /**
@@ -1393,7 +1398,10 @@ function OpenClose({
   openLabel,
   closeLabel,
   confirm,
+  shareName = "links",
 }: {
+  /** Where the link is: Get the word out (a live band contest) or Links to share. */
+  shareName?: "word" | "links";
   on: boolean;
   onText: string;
   offText: string;
@@ -1408,7 +1416,7 @@ function OpenClose({
         <Badge tone={on ? "success" : "neutral"}>{on ? onText : offText}</Badge>
         {on && (
           <a href="#share" className="text-muted underline-offset-4 hover:underline">
-            Link is in Links to share
+            {shareName === "word" ? "Link is in Get the word out" : "Link is in Links to share"}
           </a>
         )}
       </p>
