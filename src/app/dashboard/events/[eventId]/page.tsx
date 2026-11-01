@@ -729,12 +729,6 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 )}
               </p>
             )}
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Link href={`/dashboard/events/${eventId}/bands?tab=invite`} className={BTN_OUTLINE}>
-                Invite directors
-              </Link>
-              <CopyLink url={`${publicUrl}/bands`} label="Copy registration link" className={BTN_OUTLINE} />
-            </div>
           </div>
         )}
         {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
