@@ -43,6 +43,7 @@ import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
 import { bandRegistrationMissing, publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
 import { volunteerTotals } from "@/lib/volunteer-totals";
+import { opensLater } from "@/lib/bands";
 import { SetupGuide } from "@/components/setup-guide";
 import { DayRail } from "@/components/event-day-nav";
 import { loadDayActions } from "@/lib/event-day-actions";
@@ -84,7 +85,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, band_registration_open, performance_order_published, director_info, finals_published, finalists_revealed",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, band_registration_opens_on, performance_order_published, director_info, finals_published, finalists_revealed",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -361,6 +362,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     published && access.canManage
       ? await Promise.all(shareRows.map((r) => (r.on ? QRCode.toDataURL(r.url, { margin: 2, width: 1024 }) : Promise.resolve(null))))
       : [];
+  // A live band contest: who the host can invite (directors from earlier contests and their imported list).
+  const contestLive = published && event.event_type === "band_contest" && access.isHost;
+  const inviteable = contestLive ? await countInviteable(eventId) : null;
+  const regLater = contestLive && event.band_registration_open && opensLater(event) ? event.band_registration_opens_on : null;
   const daysToGo = Math.round((Date.parse(event.starts_on) - Date.parse(today)) / 864e5);
   const words2 = leadWords(event.event_type);
 
@@ -899,7 +904,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             : undefined
       }
     >
-      {justPublished && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; the links to share are at the top.`} />}
+      {justPublished && !contestLive && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; the links to share are at the top.`} />}
       {justPublished && <ScrollTo id="share" />}
       {demoEnded && <SuccessToast message="You're back on your own account. The demo people and sample data are gone." />}
       {dayActions ? <DayRail day={dayActions} /> : checklist && <SetupGuide checklist={checklist} />}
@@ -943,7 +948,21 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           )}
         </div>
 
-        {published && access.canManage && <ShareLinks rows={shareRows} qrs={shareQrs} slug={event.slug} canFix={access.isHost} />}
+        {contestLive && inviteable ? (
+          <GetTheWordOut
+            eventId={eventId}
+            slug={event.slug}
+            rows={shareRows}
+            qrs={shareQrs}
+            inviteable={inviteable}
+            opensOn={regLater}
+            justPublished={justPublished}
+            deadline={event.band_registration_deadline}
+            volunteersReady={totals.capacity > 0}
+          />
+        ) : (
+          published && access.canManage && <ShareLinks rows={shareRows} qrs={shareQrs} slug={event.slug} canFix={access.isHost} />
+        )}
 
         {/* Hosts and Volunteer Leads posted these, so one line is enough; the rest of the team sees them in full. */}
         {access.canManage ? (
@@ -1166,6 +1185,131 @@ function PublishPanel({
 }
 
 type TeamUpdate = { tone: "warn" | "good"; text: string; tab: string | null };
+
+/** Directors a band contest's host can invite: from their earlier contests, and their imported list. */
+async function countInviteable(eventId: string) {
+  const supabase = await createClient();
+  const [{ data: past }, { data: imported }, { data: invited }] = await Promise.all([
+    supabase.rpc("past_band_directors", { p_event: eventId }),
+    supabase.from("band_prefills").select("email").eq("event_id", eventId),
+    supabase.from("band_invitations").select("email").eq("event_id", eventId),
+  ]);
+  const people = new Set([
+    ...((past ?? []) as { email: string; registered: boolean }[]).filter((d) => !d.registered).map((d) => d.email.toLowerCase()),
+    ...((imported ?? []) as { email: string }[]).map((p) => p.email.toLowerCase()),
+  ]);
+  return { people: people.size, invited: (invited ?? []).length, earlier: ((past ?? []) as unknown[]).length };
+}
+
+/**
+ * A live band contest's first card: how to get the word out. Directors (invite them, or import a
+ * list first), the registration link, and the volunteer link once there's something to sign up for.
+ */
+function GetTheWordOut({
+  eventId,
+  slug,
+  rows,
+  qrs,
+  inviteable,
+  opensOn,
+  justPublished,
+  deadline,
+  volunteersReady,
+}: {
+  eventId: string;
+  slug: string;
+  rows: ShareRow[];
+  qrs: (string | null)[];
+  inviteable: { people: number; invited: number; earlier: number };
+  opensOn: string | null;
+  justPublished: boolean;
+  deadline: string | null;
+  volunteersReady: boolean;
+}) {
+  const base = `/dashboard/events/${eventId}`;
+  const linkClass = "inline-flex min-h-11 items-center rounded-md border-[1.5px] border-field-border bg-surface px-4 text-sm font-semibold hover:border-brand";
+  const reg = rows.findIndex((r) => r.what === "Registration");
+  const vol = rows.findIndex((r) => r.who === "Volunteers");
+  const spectators = rows[0]?.on ? 0 : -1;
+  const short = (d: string) => formatDate(d, { year: undefined });
+  const linkRow = (i: number, title: string, note: string) => (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p className="font-semibold">{title}</p>
+        <p className="text-sm text-muted">{note}</p>
+        <p className="mt-0.5 break-all font-mono text-[13px] text-muted">{rows[i].url.replace(/^https?:\/\//, "")}</p>
+      </div>
+      <div className="flex shrink-0 flex-wrap gap-2">
+        <CopyLink url={rows[i].url} className={linkClass} />
+        {qrs[i] && (
+          <a href={qrs[i]!} download={`${slug}-${rows[i].url.split("/").pop()}-qr.png`} className={linkClass}>
+            Download QR code
+          </a>
+        )}
+      </div>
+    </li>
+  );
+  return (
+    <>
+      {justPublished && (
+        <p role="status" className="mt-6 rounded-lg border border-success/40 bg-success-soft px-4 py-3 text-sm">
+          <span aria-hidden className="text-success">
+            ✓{" "}
+          </span>
+          <span className="font-semibold">Published.</span>{" "}
+          {opensOn
+            ? `Band registration opens on ${short(opensOn)}${deadline ? ` and stays open through ${short(deadline)}` : ""}.`
+            : `Band registration is open${deadline ? ` through ${short(deadline)}` : ""}.`}
+        </p>
+      )}
+      <section id="share" aria-labelledby="share-heading" className="mt-6 scroll-mt-6 rounded-xl border-2 border-brand bg-surface">
+        <div className="px-4 pt-4 sm:px-5">
+          <h2 id="share-heading" className="text-lg font-semibold">
+            Get the word out
+          </h2>
+          <p className="mt-0.5 text-sm text-muted">Nobody hears about your contest until you share it.</p>
+        </div>
+        <ul className="m-4 divide-y divide-border rounded-lg border border-border sm:m-5">
+          <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">
+                <LineIcon name="band" inline />
+                Band directors
+              </p>
+              <p className="text-sm text-muted">
+                {opensOn
+                  ? `You can send invitations from ${short(opensOn)}, when registration opens.`
+                  : inviteable.people > 0
+                    ? `${inviteable.people} ${inviteable.people === 1 ? "director" : "directors"} you can invite${inviteable.invited ? `, ${inviteable.invited} already invited` : ""}. Each gets an email with their band's details filled in.`
+                    : "Have last year's director list? Import it from a spreadsheet, then invite everyone at once."}
+              </p>
+            </div>
+            {!opensOn && (
+              <Link href={`${base}/bands?tab=invite`} className={`${BTN} shrink-0`}>
+                {inviteable.people > 0 ? "Invite directors" : "Import directors"}
+              </Link>
+            )}
+          </li>
+          {reg >= 0 && linkRow(reg, "Registration link", opensOn ? `For directors. Until ${short(opensOn)} it says when registration opens.` : "For directors who weren't invited, or a group email.")}
+          {vol >= 0 && volunteersReady ? (
+            linkRow(vol, "Volunteer sign-up", "For your band parents' group text.")
+          ) : (
+            <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <p className="font-semibold">Volunteer sign-up</p>
+                <p className="text-sm text-muted">Add a volunteer job with shifts first, then share its link here.</p>
+              </div>
+              <Link href={`${base}/volunteering`} className={`${linkClass} shrink-0`}>
+                Add jobs first
+              </Link>
+            </li>
+          )}
+          {spectators === 0 && linkRow(0, "Spectators", "The performance schedule and what's on now.")}
+        </ul>
+      </section>
+    </>
+  );
+}
 
 type ShareRow = {
   who: string;

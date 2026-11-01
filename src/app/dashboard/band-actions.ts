@@ -214,8 +214,9 @@ export async function publishAndOpenBandRegistration(eventId: string): Promise<A
     return { error: "The registration deadline has passed. Pick a new one in Registration first." };
   const published = await setEventPublished(eventId, true);
   if (published.error) return published;
-  const opened = await setBandRegistrationOpen(eventId, true);
-  return opened.error ? opened : { ...opened, goTo: `/dashboard/events/${eventId}/bands?tab=bands` };
+  const opened = await updateEventRow(eventId, { band_registration_open: true });
+  // On to the event page, which leads with how to get the word out.
+  return opened.error ? opened : { ok: true, goTo: `/dashboard/events/${eventId}?published=1` };
 }
 
 /** Registration just opened: the link to send directors. */
