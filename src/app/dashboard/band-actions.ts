@@ -229,7 +229,7 @@ async function registrationShare(eventId: string): Promise<ActionState> {
     share: await shareLink(
       `${w.One} registration is open`,
       `/e/${event.slug}/bands`,
-      `Send this link to ${w.one} directors. Directors you invite by email can register with one tap from their invitation.`,
+      `Send this link to ${w.one} directors. Directors you invite by email start from their invitation, with their details filled in.`,
     ),
   };
 }

@@ -10,13 +10,15 @@ import { importBandPrefills } from "@/app/dashboard/import-actions";
 import { SpreadsheetImport } from "@/components/spreadsheet-import";
 import { importFields } from "@/lib/imports";
 import { InvitePastBands, type PastDirector } from "./invite-past-bands";
+import { bandInviteEmail } from "@/lib/band-invite-email";
+import { customWords, loadSystemEmail } from "@/lib/system-email-overrides";
 import { groupWords, hasEnsembles, hasRooms } from "@/lib/event-types";
 import { BAND_COLUMNS, deadlinePassed, opensLater, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, utcToZonedDate } from "@/lib/time";
+import { formatDate, formatDateRange, utcToZonedDate } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
 import { BandSettingsForm } from "./settings-form";
 import { SavedBy } from "@/components/saved-by";
@@ -50,7 +52,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, band_registration_open, band_registration_deadline, band_registration_opens_on, director_info, chaperone_limit, classifications, payment_link")
+    .select("id, slug, name, status, event_type, timezone, starts_on, ends_on, venue_name, band_registration_open, band_registration_deadline, band_registration_opens_on, director_info, chaperone_limit, classifications, payment_link")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) missing();
@@ -68,10 +70,13 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
   const [{ data: pastData }, { data: prefillData }, { data: inviteData }] = await Promise.all([
     supabase.rpc("past_band_directors", { p_event: eventId }),
     supabase.from("band_prefills").select("email, band_name, school_name, head_director_name").eq("event_id", eventId).order("created_at"),
-    supabase.from("band_invitations").select("email, sent_at").eq("event_id", eventId),
+    supabase.from("band_invitations").select("email, sent_at, failed_at").eq("event_id", eventId),
   ]);
   const invitedLabel = (iso: string) => `Invited ${formatDate(utcToZonedDate(iso, event.timezone), { year: undefined })}`;
+  // Saved wording for the invitation (Email settings), so the preview shows what's sent.
+  const inviteWording = await loadSystemEmail("director_invite");
   const invitedAt = new Map((inviteData ?? []).map((i) => [i.email.toLowerCase(), i.sent_at as string]));
+  const failedTo = new Set((inviteData ?? []).filter((i) => i.failed_at).map((i) => i.email.toLowerCase()));
   const registeredEmails = new Set(((bandData ?? []) as BandRow[]).map((b) => b.head_director_email.toLowerCase()));
   // Directors whose details the host imported, one line per director.
   const imported = new Map<string, PastDirector>();
@@ -258,7 +263,11 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                   action={setBandRegistrationOpen.bind(null, eventId, !event.band_registration_open)}
                   variant={event.band_registration_open ? "stop" : "go"}
                   className="px-3! text-xs!"
-                  confirmMessage={event.band_registration_open ? `Close ${w.one} registration? Directors won't be able to register or make changes.` : undefined}
+                  confirmMessage={
+                    event.band_registration_open
+                      ? `Close ${w.one} registration early? Directors can't register or change their registration until you reopen it.${invitedWaiting > 0 ? ` ${invitedWaiting} invited ${invitedWaiting === 1 ? "director hasn't" : "directors haven't"} registered yet.` : ""} You can reopen it with a new deadline.`
+                      : undefined
+                  }
                 >
                   {event.band_registration_open ? "Close registration" : "Open registration"}
                 </ActionButton>
@@ -271,7 +280,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
               <Link href={`${base}?tab=invite`} scroll={false} className="font-medium text-brand underline-offset-4 hover:underline">
                 invite by email
               </Link>{" "}
-              register with one tap, with no code.
+              start from their email, with their {w.one}&apos;s details filled in.
             </p>
             {/* Tucked away to keep the top of the page short; open it to show or download the code. */}
             <details className="group mt-1">
@@ -360,7 +369,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
               </p>
               <div className="space-y-6">
                 <div>
-                  <h3 className="font-semibold">Import from a spreadsheet</h3>
+                  <h3 id="import" className="scroll-mt-6 font-semibold">Import from a spreadsheet</h3>
                   <p className="mt-1 mb-3 text-sm text-muted">
                     Each director&apos;s details are saved for them. Nobody is registered yet: invite the directors below, and
                     each one checks their details and registers.
@@ -384,7 +393,34 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
                         {imported.size > 0 && !roomsHere && pastDirectors.length > 0 ? " and your earlier events" : ""}. Their
                         {` ${w.one}`}&apos;s details are saved, so registering only takes a moment.
                       </p>
-                      <InvitePastBands directors={directors} canSend={regOpen} send={sendBandInvites.bind(null, eventId)} one={w.one} />
+                      <InvitePastBands
+                        directors={directors.map((d) => ({ ...d, failed: failedTo.has(d.email.toLowerCase()) }))}
+                        canSend={regOpen}
+                        cantSendReason={
+                          regLater
+                            ? `You can send invitations from ${formatDate(event.band_registration_opens_on!)}, when registration opens.`
+                            : `Publish the event and open ${w.one} registration to send invitations.`
+                        }
+                        send={sendBandInvites.bind(null, eventId)}
+                        one={w.one}
+                        preview={bandInviteEmail({
+                          firstName: "Jordan",
+                          host: profile?.full_name || "You",
+                          one: w.one,
+                          event,
+                          fromSpreadsheet: imported.size > 0,
+                          reminder: false,
+                          email: "director@school.org",
+                          custom: customWords("director_invite", inviteWording, {
+                            first_name: "Jordan",
+                            host: profile?.full_name || "You",
+                            group: w.one,
+                            event_name: event.name,
+                            event_dates: formatDateRange(event.starts_on, event.ends_on),
+                            at_venue: event.venue_name ? `at ${event.venue_name}` : "",
+                          }),
+                        })}
+                      />
                     </>
                   ) : (
                     <p className="mt-1 text-sm text-muted">
