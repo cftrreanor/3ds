@@ -71,6 +71,8 @@ a word for two things on one screen.
   "Parking" (stop and job), "Import" (three names), "post" vs "publish" the schedule, role names
   ("Volunteer Lead", "Coordinator"), "sign-up" vs "job" on volunteer events.
 - **Before naming:** check `docs/brand-voice.md` and grep the app for the word.
+- **Again in:** band PR 4 ("Check-in" for volunteers and for bands on one screen, 4 of 4 reviewers).
+  Name each side by who it's for: "Volunteer check-in", "Band check-in stop".
 - **Also seen in:** band PR 1 built ("Publish and open registration" next to a checklist step
   "Open band registration"; "emailed when you publish" meaning the *schedule*). When one button
   does two things, no other step may offer either one again, and "publish" always names its object.
@@ -175,6 +177,13 @@ bar (status left, Next up right), or they all use a Save button.
 - **Seen in:** setup redesign (three kinds of saving), band PR 1 built (Details had Save changes
   and a Next link at the top; Registration saved itself with Next in the bar, 5 of 8 reviewers).
 
+## L20. Reorder arrows stay put and say what they moved
+Up and down arrows sit in two fixed columns (an unusable one keeps its space), look like buttons,
+carry their name on the button ("Move Parking earlier"), and after a move say where it went and
+keep focus on that item.
+- **Seen in:** band PR 4 Check-in order (arrows swapped places row to row, label on a span, no
+  confirmation, 4 of 4 reviewers).
+
 ---
 
 ## Self-check before a review
@@ -198,6 +207,7 @@ before the panel sees it.
 - [ ] **L14** No emoji
 - [ ] **L15** Same layout as its sibling pages
 - [ ] **L16** Personal details say who sees them
+- [ ] **L20** Reorder arrows in fixed columns, named on the button, and confirm the move
 - [ ] **L17** A ready step's action is at the top; a blocked one names its fix there
 - [ ] **L18** Sibling steps save the same way, with Next in the same place
 - [ ] **L19** Every date-based state (opens later, scheduled) shows on every badge, button, and job

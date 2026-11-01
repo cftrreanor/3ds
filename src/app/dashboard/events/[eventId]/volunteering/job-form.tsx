@@ -41,6 +41,7 @@ export function JobForm({
   allReady,
   items,
   bands,
+  openMore,
 }: {
   action: Action;
   remove: () => Promise<ActionState>;
@@ -62,6 +63,8 @@ export function JobForm({
   items: boolean;
   /** A band contest: the job can be a stop on the bands' contest-day check-in path. */
   bands?: boolean;
+  /** Open "More options" from the start (arrived from "Make it a stop"). */
+  openMore?: boolean;
 }) {
   const [save, setSave] = useState<SaveState>("idle");
   const [stop, setStop] = useState<string>(initial.checkpoint_kind ?? "");
@@ -211,16 +214,16 @@ export function JobForm({
         <Input name="name" required maxLength={80} defaultValue={initial.name} />
       </Field>
       <InSlot id="job-more">
-        <details className="group rounded-lg border border-border">
+        <details open={openMore} className="group rounded-lg border border-border">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            {stopHere ? "More options: check-in stop, Coordinators, instructions, and adults only" : "More options: Coordinators, instructions, and adults only"}
+            {stopHere ? "More options: band check-in stop, Coordinators, instructions, and adults only" : "More options: Coordinators, instructions, and adults only"}
             <span aria-hidden className="text-brand transition group-open:rotate-90">
               ›
             </span>
           </summary>
           {/* Drawn outside the form: each field names it (form=), and React still passes edits up to it. */}
           <div className="space-y-3 border-t border-border p-3">
-            {stopHere && <CheckInStopFields kind={stop} setKind={setStop} initial={initial} formId={FORM} job />}
+            {stopHere && <CheckInStopFields kind={stop} setKind={setStop} initial={initial} formId={FORM} orderHref={links.order} />}
             <CoordinatorPicker label={leadLabel} initial={initial.lead_ids ?? []} onChange={changed} formId={FORM} {...coordinators} />
             <Field label="Instructions for volunteers" hint="Optional. What to wear, bring, and do.">
               <Textarea name="instructions" form={FORM} defaultValue={initial.instructions ?? ""} />

@@ -2,7 +2,13 @@ import { setSignupKind } from "../../../actions";
 import { ActionButton } from "../forms";
 
 /** Ways on from a job's bar (always in reach on a phone): another job, a preview, and the next step. */
-export type JobLinks = { addJob: string; preview: string; next: { href: string; label: string } };
+export type JobLinks = {
+  addJob: string;
+  preview: string;
+  next: { href: string; label: string };
+  /** A band contest's Band check-in order tab. */
+  order?: string;
+};
 
 /** What a volunteer event's job panel needs beyond the station itself. */
 export type JobFacts = {
@@ -12,6 +18,10 @@ export type JobFacts = {
   allReady: boolean;
   items: boolean;
   links: JobLinks;
+  /** A band contest: how many check-in stops there are ("Stop 1 of 3"). */
+  stops?: number;
+  /** Open the job's "More options" from the start. */
+  openMore?: boolean;
 };
 
 /**

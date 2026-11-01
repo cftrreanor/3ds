@@ -57,3 +57,26 @@ docs/design-reviews/2026-11-03-band-pr3/ (open, closed, and opens-later states).
 | — | Check-in stops step: "Optional" next to "Due by" | 2 | Take the advice | "Like parking, check-in, and the gate. Due Sat, Sep 25 if you have volunteers, so they can be placed." |
 | — | Volunteers card says "no jobs" twice; inline "Add a job" easy to miss; box inside a card | 1–2 | Take the advice | No zero-count line; "No jobs yet" sentence; the card's button becomes "Add a job"; no nested box |
 | — | "Add jobs first" vs "Add a job" | 1 | Take the advice | Both say "Add a job" |
+
+## PR4 light check (2026-11-04)
+
+Review: Content Manager, UX Designer, UI Designer, and the usability consultant, on the screenshots in
+docs/design-reviews/2026-11-04-band-pr4/ (band contests on the Volunteer jobs screen, check-in stop in
+More options, Check-in order tab).
+
+| # | Finding | Severity | Decision | Notes |
+|---|---|---|---|---|
+| 1 | Reorder arrows: name on a span, no confirmation, focus lost | 3 | Take the advice | Label on the button, glyph hidden; "Band parking moved to stop 2 of 3. Saved" spoken and shown; focus stays on the stop's arrow |
+| 2 | A stop with no Coordinator gets no warning (only Coordinators and organizers can check bands in) | 3 | Take the advice | "Needs a Coordinator" on the job tab and "Needs a Coordinator to check bands in" on the order row |
+| 3 | Count mismatch on the Volunteers card | 3 if real | No change | Sample data only (the preview had no sign-up rows) |
+| — | "Check-in" means volunteers and bands on one screen | 2 | Take the advice | "Volunteer check-in" button; "Band check-in stop" field; "Band check-in order" tab |
+| — | Stop setting buried in More options | 2 | Fix it differently | Owner decided More options (2026-10-30). Added "Make a job a stop" on the order tab, linking to each job with More options open, and "Set the order of stops" in the field's hint |
+| — | Arrows move position row to row and look faint | 2 | Take the advice | Two fixed columns, outline buttons, larger glyphs |
+| — | Dropdown options long and cut off on phones | 2 | Take the advice | Short names; the chosen stop's description under the field in plain words |
+| — | Shift-lock note incomplete | 2 | Take the advice | Says to set Not a stop, then delete the shifts |
+| — | Minutes field: twisted label, full width, no unit | 2 | Take the advice | "Minutes before warm-up", narrow box with "minutes" after it |
+| — | Job tabs reorder with the stops | 2 | Fix it differently | Kept (stops lead on every contest-day screen); the order tab now says so |
+| — | Stops not marked on tabs; badge "1" without total | 1 | Take the advice | "Stop 1 · 2 of 8 filled" on tabs; "Stop 1 of 3 · Parking" badge |
+| — | Order rows hide deadlines; heading size; intro wording | 1 | Take the advice | "Due 60 minutes before warm-up" under each stop; job heading style; clearer intro |
+| — | Empty-job bar not shown | 1 | Take the advice | Screenshot 6 added |
+| — | Event page amber box for an optional step; stops line on the event page | 1 | Keep as is | The amber box names a job volunteers can't see yet; event page layout is out of scope |

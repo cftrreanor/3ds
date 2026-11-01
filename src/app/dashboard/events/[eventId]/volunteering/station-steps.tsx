@@ -108,6 +108,10 @@ export type StationTab = {
   capacity: number;
   /** A volunteer event's job (its words: shifts, things to bring). */
   job?: boolean;
+  /** A band contest's check-in stop: its place in the order. */
+  stop?: number;
+  /** A check-in stop with no Coordinator: nobody can check bands in there on contest day. */
+  needsLead?: boolean;
 };
 
 /** What a tab says under its name: the first thing still to do, or how full it is. */
@@ -115,8 +119,10 @@ function status(t: StationTab, unsaved: boolean) {
   if (unsaved) return "Unsaved changes";
   // A volunteer event's job: what it needs, or how full it is.
   if (t.job) {
-    if (!t.capacity) return t.items ? "Needs a thing to bring" : "Needs a shift";
-    return `${t.filled} of ${t.capacity} ${t.items ? "covered" : "filled"}`;
+    const stop = t.stop ? `Stop ${t.stop} · ` : "";
+    if (!t.capacity) return stop + (t.items ? "Needs a thing to bring" : "Needs a shift");
+    if (t.needsLead) return `${stop}Needs a Coordinator`;
+    return `${stop}${t.filled} of ${t.capacity} ${t.items ? "covered" : "filled"}`;
   }
   if (!t.saved) return "Draft, not finished";
   if (!t.capacity) return t.items ? "No items yet" : "No time slots yet";
@@ -162,7 +168,7 @@ export function StationTabs({
           const unsaved = t.active && Boolean(progress?.dirty.details);
           // Something to do (no shifts yet, unfinished, unsaved): an amber line under the name.
           // A job: what the status line says it needs (a shift or a thing to bring); other sign-ups also count unfinished details.
-          const needs = unsaved || (t.job ? !t.capacity : !t.configured);
+          const needs = unsaved || (t.job ? !t.capacity || Boolean(t.needsLead) : !t.configured);
           return (
             <li key={t.id}>
               <Link

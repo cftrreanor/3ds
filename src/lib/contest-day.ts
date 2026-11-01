@@ -6,10 +6,10 @@ export type CheckpointKind = "parking" | "stop" | "warm_up" | "gate";
 export type Round = "prelims" | "finals";
 
 export const CHECKPOINT_KINDS: { value: CheckpointKind; label: string; hint: string }[] = [
-  { value: "parking", label: "Parking", hint: "Buses and equipment arriving, equipment spots, leaving" },
-  { value: "stop", label: "Check-in point", hint: "One “Here” tap, e.g. the check-in table" },
-  { value: "warm_up", label: "Warm-up", hint: "One “Here” tap, due at the band’s warm-up time" },
-  { value: "gate", label: "Gate", hint: "“Here” due at the ready time, then “Performed”" },
+  { value: "parking", label: "Parking", hint: "Coordinators mark each band's buses and equipment as they arrive, park, and leave." },
+  { value: "stop", label: "Check-in point", hint: "Coordinators mark each band as here, like at the check-in table." },
+  { value: "warm_up", label: "Warm-up", hint: "Coordinators mark each band as here. It's due at the band's warm-up time." },
+  { value: "gate", label: "Gate", hint: "Coordinators mark each band as here by its ready time, then as performed." },
 ];
 export const kindLabel = (k: CheckpointKind) => CHECKPOINT_KINDS.find((x) => x.value === k)?.label ?? k;
 
