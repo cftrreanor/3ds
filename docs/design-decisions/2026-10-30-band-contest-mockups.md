@@ -35,3 +35,9 @@ Review: docs/design-reviews/2026-10-30-band-contest-mockups-v2.md
 | — | New contests start with 1A–6A filled in | 2 | Fix it differently | Owner: start empty, with guidance under the field showing the formats people use (like 1A–6A, Class AA, or Division I) |
 | — | Entry fee "Paid" tracking | 2 | Keep as is | Owner: not needed; hosts track payment elsewhere. The optional payment link stays |
 | Sev 2 | The rest of the "Should fix" list | 2 | Take the advice | Built in, then checked in the screenshot review before the PR |
+
+## Event page direction (owner, 2026-11-03)
+
+| # | Finding | Severity | Decision | Notes |
+|---|---|---|---|---|
+| — | Band contests' event page as a separate stage-bar dashboard (stage bar, one main card, "Before contest day", "Your contest" grid) | — | Fix it differently | Owner: one dashboard for every event type. Band contests keep the shared event page; the mock-ups' useful facts (registration counts, invited who haven't registered, "post times by" with the reason, check-in stops due date) go into the existing cards and checklist. Supersedes decisions 5 and light-check 1 above for the event page layout |

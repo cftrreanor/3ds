@@ -41,7 +41,7 @@ import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/
 import { closesAtLabel, parentRegistrationClosed } from "@/lib/parents";
 import { parentStats, type ParentStats } from "@/lib/parent-stats";
 import { filesFor, uploadedLines, type EventFile } from "@/lib/event-files";
-import { bandRegistrationMissing, publishEffects, setupChecklist, type SetupFacts } from "@/lib/setup-checklist";
+import { bandRegistrationMissing, publishEffects, setupChecklist, twoWeeksBefore, type SetupFacts } from "@/lib/setup-checklist";
 import { volunteerTotals } from "@/lib/volunteer-totals";
 import { opensLater, registrationIsOpen } from "@/lib/bands";
 import { SetupGuide } from "@/components/setup-guide";
@@ -85,7 +85,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, band_registration_opens_on, performance_order_published, director_info, finals_published, finalists_revealed",
+      "id, organization_id, slug, name, status, event_type, ready_minutes_before, volunteer_signup_open, parent_registration_open, parent_registration_closes_at, timezone, starts_on, ends_on, window_start, window_end, venue_name, venue_address, venue_place_id, band_registration_open, band_registration_deadline, band_registration_opens_on, classifications, performance_order_published, director_info, finals_published, finalists_revealed",
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -700,6 +700,43 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             )}
           </div>
         </div>
+        {contestLive && inviteable && (
+          // A live contest's registration at a glance: where bands are, when it closes, and who hasn't answered.
+          <div className="space-y-2 border-t border-border pt-4 text-sm leading-6">
+            <p>
+              {[
+                (event.classifications ?? []).length
+                  ? `Bands in ${new Set(bands.map((b) => b.classification)).size} of ${(event.classifications ?? []).length} classifications`
+                  : null,
+                registrationIsOpen(event) && event.band_registration_deadline ? closesIn(event.band_registration_deadline, today) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            {inviteable.sent > 0 && (
+              <p>
+                <span className="font-semibold">
+                  {inviteable.sentRegistered} of {inviteable.sent} invited directors
+                </span>{" "}
+                have registered.
+                {inviteable.sent > inviteable.sentRegistered && (
+                  <>
+                    {" "}
+                    <Link href={`/dashboard/events/${eventId}/bands?tab=invite`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                      See who hasn&apos;t
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Link href={`/dashboard/events/${eventId}/bands?tab=invite`} className={BTN_OUTLINE}>
+                Invite directors
+              </Link>
+              <CopyLink url={`${publicUrl}/bands`} label="Copy registration link" className={BTN_OUTLINE} />
+            </div>
+          </div>
+        )}
         {access.canManage && bands.length > 0 && <LogisticsTotals bands={bands} noTrucks={roomsHere} />}
         {access.isHost && published && !past && regLater ? (
           // Set to open on a later day: say when, and the two things to do about it. Nothing to close yet.
@@ -753,6 +790,13 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 ? "Your rooms, the path every group follows, and each group's times."
                 : "The running order, breaks, and finals. Directors are emailed their times when you publish the schedule."}
             </span>
+            {event.event_type === "band_contest" && published && !event.performance_order_published && !past && (
+              // When to post times by, and why: directors book buses from them.
+              <span className="basis-full text-sm">
+                <span className="font-semibold">Post times by {formatDate(twoWeeksBefore(event.starts_on))}</span>
+                <span className="text-muted">, two weeks before contest day, so directors can book buses.</span>
+              </span>
+            )}
           </div>
           <Link href={`/dashboard/events/${eventId}/${roomsHere ? "rooms" : "schedule"}`} className={BTN_OUTLINE}>
             {roomsHere ? "Set up rooms & schedule" : "Set up the schedule"}
@@ -807,6 +851,16 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               </ul>
             </div>
           )}
+          {stations.length === 0 && published ? (
+            // Nothing to sign up for yet: say so, not "Sign-up open".
+            <p className="rounded-md border border-border bg-background px-4 py-3 text-sm leading-6">
+              <span className="font-semibold">No jobs yet.</span>{" "}
+              <span className="text-muted">Add a job with shifts, and its sign-up link shows up where you share links.</span>{" "}
+              <Link href={`/dashboard/events/${eventId}/volunteering`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                Add a job
+              </Link>
+            </p>
+          ) : (
           <VolunteerStats
             filled={signedUp}
             capacity={totalSlots}
@@ -815,7 +869,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
             checkedIn={isEventDay ? checkedIn : null}
             needs={needsPeople}
           />
-          {access.isHost && published && !past && (
+          )}
+          {access.isHost && published && !past && stations.length > 0 && (
             <OpenClose
               shareName={contestLive ? "word" : "links"}
               on={event.volunteer_signup_open}
@@ -1216,7 +1271,7 @@ async function countInviteable(eventId: string) {
   const [{ data: past }, { data: imported }, { data: invited }, { data: bands }] = await Promise.all([
     supabase.rpc("past_band_directors", { p_event: eventId }),
     supabase.from("band_prefills").select("email").eq("event_id", eventId),
-    supabase.from("band_invitations").select("email").eq("event_id", eventId).is("replaced_by", null),
+    supabase.from("band_invitations").select("email, sent_at").eq("event_id", eventId).is("replaced_by", null),
     supabase.from("bands").select("head_director_email").eq("event_id", eventId),
   ]);
   // Registered directors aren't counted, wherever they came from (the invite list does the same).
@@ -1229,7 +1284,15 @@ async function countInviteable(eventId: string) {
   );
   // Invited, of the people who can still be invited (one who registered isn't counted).
   const invitedHere = ((invited ?? []) as { email: string }[]).filter((i) => people.has(i.email.toLowerCase())).length;
-  return { people: people.size, invited: invitedHere, earlier: ((past ?? []) as unknown[]).length };
+  // Of the directors actually emailed, how many have registered since.
+  const sentTo = ((invited ?? []) as { email: string; sent_at: string | null }[]).filter((i) => i.sent_at).map((i) => i.email.toLowerCase());
+  return {
+    people: people.size,
+    invited: invitedHere,
+    earlier: ((past ?? []) as unknown[]).length,
+    sent: sentTo.length,
+    sentRegistered: sentTo.filter((e) => registered.has(e)).length,
+  };
 }
 
 /**
@@ -1254,7 +1317,7 @@ function GetTheWordOut({
   slug: string;
   rows: ShareRow[];
   qrs: (string | null)[];
-  inviteable: { people: number; invited: number; earlier: number };
+  inviteable: { people: number; invited: number; earlier: number; sent: number; sentRegistered: number };
   opensOn: string | null;
   justPublished: boolean;
   deadline: string | null;
@@ -1347,6 +1410,12 @@ function GetTheWordOut({
       </section>
     </>
   );
+}
+
+/** "Closes in 9 days" (or today, or tomorrow), from the deadline day in the event's time zone. */
+function closesIn(deadline: string, today: string) {
+  const days = Math.round((Date.parse(deadline) - Date.parse(today)) / 864e5);
+  return days <= 0 ? "Closes at the end of today" : days === 1 ? "Closes at the end of tomorrow" : `Closes in ${days} days`;
 }
 
 type ShareRow = {

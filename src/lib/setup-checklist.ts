@@ -52,6 +52,8 @@ export type SetupFacts = {
   registrationDeadlinePast?: boolean;
   /** The day band registration opens (null: when the event is published). */
   registrationOpensOn?: string | null;
+  /** The event's first day (YYYY-MM-DD). */
+  startsOn?: string;
   classifications?: number;
   pathRooms: number;
   /** Group events: every room, on the path or not. */
@@ -177,7 +179,9 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       {
         id: "check-in",
         label: "Set your contest day check-in stops",
-        hint: "Like Parking, Check-in, and the Gate.",
+        hint: f.startsOn
+          ? `Like Parking, Check-in, and the Gate. Due by ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}, so volunteers can be placed.`
+          : "Like Parking, Check-in, and the Gate.",
         href: `${base}/volunteering`,
         done: f.checkInStops > 0,
         required: false,
@@ -355,6 +359,13 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     // A live event with a job volunteers can't see yet isn't finished: the event page says which.
     complete: f.published && afterDone === after.length && !(f.emptyJobs ?? []).length,
   };
+}
+
+/** Two weeks before a day (YYYY-MM-DD): when a band contest's times and stops should be set. */
+export function twoWeeksBefore(day: string) {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 14);
+  return d.toISOString().slice(0, 10);
 }
 
 function rank(s: SetupStep) {
