@@ -31,6 +31,8 @@ export type SetupFacts = {
   emptyJobs?: { id: string; name: string; items: boolean }[];
   /** Stations marked as check-in stops (band contests). */
   checkInStops: number;
+  /** Band invitations sent (or waiting for registration's opening day). */
+  directorInvites?: number;
   /** People who've joined the event's team (co-hosts and leads). */
   team: number;
   /** Team invitations sent but not accepted yet. */
@@ -265,6 +267,17 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       hint: "Then share the sign-up link or QR code.",
       href: `${base}/volunteering`,
       done: f.published && f.volunteerSignupOpen,
+      required: false,
+    });
+  }
+  if (f.eventType === "band_contest") {
+    // Right after publishing, the next job is telling directors.
+    after.push({
+      id: "invite",
+      label: "Invite band directors",
+      hint: "From your earlier contests or your own list.",
+      href: `${base}/bands?tab=invite`,
+      done: f.published && (f.directorInvites ?? 0) > 0,
       required: false,
     });
   }

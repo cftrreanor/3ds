@@ -146,9 +146,6 @@ type RegistrationWindow = {
   band_registration_opens_on: string | null;
 };
 
-/** The columns registrationIsOpen() needs. */
-export const REGISTRATION_WINDOW = "status, timezone, band_registration_open, band_registration_deadline, band_registration_opens_on";
-
 /** Is band registration open right now? Mirrors public.band_registration_is_open(). */
 export function registrationIsOpen(e: RegistrationWindow) {
   return e.status === "published" && e.band_registration_open && !opensLater(e) && !deadlinePassed(e);

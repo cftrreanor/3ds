@@ -31,18 +31,19 @@ export function SetupTabs({
 }) {
   const row = useTabInView<HTMLElement>(tabs.find((t) => t.active)?.key);
   return (
-    <nav ref={row} aria-label={label} className="relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav ref={row} aria-label={label} className="relative -mx-4 snap-x scroll-px-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className={folderTabRow}>
         {tabs.map((t) => (
-          <li key={t.key}>
+          // On a phone each tab is a bit under half the screen, so the next one always peeks in at the edge: a cue to swipe.
+          <li key={t.key} className={tabs.length > 2 ? "max-sm:w-[42vw] max-sm:shrink-0" : undefined}>
             <LeaveStepLink
               href={t.href}
               way={way}
               scroll={false}
               current={t.active}
-              className={folderTab(t.active)}
+              className={`${folderTab(t.active)} max-sm:h-full max-sm:w-full`}
             >
-              <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="flex items-center gap-1.5 whitespace-nowrap max-sm:whitespace-normal">
                 {t.mark === "done" && <span aria-hidden>✓</span>}
                 {t.label}
               </span>

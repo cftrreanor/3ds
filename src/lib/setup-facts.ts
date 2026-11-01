@@ -27,7 +27,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
   const count = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
   const head = { count: "exact" as const, head: true };
   const conferenceHere = hasConferences(type);
-  const [jobs, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots] = await Promise.all([
+  const [jobs, checkInStops, shifts, staff, invites, cohosts, files, finalsSlots, pathRooms, booths, conference, rooms, scheduleSlots, directorInvites] = await Promise.all([
     loadJobs(supabase, eventId),
     count(supabase.from("stations").select("id", head).eq("event_id", eventId).not("checkpoint_kind", "is", null)),
     count(supabase.from("shifts").select("id", head).eq("event_id", eventId)),
@@ -47,6 +47,8 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
       : type === "band_contest"
         ? count(supabase.from("performance_slots").select("band_id", head).eq("event_id", eventId))
         : 0,
+    // Director invitations sent or waiting for the opening day.
+    type === "band_contest" ? count(supabase.from("band_invitations").select("id", head).eq("event_id", eventId)) : 0,
   ]);
   // Why the account's plan won't let this publish (packages: what's included, one at a time), or null.
   // For "one at a time", the event that's already published, to link to.
@@ -60,6 +62,7 @@ export async function loadSetupFacts(eventId: string): Promise<SetupFacts | null
     readyJobs: jobs.filter((j) => j.showing && j.ready).length,
     emptyJobs: jobs.filter((j) => j.showing && !j.ready).map(({ id, name, items }) => ({ id, name, items })),
     checkInStops,
+    directorInvites,
     team: staff + cohosts,
     invitesPending: invites,
     files,

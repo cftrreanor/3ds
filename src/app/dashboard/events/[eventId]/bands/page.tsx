@@ -28,6 +28,8 @@ import { ReopenRegistration } from "./reopen-registration";
 import { RegistrationSettings } from "./registration-settings";
 
 export const metadata: Metadata = { title: "Registration" };
+// Sending a long list of invitations finishes after the page answers; give it time.
+export const maxDuration = 300;
 
 /** The day before a YYYY-MM-DD date: the last day registration can close. */
 function dayBefore(date: string) {

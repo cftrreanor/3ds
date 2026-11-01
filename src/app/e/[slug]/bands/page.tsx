@@ -11,7 +11,8 @@ import { BAND_COLUMNS, deadlinePassed, opensLater, registrationIsOpen, type Band
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateRange, formatTimeRange } from "@/lib/time";
+import { formatDate, formatDateRange, formatTimeRange, zoneAbbreviation } from "@/lib/time";
+import { LineIcon } from "@/components/line-icon";
 import { GuestRegister } from "./guest-register";
 import { RegisterForm, type PreviousBand } from "./register-form";
 
@@ -184,6 +185,25 @@ export default async function BandRegistrationPage({ params }: Params) {
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:py-12">
       {!band && heading}
 
+      {later && (
+        // Before it opens, the opening day comes first, with a way to remember it.
+        <Card className="mt-8 border-2 border-brand">
+          <p className="text-lg font-semibold">
+            <LineIcon name="calendar" inline />
+            {w.One} registration opens {formatDate(event.band_registration_opens_on!)}
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            From 12:00 AM that day, {zoneAbbreviation(`${event.band_registration_opens_on}T12:00:00Z`, event.timezone)}
+            {event.band_registration_deadline ? `, through the end of ${formatDate(event.band_registration_deadline)}` : ""}.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a href={`/e/${slug}/bands/opens`} className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+              Add to calendar
+            </a>
+          </div>
+        </Card>
+      )}
+
       {(event.director_info || event.payment_link || (open && event.band_registration_deadline)) && (
         <Card className="mt-8 space-y-3">
           {open && event.band_registration_deadline && (
@@ -192,7 +212,13 @@ export default async function BandRegistrationPage({ params }: Params) {
           {event.director_info && <p className="whitespace-pre-line leading-7">{event.director_info}</p>}
           {event.payment_link && (
             <p>
-              <a href={event.payment_link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground hover:bg-brand-hover">
+              <a
+                href={event.payment_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                // Until registration opens, paying isn't the next step: an outline button.
+                className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold ${open ? "bg-brand text-brand-foreground hover:bg-brand-hover" : "border-[1.5px] border-field-border bg-surface hover:border-brand"}`}
+              >
               Pay the entry fee <span className="sr-only">(opens in a new tab)</span>
             </a>
             </p>
@@ -223,14 +249,14 @@ export default async function BandRegistrationPage({ params }: Params) {
               {event.status !== "published"
                 ? "Preview: this page isn't public yet."
                 : later
-                  ? `${w.One} registration opens on ${formatDate(event.band_registration_opens_on!)}.`
+                  ? `Not open yet`
                   : deadlinePassed(event) && event.band_registration_open
                   ? `${w.One} registration closed on ${formatDate(event.band_registration_deadline!)}.`
                   : `${w.One} registration is closed.`}
             </p>
             <p className="mt-1 text-sm text-muted">
               {later
-                ? `Come back that day to register${event.band_registration_deadline ? `. It stays open through ${formatDate(event.band_registration_deadline)}` : ""}.`
+                ? `The form appears here on ${formatDate(event.band_registration_opens_on!, { year: undefined })}.`
                 : event.status === "published"
                 ? mine.length > 0
                   ? `To change your registration now, contact the organizer from your ${w.one}'s page.`

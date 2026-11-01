@@ -23,7 +23,7 @@ export function bandInviteEmail(o: {
   const subject = o.reminder ? `Reminder: register for ${event.name}` : o.custom?.subject || `You're invited: ${event.name}`;
   const paragraphs = o.reminder
     ? [
-        `${hi}A reminder from ${o.host}: there's still room for your ${one} at ${event.name}, ${when}.`,
+        `${hi}A reminder from ${o.host}: registration is still open for ${event.name}, ${when}.`,
         `Your ${one}'s details are saved. Check them, change anything you need, and register.`,
         ...deadline,
       ]
@@ -32,7 +32,7 @@ export function bandInviteEmail(o: {
       : [
           `${hi}${o.host} would love to have your ${one} at ${event.name}, ${when}.`,
           o.fromSpreadsheet
-            ? `Your ${one}'s details are already filled in from the host's records. Check them, change anything you need, and register.`
+            ? `Your ${one}'s details are already filled in from ${o.host}'s list. Check them, change anything you need, and register.`
             : `Your ${one}'s details from last time are saved. Check them, change anything you need, and register.`,
           ...deadline,
         ];
@@ -41,6 +41,6 @@ export function bandInviteEmail(o: {
     heading: o.reminder ? subject : o.custom?.heading || subject,
     paragraphs,
     button: (!o.reminder && o.custom?.button) || "Review and register",
-    footer: `This button signs you in as ${o.email} once, within ${EMAIL_LINK_DAYS} days, so please don't forward this email.`,
+    footer: `This button is just for you (${o.email}) and works once in the next ${EMAIL_LINK_DAYS} days. Please don't forward this email.`,
   };
 }
