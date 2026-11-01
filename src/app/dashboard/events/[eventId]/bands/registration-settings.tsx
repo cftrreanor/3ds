@@ -355,7 +355,7 @@ export function RegistrationSettings({
                         }}
                         aria-label={`New name for ${c}`}
                         maxLength={40}
-                        className="w-40 min-w-0"
+                        className="w-48! max-w-full"
                       />
                       <button type="button" disabled={cls.busy} onClick={() => void rename()} className={outline}>
                         Save name
