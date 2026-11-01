@@ -205,7 +205,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
         <a href={`/e/${event.slug}/bands`} target="_blank" className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4">
           Preview what directors see <span className="sr-only">(opens in a new tab)</span>
         </a>
-        <div className="mt-6">{registrationForm({ href: `/dashboard/events/${eventId}`, label: "Next up: Publish" })}</div>
+        <div className="mt-6">{registrationForm({ href: `/dashboard/events/${eventId}/volunteering`, label: "Next up: Volunteers" })}</div>
       </div>
     );
   }

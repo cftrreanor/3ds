@@ -500,9 +500,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                           order: bandsHere ? tabHref("order") : undefined,
                           addJob: tabHref("new"),
                           preview: previewHref,
-                          next: published || bandsHere
+                          next: published
                             ? { href: `/dashboard/events/${eventId}`, label: "Back to the event" }
-                            : { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish your event" },
+                            : bandsHere
+                              ? { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish registration" }
+                              : { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish your event" },
                         },
                       }
                     : undefined
@@ -581,6 +583,15 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                     : "Name it and choose its type. You'll add its details, Coordinators, and time slots or items next."}
                 </p>
                 <NewStationForm action={createStation.bind(null, eventId)} openTab job={jobsHere} />
+                {bandsHere && !published && stations.length === 0 && (
+                  // Volunteers are optional before publishing: the way on without any.
+                  <p className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border pt-3 text-sm">
+                    <span className="text-muted">No volunteer jobs yet? Add them any time before contest day.</span>
+                    <Link href={`/dashboard/events/${eventId}#publish`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                      Next up: Publish registration →
+                    </Link>
+                  </p>
+                )}
               </Card>
             )}
           </div>

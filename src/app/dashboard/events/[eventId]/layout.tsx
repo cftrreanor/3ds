@@ -44,5 +44,13 @@ function volunteerSteps(f: SetupFacts): SetupStepFacts {
 
 function bandSteps(f: SetupFacts): SetupStepFacts {
   const missing = bandRegistrationMissing(f);
-  return { middleDone: missing === null, middleNote: missing, count: null };
+  const empty = f.emptyJobs ?? [];
+  return {
+    middleDone: missing === null,
+    middleNote: missing,
+    count: null,
+    // Optional: done once there's a job volunteers can see, and every job has something to sign up for.
+    volunteersDone: (f.readyJobs ?? 0) > 0 && empty.length === 0,
+    volunteersNote: empty.length ? emptyJobsNote(empty) : "Optional",
+  };
 }

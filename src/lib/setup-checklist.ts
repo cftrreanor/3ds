@@ -99,7 +99,7 @@ export type SetupChecklist = {
 };
 
 // Same order as the sections on the event page: what people sign up for, the schedule, volunteers, the day, team, maps.
-const BEFORE_ORDER = ["details", "director-info", "booths", "conference", "parents-close", "rooms", "shifts", "check-in", "team", "files"];
+const BEFORE_ORDER = ["details", "registration", "director-info", "booths", "conference", "parents-close", "rooms", "shifts", "team", "files"];
 
 /**
  * A volunteer event's jobs: done once a job has a shift or a thing to bring
@@ -176,17 +176,6 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         required: true,
         partial: missing && (f.registrationDeadline || (f.classifications ?? 0) > 0) ? { fraction: 0.5, note: missing } : undefined,
       },
-      {
-        id: "check-in",
-        label: "Set your contest day check-in stops",
-        hint: f.startsOn
-          ? `Like parking, check-in, and the gate. Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })} if you have volunteers, so they can be placed.`
-          : "Like parking, check-in, and the gate.",
-        // The stops are set in each job; their order has its own tab.
-        href: `${base}/volunteering?station=order`,
-        done: f.checkInStops > 0,
-        required: false,
-      },
     );
   }
   if (hasBooths(f.eventType)) {
@@ -260,10 +249,16 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     );
   }
 
+  const bandContest = f.eventType === "band_contest";
   const publish: SetupStep = {
     id: "publish",
-    label: "Publish your event",
-    hint: "Puts your public page online. You can unpublish at any time.",
+    // A band contest's publishing is what opens registration.
+    label: bandContest ? "Publish registration" : "Publish your event",
+    hint: bandContest
+      ? f.registrationOpensOn
+        ? `Puts your contest page online. Directors can register from ${formatDate(f.registrationOpensOn, { year: undefined })}.`
+        : "Puts your contest page online, and directors can register."
+      : "Puts your public page online. You can unpublish at any time.",
     href: `${base}#publish`,
     done: f.published,
     required: true,
@@ -281,13 +276,24 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
     });
   }
   if (f.eventType === "band_contest") {
-    // Right after publishing, the next job is telling directors.
-    after.push({
+    // Right after publishing, the next job is telling directors. Before contest day: where bands check in.
+    after.unshift({
       id: "invite",
       label: "Invite band directors",
       hint: "From your earlier contests or your own list.",
       href: `${base}/bands?tab=invite`,
       done: f.published && (f.directorInvites ?? 0) > 0,
+      required: false,
+    });
+    after.push({
+      id: "check-in",
+      label: "Set your band check-in order",
+      hint: f.startsOn
+        ? `The stops bands go through, like parking, check-in, and the gate. Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}, so volunteers can be placed.`
+        : "The stops bands go through, like parking, check-in, and the gate.",
+      // The stops are set in each job; their order has its own tab.
+      href: `${base}/volunteering?station=order`,
+      done: f.checkInStops > 0,
       required: false,
     });
   }
@@ -306,7 +312,10 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
       {
         id: "schedule",
         label: hasRooms(f.eventType) ? "Build and post the room schedule" : "Build and publish the performance schedule",
-        hint: "Directors are emailed their times when you publish the schedule.",
+        hint:
+          f.eventType === "band_contest" && f.startsOn
+            ? `Directors are emailed their times when you publish it. Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })}, so they can book buses.`
+            : "Directors are emailed their times when you publish the schedule.",
         href: hasRooms(f.eventType) ? `${base}/rooms#order-heading` : `${base}/schedule`,
         done: f.scheduleShared,
         required: false,

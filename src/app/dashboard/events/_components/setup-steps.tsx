@@ -23,11 +23,12 @@ export const VOLUNTEER_SETUP_STEPS: SetupStep[] = [
   { id: "publish", label: "Publish" },
 ];
 
-/** A band contest's setup: Details, what directors need to register, then publishing. */
+/** A band contest's setup: Details, what directors need to register, volunteers if any, then publishing opens registration. */
 export const BAND_SETUP_STEPS: SetupStep[] = [
   { id: "details", label: "Details" },
   { id: "registration", label: "Registration" },
-  { id: "publish", label: "Publish" },
+  { id: "volunteers", label: "Volunteers", optional: true },
+  { id: "publish", label: "Publish registration" },
 ];
 
 /** The setup page for a step (the first one is the new-event form, then Event settings with ?setup=1). */
@@ -67,10 +68,12 @@ export function SetupHeader({
         Step {at + 1} of {steps.length}.{" "}
         {steps === SETUP_STEPS
           ? "Skip anything for now: it's all in Event settings later."
-          : "Add your team, maps, and volunteer jobs whenever you're ready, from Event settings."}{" "}
+          : steps === BAND_SETUP_STEPS
+            ? "Add your team and maps whenever you're ready, from Event settings."
+            : "Add your team, maps, and volunteer jobs whenever you're ready, from Event settings."}{" "}
         Boxes marked * are required. {children}
       </p>
-      <ol className={`mt-5 grid gap-2 ${steps.length === 3 ? "grid-cols-3" : "grid-cols-5"}`} aria-label="Setup steps">
+      <ol className={`mt-5 grid gap-2 ${steps.length === 3 ? "grid-cols-3" : steps.length === 4 ? "grid-cols-4" : "grid-cols-5"}`} aria-label="Setup steps">
         {steps.map((s, i) => {
           const done = i < at;
           const on = i === at;

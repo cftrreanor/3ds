@@ -6,14 +6,16 @@
 /** Each kind of event's setup steps, and where each one lives under the event. */
 export const SETUP_STEPS = {
   volunteer: [
-    { key: "details", label: "Details", path: "/edit" },
-    { key: "jobs", label: "Jobs and shifts", path: "/volunteering" },
-    { key: "publish", label: "Publish", path: "" },
+    { key: "details", label: "Details", path: "/edit", optional: false },
+    { key: "jobs", label: "Jobs and shifts", path: "/volunteering", optional: false },
+    { key: "publish", label: "Publish", path: "", optional: false },
   ],
+  // A band contest: what directors need to register, volunteers if it has them (never blocks), then publishing opens registration.
   band: [
-    { key: "details", label: "Details", path: "/edit" },
-    { key: "registration", label: "Registration", path: "/bands" },
-    { key: "publish", label: "Publish", path: "" },
+    { key: "details", label: "Details", path: "/edit", optional: false },
+    { key: "registration", label: "Registration", path: "/bands", optional: false },
+    { key: "volunteers", label: "Volunteers", path: "/volunteering", optional: true },
+    { key: "publish", label: "Publish registration", path: "", optional: false },
   ],
 } as const;
 export type StepsKind = keyof typeof SETUP_STEPS;
@@ -27,6 +29,10 @@ export const STEP_PATHS: Record<StepsKind, string[]> = {
 export type SetupStepFacts = {
   /** The middle step is done (a job volunteers can see; what directors need to register). */
   middleDone: boolean;
+  /** A band contest's optional Volunteers step: done once a job volunteers can see has something to sign up for. */
+  volunteersDone?: boolean;
+  /** What the Volunteers step says when it isn't done ("Optional", "Check-in table needs a shift"). */
+  volunteersNote?: string | null;
   /** What the middle step still needs, when it isn't done ("Litter pickup needs a shift"). */
   middleNote: string | null;
   /** Shown beside the middle step's name ("3 jobs"). */
