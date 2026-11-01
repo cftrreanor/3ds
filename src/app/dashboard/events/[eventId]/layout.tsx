@@ -44,6 +44,5 @@ function volunteerSteps(f: SetupFacts): SetupStepFacts {
 
 function bandSteps(f: SetupFacts): SetupStepFacts {
   const missing = bandRegistrationMissing(f);
-  const n = f.classifications ?? 0;
-  return { middleDone: missing === null, middleNote: missing, count: n ? `${n} ${n === 1 ? "classification" : "classifications"}` : null };
+  return { middleDone: missing === null, middleNote: missing, count: null };
 }

@@ -27,6 +27,13 @@ import { RegistrationSettings } from "./registration-settings";
 
 export const metadata: Metadata = { title: "Registration" };
 
+/** The day before a YYYY-MM-DD date: the last day registration can close. */
+function dayBefore(date: string) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * Band (or group) Registration, like Volunteer Setup: a card with where
  * registration stands, its link, and the one button for what's next; then
@@ -149,6 +156,8 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
       contactSaved={settingsDone}
       next={next}
       draft={!published}
+      today={today}
+      contest={{ day: event.starts_on, label: formatDate(event.starts_on, { weekday: undefined, year: undefined }), lastDeadline: dayBefore(event.starts_on) }}
     />
   );
 

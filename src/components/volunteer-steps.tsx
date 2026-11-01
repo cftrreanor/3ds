@@ -29,7 +29,8 @@ export function SetupSteps({ eventId, kind, facts }: { eventId: string; kind: St
           const now = i === here;
           // The middle step, when it still needs something: amber, saying what.
           const needs = i === 1 && !done[i] && Boolean(facts.middleNote);
-          const note = done[i] && !now ? "Done" : needs ? facts.middleNote : now ? "Now" : "Not yet";
+          // The step you're on says "Now", or "Now · done" once it has everything it needs.
+          const note = done[i] && !now ? "Done" : needs ? facts.middleNote : now ? (done[i] && i < 2 ? "Now · done" : "Now") : "Not yet";
           return (
             <li key={s.key} className="min-w-0">
               <span
