@@ -163,11 +163,10 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   const tz = event.timezone;
   const days = eachDate(event.starts_on, event.ends_on);
   const windowLabel = formatTimeRange(event.window_start, event.window_end, tz);
-  const minuteOfDay = (iso: string) => {
-    const [h, m] = utcToZonedTime(iso, tz).split(":").map(Number);
-    return h * 60 + m;
-  };
-  const windowMinutes = minuteOfDay(event.window_end) - minuteOfDay(event.window_start);
+  const windowTimes = { start: utcToZonedTime(event.window_start, tz).slice(0, 5), end: utcToZonedTime(event.window_end, tz).slice(0, 5) };
+  // Adults each shift still needs, for jobs that save spots for adults (after the 20270110000000 update).
+  const { data: needRows } = await supabase.rpc("shift_adult_needs", { p_event_id: eventId });
+  const adultsNeeded = Object.fromEntries(((needRows ?? []) as { shift_id: string; adults_needed: number }[]).map((r) => [r.shift_id, r.adults_needed]));
   const origin = await getOrigin();
   const signupUrl = `${origin}/e/${event.slug}/volunteer`;
   const [qrSvg, qrPng] = await Promise.all([
@@ -470,7 +469,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 event={event}
                 days={days}
                 windowLabel={windowLabel}
-                windowMinutes={windowMinutes}
+                windowTimes={windowTimes}
+                adultsNeeded={adultsNeeded}
                 userId={user.id}
                 canManage
                 locations={locations}

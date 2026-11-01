@@ -59,6 +59,9 @@ export default async function VolunteerSignupPage({ params }: Params) {
 
   const tz = event.timezone;
   const multiDay = event.starts_on !== event.ends_on;
+  // Spots saved for adults that each shift still needs (counts only; after the 20270110000000 update).
+  const { data: needRows } = await supabase.rpc("shift_adult_needs", { p_event_id: event.id });
+  const adultsNeeded = new Map(((needRows ?? []) as { shift_id: string; adults_needed: number }[]).map((r) => [r.shift_id, r.adults_needed]));
   // Check-in stations first, in the host's order: they matter most on the day.
   const publicStations: PublicStation[] = sortStations(showing)
     .map((st) => ({
@@ -82,6 +85,7 @@ export default async function VolunteerSignupPage({ params }: Params) {
           spotsLeft: s.max_capacity - s.registered_count,
           adultsOnly: st.adults_only || Boolean((s as { adults_only?: boolean }).adults_only),
           minAge: (s as { min_age?: number | null }).min_age ?? null,
+          adultsNeeded: adultsNeeded.get(s.id) ?? 0,
         })),
       items: (items ?? [])
         .filter((i) => i.station_id === st.id)

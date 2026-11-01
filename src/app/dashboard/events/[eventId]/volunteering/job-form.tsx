@@ -8,7 +8,7 @@ import { ActionForm } from "@/components/action-form";
 import { confirmDialog } from "@/components/confirm-dialog";
 import { Field, Input, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { BinIcon, CheckInStopFields, CoordinatorPicker, type LeadOption } from "../forms";
+import { AdultsNeededField, BinIcon, CheckInStopFields, CoordinatorPicker, type LeadOption } from "../forms";
 import type { CheckpointKind } from "@/lib/contest-day";
 import type { JobLinks } from "./job-parts";
 import { flushPending, pendingCounts, setPending, settled, usePendingCounts } from "@/components/pending-edits";
@@ -49,6 +49,7 @@ export function JobForm({
     name: string;
     instructions: string | null;
     adults_only?: boolean;
+    min_adults?: number | null;
     lead_ids?: string[];
     checkpoint_kind?: CheckpointKind | null;
     due_minutes_before_warm_up?: number | null;
@@ -68,6 +69,9 @@ export function JobForm({
 }) {
   const [save, setSave] = useState<SaveState>("idle");
   const [stop, setStop] = useState<string>(initial.checkpoint_kind ?? "");
+  const [adultsOnly, setAdultsOnly] = useState(initial.adults_only ?? false);
+  // Shown on the closed More options, so a saved age rule is never out of sight.
+  const ageRule = adultsOnly ? " · adults only" : initial.min_adults ? ` · ${initial.min_adults} adult${initial.min_adults === 1 ? "" : "s"} per shift` : "";
   // Only a job that takes shifts can be a check-in stop (its Coordinators work shifts there).
   const stopHere = bands && !items;
   const [why, setWhy] = useState<string | null>(null);
@@ -216,7 +220,10 @@ export function JobForm({
       <InSlot id="job-more">
         <details open={openMore} className="group rounded-lg border border-border">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            {stopHere ? "More options: band check-in stop, Coordinators, instructions, and adults only" : "More options: Coordinators, instructions, and adults only"}
+            <span>
+              {stopHere ? "More options: band check-in stop, Coordinators, instructions, and age rules" : "More options: Coordinators, instructions, and age rules"}
+              {ageRule && <span className="font-normal text-muted">{ageRule}</span>}
+            </span>
             <span aria-hidden className="text-brand transition group-open:rotate-90">
               ›
             </span>
@@ -229,12 +236,20 @@ export function JobForm({
               <Textarea name="instructions" form={FORM} defaultValue={initial.instructions ?? ""} />
             </Field>
             <label className="flex items-start gap-3 text-sm">
-              <input type="checkbox" name="adultsOnly" form={FORM} defaultChecked={initial.adults_only ?? false} className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]" />
+              <input
+                type="checkbox"
+                name="adultsOnly"
+                form={FORM}
+                checked={adultsOnly}
+                onChange={(e) => setAdultsOnly(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+              />
               <span>
                 <span className="font-medium">Adults only (18+)</span>
                 <span className="block text-muted">No one under 18 can sign up for this job or be added as a walk-up.</span>
               </span>
             </label>
+            <AdultsNeededField initial={initial.min_adults} formId={FORM} adultsOnly={adultsOnly} />
           </div>
         </details>
       </InSlot>
@@ -323,7 +338,7 @@ function JobBar({
           ) : unadded ? (
             <span className="font-medium text-warning">
               <span aria-hidden>◆ </span>
-              {unadded === 1 ? "1 change isn't added yet." : `${unadded} changes aren't added yet.`} Use its Add or Save button.
+              {unadded === 1 ? "1 change isn't added yet." : `${unadded} changes aren't added yet.`} Finish with the button under it, like Create shifts, Add, or Save.
             </span>
           ) : (
             <span className={save === "saved" ? "font-medium" : "text-muted"}>

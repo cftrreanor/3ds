@@ -11,6 +11,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
+import { OVERLAPS, clockLabel, planShifts, toMinutes } from "@/lib/shift-plan";
 import { setPending, useUnadded } from "@/components/pending-edits";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
 import { copyDialog } from "@/components/confirm-dialog";
@@ -24,6 +25,8 @@ type StationValues = {
   location: string | null;
   instructions: string | null;
   adults_only?: boolean;
+  /** Spots on each shift held for volunteers 18 or older (null: any mix). */
+  min_adults?: number | null;
   /** School fairs: which zone the station is in. */
   zone?: string | null;
   /** Everyone leading this sign-up, first-added first. */
@@ -153,6 +156,7 @@ export function StationForm({
           <span className="block text-muted">No one under 18 can sign up for this {job ? "job" : "sign-up"}&apos;s shifts or be added as a walk-up, e.g. Parking.</span>
         </span>
       </label>
+      <AdultsNeededField initial={initial?.min_adults} className="sm:col-span-2" />
       {coordinators && <CoordinatorPicker label={leadLabel} initial={initial?.lead_ids ?? []} onChange={trackUnsaved ? changed : undefined} {...coordinators} />}
       {leads && (
         <fieldset className="sm:col-span-2">
@@ -286,18 +290,21 @@ function lengthLabel(minutes: number) {
 export function GenerateShiftsForm({
   action,
   windowLabel,
-  windowMinutes,
+  windowTimes,
   multiDay = false,
   existing = 0,
   signedUp = false,
   job = false,
+  minAdults = null,
 }: {
   action: Action;
   windowLabel: string;
+  /** The event day's start and end ("07:00", "21:00"): where From and To start out. */
+  windowTimes?: { start: string; end: string };
   job?: boolean;
-  /** How long the event day is, to say whether a length splits it evenly. */
-  windowMinutes?: number;
   multiDay?: boolean;
+  /** Spots held for adults on each shift (the job's setting), said under Volunteers per shift. */
+  minAdults?: number | null;
   /** How many shifts the station has now. */
   existing?: number;
   /** Someone has signed up for one of them: auto create can't replace them. */
@@ -305,7 +312,11 @@ export function GenerateShiftsForm({
 }) {
   const setEdited = useStepEdits("shifts");
   const unadded = useUnadded();
+  const [from, setFrom] = useState(windowTimes?.start ?? "");
+  const [to, setTo] = useState(windowTimes?.end ?? "");
   const [length, setLength] = useState(0);
+  const [overlap, setOverlap] = useState(0);
+  const [capacity, setCapacity] = useState(0);
   if (signedUp) {
     return (
       <p className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
@@ -313,6 +324,23 @@ export function GenerateShiftsForm({
       </p>
     );
   }
+  const fromMin = from ? toMinutes(from) : 0;
+  const toMin = to ? toMinutes(to) : 0;
+  // The same time twice makes nothing; a To before From runs past midnight (an evening event).
+  const backwards = Boolean(from && to) && toMin === fromMin;
+  const overnight = Boolean(from && to) && toMin < fromMin;
+  const plan = from && to && length && !backwards ? planShifts(fromMin, toMin, length, overlap) : [];
+  // The time zone the event's hours are written in ("8:00 AM – 9:00 PM CDT" → "CDT"), for the preview.
+  const zone = windowLabel.match(/\b([A-Z]{2,5})$/)?.[1] ?? "";
+  const span = (p: { start: number; end: number }) => lengthLabel(p.end - p.start);
+  // Outside the event's hours: said quietly, so a typo (6:00 AM for 6:00 PM) gets noticed.
+  const eventFrom = windowTimes ? toMinutes(windowTimes.start) : null;
+  const eventTo = windowTimes ? toMinutes(windowTimes.end) : null;
+  const outside = [
+    eventFrom != null && from && fromMin < eventFrom ? `starts ${lengthLabel(eventFrom - fromMin)} before the event` : null,
+    eventTo != null && to && eventTo > (eventFrom ?? 0) && toMin > eventTo ? `ends ${lengthLabel(toMin - eventTo)} after it` : null,
+    overnight ? "ends the next day" : null,
+  ].filter(Boolean);
   return (
     <ActionForm
       action={action}
@@ -324,7 +352,8 @@ export function GenerateShiftsForm({
       }}
     >
       <p className="text-sm text-muted">
-        Split the event day ({windowLabel}) into shifts for this {job ? "job" : "sign-up"}.
+        Shifts back to back{multiDay ? ", on each day of the event" : ""}. From and To start at the event&apos;s hours ({windowLabel}). Change
+        them for setup before or cleanup after.
         {existing > 0 && (
           <>
             {" "}
@@ -336,6 +365,21 @@ export function GenerateShiftsForm({
         )}
       </p>
       <div className="grid grid-cols-2 gap-4">
+        <Field label="From">
+          <Input name="fromTime" type="time" required value={from} onChange={(e) => setFrom(e.target.value)} />
+        </Field>
+        <Field label="To" error={backwards ? "To has to be later than From" : undefined} errorId="to-error">
+          <Input
+            name="toTime"
+            type="time"
+            required
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            aria-invalid={backwards || undefined}
+            aria-describedby={backwards ? "to-error" : undefined}
+          />
+        </Field>
+        {outside.length > 0 && <p className="col-span-2 -mt-2 text-sm text-muted">This {outside.join(" and ")}.</p>}
         <Field label="Shift length">
           <Select name="blockHours" defaultValue="" required onChange={(e) => setLength(Number(e.target.value) * 60)}>
             <option value="" disabled>
@@ -348,45 +392,51 @@ export function GenerateShiftsForm({
             ))}
           </Select>
         </Field>
-        <Field label="Volunteers per shift">
-          <NumberInput name="capacity" placeholder="e.g. 4" required />
+        <Field
+          label="Volunteers per shift"
+          hint={minAdults ? `${minAdults} of them saved for adults (18+), set in More options` : undefined}
+        >
+          <NumberInput name="capacity" placeholder="e.g. 4" required onChange={(e) => setCapacity(Number(e.target.value) || 0)} />
+        </Field>
+        <Field
+          label="Overlap between shifts"
+          hint="Each shift after the first starts this much earlier and runs that much longer, so nobody leaves before the next volunteers arrive."
+          className="col-span-2"
+        >
+          <Select name="overlap" value={overlap} onChange={(e) => setOverlap(Number(e.target.value))} className="sm:max-w-xs">
+            {OVERLAPS.map((m) => (
+              <option key={m} value={m}>
+                {m ? `${m} minutes` : "No overlap"}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
-      {windowMinutes != null && windowMinutes > 0 && length > 0 && (
-        <ShiftSplit windowMinutes={windowMinutes} length={length} multiDay={multiDay} />
+      {plan.length > 0 && (
+        // What it makes, before anything is created: in time order, with each shift's length when it isn't the one picked.
+        <div aria-live="polite" className="rounded-md border border-border bg-background px-3 py-2.5 text-sm">
+          <p className="font-semibold">
+            Preview: {plan.length} shift{plan.length === 1 ? "" : "s"}
+            {multiDay ? " each day" : ""}
+            {capacity > 0 ? `, ${plan.length * capacity} spots` : ""}
+            {zone ? ` (${zone})` : ""}
+          </p>
+          <ol className="mt-1 space-y-0.5">
+            {plan.map((p, i) => (
+              <li key={p.start}>
+                {i + 1}. {clockLabel(p.start)} – {clockLabel(p.end)}
+                {p.end - p.start !== length && <span className="text-muted"> · {span(p)}</span>}
+              </li>
+            ))}
+          </ol>
+          <p className="sr-only">Nothing is created until you use Create shifts.</p>
+        </div>
       )}
       <StepNotice step="shifts" />
       <SubmitButton variant="go" pendingText="Creating…">
-        Create shifts
+        Create {plan.length || ""} shift{plan.length === 1 ? "" : "s"}
       </SubmitButton>
     </ActionForm>
-  );
-}
-
-/** What a shift length makes of the event day: how many shifts, and a callout when the last one comes out short. */
-function ShiftSplit({ windowMinutes, length, multiDay }: { windowMinutes: number; length: number; multiDay: boolean }) {
-  const count = Math.ceil(windowMinutes / length);
-  const last = windowMinutes - (count - 1) * length;
-  const perDay = multiDay ? " each day" : "";
-  if (last === length) {
-    return (
-      <p className="text-sm text-muted" aria-live="polite">
-        That makes {count} shift{count === 1 ? "" : "s"} of {lengthLabel(length)}
-        {perDay}, all the same length.
-      </p>
-    );
-  }
-  const even = SHIFT_LENGTHS.filter((m) => windowMinutes % m === 0).map(lengthLabel);
-  return (
-    <div role="status" className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2.5 text-sm">
-      <p className="font-semibold">These shifts won&apos;t be even</p>
-      <p className="mt-0.5">
-        The event day is {lengthLabel(windowMinutes)}. Shifts of {lengthLabel(length)} make {count - 1} shift{count - 1 === 1 ? "" : "s"} of that
-        length and a last one of only {lengthLabel(last)}
-        {perDay}.
-        {even.length > 0 && <> For even shifts, pick {new Intl.ListFormat("en", { type: "disjunction" }).format(even)}.</>}
-      </p>
-    </div>
   );
 }
 
@@ -506,18 +556,21 @@ export function BuildShifts({
   generate,
   create,
   windowLabel,
-  windowMinutes,
+  windowTimes,
   days,
   existing = 0,
   signedUp = false,
   job = false,
+  minAdults = null,
 }: {
   generate: Action;
+  /** Spots held for adults on each shift (the job's setting). */
+  minAdults?: number | null;
   job?: boolean;
   create: Action;
   windowLabel: string;
-  /** How long the event day is (for the even-shifts check). */
-  windowMinutes?: number;
+  /** The event day's start and end ("07:00", "21:00"). */
+  windowTimes?: { start: string; end: string };
   days: string[];
   /** The sign-up's shifts now, and whether anyone has signed up for one. */
   existing?: number;
@@ -528,8 +581,8 @@ export function BuildShifts({
   // Switching forms drops what was typed in the other one.
   const setEdited = useStepEdits("shifts");
   const options = [
-    { value: "auto", label: "Fill the day with shifts" },
-    { value: "single", label: "Add one shift" },
+    { value: "auto", label: "Several shifts" },
+    { value: "single", label: "One shift" },
   ] as const;
   return (
     <div className="space-y-4">
@@ -556,8 +609,9 @@ export function BuildShifts({
         <GenerateShiftsForm
           action={generate}
           windowLabel={windowLabel}
-          windowMinutes={windowMinutes}
+          windowTimes={windowTimes}
           multiDay={days.length > 1}
+          minAdults={minAdults}
           existing={existing}
           signedUp={signedUp}
           job={job}
@@ -1185,5 +1239,49 @@ export function CheckInStopFields({
         </Field>
       )}
     </>
+  );
+}
+
+/**
+ * How many volunteers on each of a job's shifts must be 18 or older (like adults supervising teens at
+ * concessions). Those spots are saved for adults: under-18s can't take them. Blank means age doesn't
+ * matter. With Adults only on, it's greyed out (everyone is 18 or older already).
+ */
+export function AdultsNeededField({
+  initial,
+  formId,
+  className,
+  adultsOnly = false,
+}: {
+  initial?: number | null;
+  formId?: string;
+  className?: string;
+  adultsOnly?: boolean;
+}) {
+  return (
+    <Field
+      label="Adults needed per shift"
+      hint={
+        adultsOnly
+          ? "Not needed: with Adults only on, everyone on this job is 18 or older."
+          : "Optional. This many spots on each shift are saved for adults (18+), like adults supervising teens. Under-18s can take the rest. People already signed up keep their spots. Leave blank if age doesn't matter."
+      }
+      className={className}
+    >
+      <span className="flex items-center gap-2">
+        {/* It had a value: a blank now clears it. */}
+        {initial != null && <input type="hidden" name="minAdultsWas" value="1" form={formId} />}
+        <NumberInput
+          name="minAdults"
+          form={formId}
+          maxLength={2}
+          defaultValue={initial ?? ""}
+          placeholder="e.g. 2"
+          disabled={adultsOnly}
+          className="w-24! disabled:opacity-60"
+        />
+        <span className="text-sm text-muted">adults</span>
+      </span>
+    </Field>
   );
 }

@@ -18,6 +18,7 @@ import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { asksChildName } from "@/lib/conference-settings";
 import { FILES_BUCKET } from "@/lib/event-files";
 import { formatDate, eachDate, isValidTimezone, utcToZonedTime, zonedToUtc } from "@/lib/time";
+import { planShifts, toMinutes } from "@/lib/shift-plan";
 import { loadCalendarEntries, sendShiftUpdates } from "@/lib/volunteer-emails";
 
 // Every action re-checks who is signed in; the database's Row Level Security
@@ -391,6 +392,17 @@ function dueMinutes(formData: FormData, kind: string | null) {
   return /^\d{1,3}$/.test(raw) ? Math.min(Number(raw), 600) : null;
 }
 
+/** Spots held for adults on each shift, only when the form has the field (blank, or with Adults only on: none). */
+function minAdultsOf(formData: FormData) {
+  if (!formData.has("minAdults")) return {};
+  const raw = String(formData.get("minAdults") ?? "").trim();
+  const n = /^\d{1,2}$/.test(raw) ? Number(raw) : 0;
+  const value = n > 0 && formData.get("adultsOnly") !== "on" ? Math.min(n, 50) : null;
+  // Left blank and never set: don't touch it (so saving works before the 20270110000000 update too).
+  if (value === null && !formData.has("minAdultsWas")) return {};
+  return { min_adults: value };
+}
+
 /** School fairs: the sign-up's zone, only when the form has the Zone field. */
 function zoneOf(formData: FormData) {
   if (!formData.has("zone")) return {};
@@ -437,6 +449,7 @@ export async function createStation(eventId: string, _prev: ActionState, formDat
       location: v.location,
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
+      ...minAdultsOf(formData),
       ...zoneOf(formData),
       // Items to bring (a potluck's desserts) instead of time slots. Only plain sign-ups can be.
       ...(formData.get("signupKind") === "items" && !kind ? { signup_kind: "items" } : {}),
@@ -472,6 +485,13 @@ export async function updateStation(
   if (!leadIds.success) return { error: "Something went wrong with the Coordinators. Please try again." };
 
   const supabase = await createClient();
+  // Spots held for adults can't be more than a shift has.
+  const held = minAdultsOf(formData).min_adults;
+  if (held) {
+    const { data: sizes } = await supabase.from("shifts").select("max_capacity").eq("station_id", stationId);
+    const most = Math.max(0, ...(sizes ?? []).map((x) => x.max_capacity));
+    if (most && held > most) return { error: `Adults needed can't be more than ${most}, the most spots on one shift.` };
+  }
   // A station that becomes a check-in station goes to the end of the order; one that stops being one leaves it.
   // Only a form with the check-in stop field changes it (a band contest's); any other form keeps what's saved.
   const kind = checkpointKind(formData);
@@ -494,6 +514,7 @@ export async function updateStation(
       ...(formData.has("location") ? { location: v.location } : {}),
       instructions: v.instructions,
       adults_only: formData.get("adultsOnly") === "on",
+      ...minAdultsOf(formData),
       ...zoneOf(formData),
       // Time slots or items to bring; the database only lets it change while the sign-up is empty.
       ...(formData.get("signupKind") === "shifts" || formData.get("signupKind") === "items" ? { signup_kind: String(formData.get("signupKind")) } : {}),
@@ -725,10 +746,15 @@ export async function createShift(
   return { ok: true, message: `Added “${title}”.` };
 }
 
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a time.");
 const generateSchema = z.object({
   // Half-hour steps, 30 minutes to 12 hours.
   blockHours: z.coerce.number().min(0.5).max(12).refine((h) => Number.isInteger(h * 2), "Pick a shift length in half hours."),
   capacity: z.coerce.number().int().min(1, "At least 1").max(500),
+  // The stretch to fill (the event's hours unless changed), and how early each later shift starts.
+  fromTime: clock.optional(),
+  toTime: clock.optional(),
+  overlap: z.coerce.number().int().min(0).max(60).default(0),
 });
 
 /**
@@ -745,7 +771,7 @@ export async function generateShifts(
   await requireUser();
   const parsed = generateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
-  const { blockHours, capacity } = parsed.data;
+  const { blockHours, capacity, overlap } = parsed.data;
 
   const event = await loadEventTiming(eventId);
   if (!event) return { error: "Event not found." };
@@ -759,28 +785,29 @@ export async function generateShifts(
     };
   }
 
-  const dayStart = utcToZonedTime(event.window_start, event.timezone);
-  const dayEnd = utcToZonedTime(event.window_end, event.timezone);
+  const from = parsed.data.fromTime ?? utcToZonedTime(event.window_start, event.timezone).slice(0, 5);
+  const to = parsed.data.toTime ?? utcToZonedTime(event.window_end, event.timezone).slice(0, 5);
   const days = eachDate(event.starts_on, event.ends_on);
-  const blockMs = blockHours * 60 * 60 * 1000;
+  if (from === to) return { error: "To has to be later than From." };
+  const plan = planShifts(toMinutes(from), toMinutes(to), blockHours * 60, overlap);
 
   const rows: { station_id: string; title: string; starts_at: string; ends_at: string; max_capacity: number }[] = [];
   for (const day of days) {
-    const start = zonedToUtc(day, dayStart, event.timezone).getTime();
-    const end = zonedToUtc(day, dayEnd, event.timezone).getTime();
-    for (let t = start; t < end; t += blockMs) {
-      const blockEnd = Math.min(t + blockMs, end);
+    // Each shift from the day's midnight in the event's time zone (a To before From runs past midnight).
+    const midnight = zonedToUtc(day, "00:00", event.timezone).getTime();
+    for (const p of plan) {
+      const starts = new Date(midnight + p.start * 60_000);
       rows.push({
         station_id: stationId,
-        title: shiftTitle(new Date(t), event.timezone),
-        starts_at: new Date(t).toISOString(),
-        ends_at: new Date(blockEnd).toISOString(),
+        title: shiftTitle(starts, event.timezone),
+        starts_at: starts.toISOString(),
+        ends_at: new Date(midnight + p.end * 60_000).toISOString(),
         max_capacity: capacity,
       });
     }
   }
 
-  if (rows.length === 0) return { error: "The event's times leave no room for shifts. Check its start and end times." };
+  if (rows.length === 0) return { error: "Those times leave no room for shifts. Check From and To." };
   const replaced = existing?.length ?? 0;
   // The new shifts go in first, then the old empty ones come out, so a live event's
   // only job is never left with nothing to sign up for (the database refuses that).
