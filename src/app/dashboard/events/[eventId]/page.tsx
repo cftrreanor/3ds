@@ -34,7 +34,7 @@ import { EventBannerSlot } from "@/components/event-banner-slot";
 import { liveEventBanners } from "@/lib/event-banners";
 import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
-import { bookingWords, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
+import { bookingWords, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords, usesJobs } from "@/lib/event-types";
 import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, weeklySummary } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
@@ -798,10 +798,12 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
                 ? "Your rooms, the path every group follows, and each group's times."
                 : "The running order, breaks, and finals. Directors are emailed their times when you publish the schedule."}
             </span>
-            {event.event_type === "band_contest" && published && !event.performance_order_published && !past && (
-              // When to post times by, and why: directors book buses from them.
+            {event.event_type === "band_contest" && !event.performance_order_published && !past && (
+              // When to post times by, and why: directors book buses from them. Before publishing, it's later work.
               <span className="basis-full text-sm">
-                <span className="font-semibold">Publish by {formatDate(twoWeeksBefore(event.starts_on), { year: undefined })}</span>
+                <span className="font-semibold">
+                  {published ? "Publish by" : "After you publish registration, by"} {formatDate(twoWeeksBefore(event.starts_on), { year: undefined })}
+                </span>
                 <span className="text-muted">, two weeks before contest day, so directors can book buses</span>
               </span>
             )}
@@ -814,7 +816,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ) : null;
 
   // A published volunteer event's jobs with no shift or thing to bring (hosts only, from the setup facts).
-  const liveEmpty = published && event.event_type === "volunteer" ? (setup?.emptyJobs ?? []) : [];
+  const liveEmpty = published && usesJobs(event.event_type) ? (setup?.emptyJobs ?? []) : [];
   // A published event with no volunteer jobs at all: the card's button becomes "Add a job".
   const noJobsYet = published && stations.length === 0;
   const volunteers =
@@ -831,7 +833,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               )}
               {!noJobsYet && (
               <span className="text-sm text-muted">
-                {event.event_type === "volunteer"
+                {usesJobs(event.event_type)
                   ? `${stations.length} ${stations.length === 1 ? "job" : "jobs"}${liveEmpty.length ? ` · ${liveEmpty.length} not on the sign-up page yet` : ""}`
                   : `${stations.length} sign-up${stations.length === 1 ? "" : "s"} · ${(shifts ?? []).length} shift${(shifts ?? []).length === 1 ? "" : "s"}`}
               </span>
@@ -845,7 +847,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               )}
             </div>
             <Link href={`/dashboard/events/${eventId}/volunteering`} className={BTN_OUTLINE}>
-              {noJobsYet ? "Add a job" : event.event_type === "volunteer" ? "Jobs and shifts" : "Manage volunteers"}
+              {noJobsYet ? "Add a job" : usesJobs(event.event_type) ? "Jobs and shifts" : "Manage volunteers"}
             </Link>
           </div>
           {/* Live, with a job nobody can sign up for yet: say so where the organizer checks in, with the fix. */}
@@ -969,7 +971,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
           ["publish", "attention", "signups", "schedule", "volunteers", ...((setup?.readyJobs ?? 1) > 0 ? ["day"] : []), "files"]
         : event.event_type === "band_contest"
           ? // A band contest too: the publish card leads, naming what registration still needs, or with the button.
-            ["publish", "attention", "signups", "schedule", "volunteers", "day", "files"]
+            // Then the setup order: registration, volunteers (optional), and the schedule, which comes after publishing.
+            ["publish", "attention", "signups", "volunteers", "schedule", "day", "files"]
           : ["next", "attention", "signups", "schedule", "volunteers", "publish", "day", "files"];
   const labels: Record<string, string> = {
     day: dayTitle,

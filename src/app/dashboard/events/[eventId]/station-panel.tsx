@@ -158,7 +158,9 @@ export function StationPanel({
             <h3 className="font-semibold">{station.name}</h3>
             {station.checkpoint_kind && (
               <Badge tone="info">
-                Check-in stop {station.checkpoint_order} · {kindLabel(station.checkpoint_kind)}
+                {job?.stops
+                  ? `Stop ${station.checkpoint_order} of ${job.stops} · ${kindLabel(station.checkpoint_kind)}`
+                  : `Check-in stop ${station.checkpoint_order} · ${kindLabel(station.checkpoint_kind)}`}
               </Badge>
             )}
             {station.adults_only && <Badge>Adults only (18+)</Badge>}
@@ -199,6 +201,8 @@ export function StationPanel({
                 ready={job.ready}
                 allReady={job.allReady}
                 items={job.items}
+                bands={hasBands(event.event_type)}
+                openMore={job.openMore}
               />
             ) : (
             <StationForm

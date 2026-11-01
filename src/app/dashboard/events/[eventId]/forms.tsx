@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { NumberInput } from "@/components/number-input";
@@ -116,38 +117,7 @@ export function StationForm({
         </div>
       )}
       {signupKind && <h3 className="border-t border-border pt-4 text-base font-semibold sm:col-span-2">{job ? "Job details" : "Sign-up details"}</h3>}
-      {bands && (
-      <Field
-        label="Check-in stop?"
-        hint="Check-in stops are the places a band goes through on contest day, in the order you set. Their Coordinators tap bands in."
-      >
-        <Select name="checkpointKind" value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">No, a regular sign-up (concessions, hospitality…)</option>
-          {CHECKPOINT_KINDS.map((k) => (
-            <option key={k.value} value={k.value}>
-              {k.label}: {k.hint}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      )}
-      {bands && (kind === "parking" || kind === "stop") && (
-        <Field
-          label="Due how many minutes before the band's warm-up?"
-          hint={
-            kind === "parking"
-              ? "Bands not fully parked by then are flagged Late, so you have time to adjust the schedule."
-              : "Optional. Leave blank if this stop has no deadline."
-          }
-        >
-          <NumberInput
-            key={kind}
-            name="dueMinutes"
-            maxLength={3}
-            defaultValue={initial?.checkpoint_kind === kind ? (initial.due_minutes_before_warm_up ?? "") : kind === "parking" ? 60 : ""}
-          />
-        </Field>
-      )}
+      {bands && <CheckInStopFields kind={kind} setKind={setKind} initial={initial} />}
       {zones && (
         <Field label="Zone" hint="Optional. Groups sign-ups on the event's pages. Use one of these or make up your own.">
           <ZoneInput zones={zones} defaultValue={initial?.zone} />
@@ -522,7 +492,7 @@ function AgeRules({ adultsOnly: savedAdults, minAge }: { adultsOnly: boolean; mi
       </label>
       {!adults && (
         <Field label="Minimum age for under-18s" hint="Optional. Leave blank for any age. Younger volunteers see this time slot greyed out.">
-          <div className="w-24">
+          <div className="w-24!">
             <NumberInput name="minAge" defaultValue={minAge ?? ""} maxLength={2} placeholder="e.g. 14" />
           </div>
         </Field>
@@ -1144,5 +1114,76 @@ export function ActionButton({
         {children}
       </SubmitButton>
     </ActionForm>
+  );
+}
+
+/**
+ * A band contest's job as a stop on the bands' contest-day path (Parking, Check-in point, Warm-up, Gate),
+ * and for Parking or a check-in point, how long before warm-up a band is due. Short choices, with what
+ * the chosen one does said under the field. `formId` ties the fields to a form they're drawn outside of.
+ */
+export function CheckInStopFields({
+  kind,
+  setKind,
+  initial,
+  formId,
+  orderHref,
+}: {
+  kind: string;
+  setKind: (k: string) => void;
+  initial?: { checkpoint_kind?: CheckpointKind | null; due_minutes_before_warm_up?: number | null } | null;
+  formId?: string;
+  /** The Band check-in order tab, linked from the hint. */
+  orderHref?: string;
+}) {
+  const chosen = CHECKPOINT_KINDS.find((k) => k.value === kind);
+  return (
+    <>
+      <Field
+        label="Band check-in stop"
+        hint={
+          <>
+            {chosen ? chosen.hint : "Not a stop: a regular job, like concessions."} A stop is a place bands go through on contest day. Its
+            Coordinators check bands in there.{" "}
+            {orderHref ? (
+              <Link href={orderHref} scroll={false} className="font-medium text-brand underline underline-offset-4">
+                Set the order of stops
+              </Link>
+            ) : null}
+          </>
+        }
+      >
+        <Select name="checkpointKind" form={formId} value={kind} onChange={(e) => setKind(e.target.value)}>
+          <option value="">Not a stop</option>
+          {CHECKPOINT_KINDS.map((k) => (
+            <option key={k.value} value={k.value}>
+              {k.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {(kind === "parking" || kind === "stop") && (
+        <Field
+          label="Minutes before warm-up"
+          hint={
+            kind === "parking"
+              ? "When a band should be fully parked. After that, it shows as Late on contest day so you can adjust."
+              : "When a band should be here. Leave blank if there's no deadline."
+          }
+        >
+          <span className="flex items-center gap-2">
+            <NumberInput
+              key={kind}
+              name="dueMinutes"
+              form={formId}
+              maxLength={3}
+              className="w-24!"
+              defaultValue={initial?.checkpoint_kind === kind ? (initial.due_minutes_before_warm_up ?? "") : kind === "parking" ? 60 : ""}
+            />
+            <span className="text-sm text-muted">minutes</span>
+          </span>
+        </Field>
+      )}
+    </>
   );
 }

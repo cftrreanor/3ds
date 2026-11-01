@@ -19,9 +19,10 @@ import { importFields, type Choice } from "@/lib/imports";
 import { createStation, moveCheckpoint, publishAndOpenSignups, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, NewStationForm, type LeadOption } from "../forms";
 import { StationTabs, UnsavedChangesProvider } from "./station-steps";
-import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
+import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords, usesJobs } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
-import { TapButton } from "../contest-day/controls";
+import { CheckInOrderList } from "./check-in-order";
+import { twoWeeksBefore } from "@/lib/setup-checklist";
 import { JobSignups, StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
 import { SavedBy } from "@/components/saved-by";
 import { volunteerTotals } from "@/lib/volunteer-totals";
@@ -30,7 +31,7 @@ import { LineIcon } from "@/components/line-icon";
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/volunteering">): Promise<Metadata> {
   const { eventId } = await params;
   const { data } = await (await createClient()).from("events").select("event_type").eq("id", eventId).maybeSingle();
-  return { title: data?.event_type === "volunteer" ? "Volunteer jobs" : "Volunteer Setup" };
+  return { title: usesJobs(data?.event_type) ? "Volunteer jobs" : "Volunteer Setup" };
 }
 
 type HostRow = { user_id: string; role: "owner" | "admin"; profiles: { full_name: string; email: string } | null };
@@ -42,7 +43,7 @@ const HOST_LABEL = { owner: "Host", admin: "Co-host" } as const;
 /** Volunteer sign-up and one tab per station (section) with its own shift schedule. */
 export default async function VolunteeringPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/volunteering">) {
   const { eventId } = await params;
-  const { station: tab } = await searchParams;
+  const { station: tab, more } = await searchParams;
   const access = await getEventAccess(eventId);
   if (!access.canManage) redirect(`/dashboard/events/${eventId}`);
   const user = await requireUser();
@@ -89,8 +90,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   ]);
   // Check-in stations first, in the band's order, matching the volunteer sign-up page.
   if (stationsError) missing();
-  // A volunteer event's jobs: the setup redesign's words, layout, and saving as you type.
-  const jobsHere = event.event_type === "volunteer";
+  // A volunteer event's (or band contest's) jobs: the setup redesign's words, layout, and saving as you type.
+  const jobsHere = usesJobs(event.event_type);
+  const bandsHere = hasBands(event.event_type);
   const published = event.status === "published";
   const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
     ...st,
@@ -324,7 +326,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   href={`/dashboard/events/${eventId}/volunteers`}
                   className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium hover:bg-background"
                 >
-                  Check-in
+                  Volunteer check-in
                 </Link>
                 <Link
                   href={`/dashboard/events/${eventId}/volunteering/badges`}
@@ -393,7 +395,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         {!(jobsHere && stations.length > 0) && (
           <p className="mt-1 mb-4 text-sm text-muted">
             {jobsHere
-              ? "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
+              ? bandsHere
+                ? "A job is a way to help, like parking, concessions, or the gate, or a list of things to bring, like water for the judges. Volunteers pick a shift or an item. A job can also be a check-in stop that bands go through on contest day."
+                : "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
               : "Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items."}
           </p>
         )}
@@ -417,6 +421,8 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 filled: own.reduce((n, x) => n + x.registered_count, 0) + itemsHere.reduce((n, x) => n + x.claimed_count, 0),
                 capacity: own.reduce((n, x) => n + x.max_capacity, 0) + itemsHere.reduce((n, x) => n + x.needed, 0),
                 job: jobsHere,
+                stop: jobsHere ? (st.checkpoint_order ?? undefined) : undefined,
+                needsLead: jobsHere && Boolean(st.checkpoint_kind) && st.lead_ids.length === 0,
               };
             })}
             add={jobsHere ? (adding && stations.length > 0 ? { href: tabHref("new"), active: true, label: "New job" } : undefined) : { href: tabHref("new"), active: adding }}
@@ -437,8 +443,13 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 ? [
                     {
                       key: "order",
-                      label: "Check-in order",
-                      status: checkpoints.length ? `${checkpoints.length} ${checkpoints.length === 1 ? "stop" : "stops"}` : "No stops yet",
+                      label: jobsHere ? "Band check-in order" : "Check-in order",
+                      // Before publishing, the order is later work: say when it's due instead.
+                      status: checkpoints.length
+                        ? `${checkpoints.length} ${checkpoints.length === 1 ? "stop" : "stops"}`
+                        : !published && jobsHere
+                          ? `After you publish · Due ${formatDate(twoWeeksBefore(event.starts_on), { year: undefined })}`
+                          : "No stops yet",
                       href: tabHref("order"),
                       active: other === "order",
                     },
@@ -468,7 +479,11 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 roster={roster}
                 kindLocked={
                   current.checkpoint_kind
-                    ? "A check-in stop always takes time slots."
+                    ? jobsHere
+                      ? currentShifts.length
+                        ? "Check-in stops always take shifts. To switch to things to bring, set Band check-in stop to Not a stop in More options, then delete this job's shifts."
+                        : "Check-in stops always take shifts. To switch to things to bring, set Band check-in stop to Not a stop in More options."
+                      : "A check-in stop always takes time slots."
                     : current.signup_kind === "items"
                       ? currentItems.length
                         ? `To switch to ${jobsHere ? "shifts" : "time slots"}, first delete this ${jobsHere ? "job" : "sign-up"}'s items.`
@@ -485,12 +500,17 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                         ready: hasSome(current),
                         allReady: stations.every(hasSome),
                         items: current.signup_kind === "items",
+                        stops: bandsHere ? checkpoints.length : undefined,
+                        openMore: more === "1",
                         links: {
+                          order: bandsHere ? tabHref("order") : undefined,
                           addJob: tabHref("new"),
                           preview: previewHref,
                           next: published
                             ? { href: `/dashboard/events/${eventId}`, label: "Back to the event" }
-                            : { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish your event" },
+                            : bandsHere
+                              ? { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish registration" }
+                              : { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish your event" },
                         },
                       }
                     : undefined
@@ -502,48 +522,60 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
               </Card>
             ) : other === "order" ? (
               <Card>
-                <h3 className="text-lg font-semibold">Check-in order</h3>
+                <h3 className="font-semibold">{jobsHere ? "Band check-in order" : "Check-in order"}</h3>
                 {checkpoints.length > 0 ? (
                   <>
                     <p className="mt-0.5 text-sm text-muted">
-                      The stops each band goes through on contest day. This order sorts the sign-up tabs here and on the sign-up
-                      page, and is how we tell whether a band is on track.
+                      The stops each band goes through on contest day, in order. Contest-day screens use this order to show whether
+                      each band is on track. Stops also come first in the job tabs, in this order.
                     </p>
-                    <ol className="mt-3 space-y-2">
-                      {checkpoints.map((c, i) => (
-                        <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
-                          <span className="w-5 text-sm font-semibold text-muted">{i + 1}</span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{c.name}</span>
-                            <span className="block text-xs text-muted">{kindLabel(c.checkpoint_kind!)}</span>
-                          </span>
-                          {i > 0 && (
-                            <TapButton
-                              action={moveCheckpoint.bind(null, eventId, c.id, "up")}
-                              variant="ghost"
-                              className="[&_button]:min-h-9 [&_button]:px-2"
-                            >
-                              <span aria-label={`Move ${c.name} earlier`}>↑</span>
-                            </TapButton>
-                          )}
-                          {i < checkpoints.length - 1 && (
-                            <TapButton
-                              action={moveCheckpoint.bind(null, eventId, c.id, "down")}
-                              variant="ghost"
-                              className="[&_button]:min-h-9 [&_button]:px-2"
-                            >
-                              <span aria-label={`Move ${c.name} later`}>↓</span>
-                            </TapButton>
-                          )}
-                        </li>
-                      ))}
-                    </ol>
+                    <CheckInOrderList
+                      stops={checkpoints.map((c, i) => {
+                        const own = ownShifts(c.id);
+                        return {
+                          id: c.id,
+                          name: c.name,
+                          href: tabHref(c.id),
+                          detail: [
+                            kindLabel(c.checkpoint_kind!),
+                            c.due_minutes_before_warm_up != null ? `Due ${c.due_minutes_before_warm_up} minutes before warm-up` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · "),
+                          needs: !own.length ? "Needs a shift" : c.lead_ids.length === 0 ? "Needs a Coordinator to check bands in" : null,
+                          up: i > 0 ? moveCheckpoint.bind(null, eventId, c.id, "up") : undefined,
+                          down: i < checkpoints.length - 1 ? moveCheckpoint.bind(null, eventId, c.id, "down") : undefined,
+                        };
+                      })}
+                    />
                   </>
                 ) : (
                   <p className="mt-0.5 text-sm text-muted">
-                    None yet. In a station&apos;s settings, choose what kind of check-in station it is (Parking, Check-in point,
-                    Warm-up or Gate) to add it to the bands&apos; path.
+                    {jobsHere
+                      ? "No stops yet. A stop is a place bands go through on contest day, like Parking or the Gate. Choose a job to make it one."
+                      : "None yet. In a station's settings, choose what kind of check-in station it is (Parking, Check-in point, Warm-up or Gate) to add it to the bands' path."}
                   </p>
+                )}
+                {jobsHere && stations.some((s) => !s.checkpoint_kind && s.signup_kind !== "items") && (
+                  // The way to add a stop from here: each job that could be one, opening its More options.
+                  <div className="mt-4 border-t border-border pt-3">
+                    <p className="text-sm font-semibold">{checkpoints.length ? "Make another job a stop" : "Make a job a stop"}</p>
+                    <ul className="mt-1 flex flex-wrap gap-x-4">
+                      {stations
+                        .filter((s) => !s.checkpoint_kind && s.signup_kind !== "items")
+                        .map((s) => (
+                          <li key={s.id}>
+                            <Link
+                              href={`${tabHref(s.id)}&more=1`}
+                              scroll={false}
+                              className="inline-flex min-h-11 items-center text-sm font-medium text-brand underline underline-offset-4"
+                            >
+                              {s.name}
+                            </Link>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
                 )}
               </Card>
             ) : (
@@ -557,6 +589,15 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                     : "Name it and choose its type. You'll add its details, Coordinators, and time slots or items next."}
                 </p>
                 <NewStationForm action={createStation.bind(null, eventId)} openTab job={jobsHere} />
+                {bandsHere && !published && stations.length === 0 && (
+                  // Volunteers are optional before publishing: the way on without any.
+                  <p className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border pt-3 text-sm">
+                    <span className="text-muted">No volunteer jobs yet? Add them any time before contest day.</span>
+                    <Link href={`/dashboard/events/${eventId}#publish`} className="inline-flex min-h-11 items-center font-semibold text-brand underline underline-offset-4">
+                      Next up: Publish registration →
+                    </Link>
+                  </p>
+                )}
               </Card>
             )}
           </div>
