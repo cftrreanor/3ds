@@ -34,7 +34,7 @@ import { EventBannerSlot } from "@/components/event-banner-slot";
 import { liveEventBanners } from "@/lib/event-banners";
 import { BoothsCard } from "./booths/booths-card";
 import { FileLinks } from "@/components/file-links";
-import { bookingWords, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords } from "@/lib/event-types";
+import { bookingWords, eventTypeLabel, groupWords, hasBands, hasBooths, hasConferences, hasEnsembles, hasParents, hasRooms, leadWords, usesJobs } from "@/lib/event-types";
 import { meetingStarts, meetingSummary, modesLabel, modesOf, notReady, weeklySummary } from "@/lib/conferences";
 import { loadConferenceSettings } from "@/lib/conference-settings";
 import { groupDay, groupDaySummary, type GroupCheckin, type GroupSlot } from "@/lib/group-day";
@@ -814,7 +814,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
     ) : null;
 
   // A published volunteer event's jobs with no shift or thing to bring (hosts only, from the setup facts).
-  const liveEmpty = published && event.event_type === "volunteer" ? (setup?.emptyJobs ?? []) : [];
+  const liveEmpty = published && usesJobs(event.event_type) ? (setup?.emptyJobs ?? []) : [];
   // A published event with no volunteer jobs at all: the card's button becomes "Add a job".
   const noJobsYet = published && stations.length === 0;
   const volunteers =
@@ -831,7 +831,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               )}
               {!noJobsYet && (
               <span className="text-sm text-muted">
-                {event.event_type === "volunteer"
+                {usesJobs(event.event_type)
                   ? `${stations.length} ${stations.length === 1 ? "job" : "jobs"}${liveEmpty.length ? ` · ${liveEmpty.length} not on the sign-up page yet` : ""}`
                   : `${stations.length} sign-up${stations.length === 1 ? "" : "s"} · ${(shifts ?? []).length} shift${(shifts ?? []).length === 1 ? "" : "s"}`}
               </span>
@@ -845,7 +845,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
               )}
             </div>
             <Link href={`/dashboard/events/${eventId}/volunteering`} className={BTN_OUTLINE}>
-              {noJobsYet ? "Add a job" : event.event_type === "volunteer" ? "Jobs and shifts" : "Manage volunteers"}
+              {noJobsYet ? "Add a job" : usesJobs(event.event_type) ? "Jobs and shifts" : "Manage volunteers"}
             </Link>
           </div>
           {/* Live, with a job nobody can sign up for yet: say so where the organizer checks in, with the fix. */}

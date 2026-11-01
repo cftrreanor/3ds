@@ -473,17 +473,23 @@ export async function updateStation(
 
   const supabase = await createClient();
   // A station that becomes a check-in station goes to the end of the order; one that stops being one leaves it.
+  // Only a form with the check-in stop field changes it (a band contest's); any other form keeps what's saved.
   const kind = checkpointKind(formData);
+  const stopField = formData.has("checkpointKind");
   const { data: current } = await supabase.from("stations").select("checkpoint_order").eq("id", stationId).maybeSingle();
   const order = kind ? (current?.checkpoint_order ?? (await nextCheckpointOrder(supabase, eventId))) : null;
   const { data: updated, error } = await supabase
     .from("stations")
     .update({
       name: v.name,
-      station_type: kind ? "active_checkpoint" : "passive",
-      checkpoint_kind: kind,
-      checkpoint_order: order,
-      due_minutes_before_warm_up: dueMinutes(formData, kind),
+      ...(stopField
+        ? {
+            station_type: kind ? "active_checkpoint" : "passive",
+            checkpoint_kind: kind,
+            checkpoint_order: order,
+            due_minutes_before_warm_up: dueMinutes(formData, kind),
+          }
+        : {}),
       // A volunteer event's job has no check-in place of its own (the event's address covers it): keep what's saved.
       ...(formData.has("location") ? { location: v.location } : {}),
       instructions: v.instructions,

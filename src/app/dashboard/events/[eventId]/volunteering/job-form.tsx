@@ -8,7 +8,8 @@ import { ActionForm } from "@/components/action-form";
 import { confirmDialog } from "@/components/confirm-dialog";
 import { Field, Input, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { BinIcon, CoordinatorPicker, type LeadOption } from "../forms";
+import { BinIcon, CheckInStopFields, CoordinatorPicker, type LeadOption } from "../forms";
+import type { CheckpointKind } from "@/lib/contest-day";
 import type { JobLinks } from "./job-parts";
 import { flushPending, pendingCounts, setPending, settled, usePendingCounts } from "@/components/pending-edits";
 import { useStepEdits } from "./station-steps";
@@ -24,7 +25,7 @@ const OFFLINE = "Check your connection, then try again.";
 type SaveState = "idle" | "waiting" | "saving" | "saved" | "failed";
 
 /**
- * A volunteer event's job: its name here (right under "Shifts / Things to bring"), then "More options"
+ * A volunteer event's (or band contest's) job: its name here (right under "Shifts / Things to bring"), then "More options"
  * drawn further down the card, after its shifts or things to bring. Everything saves itself a moment
  * after the last change; the bar pinned to the bottom says so, and holds Delete job and Add another job.
  */
@@ -39,10 +40,18 @@ export function JobForm({
   ready,
   allReady,
   items,
+  bands,
 }: {
   action: Action;
   remove: () => Promise<ActionState>;
-  initial: { name: string; instructions: string | null; adults_only?: boolean; lead_ids?: string[] };
+  initial: {
+    name: string;
+    instructions: string | null;
+    adults_only?: boolean;
+    lead_ids?: string[];
+    checkpoint_kind?: CheckpointKind | null;
+    due_minutes_before_warm_up?: number | null;
+  };
   coordinators: { options: LeadOption[]; pending: string[]; invite: Action };
   leadLabel: string;
   links: JobLinks;
@@ -51,8 +60,13 @@ export function JobForm({
   ready: boolean;
   allReady: boolean;
   items: boolean;
+  /** A band contest: the job can be a stop on the bands' contest-day check-in path. */
+  bands?: boolean;
 }) {
   const [save, setSave] = useState<SaveState>("idle");
+  const [stop, setStop] = useState<string>(initial.checkpoint_kind ?? "");
+  // Only a job that takes shifts can be a check-in stop (its Coordinators work shifts there).
+  const stopHere = bands && !items;
   const [why, setWhy] = useState<string | null>(null);
   const setEdited = useStepEdits("details");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -193,19 +207,20 @@ export function JobForm({
   return (
     <ActionForm id={FORM} action={save$} className="space-y-3" resetOnSuccess={false} onEdit={changed}>
       <input type="hidden" name="noun" value="job" />
-      <Field label="Job name" hint="Like Parking, Litter pickup, or Supplies to bring">
+      <Field label="Job name" hint={bands ? "Like Spectator parking, Concessions, or the Gate" : "Like Parking, Litter pickup, or Supplies to bring"}>
         <Input name="name" required maxLength={80} defaultValue={initial.name} />
       </Field>
       <InSlot id="job-more">
         <details className="group rounded-lg border border-border">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            More options: Coordinators, instructions, and adults only
+            {stopHere ? "More options: check-in stop, Coordinators, instructions, and adults only" : "More options: Coordinators, instructions, and adults only"}
             <span aria-hidden className="text-brand transition group-open:rotate-90">
               ›
             </span>
           </summary>
           {/* Drawn outside the form: each field names it (form=), and React still passes edits up to it. */}
           <div className="space-y-3 border-t border-border p-3">
+            {stopHere && <CheckInStopFields kind={stop} setKind={setStop} initial={initial} formId={FORM} job />}
             <CoordinatorPicker label={leadLabel} initial={initial.lead_ids ?? []} onChange={changed} formId={FORM} {...coordinators} />
             <Field label="Instructions for volunteers" hint="Optional. What to wear, bring, and do.">
               <Textarea name="instructions" form={FORM} defaultValue={initial.instructions ?? ""} />
@@ -221,7 +236,7 @@ export function JobForm({
         </details>
       </InSlot>
       <InSlot id="signup-bar">
-        <JobBar save={save} why={why} pending={pending} retry={submit} remove={remove} links={links} signedUp={signedUp} ready={ready} allReady={allReady} items={items} />
+        <JobBar save={save} why={why} pending={pending} retry={submit} remove={remove} links={links} signedUp={signedUp} ready={ready} allReady={allReady} items={items} bands={bands} />
       </InSlot>
     </ActionForm>
   );
@@ -261,6 +276,7 @@ function JobBar({
   ready,
   allReady,
   items,
+  bands,
 }: {
   save: SaveState;
   why: string | null;
@@ -272,6 +288,8 @@ function JobBar({
   ready: boolean;
   allReady: boolean;
   items: boolean;
+  /** A band contest publishes without volunteer jobs, so an empty job never holds back the next step. */
+  bands?: boolean;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -342,7 +360,7 @@ function JobBar({
       {!ready && (
         <p id="job-bar-note" className="text-sm font-medium text-warning">
           <span aria-hidden>◆ </span>
-          Add {needs} to this job before you publish. Volunteers can&apos;t see it until it has one.
+          {bands ? `Add ${needs} to this job. Volunteers can't see it until it has one.` : <>Add {needs} to this job before you publish. Volunteers can&apos;t see it until it has one.</>}
         </p>
       )}
       {signedUp && (
@@ -359,7 +377,7 @@ function JobBar({
         <a href={links.preview} target="_blank" className="inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline">
           Preview the sign-up page
         </a>
-        {!ready ? (
+        {!ready && !bands ? (
           <span
             role="link"
             aria-disabled="true"
@@ -368,7 +386,7 @@ function JobBar({
           >
             {links.next.label} →
           </span>
-        ) : allReady ? (
+        ) : allReady && ready ? (
           <Link href={links.next.href} className={filled}>
             {links.next.label} →
           </Link>

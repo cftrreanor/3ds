@@ -56,6 +56,9 @@ export const hasBands = (type: string | null | undefined) => !type || type === "
 export const hasEnsembles = (type: string | null | undefined) => hasBands(type) || type === "group_event";
 
 /** Rooms, and each group's path through them: group events. */
+/** Volunteer events and band contests set up volunteers as jobs (the short job form that saves as you type). */
+export const usesJobs = (type: string | null | undefined) => type === "volunteer" || type === "band_contest";
+
 export const hasRooms = (type: string | null | undefined) => type === "group_event";
 
 /** What a registered group is called: "band" or "group". */

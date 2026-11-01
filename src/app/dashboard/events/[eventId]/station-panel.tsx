@@ -199,6 +199,7 @@ export function StationPanel({
                 ready={job.ready}
                 allReady={job.allReady}
                 items={job.items}
+                bands={hasBands(event.event_type)}
               />
             ) : (
             <StationForm

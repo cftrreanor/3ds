@@ -19,7 +19,7 @@ import { importFields, type Choice } from "@/lib/imports";
 import { createStation, moveCheckpoint, publishAndOpenSignups, setVolunteerSignupOpen } from "../../../actions";
 import { ActionButton, CopyLinkButton, NewStationForm, type LeadOption } from "../forms";
 import { StationTabs, UnsavedChangesProvider } from "./station-steps";
-import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords } from "@/lib/event-types";
+import { FAIR_ZONES, hasBands, hasBooths, hasRooms, leadWords, usesJobs } from "@/lib/event-types";
 import { kindLabel, sortStations } from "@/lib/contest-day";
 import { TapButton } from "../contest-day/controls";
 import { JobSignups, StationPanel, type ItemSignup, type RosterEntry, type Shift, type Station, type StationItem } from "../station-panel";
@@ -30,7 +30,7 @@ import { LineIcon } from "@/components/line-icon";
 export async function generateMetadata({ params }: PageProps<"/dashboard/events/[eventId]/volunteering">): Promise<Metadata> {
   const { eventId } = await params;
   const { data } = await (await createClient()).from("events").select("event_type").eq("id", eventId).maybeSingle();
-  return { title: data?.event_type === "volunteer" ? "Volunteer jobs" : "Volunteer Setup" };
+  return { title: usesJobs(data?.event_type) ? "Volunteer jobs" : "Volunteer Setup" };
 }
 
 type HostRow = { user_id: string; role: "owner" | "admin"; profiles: { full_name: string; email: string } | null };
@@ -89,8 +89,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
   ]);
   // Check-in stations first, in the band's order, matching the volunteer sign-up page.
   if (stationsError) missing();
-  // A volunteer event's jobs: the setup redesign's words, layout, and saving as you type.
-  const jobsHere = event.event_type === "volunteer";
+  // A volunteer event's (or band contest's) jobs: the setup redesign's words, layout, and saving as you type.
+  const jobsHere = usesJobs(event.event_type);
+  const bandsHere = hasBands(event.event_type);
   const published = event.status === "published";
   const stations = sortStations((stationData ?? []) as unknown as Omit<Station, "lead_ids">[]).map((st) => ({
     ...st,
@@ -393,7 +394,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
         {!(jobsHere && stations.length > 0) && (
           <p className="mt-1 mb-4 text-sm text-muted">
             {jobsHere
-              ? "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
+              ? bandsHere
+                ? "A job is a way to help, like parking, concessions, or the gate, or a list of things to bring, like water for the judges. Volunteers pick a shift or an item. A job can also be a check-in stop that bands go through on contest day."
+                : "A job is a way to help, like parking or picking up litter, or a list of things to bring, like water and trash bags. Volunteers pick a shift or an item."
               : "Each sign-up is a job, a place, or a list of things to bring, like Parking, Concessions, or a potluck. People sign up for its time slots or its items."}
           </p>
         )}
@@ -468,7 +471,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 roster={roster}
                 kindLocked={
                   current.checkpoint_kind
-                    ? "A check-in stop always takes time slots."
+                    ? jobsHere
+                      ? "A check-in stop always takes shifts. To change this, set its check-in stop to None in More options."
+                      : "A check-in stop always takes time slots."
                     : current.signup_kind === "items"
                       ? currentItems.length
                         ? `To switch to ${jobsHere ? "shifts" : "time slots"}, first delete this ${jobsHere ? "job" : "sign-up"}'s items.`
@@ -488,7 +493,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                         links: {
                           addJob: tabHref("new"),
                           preview: previewHref,
-                          next: published
+                          next: published || bandsHere
                             ? { href: `/dashboard/events/${eventId}`, label: "Back to the event" }
                             : { href: `/dashboard/events/${eventId}#publish`, label: "Next up: Publish your event" },
                         },
@@ -506,22 +511,28 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                 {checkpoints.length > 0 ? (
                   <>
                     <p className="mt-0.5 text-sm text-muted">
-                      The stops each band goes through on contest day. This order sorts the sign-up tabs here and on the sign-up
-                      page, and is how we tell whether a band is on track.
+                      The stops each band goes through on contest day, in order. This is how we tell whether a band is on track.
+                      {jobsHere && " To add a stop or take one away, open its job's More options."}
                     </p>
                     <ol className="mt-3 space-y-2">
                       {checkpoints.map((c, i) => (
                         <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
                           <span className="w-5 text-sm font-semibold text-muted">{i + 1}</span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">{c.name}</span>
+                            {jobsHere ? (
+                              <Link href={tabHref(c.id)} scroll={false} className="block truncate text-sm font-medium text-brand underline-offset-4 hover:underline">
+                                {c.name}
+                              </Link>
+                            ) : (
+                              <span className="block truncate text-sm font-medium">{c.name}</span>
+                            )}
                             <span className="block text-xs text-muted">{kindLabel(c.checkpoint_kind!)}</span>
                           </span>
                           {i > 0 && (
                             <TapButton
                               action={moveCheckpoint.bind(null, eventId, c.id, "up")}
                               variant="ghost"
-                              className="[&_button]:min-h-9 [&_button]:px-2"
+                              className="[&_button]:min-h-11 [&_button]:min-w-11 [&_button]:px-2"
                             >
                               <span aria-label={`Move ${c.name} earlier`}>↑</span>
                             </TapButton>
@@ -530,7 +541,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                             <TapButton
                               action={moveCheckpoint.bind(null, eventId, c.id, "down")}
                               variant="ghost"
-                              className="[&_button]:min-h-9 [&_button]:px-2"
+                              className="[&_button]:min-h-11 [&_button]:min-w-11 [&_button]:px-2"
                             >
                               <span aria-label={`Move ${c.name} later`}>↓</span>
                             </TapButton>
@@ -541,8 +552,9 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
                   </>
                 ) : (
                   <p className="mt-0.5 text-sm text-muted">
-                    None yet. In a station&apos;s settings, choose what kind of check-in station it is (Parking, Check-in point,
-                    Warm-up or Gate) to add it to the bands&apos; path.
+                    {jobsHere
+                      ? "No stops yet. Open a job's More options and choose its check-in stop (Parking, Check-in point, Warm-up, or Gate). It's added here, and you can change the order."
+                      : "None yet. In a station's settings, choose what kind of check-in station it is (Parking, Check-in point, Warm-up or Gate) to add it to the bands' path."}
                   </p>
                 )}
               </Card>

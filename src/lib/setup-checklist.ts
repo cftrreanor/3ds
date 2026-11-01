@@ -182,7 +182,8 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
         hint: f.startsOn
           ? `Like parking, check-in, and the gate. Due ${formatDate(twoWeeksBefore(f.startsOn), { year: undefined })} if you have volunteers, so they can be placed.`
           : "Like parking, check-in, and the gate.",
-        href: `${base}/volunteering`,
+        // The stops are set in each job; their order has its own tab.
+        href: `${base}/volunteering?station=order`,
         done: f.checkInStops > 0,
         required: false,
       },
@@ -222,7 +223,12 @@ export function setupChecklist(f: SetupFacts): SetupChecklist {
   // A teacher's conference (or someone's meetings) is just them: no volunteers, team or documents.
   if (!hasConferences(f.eventType)) {
     before.push(
-      volunteerEvent ? jobsStep(f, base) : {
+      volunteerEvent
+        ? jobsStep(f, base)
+        : f.eventType === "band_contest"
+          ? // A band contest's jobs work the same way, but publishing doesn't need them.
+            { ...jobsStep(f, base), hint: "Only if you need volunteers.", required: false }
+          : {
         id: "shifts",
         label: "Add volunteer sign-ups and shifts",
         hint: "Only if you need volunteers.",
