@@ -11,7 +11,7 @@ import { Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
-import { OVERLAPS, clockLabel, planShifts, toMinutes } from "@/lib/shift-plan";
+import { OVERLAPS, clockLabel, durationLabel, planShifts, toMinutes } from "@/lib/shift-plan";
 import { setPending, useUnadded } from "@/components/pending-edits";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
 import { copyDialog } from "@/components/confirm-dialog";
@@ -332,7 +332,7 @@ export function GenerateShiftsForm({
   const plan = from && to && length && !backwards ? planShifts(fromMin, toMin, length, overlap) : [];
   // The time zone the event's hours are written in ("8:00 AM – 9:00 PM CDT" → "CDT"), for the preview.
   const zone = windowLabel.match(/\b([A-Z]{2,5})$/)?.[1] ?? "";
-  const span = (p: { start: number; end: number }) => lengthLabel(p.end - p.start);
+  const span = (p: { start: number; end: number }) => durationLabel(p.end - p.start);
   // Outside the event's hours: said quietly, so a typo (6:00 AM for 6:00 PM) gets noticed.
   const eventFrom = windowTimes ? toMinutes(windowTimes.start) : null;
   const eventTo = windowTimes ? toMinutes(windowTimes.end) : null;
@@ -398,19 +398,31 @@ export function GenerateShiftsForm({
         >
           <NumberInput name="capacity" placeholder="e.g. 4" required onChange={(e) => setCapacity(Number(e.target.value) || 0)} />
         </Field>
-        <Field
-          label="Overlap between shifts"
-          hint="Each shift after the first starts this much earlier and runs that much longer, so nobody leaves before the next volunteers arrive."
-          className="col-span-2"
-        >
-          <Select name="overlap" value={overlap} onChange={(e) => setOverlap(Number(e.target.value))} className="sm:max-w-xs">
-            {OVERLAPS.map((m) => (
-              <option key={m} value={m}>
-                {m ? `${m} minutes` : "No overlap"}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {/* Off unless asked for; once ticked, how much (15 minutes to start). */}
+        <div className="col-span-2 space-y-2">
+          <label className="flex min-h-11 items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={overlap > 0}
+              onChange={(e) => setOverlap(e.target.checked ? 15 : 0)}
+              className="h-5 w-5 shrink-0 accent-[var(--brand)]"
+            />
+            <span className="font-semibold">Overlap shifts</span>
+          </label>
+          {overlap > 0 ? (
+            <Field label="By how much" hint="Each shift after the first starts this much earlier and runs that much longer, so nobody leaves before the next volunteers arrive.">
+              <Select name="overlap" value={overlap} onChange={(e) => setOverlap(Number(e.target.value))} className="sm:max-w-xs">
+                {OVERLAPS.map((m) => (
+                  <option key={m} value={m}>
+                    {m} minutes
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <input type="hidden" name="overlap" value="0" />
+          )}
+        </div>
       </div>
       {plan.length > 0 && (
         // What it makes, before anything is created: in time order, with each shift's length when it isn't the one picked.

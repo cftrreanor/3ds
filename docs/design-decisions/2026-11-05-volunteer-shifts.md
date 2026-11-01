@@ -27,3 +27,7 @@ Screens in docs/design-reviews/2026-11-05-volunteer-shifts/.
 | — | "2 / 4 filled" vs "2 of 4 filled" | 1 | Take the advice | "2 of 4 filled" |
 | — | One combined "Who can take these shifts?" control | 2 | Keep as is | Adults only and Adults needed stay separate; the number greys out with Adults only |
 | — | "Who's signed up" says no one while rows show 2 filled | 2 | No change | Sample data only |
+
+## Owner follow-up (2026-11-05)
+- From and To start at the event's full hours (they already did; the first screenshot showed a typed-in setup-crew example). Screenshots now show both: 1a the event's hours, 1b a setup crew.
+- Overlap is a tick box, "Overlap shifts", and once ticked a dropdown "By how much" in 5-minute steps up to 30 minutes (15 to start).

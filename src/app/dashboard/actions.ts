@@ -754,7 +754,7 @@ const generateSchema = z.object({
   // The stretch to fill (the event's hours unless changed), and how early each later shift starts.
   fromTime: clock.optional(),
   toTime: clock.optional(),
-  overlap: z.coerce.number().int().min(0).max(60).default(0),
+  overlap: z.coerce.number().int().min(0).max(30).default(0),
 });
 
 /**

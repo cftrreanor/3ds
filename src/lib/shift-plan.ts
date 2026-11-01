@@ -28,5 +28,12 @@ export function clockLabel(minutes: number) {
   return `${h % 12 === 0 ? 12 : h % 12}:${String(mm).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
-/** The overlap choices, in minutes. */
-export const OVERLAPS = [0, 10, 15, 30] as const;
+/** The overlap choices, in minutes: 5-minute steps up to half an hour. */
+export const OVERLAPS = [5, 10, 15, 20, 25, 30] as const;
+
+/** 135 → "2 hours 15 minutes", 60 → "1 hour", 45 → "45 minutes". */
+export function durationLabel(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return [h ? `${h} hour${h === 1 ? "" : "s"}` : null, m ? `${m} minutes` : null].filter(Boolean).join(" ");
+}
