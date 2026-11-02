@@ -47,7 +47,7 @@ function dayBefore(date: string) {
  */
 export default async function BandsPage({ params, searchParams }: PageProps<"/dashboard/events/[eventId]/bands">) {
   const { eventId } = await params;
-  const { tab } = await searchParams;
+  const { tab, copied } = await searchParams;
   const access = await getEventAccess(eventId);
   // Volunteer and Coordinators get the read-only schedule instead.
   if (!access.isHost) redirect(`/dashboard/events/${eventId}/schedule`);
@@ -202,6 +202,12 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
 
   // A band contest before it's published: step 2 of its setup (the steps sit above, from the layout).
   if (contest && !published) {
+    // Just started from a previous contest: what came over (or that it didn't), and what to check.
+    const copiedFrom =
+      typeof copied === "string" && copied !== "failed"
+        ? ((await supabase.from("events").select("name, starts_on").eq("id", copied).maybeSingle()).data as { name: string; starts_on: string } | null)
+        : null;
+    const { count: jobCount } = copiedFrom ? await supabase.from("stations").select("id", { count: "exact", head: true }).eq("event_id", eventId) : { count: 0 };
     return (
       <div data-required-marks>
         <Link href={`/dashboard/events/${eventId}`} className="text-sm text-muted hover:text-foreground">
@@ -214,6 +220,24 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
         <a href={`/e/${event.slug}/bands`} target="_blank" className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-brand underline underline-offset-4">
           Preview what directors see <span className="sr-only">(opens in a new tab)</span>
         </a>
+        {copiedFrom && (
+          <p role="status" className="mt-4 flex gap-2 rounded-lg border border-brand/25 bg-brand-soft px-4 py-3 text-sm leading-6">
+            <span aria-hidden>ⓘ</span>
+            <span>
+              <span className="font-semibold">
+                Started from {copiedFrom.name} ({formatDate(copiedFrom.starts_on, { year: "numeric" })}).
+              </span>{" "}
+              Its registration settings came over below{jobCount ? `, with ${jobCount} volunteer ${jobCount === 1 ? "job" : "jobs"}` : ""}. Check the deadline and
+              anything that changed this year.
+            </span>
+          </p>
+        )}
+        {copied === "failed" && (
+          <p role="alert" className="mt-4 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm leading-6">
+            <span className="font-semibold">The previous contest&apos;s setup didn&apos;t come over.</span> Your new contest is saved. Set up
+            registration below.
+          </p>
+        )}
         <div className="mt-6">{registrationForm({ href: `/dashboard/events/${eventId}/volunteering`, label: "Next up: Volunteers" })}</div>
       </div>
     );

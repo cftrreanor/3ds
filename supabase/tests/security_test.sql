@@ -7680,4 +7680,59 @@ begin
   update public.events set meals_offered = false, meal_price_cents = null where id = '10000000-0000-0000-0000-00000000000a';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Start from a previous contest (20270112000000): a host copies an earlier
+-- contest's setup into a new draft on the same account. Shifts move to the new
+-- day; strangers can't copy; a contest that's already set up can't be copied into.
+-- ---------------------------------------------------------------------------
+set role service_role;
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address, classifications)
+select '10000000-0000-0000-0000-0000000000c7', organization_id, 'Future Classic 2', 'future-2', 'draft', 'band_contest',
+       starts_on + 364, ends_on + 364, window_start + interval '364 days', window_end + interval '364 days', venue_address, '{}'
+  from public.events where id = '10000000-0000-0000-0000-00000000000a';
+update public.events set event_type = 'band_contest', classifications = array['1A','2A'], chaperone_limit = 7
+ where id = '10000000-0000-0000-0000-00000000000a';
+reset role;
+
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.copy_band_contest_setup('10000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-0000000000c7');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a stranger can''t copy a contest';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare r jsonb; ok boolean := false;
+begin
+  r := public.copy_band_contest_setup('10000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-0000000000c7');
+  assert (r ->> 'jobs')::int = (select count(*) from public.stations where event_id = '10000000-0000-0000-0000-00000000000a'), 'every job comes over';
+  assert (select classifications = array['1A','2A'] and chaperone_limit = 7 from public.events where id = '10000000-0000-0000-0000-0000000000c7'),
+         'registration settings come over';
+  assert (select count(*) from public.shifts where event_id = '10000000-0000-0000-0000-0000000000c7')
+       = (select count(*) from public.shifts where event_id = '10000000-0000-0000-0000-00000000000a'), 'every shift comes over';
+  assert not exists (
+    select 1 from public.shifts n
+     where n.event_id = '10000000-0000-0000-0000-0000000000c7'
+       and not exists (select 1 from public.shifts o where o.event_id = '10000000-0000-0000-0000-00000000000a'
+                         and o.title = n.title and o.starts_at + interval '364 days' = n.starts_at)), 'shifts move to the new contest day';
+  assert (select coalesce(sum(registered_count), 0) from public.shifts where event_id = '10000000-0000-0000-0000-0000000000c7') = 0, 'nobody signed up comes over';
+  assert not exists (select 1 from public.bands where event_id = '10000000-0000-0000-0000-0000000000c7'), 'no bands come over';
+  begin
+    perform public.copy_band_contest_setup('10000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-0000000000c7');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a contest that''s already set up can''t be copied into';
+end $$;
+reset role;
+set role service_role;
+select set_config('app.cleaning_up', 'on', false);
+delete from public.events where id = '10000000-0000-0000-0000-0000000000c7';
+select set_config('app.cleaning_up', 'off', false);
+reset role;
+
 \echo 'All database security tests passed.'

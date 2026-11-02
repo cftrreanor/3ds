@@ -8,6 +8,7 @@ import { createEvent } from "../../actions";
 import { EventForm } from "../_components/event-form";
 import { BAND_SETUP_STEPS, SetupHeader, VOLUNTEER_SETUP_STEPS } from "../_components/setup-steps";
 import { SetupLogo } from "../_components/setup-logo";
+import { ContestPicker } from "../_components/contest-picker";
 import { loadBrand } from "@/lib/badges";
 import { EventTypeChoices } from "@/components/event-type-picker";
 import { eventTypeLabel, hasConferences, isEventType } from "@/lib/event-types";
@@ -16,13 +17,14 @@ import { freeStatus } from "@/lib/admin";
 import { requireUser } from "@/lib/auth";
 import { PlanAsk } from "@/components/plan-ask";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate, utcToZonedTime } from "@/lib/time";
 
 export const metadata: Metadata = { title: "New event" };
 
 export default async function NewEventPage({ searchParams }: PageProps<"/dashboard/events/new">) {
   const org = await getMyOrganization();
   if (!org) redirect("/dashboard");
-  const { type } = await searchParams;
+  const { type, from } = await searchParams;
   // The plan's own kinds come first in the picker; any other kind can be set up to try.
   // Before the packages update, teacher accounts host conferences only.
   const supabase = await createClient();
@@ -93,6 +95,31 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
     // The account's logo and color, for an Account Host to set from the start.
     const { data: isAdmin } = await supabase.rpc("is_org_admin", { org: org.id });
     const brand = isAdmin ? await loadBrand(org.id) : null;
+    // A band contest can start from any earlier contest on the account (a format that worked well, not just last year's).
+    const { data: pastData } =
+      type === "band_contest"
+        ? await supabase
+            .from("events")
+            .select("id, name, starts_on, timezone, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng")
+            .eq("organization_id", org.id)
+            .eq("event_type", "band_contest")
+            .order("starts_on", { ascending: false })
+            .limit(30)
+        : { data: [] };
+    const past = (pastData ?? []) as {
+      id: string;
+      name: string;
+      starts_on: string;
+      timezone: string;
+      window_start: string;
+      window_end: string;
+      venue_name: string | null;
+      venue_address: string;
+      venue_place_id: string | null;
+      venue_lat: number | null;
+      venue_lng: number | null;
+    }[];
+    const source = past.find((e) => e.id === from) ?? null;
     return (
       <div className="mx-auto max-w-5xl" data-required-marks>
         <SetupHeader
@@ -103,6 +130,48 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
           {changeKind}
         </SetupHeader>
         {trialNote}
+        {past.length > 0 && (
+          // Start from an earlier contest: its setup comes over when this one is saved.
+          <Card className="mt-6">
+            <h2 className="text-lg font-semibold">Start from a previous contest</h2>
+            <p className="mt-1 text-sm text-muted">
+              Copy the setup of a contest that worked well, or start from scratch.
+            </p>
+            <div className="mt-4">
+              <ContestPicker
+                value={source?.id ?? null}
+                contests={past.map((e) => ({
+                  id: e.id,
+                  label: [e.name, formatDate(e.starts_on), e.venue_name].filter(Boolean).join(" · "),
+                }))}
+              />
+            </div>
+            {source && (
+              <>
+                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="font-semibold">Comes over</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                      <li>Classifications and information for directors</li>
+                      <li>Payment link, chaperone limit, meals, and the director contact</li>
+                      <li>Registration dates, moved to match the new date</li>
+                      <li>Volunteer jobs, shifts, things to bring, and check-in stops</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-semibold">Starts fresh</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted">
+                      <li>Bands and invitations</li>
+                      <li>The performance schedule</li>
+                      <li>Volunteers and Coordinators</li>
+                    </ul>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm">Its name, times, and venue are filled in below. Pick the new date.</p>
+              </>
+            )}
+          </Card>
+        )}
         <Card className="mt-6">
           <h2 className="text-lg font-semibold">Event details</h2>
           <p className="mt-1 text-sm text-muted">The name, dates, times, and venue everyone sees.</p>
@@ -111,11 +180,33 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
               action={createEvent}
               organizationId={org.id}
               eventType={type}
-              initial={{ timezone: org.default_timezone }}
+              key={source?.id ?? "new"}
+              initial={
+                source
+                  ? {
+                      name: source.name,
+                      timezone: source.timezone,
+                      startTime: utcToZonedTime(source.window_start, source.timezone).slice(0, 5),
+                      endTime: utcToZonedTime(source.window_end, source.timezone).slice(0, 5),
+                      venue: {
+                        name: source.venue_name,
+                        address: source.venue_address,
+                        placeId: source.venue_place_id,
+                        lat: source.venue_lat,
+                        lng: source.venue_lng,
+                      },
+                    }
+                  : { timezone: org.default_timezone }
+              }
               venueSearchEnabled={isPlacesConfigured}
               submitLabel="Save and continue"
               setup={{}}
-              extra={brand && <SetupLogo eventId={null} logo={brand.logo} color={brand.color} />}
+              extra={
+                <>
+                  {source && <input type="hidden" name="fromEventId" value={source.id} />}
+                  {brand && <SetupLogo eventId={null} logo={brand.logo} color={brand.color} />}
+                </>
+              }
             />
           </div>
         </Card>

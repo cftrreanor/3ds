@@ -185,6 +185,15 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
     .single();
   if (error) return { error: friendlyDbError(error) };
 
+  // Started from a previous contest: its setup comes over (the database checks it's the same account and
+  // that this person hosts both). The new contest is made either way; if copying fails, it starts empty.
+  const from = String(formData.get("fromEventId") ?? "");
+  let copied = "";
+  if (eventType === "band_contest" && /^[0-9a-f-]{36}$/.test(from)) {
+    const { error: copyError } = await supabase.rpc("copy_band_contest_setup", { p_from: from, p_to: data.id });
+    copied = copyError ? "?copied=failed" : `?copied=${from}`;
+  }
+
   revalidatePath("/dashboard");
   // Conferences and meetings go straight to their setup, where the day or weekly hours are set. A
   // volunteer event's step 2 is its jobs, and a band contest's is registration (team, emails, and maps
@@ -196,7 +205,7 @@ export async function createEvent(_prev: ActionState, formData: FormData): Promi
       : eventType === "volunteer"
         ? `/dashboard/events/${data.id}/volunteering`
         : eventType === "band_contest"
-          ? `/dashboard/events/${data.id}/bands`
+          ? `/dashboard/events/${data.id}/bands${copied}`
           : `/dashboard/events/${data.id}/edit?setup=1&section=team`,
   );
 }
