@@ -43,7 +43,8 @@ itself, not only the bar. Save one field at a time, so two co-hosts don't undo e
 - **Seen in:** setup redesign v2 and v3 (three kinds of saving), volunteer jobs v3 and v4 (lost
   edits, offline, typed shifts), band contest v1 and v2 (Next up leaves with a failed save), band
   PR 1 built (failed field's red border hidden by the focus ring; "Please try again. Retry"; errors
-  shown mid-typing; leaving the box added half-typed text).
+  shown mid-typing; leaving the box added half-typed text), start from a previous contest (filling
+  in from another contest replaced typed times and venue without asking; now asks, naming each field).
 - **Sharper rules:** the failed box stays red *while it has focus* (`aria-invalid` plus an
   important border). Offer Retry only when trying again can work (a dropped connection), and name
   the connection. Check a value's format before saving; say what's wrong when the person leaves the

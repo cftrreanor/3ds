@@ -17,14 +17,14 @@ import { freeStatus } from "@/lib/admin";
 import { requireUser } from "@/lib/auth";
 import { PlanAsk } from "@/components/plan-ask";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, utcToZonedTime } from "@/lib/time";
+import { formatDate, formatDateRange, utcToZonedTime } from "@/lib/time";
 
 export const metadata: Metadata = { title: "New event" };
 
 export default async function NewEventPage({ searchParams }: PageProps<"/dashboard/events/new">) {
   const org = await getMyOrganization();
   if (!org) redirect("/dashboard");
-  const { type, from } = await searchParams;
+  const { type, from, on, picked } = await searchParams;
   // The plan's own kinds come first in the picker; any other kind can be set up to try.
   // Before the packages update, teacher accounts host conferences only.
   const supabase = await createClient();
@@ -100,16 +100,19 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
       type === "band_contest"
         ? await supabase
             .from("events")
-            .select("id, name, starts_on, timezone, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng")
+            .select("id, name, status, classifications, starts_on, ends_on, timezone, window_start, window_end, venue_name, venue_address, venue_place_id, venue_lat, venue_lng")
             .eq("organization_id", org.id)
             .eq("event_type", "band_contest")
             .order("starts_on", { ascending: false })
             .limit(30)
         : { data: [] };
-    const past = (pastData ?? []) as {
+    const past = ((pastData ?? []) as {
       id: string;
       name: string;
+      status: string;
+      classifications: string[] | null;
       starts_on: string;
+      ends_on: string;
       timezone: string;
       window_start: string;
       window_end: string;
@@ -118,8 +121,35 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
       venue_place_id: string | null;
       venue_lat: number | null;
       venue_lng: number | null;
-    }[];
+    }[]).filter((e) => e.status !== "draft" || (e.classifications ?? []).length > 0); // a draft never set up has nothing to copy
     const source = past.find((e) => e.id === from) ?? null;
+    // A date already typed before picking (or before starting over) stays.
+    const day = typeof on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(on) ? on : undefined;
+    const pastContest = (e: (typeof past)[number]) => ({ id: e.id, name: e.name, date: formatDate(e.starts_on), venue: e.venue_name });
+    // What's copied and what starts fresh, shown as soon as a contest is chosen in the dropdown.
+    const copies = (
+                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="font-semibold">Copied when you save</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                      <li>Classifications and information for directors</li>
+                      <li>Payment link, chaperone limit, meals, and contact for directors</li>
+                      <li>Registration dates, moved by the same number of days as contest day (left blank if that&apos;s in the past)</li>
+                      <li>Ready times and equipment spots</li>
+                      <li>Volunteer jobs, check-in stops, and things to bring, with shifts at the same times of day</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-semibold">Starts fresh</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                      <li>Bands and invitations</li>
+                      <li>The performance schedule</li>
+                      <li>People who signed up to volunteer, and coordinators</li>
+                      <li>Files and maps, email reply settings, and who gets notified</li>
+                    </ul>
+                  </div>
+                </div>
+    );
     return (
       <div className="mx-auto max-w-5xl" data-required-marks>
         <SetupHeader
@@ -134,40 +164,15 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
           // Start from an earlier contest: its setup comes over when this one is saved.
           <Card className="mt-6">
             <h2 className="text-lg font-semibold">Start from a previous contest</h2>
-            <p className="mt-1 text-sm text-muted">
-              Copy the setup of a contest that worked well, or start from scratch.
-            </p>
+            <p className="mt-1 text-sm text-muted">Copy the setup of a contest that worked well, or start from scratch.</p>
             <div className="mt-4">
-              <ContestPicker
-                value={source?.id ?? null}
-                contests={past.map((e) => ({
-                  id: e.id,
-                  label: [e.name, formatDate(e.starts_on), e.venue_name].filter(Boolean).join(" · "),
-                }))}
-              />
+              <ContestPicker key={source?.id ?? "new"} contests={past.map(pastContest)} current={source ? pastContest(source) : null} copies={copies} />
             </div>
             {source && (
               <>
-                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <p className="font-semibold">Comes over</p>
-                    <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                      <li>Classifications and information for directors</li>
-                      <li>Payment link, chaperone limit, meals, and the director contact</li>
-                      <li>Registration dates, moved to match the new date</li>
-                      <li>Volunteer jobs, shifts, things to bring, and check-in stops</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="font-semibold">Starts fresh</p>
-                    <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted">
-                      <li>Bands and invitations</li>
-                      <li>The performance schedule</li>
-                      <li>Volunteers and Coordinators</li>
-                    </ul>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm">Its name, times, and venue are filled in below. Pick the new date.</p>
+                <p className="mt-4 text-sm font-semibold">
+                  Pick the new contest date below. The name, times, and venue are filled in from {source.name}.
+                </p>
               </>
             )}
           </Card>
@@ -181,9 +186,14 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
               organizationId={org.id}
               eventType={type}
               key={source?.id ?? "new"}
+              nameHint={source ? "Same name as the contest you're copying. Add the year if it helps tell them apart." : undefined}
+              dateHint={source ? `${source.name} was ${formatDateRange(source.starts_on, source.ends_on)}.` : undefined}
+              focusDate={Boolean(source && picked)}
               initial={
                 source
                   ? {
+                      startsOn: day,
+                      endsOn: day,
                       name: source.name,
                       timezone: source.timezone,
                       startTime: utcToZonedTime(source.window_start, source.timezone).slice(0, 5),
@@ -196,7 +206,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/dashboa
                         lng: source.venue_lng,
                       },
                     }
-                  : { timezone: org.default_timezone }
+                  : { timezone: org.default_timezone, startsOn: day, endsOn: day }
               }
               venueSearchEnabled={isPlacesConfigured}
               submitLabel="Save and continue"

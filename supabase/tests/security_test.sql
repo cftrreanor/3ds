@@ -7690,8 +7690,29 @@ insert into public.events (id, organization_id, name, slug, status, event_type, 
 select '10000000-0000-0000-0000-0000000000c7', organization_id, 'Future Classic 2', 'future-2', 'draft', 'band_contest',
        starts_on + 364, ends_on + 364, window_start + interval '364 days', window_end + interval '364 days', venue_address, '{}'
   from public.events where id = '10000000-0000-0000-0000-00000000000a';
-update public.events set event_type = 'band_contest', classifications = array['1A','2A'], chaperone_limit = 7
+update public.events set event_type = 'band_contest', classifications = array['1A','2A'], chaperone_limit = 7,
+       band_registration_deadline = starts_on - 1
  where id = '10000000-0000-0000-0000-00000000000a';
+-- Another draft, ten years earlier: the moved deadline lands in the past.
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address, classifications)
+select '10000000-0000-0000-0000-0000000000ca', organization_id, 'Old Classic', 'old-classic', 'draft', 'band_contest',
+       starts_on - 3650, ends_on - 3650, window_start - interval '3650 days', window_end - interval '3650 days', venue_address, '{}'
+  from public.events where id = '10000000-0000-0000-0000-00000000000a';
+-- A volunteer event on the same account.
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address)
+select '10000000-0000-0000-0000-0000000000c9', organization_id, 'Cleanup Day', 'cleanup-c9', 'draft', 'volunteer',
+       starts_on + 364, ends_on + 364, window_start + interval '364 days', window_end + interval '364 days', venue_address
+  from public.events where id = '10000000-0000-0000-0000-00000000000a';
+reset role;
+-- The same host's second account, with a draft band contest on it.
+insert into public.organizations (id, name, slug) values ('60000000-0000-0000-0000-0000000000c8', 'Second Boosters', 'second-boosters');
+insert into public.organization_members (organization_id, user_id, role)
+values ('60000000-0000-0000-0000-0000000000c8', '00000000-0000-0000-0000-000000000001', 'owner');
+set role service_role;
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address, classifications)
+select '10000000-0000-0000-0000-0000000000c8', '60000000-0000-0000-0000-0000000000c8', 'Other Classic', 'other-classic', 'draft', 'band_contest',
+       starts_on + 364, ends_on + 364, window_start + interval '364 days', window_end + interval '364 days', venue_address, '{}'
+  from public.events where id = '10000000-0000-0000-0000-00000000000a';
 reset role;
 
 set role authenticated;
@@ -7707,9 +7728,33 @@ begin
 end $$;
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
 do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.copy_band_contest_setup('10000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-0000000000c8');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'a host of two accounts can''t copy a contest from one account into the other';
+  assert (select classifications = '{}' from public.events where id = '10000000-0000-0000-0000-0000000000c8'), 'and nothing came over';
+  ok := false;
+  begin
+    perform public.copy_band_contest_setup('10000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-0000000000c9');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'only a band contest can start from a band contest';
+  perform public.copy_band_contest_setup('10000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-0000000000ca');
+  assert (select band_registration_deadline is null and classifications = array['1A','2A'] from public.events where id = '10000000-0000-0000-0000-0000000000ca'),
+         'a deadline that would land in the past is left blank, and the rest still comes over';
+end $$;
+do $$
 declare r jsonb; ok boolean := false;
 begin
   r := public.copy_band_contest_setup('10000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-0000000000c7');
+  assert (select n.band_registration_deadline is not distinct from
+                 (case when o.band_registration_deadline + 364 >= current_date then o.band_registration_deadline + 364 end)
+            from public.events n, public.events o
+           where n.id = '10000000-0000-0000-0000-0000000000c7' and o.id = '10000000-0000-0000-0000-00000000000a'),
+         'the deadline moves by the same number of days as contest day';
   assert (r ->> 'jobs')::int = (select count(*) from public.stations where event_id = '10000000-0000-0000-0000-00000000000a'), 'every job comes over';
   assert (select classifications = array['1A','2A'] and chaperone_limit = 7 from public.events where id = '10000000-0000-0000-0000-0000000000c7'),
          'registration settings come over';
@@ -7731,8 +7776,11 @@ end $$;
 reset role;
 set role service_role;
 select set_config('app.cleaning_up', 'on', false);
-delete from public.events where id = '10000000-0000-0000-0000-0000000000c7';
+delete from public.events where id in ('10000000-0000-0000-0000-0000000000c7', '10000000-0000-0000-0000-0000000000c8',
+                                       '10000000-0000-0000-0000-0000000000c9', '10000000-0000-0000-0000-0000000000ca');
+update public.events set band_registration_deadline = null where id = '10000000-0000-0000-0000-00000000000a';
 select set_config('app.cleaning_up', 'off', false);
 reset role;
+delete from public.organizations where id = '60000000-0000-0000-0000-0000000000c8';
 
 \echo 'All database security tests passed.'

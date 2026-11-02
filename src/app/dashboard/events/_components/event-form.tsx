@@ -40,6 +40,9 @@ export function EventForm({
   extra,
   autosave = false,
   next,
+  nameHint,
+  dateHint,
+  focusDate = false,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   organizationId: string;
@@ -68,6 +71,12 @@ export function EventForm({
   autosave?: boolean;
   /** The way on from the bar, in a three-step setup (Details → the middle step). */
   next?: { href: string; label: string };
+  /** Under the name (a band contest started from another: the name came over). */
+  nameHint?: string;
+  /** Under the date (a band contest started from another: when that one was). */
+  dateHint?: string;
+  /** Put the cursor in the date (the one thing left after filling in from another contest). */
+  focusDate?: boolean;
 }) {
   const [dirty, setDirty] = useState(false);
   const auto = useAutosaveForm(autosave);
@@ -90,7 +99,7 @@ export function EventForm({
       <input type="hidden" name="organizationId" value={organizationId} />
       {autosave && <input type="hidden" name="autosave" value="1" />}
       {eventType && <input type="hidden" name="eventType" value={eventType} />}
-      <Field label="Event name">
+      <Field label="Event name" hint={nameHint}>
         <Input name="name" required defaultValue={initial.name} placeholder={meeting ? "e.g. Fall Advising Meetings" : conference ? "e.g. Fall Parent-Teacher Conferences" : eventType === "volunteer" ? "e.g. Community Cleanup Day" : eventType === "school_visit" ? "e.g. Thanksgiving Lunch with Families" : eventType === "group_event" ? "e.g. Spring Arts Festival" : eventType === "fair" ? "e.g. Oak Hills Spring Carnival" : "e.g. Cedar Ridge Marching Invitational"} />
       </Field>
 
@@ -128,7 +137,7 @@ export function EventForm({
           </>
         ) : (
           <>
-            <EventDates startsOn={initial.startsOn} endsOn={initial.endsOn} startTime={initial.startTime} endTime={initial.endTime} />
+            <EventDates startsOn={initial.startsOn} endsOn={initial.endsOn} startTime={initial.startTime} endTime={initial.endTime} hint={dateHint} focus={focusDate} />
           </>
         )}
         <Field
@@ -336,7 +345,21 @@ function AutosaveBar({ status, retry, next }: { status: AutoStatus; retry: () =>
  * more than one day" for the rest. Until someone picks the last day, it
  * follows the first; it's never before it.
  */
-function EventDates({ startsOn, endsOn, startTime, endTime }: { startsOn?: string; endsOn?: string; startTime?: string; endTime?: string }) {
+function EventDates({
+  startsOn,
+  endsOn,
+  startTime,
+  endTime,
+  hint,
+  focus = false,
+}: {
+  startsOn?: string;
+  endsOn?: string;
+  startTime?: string;
+  endTime?: string;
+  hint?: string;
+  focus?: boolean;
+}) {
   const [multi, setMulti] = useState(Boolean(startsOn && endsOn && endsOn !== startsOn));
   const [start, setStart] = useState(startsOn ?? "");
   const [end, setEnd] = useState(endsOn ?? startsOn ?? "");
@@ -346,11 +369,12 @@ function EventDates({ startsOn, endsOn, startTime, endTime }: { startsOn?: strin
     <>
       {/* The checkbox sits right under the date, level with the end date's hint. */}
       <div className="flex flex-col gap-1.5">
-        <Field label={multi ? "Start date" : "Date"}>
+        <Field label={multi ? "Start date" : "Date"} hint={hint}>
           <Input
             name="startsOn"
             type="date"
             required
+            autoFocus={focus}
             value={start}
             onChange={(e) => {
               const day = e.target.value;

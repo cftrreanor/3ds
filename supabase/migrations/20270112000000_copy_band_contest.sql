@@ -27,7 +27,6 @@ declare
   st      public.stations;
   new_id  uuid;
   jobs    int := 0;
-  slots   int := 0;
 begin
   select * into src from events where id = p_from;
   select * into dst from events where id = p_to for update;
@@ -95,7 +94,6 @@ begin
     select new_id, p_to, title, description, starts_at + make_interval(days => shift_d), ends_at + make_interval(days => shift_d),
            max_capacity, adults_only, min_age
       from shifts where station_id = st.id;
-    get diagnostics slots = row_count;
     insert into station_items (station_id, event_id, name, needed, sort_order)
     select new_id, p_to, name, needed, sort_order from station_items where station_id = st.id;
   end loop;
