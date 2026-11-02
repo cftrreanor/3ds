@@ -996,13 +996,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/da
 
   return (
     <div
-      className={
-        dayActions
-          ? "lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8"
-          : checklist
-            ? "pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8 lg:pb-0"
-            : undefined
-      }
+      className={dayActions || checklist ? "lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8" : undefined}
     >
       {justPublished && !contestLive && <SuccessToast message={`Published. Your ${conferenceHere ? "booking" : "event"} page is live; the links to share are at the top.`} />}
       {justPublished && <ScrollTo id="share" />}
