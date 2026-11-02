@@ -430,7 +430,7 @@ export const audiences = {
       },
       {
         q: "Can students volunteer at our fair?",
-        a: "Yes. A parent can sign up with their student under one sign-up. Under-18 helpers are stored by first name and last initial with the parent's contact details, and you can mark any sign-up as adults only.",
+        a: "Yes. A parent can sign up with their student under one sign-up. Volunteers under 18 are stored by first name and last initial with the parent's contact details, and you can mark any sign-up as adults only.",
       },
       {
         q: "Does it sell tickets or take payments?",
@@ -472,7 +472,7 @@ export const audiences = {
         title: "Sign-ups and reminders, without accounts",
         body: "Share one link or QR code. Volunteers pick one shift or several on their phone and see how many spots are left, with no account to make and nothing to download.",
         points: [
-          "Sign up with up to four others, and under-18 helpers use a guardian's contact details",
+          "Sign up with up to four others, and volunteers under 18 use a guardian's contact details",
           "A confirmation with a calendar invite, an update if their shift changes, and a reminder the day before with their sign-up, time, where to report, and their lead's name and phone",
           "A private link lets each volunteer see their shifts, sign up for more, or cancel",
         ],
@@ -540,7 +540,7 @@ export const audiences = {
     ],
     privacy: [
       "Volunteers never make an account, and their phone numbers are deleted 10 days after the event.",
-      "Under-18 helpers are stored by first name and last initial, with a guardian's contact details.",
+      "Volunteers under 18 are stored by first name and last initial, with a guardian's contact details.",
       "Coordinators see their volunteers' contact details only on event day.",
       "No ads, no spam, and emails used only for your event",
     ],
@@ -559,7 +559,7 @@ export const audiences = {
       },
       {
         q: "Can people sign up together?",
-        a: "Yes. One person can sign up with up to four others, and the whole group takes the same shifts. Under-18 helpers use a guardian's contact details, and sign-ups can be marked adults only.",
+        a: "Yes. One person can sign up with up to four others, and the whole group takes the same shifts. Volunteers under 18 use a guardian's contact details, and sign-ups can be marked adults only.",
       },
       {
         q: "Can we use it for volunteers at other kinds of events too?",
@@ -716,7 +716,7 @@ export const audiences = {
 export const ADMINISTRATORS_PAGE = { path: "/school-administrators", name: "For administrators", icon: "building" } as const;
 
 /** How student and family data is handled, for district technology and legal teams. */
-export const STUDENT_PRIVACY_PAGE = { path: "/student-data-privacy", name: "Student data privacy", icon: "lock" } as const;
+export const STUDENT_PRIVACY_PAGE = { path: "/student-data-privacy", name: "Data privacy", icon: "lock" } as const;
 
 export const CONFERENCES_PAGE = { path: "/parent-teacher-conferences", name: "Parent-teacher conferences", icon: "apple" } as const;
 

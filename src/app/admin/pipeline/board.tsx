@@ -89,11 +89,12 @@ export function PipelineBoard({
                     }}
                     className="cursor-grab rounded-sm border border-border bg-surface p-2.5 shadow-card active:cursor-grabbing"
                   >
+                    {/* The person first: we work with people, and the school or account comes second. */}
                     <Link href={`/admin/pipeline/${c.id}`} className="block text-sm font-semibold hover:underline">
-                      {c.organization}
+                      {c.name}
                     </Link>
-                    <p className="text-xs text-muted">{c.name}</p>
-                    {(c.when || c.size) && <p className="mt-1 text-xs">{[c.when, c.size].filter(Boolean).join(" · ")}</p>}
+                    {c.organization && c.organization !== c.name && <p className="text-xs">{c.organization}</p>}
+                    {(c.when || c.size) && <p className="mt-1 text-xs text-muted">{[c.when, c.size].filter(Boolean).join(" · ")}</p>}
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
                       <span className="text-xs text-muted">{c.inStage}</span>
                       {c.followUp && (
@@ -105,7 +106,7 @@ export function PipelineBoard({
                       )}
                     </div>
                     <select
-                      aria-label={`Move ${c.organization} to`}
+                      aria-label={`Move ${c.name} to`}
                       value={c.status}
                       onChange={(e) => moveTo(c.id, e.target.value)}
                       className="mt-2 h-7 w-full rounded-sm border border-border bg-surface px-1 text-xs"

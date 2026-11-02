@@ -23,18 +23,35 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     admin.from("admin_notes").select("id", { count: "exact", head: true }).is("done_at", null).lte("follow_up_on", today),
   ]);
 
-  const items = [
-    { href: "/admin", label: "Home" },
-    { href: "/admin/follow-ups", label: "Follow-ups", count: due ?? 0, alert: true },
-    { href: "/admin/accounts", label: "Accounts" },
-    { href: "/admin/people", label: "People" },
-    { href: "/admin/pipeline", label: "Pipeline", count: newRequests ?? 0, alert: true },
-    { href: "/admin/site", label: "Site visits" },
-    { href: "/admin/templates", label: "Email templates" },
-    { href: "/admin/emails", label: "System emails" },
-    { href: "/admin/banners", label: "Banners" },
-    { href: "/admin/feedback", label: "Feedback" },
-    { href: "/admin/activity", label: "Activity" },
+  // Grouped by what they're for: working with people and accounts, what the system says to them, and
+  // how the site is doing.
+  const groups = [
+    { items: [{ href: "/admin", label: "Home" }] },
+    {
+      title: "People and accounts",
+      items: [
+        { href: "/admin/follow-ups", label: "Follow-ups", count: due ?? 0, alert: true },
+        { href: "/admin/pipeline", label: "Pipeline", count: newRequests ?? 0, alert: true },
+        { href: "/admin/people", label: "People" },
+        { href: "/admin/accounts", label: "Accounts" },
+      ],
+    },
+    {
+      title: "Communications",
+      items: [
+        { href: "/admin/templates", label: "Email templates" },
+        { href: "/admin/emails", label: "System emails" },
+        { href: "/admin/banners", label: "Banners" },
+      ],
+    },
+    {
+      title: "Insights",
+      items: [
+        { href: "/admin/site", label: "Site visits" },
+        { href: "/admin/feedback", label: "Feedback" },
+        { href: "/admin/activity", label: "Activity" },
+      ],
+    },
   ];
 
   return (
@@ -45,7 +62,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <p className="text-xs font-semibold tracking-wide text-on-dark-mute uppercase lg:mt-2">Admin</p>
         </div>
         <div className="px-2 py-2 lg:mt-4 lg:flex-1 lg:px-3">
-          <AdminNav items={items} />
+          <AdminNav groups={groups} />
         </div>
         <div className="hidden border-t border-white/10 px-4 py-3 text-xs text-on-dark-mute lg:block">
           <p className="truncate" title={user.email ?? undefined}>

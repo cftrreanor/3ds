@@ -81,12 +81,12 @@ export default async function PilotRequestPage({ params }: PageProps<"/admin/pip
         </Link>
       </p>
       <PageHeader
-        title={r.organization}
+        title={r.name}
         sub={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Tag tone={r.status === "declined" ? "neutral" : "brand"}>{stageLabel(r.status)}</Tag>
             <span>
-              {r.name} ·{" "}
+              {r.organization && r.organization !== r.name ? `${r.organization} · ` : ""}
               <a href={`mailto:${r.email}`} className="text-brand underline underline-offset-4">
                 {r.email}
               </a>

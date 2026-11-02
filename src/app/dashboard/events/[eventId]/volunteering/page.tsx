@@ -282,7 +282,7 @@ export default async function VolunteeringPage({ params, searchParams }: PagePro
       {/* Volunteer events keep this note at the end, so the jobs come first. */}
       {!jobsHere && (
       <p className="mt-1 text-sm text-muted">
-        <LineIcon name="lock" inline />Volunteers&apos; phone numbers (and under-18 helpers) are deleted 10 days after the event. Adults&apos; names, emails, and
+        <LineIcon name="lock" inline />Volunteers&apos; phone numbers (and volunteers under 18) are deleted 10 days after the event. Adults&apos; names, emails, and
         how many shifts they kept stay in your Volunteer tracking for 2 years after their last event.
       </p>
       )}

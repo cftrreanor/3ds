@@ -80,7 +80,7 @@ The core voice never changes. Only the leading details shift.
 
 1. **Hero**
    - Headline: *Every detail organized. Every organizer supported.*
-   - Supporting line: *Contests, school events, and simple sign-ups, with real people behind every one*
+   - Supporting line: *Contests, school events, and simple sign-ups for a whole family or group at once*
    - Primary button: *Join the pilot*
 
 2. **Router: "What are you organizing?"** (four cards, each linking to its page)

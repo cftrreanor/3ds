@@ -88,7 +88,7 @@ const sections: Audience["sections"] = [
     points: [
       "Parents are reminded to bring a photo ID, and your door team finds any family by an adult's or child's name",
       "Volunteers wear printable name badges with your logo and a QR code for event information",
-      "Sign-ups like parking can be adults only, and under-18 helpers are stored by first name and last initial with a parent's contact details",
+      "Sign-ups like parking can be adults only, and volunteers under 18 are stored by first name and last initial, with a parent's contact details",
       "Coordinators see volunteers' phone numbers only on event day",
     ],
     screen: {
@@ -135,7 +135,7 @@ const faqs = [
   },
   {
     q: "How much training do staff and volunteers need?",
-    a: "Very little. Each kind of event walks facilitators through setup one step at a time. Volunteers and families use their phone's web browser with no account, and event-day screens show who's here and what's next.",
+    a: "Very little. Each kind of event walks facilitators through setup one step at a time. Volunteers and families use their phone's web browser with no account, and event-day screens show who has arrived and what happens next.",
   },
   {
     q: "Who owns the information?",
@@ -224,7 +224,7 @@ export default function AdministratorsPage() {
               ))}
             </ul>
             <Link href={STUDENT_PRIVACY_PAGE.path} className="mt-6 inline-block font-semibold underline">
-              How we handle student data
+              How we handle everyone&apos;s data
             </Link>
           </div>
         </section>
