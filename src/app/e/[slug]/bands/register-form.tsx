@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ActionForm } from "@/components/action-form";
-import { BandForm, type BandFormValues } from "@/components/band-form";
+import { BandForm, type BandFormValues, type MealOffer } from "@/components/band-form";
 import { SubmitButton } from "@/components/submit-button";
 import { Button, Card } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
@@ -24,6 +24,7 @@ export function RegisterForm({
   blank,
   previous,
   kind = "band",
+  meals = null,
 }: {
   action: Action;
   /** One-tap registration from a saved band (bound to the event). */
@@ -33,6 +34,8 @@ export function RegisterForm({
   blank: BandFormValues;
   previous: PreviousBand[];
   kind?: "band" | "group";
+  /** The host provides meals: the form asks how many. */
+  meals?: MealOffer | null;
 }) {
   // Which form is open: a saved band being edited, a blank one, or none yet.
   const [open, setOpen] = useState<string | null>(previous.length ? null : "new");
@@ -57,7 +60,7 @@ export function RegisterForm({
         </p>
       )}
       {/* Re-mount when the source changes so every box picks up the copied values. */}
-      <BandForm key={open ?? ""} action={action} classifications={classifications} chaperoneLimit={chaperoneLimit} submitLabel={`Register ${kind}`} initial={initial} kind={kind} />
+      <BandForm key={open ?? ""} action={action} classifications={classifications} chaperoneLimit={chaperoneLimit} submitLabel={`Register ${kind}`} initial={initial} kind={kind} meals={meals} />
     </div>
   );
 

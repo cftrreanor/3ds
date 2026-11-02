@@ -27,18 +27,18 @@ function cell(v: string | number) {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-function download(bands: BandRow[], words: Words, groups: boolean, fileName: string) {
+function download(bands: BandRow[], words: Words, groups: boolean, fileName: string, meals: Record<string, string> | null) {
   const head = [
     `${words.One} name`, "School", "Classification", groups ? "Participants" : "Students", "Chaperones", "Buses",
     ...(groups ? [] : ["Box trucks", "Trucks + trailers", "Semis"]),
     "Head director", "Director email", "Director phone", "Assistant directors", `${words.One} contact email`, "School address",
-    "Scheduling conflicts", "Accessibility or staging needs", "Registered", "Withdrawn",
+    "Scheduling conflicts", "Accessibility or staging needs", ...(meals ? ["Meals"] : []), "Registered", "Withdrawn",
   ];
   const rows = bands.map((b) => [
     b.band_name, b.school_name, b.classification, b.student_count, b.chaperone_count, b.bus_count,
     ...(groups ? [] : [b.box_truck_count, b.truck_trailer_count, b.semi_truck_count]),
     b.head_director_name, b.head_director_email, formatPhone(b.head_director_phone), b.assistant_directors.join(", "),
-    b.contact_email, b.school_address ?? "", b.contest_day_conflicts ?? "", b.special_needs ?? "", b.created_at.slice(0, 10), b.scratched_at ? "Yes" : "",
+    b.contact_email, b.school_address ?? "", b.contest_day_conflicts ?? "", b.special_needs ?? "", ...(meals ? [meals[b.id] ?? ""] : []), b.created_at.slice(0, 10), b.scratched_at ? "Yes" : "",
   ]);
   const csv = [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }));
@@ -59,8 +59,11 @@ export function RegisteredBands({
   words,
   groups,
   fileName,
+  meals = null,
 }: {
   bands: BandRow[];
+  /** Meals each band asked for, by band id (null when the host doesn't offer meals). */
+  meals?: Record<string, string> | null;
   classifications: string[];
   words: Words;
   /** Group events: participants and buses only. */
@@ -92,7 +95,7 @@ export function RegisteredBands({
           Registered {words.many} ({bands.length})
         </h2>
         {bands.length > 0 && (
-          <Button type="button" variant="secondary" onClick={() => download(shown, words, groups, fileName)}>
+          <Button type="button" variant="secondary" onClick={() => download(shown, words, groups, fileName, meals)}>
             Download list
           </Button>
         )}
@@ -173,6 +176,7 @@ export function RegisteredBands({
                     <Detail label="Vehicles">{vehicles(b, groups)}</Detail>
                     <Detail label="Scheduling conflicts">{b.contest_day_conflicts ?? "None"}</Detail>
                     <Detail label="Accessibility or staging needs">{b.special_needs ?? "None"}</Detail>
+                    {meals && <Detail label="Meals">{meals[b.id] ?? "None requested"}</Detail>}
                   </dl>
                 </details>
               </li>

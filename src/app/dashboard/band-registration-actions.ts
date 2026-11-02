@@ -14,9 +14,20 @@ import { createClient } from "@/lib/supabase/server";
  * other's changes, and a failed save names the field it was.
  */
 
-export type RegistrationField = "opensOn" | "deadline" | "directorInfo" | "paymentLink" | "chaperoneLimit" | "contactName" | "contactPhone" | "contactEmail";
+export type RegistrationField =
+  | "opensOn"
+  | "deadline"
+  | "directorInfo"
+  | "paymentLink"
+  | "chaperoneLimit"
+  | "contactName"
+  | "contactPhone"
+  | "contactEmail"
+  | "mealsOffered"
+  | "mealPrice"
+  | "mealDetails";
 
-const FIELDS: Record<RegistrationField, z.ZodType<string | number | null>> = {
+const FIELDS: Record<RegistrationField, z.ZodType<string | number | boolean | null>> = {
   deadline: z.union([z.literal("").transform(() => null), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.")]),
   opensOn: z.union([z.literal("").transform(() => null), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.")]),
   directorInfo: z
@@ -46,6 +57,19 @@ const FIELDS: Record<RegistrationField, z.ZodType<string | number | null>> = {
       return p ?? "";
     }),
   contactEmail: z.union([z.literal(""), z.string().trim().toLowerCase().email("Enter a full email address.")]),
+  // Meals for visiting bands (the 20270111000000 update).
+  mealsOffered: z.enum(["true", "false"]).transform((v) => v === "true"),
+  mealPrice: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/^\$/, ""))
+    .refine((v) => v === "" || /^\d{1,4}(\.\d{1,2})?$/.test(v), "Enter a price like 8 or 8.50.")
+    .transform((v) => (v === "" ? null : Math.round(Number(v) * 100))),
+  mealDetails: z
+    .string()
+    .trim()
+    .max(1000, "This is too long (1,000 characters max).")
+    .transform((v) => v || null),
 };
 
 const EVENT_COLUMN: Partial<Record<RegistrationField, string>> = {
@@ -54,6 +78,9 @@ const EVENT_COLUMN: Partial<Record<RegistrationField, string>> = {
   directorInfo: "director_info",
   paymentLink: "payment_link",
   chaperoneLimit: "chaperone_limit",
+  mealsOffered: "meals_offered",
+  mealPrice: "meal_price_cents",
+  mealDetails: "meal_details",
 };
 const CONTACT_COLUMN: Partial<Record<RegistrationField, "name" | "phone" | "email">> = {
   contactName: "name",

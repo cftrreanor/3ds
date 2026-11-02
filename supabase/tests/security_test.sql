@@ -7637,4 +7637,32 @@ delete from public.volunteers where email like 'held.%@example.com';
 delete from public.shifts where id in ('9c000000-0000-0000-0000-000000000001', '9c000000-0000-0000-0000-000000000002');
 update public.stations set min_adults = null where id = '20000000-0000-0000-0000-00000000000a';
 
+-- ---------------------------------------------------------------------------
+-- Meals for visiting bands (20270111000000): directors can say how many meals
+-- they need on their own registration; the public can't write it; prices and
+-- lengths stay in bounds.
+-- ---------------------------------------------------------------------------
+do $$
+declare ok boolean;
+begin
+  assert has_column_privilege('authenticated', 'public.bands', 'meals_requested', 'INSERT'), 'directors can say how many meals when registering';
+  assert has_column_privilege('authenticated', 'public.bands', 'meals_requested', 'UPDATE'), 'and change it while registration is open';
+  assert not has_column_privilege('anon', 'public.bands', 'meals_requested', 'UPDATE'), 'the public can''t';
+  ok := false;
+  begin
+    update public.events set meal_price_cents = -1 where id = '10000000-0000-0000-0000-00000000000a';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'a meal price can''t be negative';
+  ok := false;
+  begin
+    update public.events set meal_details = repeat('x', 1001) where id = '10000000-0000-0000-0000-00000000000a';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'meal details stay under 1,000 characters';
+  update public.events set meals_offered = true, meal_price_cents = 850 where id = '10000000-0000-0000-0000-00000000000a';
+  assert (select meals_offered and meal_price_cents = 850 from public.events where id = '10000000-0000-0000-0000-00000000000a'), 'a host can offer meals with a price';
+  update public.events set meals_offered = false, meal_price_cents = null where id = '10000000-0000-0000-0000-00000000000a';
+end $$;
+
 \echo 'All database security tests passed.'

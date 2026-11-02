@@ -211,6 +211,8 @@ export function RegistrationSettings({
     paymentLink: string;
     chaperoneLimit: number;
     contact: { name: string; phone: string; email: string };
+    /** Meals for visiting bands; null before the 20270111000000 update. */
+    meals: { offered: boolean; priceCents: number | null; details: string } | null;
   };
   /** How many bands are registered in each classification (they can't be removed while it's above 0). */
   bandsIn: Record<string, number>;
@@ -262,7 +264,12 @@ export function RegistrationSettings({
   const contactEmail = useAutosave(eventId, "contactEmail", initial.contact.email, {
     check: (v) => (v.trim() && !/^\S+@\S+\.\S+$/.test(v.trim()) ? "Enter a full email address." : null),
   });
-  const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail];
+  const mealsOffered = useAutosave(eventId, "mealsOffered", initial.meals?.offered ? "true" : "false", { immediate: true });
+  const mealPrice = useAutosave(eventId, "mealPrice", initial.meals?.priceCents != null ? (initial.meals.priceCents / 100).toFixed(initial.meals.priceCents % 100 ? 2 : 0) : "", {
+    check: (v) => (v.trim() && !/^\$?\d{1,4}(\.\d{1,2})?$/.test(v.trim()) ? "Enter a price like 8 or 8.50." : null),
+  });
+  const mealDetails = useAutosave(eventId, "mealDetails", initial.meals?.details ?? "");
+  const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail, mealsOffered, mealPrice, mealDetails];
 
   // Classifications: added, renamed, and removed one at a time.
   const [list, setList] = useState(initial.classifications);
@@ -537,6 +544,63 @@ export function RegistrationSettings({
         >
           <Input type="url" inputMode="url" value={pay.value} onChange={(e) => pay.change(e.target.value)} {...withClass(marked("reg-pay", pay), "w-full")} />
         </AutoField>
+
+        {initial.meals && (
+          // Meals for visiting bands: the price and options show above where directors say how many they need.
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold">Meals</legend>
+            <label className="flex min-h-11 items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={mealsOffered.value === "true"}
+                onChange={(e) => mealsOffered.change(e.target.checked ? "true" : "false")}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+              />
+              <span>
+                <span className="font-medium">We&apos;ll provide meals for visiting bands</span>
+                <span className="block text-muted">Directors say how many meals they need when they register.</span>
+                {mealsOffered.failure && (
+                  <span role="alert" className="block font-semibold text-danger">
+                    Not saved. {mealsOffered.failure.message}
+                  </span>
+                )}
+              </span>
+            </label>
+            {mealsOffered.value === "true" && (
+              <>
+                <AutoField id="reg-meal-price" label="Price per meal" hint="Optional. Directors see it above where they say how many meals they need." saver={mealPrice}>
+                  <span className="flex items-center gap-2">
+                    <span aria-hidden className="text-sm font-semibold">
+                      $
+                    </span>
+                    <Input
+                      inputMode="decimal"
+                      value={mealPrice.value}
+                      placeholder="8.50"
+                      onChange={(e) => mealPrice.change(e.target.value)}
+                      {...withClass(marked("reg-meal-price", mealPrice), "w-28!")}
+                    />
+                  </span>
+                </AutoField>
+                <AutoField
+                  id="reg-meal-details"
+                  label="Meal details and options"
+                  hint="Optional. What's served, options like vegetarian, halal, or gluten free, and when and how to pay."
+                  saver={mealDetails}
+                >
+                  <Textarea
+                    value={mealDetails.value}
+                    onChange={(e) => mealDetails.change(e.target.value)}
+                    rows={4}
+                    maxLength={1000}
+                    placeholder="Pizza or a turkey sandwich, chips, and water. Vegetarian and gluten-free options. Pay with the entry fee."
+                    {...withClass(marked("reg-meal-details", mealDetails), "w-full")}
+                  />
+                </AutoField>
+              </>
+            )}
+          </fieldset>
+        )}
 
         <fieldset>
           <legend className="text-sm font-semibold">Contact for directors</legend>

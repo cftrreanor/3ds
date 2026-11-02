@@ -46,6 +46,13 @@ export const bandSchema = z.object({
   semiTruckCount: count("Semi trucks", 20),
   contestDayConflicts: z.string().trim().max(2000).transform((v) => v || null),
   specialNeeds: z.string().trim().max(2000).transform((v) => v || null),
+  // Only on the form when the host offers meals (after the 20270111000000 update).
+  mealsRequested: z
+    .string()
+    .trim()
+    .max(500, "Meals: keep it under 500 characters")
+    .transform((v) => v || null)
+    .optional(),
 });
 
 export type BandInput = z.infer<typeof bandSchema>;
@@ -69,6 +76,7 @@ export function parseBand(formData: FormData) {
     semiTruckCount: formData.get("semiTruckCount") || 0,
     contestDayConflicts: formData.get("contestDayConflicts") ?? "",
     specialNeeds: formData.get("specialNeeds") ?? "",
+    mealsRequested: formData.has("mealsRequested") ? String(formData.get("mealsRequested") ?? "") : undefined,
   });
 }
 
@@ -92,6 +100,7 @@ export function bandColumns(v: BandInput) {
     semi_truck_count: v.semiTruckCount,
     contest_day_conflicts: v.contestDayConflicts,
     special_needs: v.specialNeeds,
+    ...(v.mealsRequested !== undefined ? { meals_requested: v.mealsRequested } : {}),
   };
 }
 

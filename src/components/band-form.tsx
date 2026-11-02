@@ -6,6 +6,7 @@ import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Card, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
+import { mealPrice, type MealOffer } from "@/lib/meal-price";
 
 export type BandFormValues = Partial<{
   school_name: string;
@@ -25,7 +26,10 @@ export type BandFormValues = Partial<{
   semi_truck_count: number;
   contest_day_conflicts: string | null;
   special_needs: string | null;
+  meals_requested: string | null;
 }>;
+
+export type { MealOffer } from "@/lib/meal-price";
 
 /** The band (or group) registration form, used to register and to edit. Groups don't bring trucks. */
 export function BandForm({
@@ -37,6 +41,7 @@ export function BandForm({
   disabled = false,
   kind = "band",
   emailHint,
+  meals = null,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   classifications: string[];
@@ -47,6 +52,8 @@ export function BandForm({
   kind?: "band" | "group";
   /** Under the head director's email, e.g. that the confirmation code goes there. */
   emailHint?: string;
+  /** The host provides meals: say what they cost and what's offered, then ask how many. */
+  meals?: MealOffer | null;
 }) {
   const group = kind === "group";
   const num = (v: number | undefined) => (v === undefined ? "" : String(v));
@@ -177,6 +184,30 @@ export function BandForm({
             <Textarea name="specialNeeds" defaultValue={initial.special_needs ?? ""} />
           </Field>
         </Card>
+
+        {meals && (
+          <Card className="space-y-4">
+            <div>
+              <h2 className="font-semibold">Meals</h2>
+              <p className="mt-1 text-sm">
+                The host provides meals for visiting {group ? "groups" : "bands"}
+                {meals.priceCents != null ? (
+                  <>
+                    , <span className="font-semibold">{mealPrice(meals.priceCents)} per meal</span>
+                  </>
+                ) : null}
+                .
+              </p>
+              {meals.details && <p className="mt-1 whitespace-pre-line text-sm text-muted">{meals.details}</p>}
+            </div>
+            <Field
+              label="Meals you need (optional)"
+              hint="How many, and which of the options above. For example, 110 regular, 6 vegetarian, and 2 gluten free. Leave it blank if you don't need meals."
+            >
+              <Textarea name="mealsRequested" defaultValue={initial.meals_requested ?? ""} maxLength={500} rows={3} />
+            </Field>
+          </Card>
+        )}
       </fieldset>
 
       {!disabled && (

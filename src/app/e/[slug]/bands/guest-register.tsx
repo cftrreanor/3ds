@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BandForm } from "@/components/band-form";
+import { BandForm, type MealOffer } from "@/components/band-form";
 import type { ActionState } from "@/lib/action-state";
 import { ConfirmCode } from "./confirm-code";
 import { startGuestRegistration, type GuestState } from "./guest-actions";
@@ -16,11 +16,14 @@ export function GuestRegister({
   classifications,
   chaperoneLimit,
   kind,
+  meals = null,
 }: {
   eventId: string;
   classifications: string[];
   chaperoneLimit: number;
   kind: "band" | "group";
+  /** The host provides meals: the form asks how many. */
+  meals?: MealOffer | null;
 }) {
   const [pending, setPending] = useState<GuestState["pending"] | null>(null);
   const formWrap = useRef<HTMLDivElement>(null);
@@ -68,6 +71,7 @@ export function GuestRegister({
           chaperoneLimit={chaperoneLimit}
           submitLabel={`Register ${kind}`}
           kind={kind}
+          meals={meals}
           emailHint="We'll send a code here to confirm your registration."
         />
       </div>
