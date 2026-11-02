@@ -212,7 +212,7 @@ export function RegistrationSettings({
     chaperoneLimit: number;
     contact: { name: string; phone: string; email: string };
     /** Meals for visiting bands; null before the 20270111000000 update. */
-    meals: { offered: boolean; priceCents: number | null; details: string } | null;
+    meals: { offered: boolean; priceCents: number | null; details: string; options: string[] } | null;
   };
   /** How many bands are registered in each classification (they can't be removed while it's above 0). */
   bandsIn: Record<string, number>;
@@ -269,7 +269,23 @@ export function RegistrationSettings({
     check: (v) => (v.trim() && !/^\$?\d{1,4}(\.\d{1,2})?$/.test(v.trim()) ? "Enter a price like 8 or 8.50." : null),
   });
   const mealDetails = useAutosave(eventId, "mealDetails", initial.meals?.details ?? "");
-  const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail, mealsOffered, mealPrice, mealDetails];
+  // The options bands order, saved as a list each time one is added or removed.
+  const mealOptions = useAutosave(eventId, "mealOptions", JSON.stringify(initial.meals?.options ?? []), { immediate: true });
+  const optionList: string[] = (() => {
+    try {
+      return JSON.parse(mealOptions.value) as string[];
+    } catch {
+      return [];
+    }
+  })();
+  const [optionTyped, setOptionTyped] = useState("");
+  const addOptions = (names: string[]) => {
+    const next = [...optionList];
+    for (const n of names.map((x) => x.trim()).filter(Boolean)) if (!next.some((o) => o.toLowerCase() === n.toLowerCase())) next.push(n);
+    mealOptions.change(JSON.stringify(next.slice(0, 10)));
+    setOptionTyped("");
+  };
+  const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail, mealsOffered, mealPrice, mealDetails, mealOptions];
 
   // Classifications: added, renamed, and removed one at a time.
   const [list, setList] = useState(initial.classifications);
@@ -558,7 +574,7 @@ export function RegistrationSettings({
               />
               <span>
                 <span className="font-medium">We&apos;ll provide meals for visiting bands</span>
-                <span className="block text-muted">Directors say how many meals they need when they register.</span>
+                <span className="block text-muted">Directors order meals when they register. You see each order, and the totals, in your band list and download.</span>
                 {mealsOffered.failure && (
                   <span role="alert" className="block font-semibold text-danger">
                     Not saved. {mealsOffered.failure.message}
@@ -567,8 +583,8 @@ export function RegistrationSettings({
               </span>
             </label>
             {mealsOffered.value === "true" && (
-              <>
-                <AutoField id="reg-meal-price" label="Price per meal" hint="Optional. Directors see it above where they say how many meals they need." saver={mealPrice}>
+              <div className="space-y-4 border-l-2 border-border pl-4">
+                <AutoField id="reg-meal-price" label="Price per meal" hint="Optional. Shown to directors when they order, with their total. Leave it empty if there's no set price." saver={mealPrice}>
                   <span className="flex items-center gap-2">
                     <span aria-hidden className="text-sm font-semibold">
                       $
@@ -582,10 +598,63 @@ export function RegistrationSettings({
                     />
                   </span>
                 </AutoField>
+                <fieldset>
+                  <legend className="text-sm font-semibold">Meal options</legend>
+                  <p className="mt-1 text-sm text-muted">What bands can order. Directors enter how many of each.</p>
+                  {optionList.length > 0 && (
+                    <ul className="mt-2 flex flex-wrap gap-2" aria-label="Meal options">
+                      {optionList.map((o) => (
+                        <li key={o} className={chip}>
+                          <span className="pl-3">{o}</span>
+                          <button
+                            type="button"
+                            onClick={() => mealOptions.change(JSON.stringify(optionList.filter((x) => x !== o)))}
+                            aria-label={`Remove ${o}`}
+                            className="inline-flex size-11 items-center justify-center rounded-lg text-lg text-muted hover:text-danger"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      value={optionTyped}
+                      onChange={(e) => setOptionTyped(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addOptions([optionTyped]);
+                        }
+                      }}
+                      placeholder={optionList.length ? "Add another" : "Like Regular or Vegetarian"}
+                      aria-label="Add a meal option"
+                      maxLength={30}
+                      className="min-w-0 flex-1"
+                    />
+                    <button type="button" disabled={!optionTyped.trim() || optionList.length >= 10} onClick={() => addOptions([optionTyped])} className={outline}>
+                      Add
+                    </button>
+                  </div>
+                  {optionList.length === 0 && (
+                    <div className="mt-2">
+                      <button type="button" onClick={() => addOptions(["Regular", "Vegetarian", "Halal", "Gluten free"])} className={outline}>
+                        Use Regular, Vegetarian, Halal, and Gluten free
+                      </button>
+                      <p className="mt-1 text-sm text-muted">With no options, directors enter one number of meals.</p>
+                    </div>
+                  )}
+                  {mealOptions.failure && (
+                    <p role="alert" className="mt-2 text-sm font-semibold text-danger">
+                      Not saved. {mealOptions.failure.message}
+                    </p>
+                  )}
+                </fieldset>
                 <AutoField
                   id="reg-meal-details"
-                  label="Meal details and options"
-                  hint="Optional. What's served, options like vegetarian, halal, or gluten free, and when and how to pay."
+                  label="Meal details"
+                  hint="Optional. What's served, when, and how to pay. Shown to directors above their meal order."
                   saver={mealDetails}
                 >
                   <Textarea
@@ -593,11 +662,11 @@ export function RegistrationSettings({
                     onChange={(e) => mealDetails.change(e.target.value)}
                     rows={4}
                     maxLength={1000}
-                    placeholder="Pizza or a turkey sandwich, chips, and water. Vegetarian and gluten-free options. Pay with the entry fee."
+                    placeholder="Pizza or a turkey sandwich, chips, and water, served from 11:00 AM. Pay with the entry fee."
                     {...withClass(marked("reg-meal-details", mealDetails), "w-full")}
                   />
                 </AutoField>
-              </>
+              </div>
             )}
           </fieldset>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { mealOptionsOrDefault, mealPrice, mealSummary, mealTotal, type MealOrder } from "@/lib/meal-price";
 import { Badge, Button, Card } from "@/components/ui";
 import type { BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
@@ -27,18 +28,21 @@ function cell(v: string | number) {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-function download(bands: BandRow[], words: Words, groups: boolean, fileName: string, meals: Record<string, string> | null) {
+type Meals = { orders: Record<string, MealOrder>; options: string[]; priceCents: number | null };
+
+function download(bands: BandRow[], words: Words, groups: boolean, fileName: string, meals: Meals | null) {
+  const mealOptions = meals ? mealOptionsOrDefault(meals.options) : [];
   const head = [
     `${words.One} name`, "School", "Classification", groups ? "Participants" : "Students", "Chaperones", "Buses",
     ...(groups ? [] : ["Box trucks", "Trucks + trailers", "Semis"]),
     "Head director", "Director email", "Director phone", "Assistant directors", `${words.One} contact email`, "School address",
-    "Scheduling conflicts", "Accessibility or staging needs", ...(meals ? ["Meals"] : []), "Registered", "Withdrawn",
+    "Scheduling conflicts", "Accessibility or staging needs", ...mealOptions.map((o) => `Meals: ${o}`), ...(meals ? ["Meal note"] : []), "Registered", "Withdrawn",
   ];
   const rows = bands.map((b) => [
     b.band_name, b.school_name, b.classification, b.student_count, b.chaperone_count, b.bus_count,
     ...(groups ? [] : [b.box_truck_count, b.truck_trailer_count, b.semi_truck_count]),
     b.head_director_name, b.head_director_email, formatPhone(b.head_director_phone), b.assistant_directors.join(", "),
-    b.contact_email, b.school_address ?? "", b.contest_day_conflicts ?? "", b.special_needs ?? "", ...(meals ? [meals[b.id] ?? ""] : []), b.created_at.slice(0, 10), b.scratched_at ? "Yes" : "",
+    b.contact_email, b.school_address ?? "", b.contest_day_conflicts ?? "", b.special_needs ?? "", ...mealOptions.map((o) => meals?.orders[b.id]?.counts[o] ?? 0), ...(meals ? [meals.orders[b.id]?.note ?? ""] : []), b.created_at.slice(0, 10), b.scratched_at ? "Yes" : "",
   ]);
   const csv = [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }));
@@ -62,8 +66,8 @@ export function RegisteredBands({
   meals = null,
 }: {
   bands: BandRow[];
-  /** Meals each band asked for, by band id (null when the host doesn't offer meals). */
-  meals?: Record<string, string> | null;
+  /** Meals: each band's order by band id, the options, and the price (null when the host doesn't offer meals). */
+  meals?: Meals | null;
   classifications: string[];
   words: Words;
   /** Group events: participants and buses only. */
@@ -81,6 +85,11 @@ export function RegisteredBands({
   const withdrawn = shown.length - coming.length;
   const sum = (k: keyof Pick<BandRow, "student_count" | "chaperone_count" | "bus_count" | "box_truck_count" | "truck_trailer_count" | "semi_truck_count">) =>
     coming.reduce((t, b) => t + (b[k] ?? 0), 0);
+  // Meals for the bands still coming: how many of each option, and what they add up to.
+  const mealOptions = meals ? mealOptionsOrDefault(meals.options) : [];
+  const mealCounts = Object.fromEntries(mealOptions.map((o) => [o, coming.reduce((t, b) => t + (meals?.orders[b.id]?.counts[o] ?? 0), 0)]));
+  const mealsTotal = mealTotal(mealCounts);
+  const mealBands = coming.filter((b) => mealTotal(meals?.orders[b.id]?.counts ?? {}) > 0).length;
   const totals = {
     bus_count: sum("bus_count"),
     box_truck_count: sum("box_truck_count"),
@@ -134,6 +143,24 @@ export function RegisteredBands({
             <Total label="Chaperones" value={sum("chaperone_count")} />
             <Total label="Vehicles" value={vehicles(totals, groups)} />
           </dl>
+          {meals && (
+            // What to order: the total by option, the cost, and how many bands ordered.
+            <div className="mt-3 rounded-lg border border-border bg-surface p-4 text-sm">
+              <p>
+                <span className="font-semibold">
+                  {mealsTotal} meal{mealsTotal === 1 ? "" : "s"} ordered
+                </span>
+                {meals.priceCents != null && mealsTotal > 0 && <> · {mealPrice(mealsTotal * meals.priceCents)}</>}
+                <span className="text-muted">
+                  {" "}
+                  · {mealBands} of {coming.length} {coming.length === 1 ? words.one : words.many} ordered
+                </span>
+              </p>
+              {mealOptions.length > 1 && mealsTotal > 0 && (
+                <p className="mt-1 text-muted">{mealOptions.map((o) => `${o}: ${mealCounts[o]}`).join(" · ")}</p>
+              )}
+            </div>
+          )}
 
           <ul className="mt-4 space-y-3">
             {shown.map((b) => (
@@ -153,6 +180,7 @@ export function RegisteredBands({
                       <span className="text-muted">
                         {" "}
                         · {b.school_name} · {b.classification} · {n(b.student_count, groups ? "participant" : "student")}
+                        {meals && mealTotal(meals.orders[b.id]?.counts ?? {}) > 0 && ` · ${n(mealTotal(meals.orders[b.id]!.counts), "meal")}`}
                       </span>
                     </span>
                   </summary>
@@ -176,7 +204,11 @@ export function RegisteredBands({
                     <Detail label="Vehicles">{vehicles(b, groups)}</Detail>
                     <Detail label="Scheduling conflicts">{b.contest_day_conflicts ?? "None"}</Detail>
                     <Detail label="Accessibility or staging needs">{b.special_needs ?? "None"}</Detail>
-                    {meals && <Detail label="Meals">{meals[b.id] ?? "None requested"}</Detail>}
+                    {meals && (
+                      <Detail label="Meals">
+                        {[mealSummary(meals.orders[b.id]?.counts ?? {}, mealOptions) || "None ordered", meals.orders[b.id]?.note].filter(Boolean).join(" · ")}
+                      </Detail>
+                    )}
                   </dl>
                 </details>
               </li>

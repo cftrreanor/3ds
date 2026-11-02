@@ -17,7 +17,7 @@ import { BAND_COLUMNS, deadlinePassed, opensLater, registrationIsOpen, type Band
 import { getEventAccess, getOrigin } from "@/lib/data";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
-import { loadMealRequests, loadMealSettings } from "@/lib/meals";
+import { loadMealOrders, loadMealSettings } from "@/lib/meals";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, utcToZonedDate } from "@/lib/time";
 import { ActionButton, CopyLinkButton } from "../forms";
@@ -171,9 +171,9 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
     email: contact?.email || user.email || "",
   };
   // Meals for visiting bands, and what each band asked for (after the 20270111000000 update).
-  const [mealSettings, mealRequests] = await Promise.all([
+  const [mealSettings, mealOrders] = await Promise.all([
     loadMealSettings(supabase, eventId),
-    loadMealRequests(supabase, ((bandData ?? []) as { id: string }[]).map((b) => b.id)),
+    loadMealOrders(supabase, ((bandData ?? []) as { id: string }[]).map((b) => b.id)),
   ]);
   const registrationForm = (next?: { href: string; label: string }) => (
     <RegistrationSettings
@@ -186,7 +186,9 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
         paymentLink: event.payment_link ?? "",
         chaperoneLimit: event.chaperone_limit,
         contact: contactValues,
-        meals: mealSettings.ready ? { offered: mealSettings.offered, priceCents: mealSettings.priceCents, details: mealSettings.details } : null,
+        meals: mealSettings.ready
+          ? { offered: mealSettings.offered, priceCents: mealSettings.priceCents, details: mealSettings.details, options: mealSettings.options }
+          : null,
       }}
       bandsIn={bandsIn}
       contactSaved={settingsDone}
@@ -372,7 +374,7 @@ export default async function BandsPage({ params, searchParams }: PageProps<"/da
           {current === "bands" && (
             <RegisteredBands
               bands={bands}
-              meals={mealSettings.offered ? mealRequests : null}
+              meals={mealSettings.offered ? { orders: mealOrders, options: mealSettings.options, priceCents: mealSettings.priceCents } : null}
               classifications={event.classifications}
               words={w}
               groups={roomsHere}

@@ -7645,9 +7645,24 @@ update public.stations set min_adults = null where id = '20000000-0000-0000-0000
 do $$
 declare ok boolean;
 begin
-  assert has_column_privilege('authenticated', 'public.bands', 'meals_requested', 'INSERT'), 'directors can say how many meals when registering';
-  assert has_column_privilege('authenticated', 'public.bands', 'meals_requested', 'UPDATE'), 'and change it while registration is open';
-  assert not has_column_privilege('anon', 'public.bands', 'meals_requested', 'UPDATE'), 'the public can''t';
+  assert has_column_privilege('authenticated', 'public.bands', 'meal_counts', 'INSERT'), 'directors can order meals when registering';
+  assert has_column_privilege('authenticated', 'public.bands', 'meal_counts', 'UPDATE'), 'and change the order while registration is open';
+  assert has_column_privilege('authenticated', 'public.bands', 'meal_note', 'UPDATE'), 'with a note';
+  assert not has_column_privilege('anon', 'public.bands', 'meal_counts', 'UPDATE'), 'the public can''t';
+  -- Meal counts are whole numbers from 0 to 2,000, in a plain object.
+  assert public.valid_meal_counts('{"Regular": 110, "Vegetarian": 6}'), 'a normal order is fine';
+  assert public.valid_meal_counts('{}'), 'no order is fine';
+  assert not public.valid_meal_counts('{"Regular": -1}'), 'no negative counts';
+  assert not public.valid_meal_counts('{"Regular": 2.5}'), 'no half meals';
+  assert not public.valid_meal_counts('{"Regular": 5000}'), 'no impossible counts';
+  assert not public.valid_meal_counts('{"Regular": "lots"}'), 'numbers only';
+  assert not public.valid_meal_counts('[1, 2]'), 'a plain object only';
+  ok := false;
+  begin
+    update public.events set meal_options = array['1','2','3','4','5','6','7','8','9','10','11'] where id = '10000000-0000-0000-0000-00000000000a';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'up to 10 meal options';
   ok := false;
   begin
     update public.events set meal_price_cents = -1 where id = '10000000-0000-0000-0000-00000000000a';

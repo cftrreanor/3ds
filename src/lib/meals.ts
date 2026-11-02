@@ -1,31 +1,38 @@
 import type { createClient } from "@/lib/supabase/server";
-import type { MealOffer } from "@/lib/meal-price";
+import type { MealOffer, MealOrder } from "@/lib/meal-price";
+
+type Client = Awaited<ReturnType<typeof createClient>>;
 
 /**
  * Meals for visiting bands (the 20270111000000 update). Read on their own, so a page still works
- * before that update is run: no update means no meals offered and no requests.
+ * before that update is run: no update means no meals offered and no orders.
  */
-export async function loadMealOffer(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string): Promise<MealOffer | null> {
-  const { data, error } = await supabase.from("events").select("meals_offered, meal_price_cents, meal_details").eq("id", eventId).maybeSingle();
-  if (error || !data?.meals_offered) return null;
-  return { priceCents: data.meal_price_cents ?? null, details: data.meal_details ?? null };
+export async function loadMealOffer(supabase: Client, eventId: string): Promise<MealOffer | null> {
+  const s = await loadMealSettings(supabase, eventId);
+  return s.offered ? { priceCents: s.priceCents, details: s.details || null, options: s.options } : null;
 }
 
 /** The host's meal settings for the Registration step (all off before the update). */
-export async function loadMealSettings(supabase: Awaited<ReturnType<typeof createClient>>, eventId: string) {
-  const { data, error } = await supabase.from("events").select("meals_offered, meal_price_cents, meal_details").eq("id", eventId).maybeSingle();
+export async function loadMealSettings(supabase: Client, eventId: string) {
+  const { data, error } = await supabase.from("events").select("meals_offered, meal_price_cents, meal_details, meal_options").eq("id", eventId).maybeSingle();
   return {
     ready: !error,
     offered: Boolean(data?.meals_offered),
     priceCents: (data?.meal_price_cents as number | null) ?? null,
     details: (data?.meal_details as string | null) ?? "",
+    options: ((data?.meal_options as string[] | null) ?? []).filter(Boolean),
   };
 }
 
-/** Each band's meal request, by band id. */
-export async function loadMealRequests(supabase: Awaited<ReturnType<typeof createClient>>, bandIds: string[]): Promise<Record<string, string>> {
+/** Each band's meal order, by band id (only bands that ordered something or left a note). */
+export async function loadMealOrders(supabase: Client, bandIds: string[]): Promise<Record<string, MealOrder>> {
   if (!bandIds.length) return {};
-  const { data, error } = await supabase.from("bands").select("id, meals_requested").in("id", bandIds);
+  const { data, error } = await supabase.from("bands").select("id, meal_counts, meal_note").in("id", bandIds);
   if (error) return {};
-  return Object.fromEntries(((data ?? []) as { id: string; meals_requested: string | null }[]).filter((b) => b.meals_requested).map((b) => [b.id, b.meals_requested!]));
+  const out: Record<string, MealOrder> = {};
+  for (const b of (data ?? []) as { id: string; meal_counts: Record<string, number> | null; meal_note: string | null }[]) {
+    const counts = Object.fromEntries(Object.entries(b.meal_counts ?? {}).filter(([, n]) => Number(n) > 0)) as Record<string, number>;
+    if (Object.keys(counts).length || b.meal_note) out[b.id] = { counts, note: b.meal_note };
+  }
+  return out;
 }

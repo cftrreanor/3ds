@@ -6,7 +6,7 @@ import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Card, Field, Input, Select, Textarea } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { mealPrice, type MealOffer } from "@/lib/meal-price";
+import { mealOptionsOrDefault, mealPrice, mealTotal, type MealOffer, type MealOrder } from "@/lib/meal-price";
 
 export type BandFormValues = Partial<{
   school_name: string;
@@ -26,7 +26,7 @@ export type BandFormValues = Partial<{
   semi_truck_count: number;
   contest_day_conflicts: string | null;
   special_needs: string | null;
-  meals_requested: string | null;
+  meal_order: MealOrder | null;
 }>;
 
 export type { MealOffer } from "@/lib/meal-price";
@@ -185,29 +185,7 @@ export function BandForm({
           </Field>
         </Card>
 
-        {meals && (
-          <Card className="space-y-4">
-            <div>
-              <h2 className="font-semibold">Meals</h2>
-              <p className="mt-1 text-sm">
-                The host provides meals for visiting {group ? "groups" : "bands"}
-                {meals.priceCents != null ? (
-                  <>
-                    , <span className="font-semibold">{mealPrice(meals.priceCents)} per meal</span>
-                  </>
-                ) : null}
-                .
-              </p>
-              {meals.details && <p className="mt-1 whitespace-pre-line text-sm text-muted">{meals.details}</p>}
-            </div>
-            <Field
-              label="Meals you need (optional)"
-              hint="How many, and which of the options above. For example, 110 regular, 6 vegetarian, and 2 gluten free. Leave it blank if you don't need meals."
-            >
-              <Textarea name="mealsRequested" defaultValue={initial.meals_requested ?? ""} maxLength={500} rows={3} />
-            </Field>
-          </Card>
-        )}
+        {meals && <MealsCard meals={meals} initial={initial.meal_order ?? null} group={group} />}
       </fieldset>
 
       {!disabled && (
@@ -216,5 +194,67 @@ export function BandForm({
         </SubmitButton>
       )}
     </ActionForm>
+  );
+}
+
+/**
+ * Meals the organizer provides: the price and what's served, then how many of each option the band
+ * needs (blank is none), a note, and the running total when there's a price.
+ */
+function MealsCard({ meals, initial, group }: { meals: MealOffer; initial: MealOrder | null; group: boolean }) {
+  const options = mealOptionsOrDefault(meals.options);
+  const [counts, setCounts] = useState<Record<string, number>>(initial?.counts ?? {});
+  const total = mealTotal(Object.fromEntries(options.map((o) => [o, counts[o] ?? 0])));
+  return (
+    <Card className="space-y-4">
+      <input type="hidden" name="mealsShown" value="1" />
+      <div>
+        <h2 className="font-semibold">Meals</h2>
+        <p className="mt-1 text-sm">
+          {meals.priceCents != null ? (
+            <>
+              Meals are <span className="font-semibold">{mealPrice(meals.priceCents)} each</span>, from the organizer.
+            </>
+          ) : (
+            "The organizer provides meals."
+          )}{" "}
+          Order what your {group ? "group" : "band"} needs, or leave it blank.
+        </p>
+        {meals.details && <p className="mt-1 whitespace-pre-line text-sm text-muted">{meals.details}</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {options.map((o) => (
+          <Field key={o} label={o}>
+            <NumberInput
+              name={`meal:${o}`}
+              maxLength={4}
+              defaultValue={initial?.counts[o] ? String(initial.counts[o]) : ""}
+              placeholder="0"
+              onChange={(e) => setCounts((c) => ({ ...c, [o]: Number(e.target.value) || 0 }))}
+            />
+          </Field>
+        ))}
+      </div>
+      <p className="text-sm" aria-live="polite">
+        {total > 0 ? (
+          <>
+            <span className="font-semibold">
+              {total} meal{total === 1 ? "" : "s"}
+            </span>
+            {meals.priceCents != null && (
+              <>
+                {" "}
+                × {mealPrice(meals.priceCents)} = <span className="font-semibold">{mealPrice(total * meals.priceCents)}</span>
+              </>
+            )}
+          </>
+        ) : (
+          <span className="text-muted">No meals ordered</span>
+        )}
+      </p>
+      <Field label="Anything else about meals (optional)" hint="Like an allergy to plan for, or when your band will eat.">
+        <Input name="mealNote" defaultValue={initial?.note ?? ""} maxLength={300} />
+      </Field>
+    </Card>
   );
 }
