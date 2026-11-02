@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { currentChecklist } from "@/app/dashboard/events/[eventId]/setup-actions";
 import type { SetupChecklist, SetupStep } from "@/lib/setup-checklist";
 
@@ -20,7 +20,7 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
     <>
       {/* Computer: beside the page, staying in view as you scroll. */}
       <aside aria-label="Event setup checklist" className="hidden lg:block">
-        <div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-card">
+        <ScrollPanel header={complete ? null : <StepsHeader checklist={checklist} />}>
           {complete ? (
             // Everything's done: a small note, with the list a tap away.
             <details>
@@ -29,18 +29,19 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
                 <span className="mt-1 block text-xs font-normal text-muted">Show the checklist</span>
               </summary>
               <div className="mt-3">
-                <Steps checklist={checklist} justDone={justDone} />
+                <Steps checklist={checklist} justDone={justDone} compact />
               </div>
             </details>
           ) : (
-            <Steps checklist={checklist} justDone={justDone} />
+            <Steps checklist={checklist} justDone={justDone} header={false} compact />
           )}
-        </div>
+        </ScrollPanel>
       </aside>
 
       {/* Phone and tablet: a light bar along the bottom with the next step; it opens the drawer. */}
       {!complete && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 backdrop-blur lg:hidden print:hidden">
+        <div data-setup-bar className="fixed inset-x-0 bottom-0 z-30 border-t border-field-border bg-surface shadow-[0_-4px_12px_rgb(0_0_0/0.08)] lg:hidden print:hidden">
+          <div className="mx-auto max-w-2xl">
           <Segments segments={checklist.segments} className="px-4 pt-2.5" />
           <button
             type="button"
@@ -56,10 +57,71 @@ export function SetupGuide({ checklist }: { checklist: SetupChecklist }) {
               ›
             </span>
           </button>
+          </div>
         </div>
       )}
       <ChecklistDrawer drawer={drawer} checklist={checklist} justDone={justDone} />
     </>
+  );
+}
+
+/**
+ * The computer panel: stays in view as the page scrolls. Its heading and progress stay put at the top;
+ * the steps under them scroll on their own when they're taller than the screen, with a fade at the top
+ * while there's more above and a fade with "More below" while there's more below. The list fits what's
+ * left of the screen (shorter before the page scrolls), so its bottom edge is always in view.
+ */
+function ScrollPanel({ header, children }: { header: ReactNode; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ above: false, below: false });
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const fit = () => {
+      const top = Math.max(el.getBoundingClientRect().top, 24);
+      el.style.maxHeight = `${Math.max(window.innerHeight - top - 24, 160)}px`;
+      const above = el.scrollTop > 8;
+      const below = el.scrollHeight - el.scrollTop - el.clientHeight > 8;
+      setEdges((e) => (e.above === above && e.below === below ? e : { above, below }));
+    };
+    fit();
+    el.addEventListener("scroll", fit, { passive: true });
+    window.addEventListener("scroll", fit, { passive: true });
+    window.addEventListener("resize", fit);
+    const ro = new ResizeObserver(fit);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener("scroll", fit);
+      window.removeEventListener("scroll", fit);
+      window.removeEventListener("resize", fit);
+      ro.disconnect();
+    };
+  }, []);
+  return (
+    <div className="sticky top-6 rounded-lg border border-border bg-surface shadow-card">
+      {header && <div className="border-b border-border px-5 pt-5 pb-4">{header}</div>}
+      <div className="relative">
+        {/* Focusable, so the keyboard can scroll it (Page Down, arrows); focus stops clear of the fades. */}
+        <div
+          ref={box}
+          tabIndex={0}
+          role="region"
+          aria-label="Setup steps"
+          className={`scroll-pt-8 scroll-pb-20 overflow-y-auto rounded-b-lg px-5 pb-5 outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${header ? "" : "rounded-t-lg pt-5"}`}
+        >
+          <div>{children}</div>
+        </div>
+        {edges.above && <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-surface to-transparent" />}
+        {edges.below && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 flex h-20 items-end justify-center rounded-b-lg bg-gradient-to-t from-surface from-50% to-transparent pb-3 text-sm font-semibold text-brand"
+          >
+            More below ↓
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -283,18 +345,40 @@ function ChecklistDrawer({
 /** Steps done in event settings (the date and place, the team, maps and documents), listed in their own section. */
 const SETTINGS_STEPS = new Set(["details", "team", "files"]);
 
-function Steps({ checklist, justDone, onNavigate }: { checklist: SetupChecklist; justDone: Set<string>; onNavigate?: () => void }) {
-  const { progress } = checklist;
+/** The checklist's title and where setup stands. */
+function StepsHeader({ checklist }: { checklist: SetupChecklist }) {
+  return (
+    <>
+      <h2 className="text-lg font-semibold">Event setup</h2>
+      <p className="mt-1 text-sm text-muted">{checklist.progress.label}</p>
+      <Segments segments={checklist.segments} className="mt-3" />
+    </>
+  );
+}
+
+function Steps({
+  checklist,
+  justDone,
+  onNavigate,
+  header = true,
+  compact = false,
+}: {
+  checklist: SetupChecklist;
+  justDone: Set<string>;
+  onNavigate?: () => void;
+  /** The narrow computer panel: a step's description shows on the next step only. */
+  compact?: boolean;
+  /** The title and progress (left out where they're pinned above the list). */
+  header?: boolean;
+}) {
   // The bars point to a step that's part-way first, so "Next" sits on the same one here.
-  const props = { next: checklist.inProgress ?? checklist.next, justDone, onNavigate };
+  const props = { next: checklist.inProgress ?? checklist.next, justDone, onNavigate, compact };
   const setup = checklist.before.filter((st) => !SETTINGS_STEPS.has(st.id));
   const settings = checklist.before.filter((st) => SETTINGS_STEPS.has(st.id));
   return (
     <div>
       {/* Two sections with the same heading: what's done on the event's pages, then what's done in event settings. */}
-      <h2 className="text-lg font-semibold">Event setup</h2>
-      <p className="mt-1 text-sm text-muted">{progress.label}</p>
-      <Segments segments={checklist.segments} className="mt-3" />
+      {header && <StepsHeader checklist={checklist} />}
 
       {setup.length > 0 && <Group title="Before you publish" steps={setup} {...props} />}
       {/* Publishing is the step between the two lists, not a list of its own. */}
@@ -326,7 +410,7 @@ function Steps({ checklist, justDone, onNavigate }: { checklist: SetupChecklist;
 /** Settings steps sit apart from the main list, so the ones publishing waits on say so. */
 const NEEDED_PILL = new Set(["details"]);
 
-type StepProps = { next: SetupStep | null; justDone: Set<string>; onNavigate?: () => void };
+type StepProps = { next: SetupStep | null; justDone: Set<string>; onNavigate?: () => void; compact?: boolean };
 
 /** Open steps first (and any just finished, so its moment is seen); the rest fold into one line you can open. */
 function Group({ title, steps, ...props }: { title: string; steps: SetupStep[] } & StepProps) {
@@ -410,7 +494,7 @@ function StatusRing({ step, justDone = false }: { step: Pick<SetupStep, "done" |
   );
 }
 
-function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & StepProps) {
+function Step({ step: st, next, justDone, onNavigate, compact = false }: { step: SetupStep } & StepProps) {
   const isNext = next?.id === st.id;
   return (
     <li>
@@ -447,7 +531,7 @@ function Step({ step: st, next, justDone, onNavigate }: { step: SetupStep } & St
                 <span className="font-semibold text-brand">In progress</span> <span className="text-muted">· {st.partial.note}</span>
               </span>
             ) : (
-              <span className="mt-0.5 block text-xs leading-5 text-muted">{st.hint}</span>
+              (!compact || isNext) && <span className="mt-0.5 block text-xs leading-5 text-muted">{st.hint}</span>
             ))}
         </span>
         {!st.done && (

@@ -336,3 +336,15 @@ form[data-missing="fix"]::after {
   stroke-dasharray: 14;
   animation: setup-draw 0.3s ease-out 0.5s both;
 }
+
+/* Phones and tablets: the setup bar is pinned along the bottom, so keyboard focus and links to a
+   spot on the page stop above it instead of behind it. */
+@media (max-width: 1023.98px) {
+  html:has([data-setup-bar]) {
+    scroll-padding-bottom: 6rem;
+  }
+  /* Room under everything (the footer included) so the end of the page can scroll clear of the bar. */
+  html:has([data-setup-bar]) body {
+    padding-bottom: 5.5rem;
+  }
+}

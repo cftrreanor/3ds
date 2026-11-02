@@ -187,6 +187,16 @@ keep focus on that item.
 
 ---
 
+## L21. Pinned bars and panels never hide content
+A bar pinned to the screen leaves room under everything after it (the footer included), and keyboard
+focus stops above it (`scroll-padding`). A panel that scrolls on its own fits the visible screen, keeps
+its heading pinned, and shows a fade with "More below" while there's more, so it never just ends at the
+screen's edge.
+- **Why:** content under a pinned bar, or a list cut off with no cue, looks like the end of the page.
+- **Seen in:** band contest mock-ups (sticky bar covers content; sidebar clipped with no cue), band PR 1
+  built (phone setup bar covers buttons), layout fixes 2026-11-09 (footer under the bar; panel heading
+  scrolled away; fade covered the focused step).
+
 ## Self-check before a review
 
 Go through every screen, in light **and dark**, at phone **and** desktop. Fix anything that fails
@@ -209,6 +219,7 @@ before the panel sees it.
 - [ ] **L15** Same layout as its sibling pages
 - [ ] **L16** Personal details say who sees them
 - [ ] **L20** Reorder arrows in fixed columns, named on the button, and confirm the move
+- [ ] **L21** Nothing under a pinned bar (end of page, keyboard focus); a scrolling panel keeps its heading and says "More below"
 - [ ] **L17** A ready step's action is at the top; a blocked one names its fix there
 - [ ] **L18** Sibling steps save the same way, with Next in the same place
 - [ ] **L19** Every date-based state (opens later, scheduled) shows on every badge, button, and job
