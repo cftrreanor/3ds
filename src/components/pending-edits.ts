@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { confirmDialog } from "@/components/confirm-dialog";
@@ -15,8 +16,36 @@ type Entry = { kind: "saving" | "failed" | "unadded" | "incomplete"; flush?: () 
 const entries = new Map<string, Entry>();
 const listeners = new Set<() => void>();
 let version = 0;
+/** How long a save on its way can go without an answer before it shows as not saved. */
+const NO_ANSWER_MS = 15_000;
+const watchdogs = new Map<string, ReturnType<typeof setTimeout>>();
+/** How to send each form's save again, if one never gets an answer. */
+const retries = new Map<string, () => void>();
+
+/** Registers how to send a form's save again; returns the way to forget it. */
+export function onRetry(key: string, fn: () => void) {
+  retries.set(key, fn);
+  return () => {
+    if (retries.get(key) === fn) retries.delete(key);
+  };
+}
 
 export function setPending(key: string, entry: Entry | null) {
+  clearTimeout(watchdogs.get(key));
+  watchdogs.delete(key);
+  // A save that's been sent (saving, nothing left to wait for): if no answer comes, it never sits on
+  // "Saving…" forever. It shows as not saved, with Try again, and the team hears about it.
+  if (entry?.kind === "saving" && !entry.flush) {
+    watchdogs.set(
+      key,
+      setTimeout(() => {
+        if (entries.get(key) !== entry) return;
+        setPending(key, { kind: "failed", flush: retries.get(key) });
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("save-no-answer", { detail: key }));
+        Sentry.captureMessage("Autosave got no answer", { level: "warning", extra: { key, path: typeof location !== "undefined" ? location.pathname : null } });
+      }, NO_ANSWER_MS),
+    );
+  }
   if (entry) entries.set(key, entry);
   else if (!entries.delete(key)) return;
   version++;

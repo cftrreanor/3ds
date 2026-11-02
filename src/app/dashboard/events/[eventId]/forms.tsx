@@ -12,7 +12,7 @@ import type { ActionState } from "@/lib/action-state";
 import { CHECKPOINT_KINDS, type CheckpointKind } from "@/lib/contest-day";
 import { formatDate } from "@/lib/time";
 import { OVERLAPS, clockLabel, durationLabel, planShifts, toMinutes } from "@/lib/shift-plan";
-import { setPending, useUnadded } from "@/components/pending-edits";
+import { onRetry, setPending, useUnadded } from "@/components/pending-edits";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
 import { copyDialog } from "@/components/confirm-dialog";
 
@@ -816,6 +816,8 @@ function ItemRow({ item: it, autosave }: { item: EditableItem; autosave: boolean
     setPending(formId, { kind: "saving" });
     form.requestSubmit();
   }, [formId]);
+  // Sending it again if it never gets an answer.
+  useEffect(() => onRetry(formId, save), [formId, save]);
   const schedule = () => {
     if (timer.current) clearTimeout(timer.current);
     setPending(formId, { kind: "saving", flush: save });
