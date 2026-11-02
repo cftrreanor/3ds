@@ -13,6 +13,7 @@ import {
 import { NumberInput } from "@/components/number-input";
 import { setPending, useLeaveGuard } from "@/components/pending-edits";
 import { Input, Textarea } from "@/components/ui";
+import { ChipAdder } from "@/components/chip-adder";
 import { normalizePhone } from "@/lib/phone";
 import { formatDate } from "@/lib/time";
 
@@ -278,30 +279,21 @@ export function RegistrationSettings({
       return [];
     }
   })();
-  const [optionTyped, setOptionTyped] = useState("");
   const addOptions = (names: string[]) => {
     const next = [...optionList];
     for (const n of names.map((x) => x.trim()).filter(Boolean)) if (!next.some((o) => o.toLowerCase() === n.toLowerCase())) next.push(n);
     mealOptions.change(JSON.stringify(next.slice(0, 10)));
-    setOptionTyped("");
   };
   const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail, mealsOffered, mealPrice, mealDetails, mealOptions];
 
   // Classifications: added, renamed, and removed one at a time.
   const [list, setList] = useState(initial.classifications);
   const [bandsIn, setBandsIn] = useState(initialBandsIn);
-  const [typed, setTyped] = useState("");
   const [cls, setCls] = useState<{ busy: boolean; failure: Failure; saved: boolean }>({ busy: false, failure: null, saved: false });
   // The last classification change, for Retry when the connection dropped.
   const lastOp = useRef<(() => void) | null>(null);
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
-  const typedKey = useId();
   const clsKey = useId();
-  // Typed but not added: leaving asks first (nothing is added without Add or Enter).
-  useEffect(() => {
-    setPending(typedKey, typed.trim() ? { kind: "unadded" } : null);
-    return () => setPending(typedKey, null);
-  }, [typed, typedKey]);
   useEffect(() => {
     // Only a dropped connection leaves something unsaved; a refusal ("already a classification") just says why.
     setPending(clsKey, cls.busy ? { kind: "saving" } : cls.failure?.retry ? { kind: "failed", flush: () => lastOp.current?.() } : null);
@@ -328,8 +320,8 @@ export function RegistrationSettings({
     return true;
   }
   const add = (names: string[]) => {
-    const clean = names.flatMap((n) => n.split(",")).map((n) => n.trim()).filter(Boolean);
-    if (clean.length && !cls.busy) void run(() => addClassifications(eventId, clean), () => setTyped(""));
+    const clean = names.map((n) => n.trim()).filter(Boolean);
+    if (clean.length && !cls.busy) void run(() => addClassifications(eventId, clean));
   };
   const remove = (name: string) => void run(() => removeClassification(eventId, name));
   const rename = async () => {
@@ -444,51 +436,21 @@ export function RegistrationSettings({
               {Object.values(bandsIn).some((n) => n > 0) && " A classification with bands in it can't be removed, but it can be renamed."}
             </p>
           )}
-          <div className="mt-3 flex gap-2">
-            <Input
-              value={typed}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (cls.failure && !cls.failure.retry) setCls((c) => ({ ...c, failure: null }));
-                // A comma adds what's before it.
-                if (v.includes(",")) add([v]);
-                else setTyped(v);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  add([typed]);
-                }
-              }}
+          <div className="mt-3">
+            <ChipAdder
+              suggestions={[
+                { title: "1A–6A", names: PRESETS.uil },
+                { title: "Division I–III", names: PRESETS.divisions },
+              ]}
+              existing={list}
+              onAdd={(names) => add(names)}
+              busy={cls.busy}
               placeholder={list.length ? "Add another" : "Like 1A or Class AA"}
-              aria-labelledby="cls-label"
-              aria-describedby={[cls.failure && "cls-error", typed.trim() && "cls-typed", "cls-hint"].filter(Boolean).join(" ")}
-              aria-invalid={cls.failure ? true : undefined}
-              maxLength={40}
-              className="min-w-0 flex-1"
+              label="Add a classification"
+              describedBy={[cls.failure && "cls-error", "cls-hint"].filter(Boolean).join(" ")}
+              invalid={Boolean(cls.failure)}
             />
-            <button type="button" disabled={cls.busy || !typed.trim()} onClick={() => add([typed])} className={outline}>
-              Add
-            </button>
           </div>
-          {typed.trim() && (
-            <p id="cls-typed" className="mt-1.5 text-sm font-medium text-warning">
-              <span aria-hidden>◆ </span>“{typed.trim()}” isn&apos;t added yet. Select Add to keep it.
-            </p>
-          )}
-          {list.length === 0 && (
-            <div className="mt-3">
-              <p className="text-sm text-muted">Or add a common set:</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" disabled={cls.busy} onClick={() => add(PRESETS.uil)} className={outline}>
-                  1A through 6A
-                </button>
-                <button type="button" disabled={cls.busy} onClick={() => add(PRESETS.divisions)} className={outline}>
-                  Division I through III
-                </button>
-              </div>
-            </div>
-          )}
           {cls.failure && (
             <p id="cls-error" role="alert" className="mt-2 flex flex-wrap items-center gap-x-2 text-sm font-semibold text-danger">
               <span>
@@ -618,33 +580,18 @@ export function RegistrationSettings({
                       ))}
                     </ul>
                   )}
-                  <div className="mt-2 flex gap-2">
-                    <Input
-                      value={optionTyped}
-                      onChange={(e) => setOptionTyped(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addOptions([optionTyped]);
-                        }
-                      }}
+                  <div className="mt-2">
+                    <ChipAdder
+                      suggestions={[{ names: ["Regular", "Vegetarian", "Halal", "Gluten free", "Kosher", "Dairy free"] }]}
+                      existing={optionList}
+                      onAdd={(names) => addOptions(names)}
                       placeholder={optionList.length ? "Add another" : "Like Regular or Vegetarian"}
-                      aria-label="Add a meal option"
+                      label="Add a meal option"
+                      max={10}
                       maxLength={30}
-                      className="min-w-0 flex-1"
                     />
-                    <button type="button" disabled={!optionTyped.trim() || optionList.length >= 10} onClick={() => addOptions([optionTyped])} className={outline}>
-                      Add
-                    </button>
                   </div>
-                  {optionList.length === 0 && (
-                    <div className="mt-2">
-                      <button type="button" onClick={() => addOptions(["Regular", "Vegetarian", "Halal", "Gluten free"])} className={outline}>
-                        Use Regular, Vegetarian, Halal, and Gluten free
-                      </button>
-                      <p className="mt-1 text-sm text-muted">With no options, directors enter one number of meals.</p>
-                    </div>
-                  )}
+                  {optionList.length === 0 && <p className="mt-2 text-sm text-muted">With no options, directors enter one number of meals.</p>}
                   {mealOptions.failure && (
                     <p role="alert" className="mt-2 text-sm font-semibold text-danger">
                       Not saved. {mealOptions.failure.message}
@@ -715,7 +662,7 @@ export function RegistrationSettings({
               <p className="text-muted">Not saved yet. Finish the box you&apos;re typing in.</p>
             ) : counts.unadded ? (
               <p className="font-medium text-warning">
-                <span aria-hidden>◆ </span>“{typed.trim()}” isn&apos;t added yet.
+                <span aria-hidden>◆ </span>Something you typed isn&apos;t added yet. Select Add to keep it.
               </p>
             ) : draft && missing.length === 0 ? (
               <p className="font-medium">
