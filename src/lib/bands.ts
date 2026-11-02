@@ -46,9 +46,24 @@ export const bandSchema = z.object({
   semiTruckCount: count("Semi trucks", 20),
   contestDayConflicts: z.string().trim().max(2000).transform((v) => v || null),
   specialNeeds: z.string().trim().max(2000).transform((v) => v || null),
+  // Only on the form when the host offers meals (after the 20270111000000 update): how many of each option.
+  mealCounts: z.record(z.string().min(1).max(40), z.number().int("Meals: whole numbers only").min(0).max(2000, "Meals: that looks too high")).optional(),
+  mealNote: z.string().trim().max(300, "Meals: keep the note under 300 characters").transform((v) => v || null).optional(),
 });
 
 export type BandInput = z.infer<typeof bandSchema>;
+
+/** The meal order from the form ("meal:Regular" = 110), only when the form showed it. A blank count is 0. */
+function mealFields(formData: FormData) {
+  if (!formData.has("mealsShown")) return {};
+  const counts: Record<string, number> = {};
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("meal:")) continue;
+    const raw = String(value).trim();
+    counts[key.slice(5)] = raw === "" ? 0 : /^\d+$/.test(raw) ? Number(raw) : NaN;
+  }
+  return { mealCounts: counts, mealNote: String(formData.get("mealNote") ?? "") };
+}
 
 export function parseBand(formData: FormData) {
   return bandSchema.safeParse({
@@ -69,6 +84,7 @@ export function parseBand(formData: FormData) {
     semiTruckCount: formData.get("semiTruckCount") || 0,
     contestDayConflicts: formData.get("contestDayConflicts") ?? "",
     specialNeeds: formData.get("specialNeeds") ?? "",
+    ...mealFields(formData),
   });
 }
 
@@ -92,6 +108,7 @@ export function bandColumns(v: BandInput) {
     semi_truck_count: v.semiTruckCount,
     contest_day_conflicts: v.contestDayConflicts,
     special_needs: v.specialNeeds,
+    ...(v.mealCounts !== undefined ? { meal_counts: v.mealCounts, meal_note: v.mealNote ?? null } : {}),
   };
 }
 

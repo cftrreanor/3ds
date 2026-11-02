@@ -28,6 +28,8 @@ import { WithdrawBandButton } from "./withdraw-band";
 import { withdrawBand } from "@/app/dashboard/band-actions";
 import { eventLogoUrl, loadEventBrand } from "@/lib/event-brand";
 import { LineIcon } from "@/components/line-icon";
+import { loadMealOffer, loadMealOrders } from "@/lib/meals";
+import { mealPrice, mealSummary, mealTotal } from "@/lib/meal-price";
 import type { IconName } from "@/lib/icons";
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/bands/[bandId]">): Promise<Metadata> {
@@ -48,6 +50,8 @@ export default async function BandContestPage({ params, searchParams }: PageProp
   const { data } = await supabase.from("bands").select(BAND_COLUMNS).eq("id", bandId).maybeSingle();
   const band = data as BandRow | null;
   if (!band) missing();
+  // Meals the host provides, and what this band asked for (after the 20270111000000 update).
+  const [mealOffer, mealAsk] = await Promise.all([loadMealOffer(supabase, band.event_id), loadMealOrders(supabase, [bandId])]);
 
   const [{ data: event }, { data: slot }, { data: finalsSlot }, { data: contact }, { data: phone }, cookieStore, { data: day }, { data: progress }] = await Promise.all([
     supabase
@@ -426,6 +430,21 @@ export default async function BandContestPage({ params, searchParams }: PageProp
             <Item label={group ? "Group contact email" : "Band contact email"}>{band.contact_email}</Item>
             <Item label="Scheduling conflicts">{band.contest_day_conflicts ?? "None"}</Item>
             <Item label="Accessibility or staging needs">{band.special_needs ?? "None"}</Item>
+            {mealOffer && (
+              <Item label="Meals">
+                {(() => {
+                  const order = mealAsk[bandId];
+                  const n = order ? mealTotal(order.counts) : 0;
+                  if (!n) return order?.note ? `None ordered · ${order.note}` : "None ordered";
+                  return [
+                    `${mealSummary(order.counts, mealOffer.options)} · ${n} meal${n === 1 ? "" : "s"}${mealOffer.priceCents != null ? `, ${mealPrice(n * mealOffer.priceCents)}` : ""}`,
+                    order.note,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
+                })()}
+              </Item>
+            )}
           </dl>
           {withdrawn ? null : open ? (
             <Link

@@ -7637,4 +7637,47 @@ delete from public.volunteers where email like 'held.%@example.com';
 delete from public.shifts where id in ('9c000000-0000-0000-0000-000000000001', '9c000000-0000-0000-0000-000000000002');
 update public.stations set min_adults = null where id = '20000000-0000-0000-0000-00000000000a';
 
+-- ---------------------------------------------------------------------------
+-- Meals for visiting bands (20270111000000): directors can say how many meals
+-- they need on their own registration; the public can't write it; prices and
+-- lengths stay in bounds.
+-- ---------------------------------------------------------------------------
+do $$
+declare ok boolean;
+begin
+  assert has_column_privilege('authenticated', 'public.bands', 'meal_counts', 'INSERT'), 'directors can order meals when registering';
+  assert has_column_privilege('authenticated', 'public.bands', 'meal_counts', 'UPDATE'), 'and change the order while registration is open';
+  assert has_column_privilege('authenticated', 'public.bands', 'meal_note', 'UPDATE'), 'with a note';
+  assert not has_column_privilege('anon', 'public.bands', 'meal_counts', 'UPDATE'), 'the public can''t';
+  -- Meal counts are whole numbers from 0 to 2,000, in a plain object.
+  assert public.valid_meal_counts('{"Regular": 110, "Vegetarian": 6}'), 'a normal order is fine';
+  assert public.valid_meal_counts('{}'), 'no order is fine';
+  assert not public.valid_meal_counts('{"Regular": -1}'), 'no negative counts';
+  assert not public.valid_meal_counts('{"Regular": 2.5}'), 'no half meals';
+  assert not public.valid_meal_counts('{"Regular": 5000}'), 'no impossible counts';
+  assert not public.valid_meal_counts('{"Regular": "lots"}'), 'numbers only';
+  assert not public.valid_meal_counts('[1, 2]'), 'a plain object only';
+  ok := false;
+  begin
+    update public.events set meal_options = array['1','2','3','4','5','6','7','8','9','10','11'] where id = '10000000-0000-0000-0000-00000000000a';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'up to 10 meal options';
+  ok := false;
+  begin
+    update public.events set meal_price_cents = -1 where id = '10000000-0000-0000-0000-00000000000a';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'a meal price can''t be negative';
+  ok := false;
+  begin
+    update public.events set meal_details = repeat('x', 1001) where id = '10000000-0000-0000-0000-00000000000a';
+  exception when check_violation then ok := true;
+  end;
+  assert ok, 'meal details stay under 1,000 characters';
+  update public.events set meals_offered = true, meal_price_cents = 850 where id = '10000000-0000-0000-0000-00000000000a';
+  assert (select meals_offered and meal_price_cents = 850 from public.events where id = '10000000-0000-0000-0000-00000000000a'), 'a host can offer meals with a price';
+  update public.events set meals_offered = false, meal_price_cents = null where id = '10000000-0000-0000-0000-00000000000a';
+end $$;
+
 \echo 'All database security tests passed.'

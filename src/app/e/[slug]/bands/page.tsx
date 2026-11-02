@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateRange, formatTimeRange, zoneAbbreviation } from "@/lib/time";
 import { LineIcon } from "@/components/line-icon";
 import { GuestRegister } from "./guest-register";
+import { loadMealOffer } from "@/lib/meals";
 import { RegisterForm, type PreviousBand } from "./register-form";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -121,6 +122,8 @@ export default async function BandRegistrationPage({ params }: Params) {
   previous.unshift(...prefilled);
 
   const open = registrationIsOpen(event);
+  // Meals the host provides, if any (the form asks how many).
+  const meals = await loadMealOffer(supabase, event.id);
   // Published with registration set to open on a later day: say when.
   const later = event.status === "published" && event.band_registration_open && opensLater(event);
   const here = `/e/${slug}/bands`;
@@ -130,6 +133,7 @@ export default async function BandRegistrationPage({ params }: Params) {
       again={registerAgain.bind(null, event.id)}
       classifications={event.classifications}
       chaperoneLimit={event.chaperone_limit}
+      meals={meals}
       previous={previous}
       kind={kind}
       blank={{
@@ -280,7 +284,7 @@ export default async function BandRegistrationPage({ params }: Params) {
                 Sign in to use your saved details
               </Link>
             </p>
-            <GuestRegister eventId={event.id} classifications={event.classifications} chaperoneLimit={event.chaperone_limit} kind={kind} />
+            <GuestRegister eventId={event.id} classifications={event.classifications} chaperoneLimit={event.chaperone_limit} kind={kind} meals={meals} />
           </>
         ) : mine.length > 0 ? (
           <details className="group">

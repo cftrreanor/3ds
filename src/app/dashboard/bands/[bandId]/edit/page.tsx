@@ -7,6 +7,7 @@ import { hasRooms } from "@/lib/event-types";
 import { BAND_COLUMNS, registrationIsOpen, type BandRow } from "@/lib/bands";
 import { formatPhone } from "@/lib/phone";
 import { missing } from "@/lib/schema-check";
+import { loadMealOffer, loadMealOrders } from "@/lib/meals";
 import { createClient } from "@/lib/supabase/server";
 import { WithdrawBandButton } from "../withdraw-band";
 
@@ -26,6 +27,7 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
   if (!event) missing();
   // Only while registration is open; after that, changes go through the organizer.
   if (!registrationIsOpen(event)) redirect(`/dashboard/bands/${bandId}`);
+  const [meals, requests] = await Promise.all([loadMealOffer(supabase, band.event_id), loadMealOrders(supabase, [bandId])]);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -43,7 +45,8 @@ export default async function EditBandPage({ params }: PageProps<"/dashboard/ban
           chaperoneLimit={event.chaperone_limit}
           kind={hasRooms(event.event_type) ? "group" : "band"}
           submitLabel="Save changes"
-          initial={{ ...band, head_director_phone: formatPhone(band.head_director_phone) }}
+          initial={{ ...band, head_director_phone: formatPhone(band.head_director_phone), meal_order: requests[bandId] ?? null }}
+          meals={meals}
         />
       </div>
       <div className="mt-8 border-t border-border pt-4 text-sm">

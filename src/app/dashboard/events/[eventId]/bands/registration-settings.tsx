@@ -211,6 +211,8 @@ export function RegistrationSettings({
     paymentLink: string;
     chaperoneLimit: number;
     contact: { name: string; phone: string; email: string };
+    /** Meals for visiting bands; null before the 20270111000000 update. */
+    meals: { offered: boolean; priceCents: number | null; details: string; options: string[] } | null;
   };
   /** How many bands are registered in each classification (they can't be removed while it's above 0). */
   bandsIn: Record<string, number>;
@@ -262,7 +264,28 @@ export function RegistrationSettings({
   const contactEmail = useAutosave(eventId, "contactEmail", initial.contact.email, {
     check: (v) => (v.trim() && !/^\S+@\S+\.\S+$/.test(v.trim()) ? "Enter a full email address." : null),
   });
-  const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail];
+  const mealsOffered = useAutosave(eventId, "mealsOffered", initial.meals?.offered ? "true" : "false", { immediate: true });
+  const mealPrice = useAutosave(eventId, "mealPrice", initial.meals?.priceCents != null ? (initial.meals.priceCents / 100).toFixed(initial.meals.priceCents % 100 ? 2 : 0) : "", {
+    check: (v) => (v.trim() && !/^\$?\d{1,4}(\.\d{1,2})?$/.test(v.trim()) ? "Enter a price like 8 or 8.50." : null),
+  });
+  const mealDetails = useAutosave(eventId, "mealDetails", initial.meals?.details ?? "");
+  // The options bands order, saved as a list each time one is added or removed.
+  const mealOptions = useAutosave(eventId, "mealOptions", JSON.stringify(initial.meals?.options ?? []), { immediate: true });
+  const optionList: string[] = (() => {
+    try {
+      return JSON.parse(mealOptions.value) as string[];
+    } catch {
+      return [];
+    }
+  })();
+  const [optionTyped, setOptionTyped] = useState("");
+  const addOptions = (names: string[]) => {
+    const next = [...optionList];
+    for (const n of names.map((x) => x.trim()).filter(Boolean)) if (!next.some((o) => o.toLowerCase() === n.toLowerCase())) next.push(n);
+    mealOptions.change(JSON.stringify(next.slice(0, 10)));
+    setOptionTyped("");
+  };
+  const fields = [opensOn, deadline, info, pay, chaperones, contactName, contactPhone, contactEmail, mealsOffered, mealPrice, mealDetails, mealOptions];
 
   // Classifications: added, renamed, and removed one at a time.
   const [list, setList] = useState(initial.classifications);
@@ -537,6 +560,116 @@ export function RegistrationSettings({
         >
           <Input type="url" inputMode="url" value={pay.value} onChange={(e) => pay.change(e.target.value)} {...withClass(marked("reg-pay", pay), "w-full")} />
         </AutoField>
+
+        {initial.meals && (
+          // Meals for visiting bands: the price and options show above where directors say how many they need.
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold">Meals</legend>
+            <label className="flex min-h-11 items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={mealsOffered.value === "true"}
+                onChange={(e) => mealsOffered.change(e.target.checked ? "true" : "false")}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand)]"
+              />
+              <span>
+                <span className="font-medium">We&apos;ll provide meals for visiting bands</span>
+                <span className="block text-muted">Directors order meals when they register. You see each order, and the totals, in your band list and download.</span>
+                {mealsOffered.failure && (
+                  <span role="alert" className="block font-semibold text-danger">
+                    Not saved. {mealsOffered.failure.message}
+                  </span>
+                )}
+              </span>
+            </label>
+            {mealsOffered.value === "true" && (
+              <div className="space-y-4 border-l-2 border-border pl-4">
+                <AutoField id="reg-meal-price" label="Price per meal" hint="Optional. Shown to directors when they order, with their total. Leave it empty if there's no set price." saver={mealPrice}>
+                  <span className="flex items-center gap-2">
+                    <span aria-hidden className="text-sm font-semibold">
+                      $
+                    </span>
+                    <Input
+                      inputMode="decimal"
+                      value={mealPrice.value}
+                      placeholder="8.50"
+                      onChange={(e) => mealPrice.change(e.target.value)}
+                      {...withClass(marked("reg-meal-price", mealPrice), "w-28!")}
+                    />
+                  </span>
+                </AutoField>
+                <fieldset>
+                  <legend className="text-sm font-semibold">Meal options</legend>
+                  <p className="mt-1 text-sm text-muted">What bands can order. Directors enter how many of each.</p>
+                  {optionList.length > 0 && (
+                    <ul className="mt-2 flex flex-wrap gap-2" aria-label="Meal options">
+                      {optionList.map((o) => (
+                        <li key={o} className={chip}>
+                          <span className="pl-3">{o}</span>
+                          <button
+                            type="button"
+                            onClick={() => mealOptions.change(JSON.stringify(optionList.filter((x) => x !== o)))}
+                            aria-label={`Remove ${o}`}
+                            className="inline-flex size-11 items-center justify-center rounded-lg text-lg text-muted hover:text-danger"
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      value={optionTyped}
+                      onChange={(e) => setOptionTyped(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addOptions([optionTyped]);
+                        }
+                      }}
+                      placeholder={optionList.length ? "Add another" : "Like Regular or Vegetarian"}
+                      aria-label="Add a meal option"
+                      maxLength={30}
+                      className="min-w-0 flex-1"
+                    />
+                    <button type="button" disabled={!optionTyped.trim() || optionList.length >= 10} onClick={() => addOptions([optionTyped])} className={outline}>
+                      Add
+                    </button>
+                  </div>
+                  {optionList.length === 0 && (
+                    <div className="mt-2">
+                      <button type="button" onClick={() => addOptions(["Regular", "Vegetarian", "Halal", "Gluten free"])} className={outline}>
+                        Use Regular, Vegetarian, Halal, and Gluten free
+                      </button>
+                      <p className="mt-1 text-sm text-muted">With no options, directors enter one number of meals.</p>
+                    </div>
+                  )}
+                  {mealOptions.failure && (
+                    <p role="alert" className="mt-2 text-sm font-semibold text-danger">
+                      Not saved. {mealOptions.failure.message}
+                    </p>
+                  )}
+                </fieldset>
+                <AutoField
+                  id="reg-meal-details"
+                  label="Meal details"
+                  hint="Optional. What's served, when, and how to pay. Shown to directors above their meal order."
+                  saver={mealDetails}
+                >
+                  <Textarea
+                    value={mealDetails.value}
+                    onChange={(e) => mealDetails.change(e.target.value)}
+                    rows={4}
+                    maxLength={1000}
+                    placeholder="Pizza or a turkey sandwich, chips, and water, served from 11:00 AM. Pay with the entry fee."
+                    {...withClass(marked("reg-meal-details", mealDetails), "w-full")}
+                  />
+                </AutoField>
+              </div>
+            )}
+          </fieldset>
+        )}
 
         <fieldset>
           <legend className="text-sm font-semibold">Contact for directors</legend>
