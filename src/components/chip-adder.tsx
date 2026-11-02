@@ -15,8 +15,8 @@ const has = (list: string[], name: string) => list.some((x) => x.toLowerCase() =
 
 /**
  * Adding to a list of names (classifications, meal options), in the same order everywhere:
- * suggestions to tap first, then a box to type your own (more than one, separated by commas),
- * then a preview of what Add will add. Nothing is added until Add (or Enter).
+ * suggestions to tap first, then a box to type your own (more than one, separated by commas).
+ * Nothing is added until Add (or Enter); names already on the list are skipped.
  */
 export function ChipAdder({
   suggestions,
@@ -50,7 +50,6 @@ export function ChipAdder({
   const hintId = `${key}-hint`;
   const previewId = `${key}-preview`;
   const fresh = splitNames(typed).filter((n) => !has(existing, n));
-  const repeats = splitNames(typed).filter((n) => has(existing, n));
   const room = max == null ? Infinity : max - existing.length;
   // Typed but not added: leaving asks first.
   useEffect(() => {
@@ -111,7 +110,7 @@ export function ChipAdder({
             }}
             placeholder={placeholder}
             aria-label={label}
-            aria-describedby={[describedBy, hintId, typed.trim() && previewId].filter(Boolean).join(" ")}
+            aria-describedby={[describedBy, hintId, fresh.some((n) => n.length > maxLength) && previewId].filter(Boolean).join(" ")}
             aria-invalid={invalid || undefined}
             maxLength={maxLength * 4}
             disabled={room <= 0}
@@ -130,27 +129,10 @@ export function ChipAdder({
           {room <= 0 ? `That's the most you can add (${max}).` : "Type your own. Separate more than one with commas, then select Add."}
         </p>
       </div>
-      {typed.trim() && (
-        // What Add will add, before anything is saved.
-        <div id={previewId} className="text-sm" aria-live="polite">
-          {fresh.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium text-warning">
-                <span aria-hidden>◆ </span>Not added yet:
-              </span>
-              {fresh.map((n) => (
-                <span key={n} className="inline-flex min-h-9 items-center rounded-full border-[1.5px] border-dashed border-field-border px-3 font-semibold">
-                  {n.length > maxLength ? `${n.slice(0, maxLength)}…` : n}
-                </span>
-              ))}
-              <span className="text-muted">Select Add to keep {fresh.length === 1 ? "it" : "them"}.</span>
-            </div>
-          )}
-          {fresh.some((n) => n.length > maxLength) && (
-            <p className="mt-1 font-medium text-danger">Keep each one under {maxLength} characters.</p>
-          )}
-          {repeats.length > 0 && <p className="mt-1 text-muted">Already on the list: {repeats.join(", ")}</p>}
-        </div>
+      {fresh.some((n) => n.length > maxLength) && (
+        <p id={previewId} role="alert" className="text-sm font-medium text-danger">
+          Keep each one under {maxLength} characters.
+        </p>
       )}
     </div>
   );
