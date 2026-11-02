@@ -10,8 +10,8 @@ import { brand } from "@/lib/brand";
 // statement must match what the database actually does.
 
 export const metadata: Metadata = {
-  title: "Student Data Privacy",
-  description: `What ${brand.name} collects about students and families, who can see it, where it's stored, and when it's deleted.`,
+  title: "Data Privacy",
+  description: `What ${brand.name} collects about students, families, volunteers, and organizers, who can see it, where it's stored, and when it's deleted.`,
   alternates: { canonical: STUDENT_PRIVACY_PAGE.path },
 };
 
@@ -21,7 +21,7 @@ const UPDATED = "October 2026";
 const glance = [
   "Most events collect no student information at all",
   "Where an event needs it: a child's name, and for visitor days their teacher and grade",
-  "Deleted on a schedule, starting 30 days after the event",
+  "Deleted on a schedule, 10 to 30 days after the event",
   "Owned by your school or organization, never sold, and never used for ads",
   "Stored in the United States, with access rules enforced inside the database",
 ];
@@ -45,7 +45,7 @@ const collected = [
   {
     event: "Volunteer events",
     students:
-      "Under-18 helpers: first name and last initial, age (to match shifts with a minimum age), and an optional email address and phone number, signed up by a parent or guardian. A record of the guardian's confirmation (who confirmed, when, and the exact words) is kept permanently",
+      "Volunteers under 18: first name and last initial, age (to match shifts with a minimum age), and an optional email address and phone number, signed up by a parent or guardian. A record of the guardian's confirmation (who confirmed, when, and the exact words) is kept permanently",
     adults: "Volunteers' names, email addresses, and phone numbers, and shift check-in times",
   },
   { event: "School fairs", students: "None", adults: "Booth partners' contact name, email address, and phone number" },
@@ -65,7 +65,7 @@ const collected = [
 const deleted = [
   { what: "Children's details from family visitor days", when: "30 days after the event" },
   { what: "Parent-teacher conference bookings", when: "30 days after the conference, or for weekly hours, 30 days after each meeting" },
-  { what: "Volunteers' phone numbers and check-in times, and under-18 helpers", when: "10 days after the event" },
+  { what: "Volunteers' phone numbers and check-in times, and volunteers under 18", when: "10 days after the event" },
   {
     what: "Adult volunteers' names, email addresses, and how many shifts they signed up for and checked in to (the organizer's volunteer history)",
     when: "2 years after their last event, or right away when the organizer removes them",

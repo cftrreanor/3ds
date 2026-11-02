@@ -149,7 +149,7 @@ const different = [
 const privacy = [
   {
     title: "Only what the event needs",
-    body: "We ask for the least information that gets the job done: headcounts instead of student names, first name and last initial for under-18 helpers, and no accounts for families or spectators.",
+    body: "We ask for the least information that gets the job done: headcounts where names aren't needed, first name and last initial for volunteers under 18, and no accounts for families or spectators.",
   },
   {
     title: "Only who needs it",
@@ -157,7 +157,7 @@ const privacy = [
   },
   {
     title: "Gone when it's over",
-    body: "Volunteers' phone numbers are deleted 10 days after the event, and children's details from school visits and conferences after 30 days.",
+    body: "Personal details are deleted on a set schedule after each event, from 10 days for volunteers' phone numbers to 2 years for directors' contact details. Our privacy page lists each one.",
   },
   {
     title: "No ads, no spam",
@@ -321,8 +321,8 @@ export default async function Home() {
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-16 sm:px-6 sm:pb-24 sm:pt-20 lg:grid-cols-[1fr_auto]">
             <div>
               <h1 className="max-w-3xl text-4xl font-medium leading-[0.96] sm:text-6xl">School events without the clipboards</h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-on-dark-mute">
-                Contests, school events, and easy <span className="whitespace-nowrap">sign-ups</span>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-balance text-on-dark-mute">
+                Contests, school events, and simple <span className="whitespace-nowrap">sign-ups</span> for a whole family or group <span className="whitespace-nowrap">at once</span>
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <JumpLink href={JOIN} className="rounded-full bg-violet px-6 py-3 font-semibold text-header hover:brightness-90">
@@ -450,7 +450,7 @@ export default async function Home() {
               ))}
             </dl>
             <Link href={STUDENT_PRIVACY_PAGE.path} className="mt-6 inline-block font-semibold underline">
-              How we handle student data
+              How we handle everyone&apos;s data
             </Link>
           </div>
         </section>

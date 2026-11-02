@@ -115,7 +115,7 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
       )}
       <p className="mt-8 max-w-3xl text-sm text-muted">
         <LineIcon name="lock" inline />Only your Hosts, Co-hosts, and Volunteer Leads see this. Names, emails, and shift counts are kept for 2 years after
-        someone&apos;s last event; phone numbers are deleted 10 days after each event, and under-18 helpers aren&apos;t included.
+        someone&apos;s last event; phone numbers are deleted 10 days after each event, and volunteers under 18 aren&apos;t included.
         {account.isHost ? " If someone asks to be forgotten, use Remove next to their name." : ""}
       </p>
     </div>

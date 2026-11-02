@@ -2,7 +2,7 @@
 export const SUPPORT_POINTS = [
   {
     title: "Guidance built in",
-    body: "Setup is built around your kind of event, and event-day screens show who's here and what's next.",
+    body: "Setup is built around your kind of event, and event-day screens show who has arrived and what happens next.",
   },
   {
     title: "Quick answers",
