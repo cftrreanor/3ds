@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { loadTiers } from "@/lib/package-names";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
@@ -43,11 +44,13 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
     loadAccountPlan(supabase, account.id),
   ]);
   if (error && isSchemaError(error)) missing();
-  // Tracking shows on Volunteer Command and up, or after a downgrade with history from before. Everyone
+  // Tracking shows on packages that include it, or after a downgrade with history from before. Everyone
   // else sees a blurred preview with how to upgrade (history keeps recording for when they do).
   const preview = plan?.volunteer_tracking === false || (error?.code === "42501" && error.message.startsWith("Your "));
   if (error && !preview) console.error("volunteer_report failed", error);
   const rows = ((data ?? []) as HistoryRow[]).map((r) => ({ ...r, email: r.email.toLowerCase() }));
+  // The smallest package that includes tracking, by its name on the Packages page.
+  const withTracking = preview ? (await loadTiers()).find((t) => t.kind === "package" && t.volunteer_history)?.name ?? "a bigger plan" : "";
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -84,7 +87,7 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
               className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-elevated"
             >
               <h2 id="upgrade-title" className="text-xl font-semibold">
-                Volunteer tracking comes with Volunteer Command
+                Volunteer tracking comes with {withTracking}
               </h2>
               <p className="mt-2 leading-7 text-muted">
                 See everyone who has volunteered at your events, how often they show up for their shifts, and who to ask first.
@@ -94,7 +97,7 @@ export default async function VolunteerTrackingPage({ searchParams }: PageProps<
                 We keep a record of your volunteers either way, so it&apos;s all here when you upgrade.
               </p>
               <a
-                href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent("Upgrade to Volunteer Command")}`}
+                href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`Upgrade to ${withTracking}`)}`}
                 className="mt-5 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-brand-foreground transition hover:bg-brand-hover"
               >
                 Write to us to upgrade

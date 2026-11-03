@@ -6,18 +6,21 @@ import { NumberInput } from "@/components/number-input";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Input, Select } from "@/components/ui";
 import type { ActionState } from "@/lib/action-state";
-import { dollars, PACKAGES, PASSES, RATES } from "@/lib/plan";
+import { dollars, isFreePackage, PACKAGES, PASSES, RATES } from "@/lib/plan";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 /** The account's package and rate. The rate changes no features. */
-export function PackageForm({ action, pkg, rate }: { action: Action; pkg: string; rate: string }) {
+type Option = { value: string; label: string };
+
+export function PackageForm({ action, pkg, rate, packages }: { action: Action; pkg: string; rate: string; packages: Option[] }) {
+  const list = packages.length ? packages : PACKAGES.map((p) => ({ value: p.value, label: p.label }));
   return (
     <ActionForm action={action} resetOnSuccess={false} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Package">
           <Select name="package" defaultValue={pkg}>
-            {PACKAGES.map((p) => (
+            {list.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
               </option>
@@ -43,9 +46,9 @@ export function PackageForm({ action, pkg, rate }: { action: Action; pkg: string
 }
 
 /** A one-time pass: one published event of a type the package doesn't include. */
-export function PassForm({ action }: { action: Action }) {
+export function PassForm({ action, prices }: { action: Action; prices: Record<string, number> }) {
   const [type, setType] = useState<string>(PASSES[0].type);
-  const listPrice = PASSES.find((p) => p.type === type)?.cents ?? 0;
+  const listPrice = prices[type] ?? PASSES.find((p) => p.type === type)?.cents ?? 0;
   return (
     <ActionForm action={action} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -53,7 +56,7 @@ export function PassForm({ action }: { action: Action }) {
           <Select name="type" value={type} onChange={(e) => setType(e.target.value)}>
             {PASSES.map((p) => (
               <option key={p.type} value={p.type}>
-                {p.label} ({dollars(p.cents)})
+                {p.label} ({dollars(prices[p.type] ?? p.cents)})
               </option>
             ))}
           </Select>
@@ -73,12 +76,13 @@ export function PassForm({ action }: { action: Action }) {
 }
 
 /** Move a free teacher account to a full account on a package they pick. */
-export function TeacherUpgradeForm({ action }: { action: Action }) {
+export function TeacherUpgradeForm({ action, packages }: { action: Action; packages: Option[] }) {
+  const list = packages.length ? packages : PACKAGES.map((p) => ({ value: p.value, label: p.label }));
   return (
     <ActionForm action={action} className="space-y-3" confirmMessage="Upgrade this teacher to a full account on the package you picked?">
       <Field label="Package">
         <Select name="package" defaultValue="schedule">
-          {PACKAGES.filter((p) => p.value !== "free").map((p) => (
+          {list.filter((p) => !isFreePackage(p.value)).map((p) => (
             <option key={p.value} value={p.value}>
               {p.label}
             </option>

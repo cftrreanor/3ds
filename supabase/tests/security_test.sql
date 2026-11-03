@@ -5774,8 +5774,8 @@ insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-00
 do $$ begin
   assert (select package from public.organizations where id = '70000000-0000-0000-0000-000000000001') = 'event',
          'accounts start on Event Command';
-  assert not exists (select 1 from public.organizations where account_kind = 'teacher' and package <> 'free'),
-         'free teacher accounts are on Free';
+  assert not exists (select 1 from public.organizations where account_kind = 'teacher' and package <> 'free_teacher'),
+         'free teacher accounts are on Free Teacher';
   assert (select price_cents from public.plan_tiers where code = 'pass_band_contest') = 15000, 'pass prices are in plan_tiers';
 end $$;
 
@@ -7954,5 +7954,77 @@ do $$ begin
 end $$;
 reset role;
 delete from public.organizations where id = '7d000000-0000-0000-0000-000000000001';
+
+-- ---------------------------------------------------------------------------
+-- Packages page (20270114000000): only admins change what a package includes or
+-- a pass's price; each change is checked and logged.
+-- ---------------------------------------------------------------------------
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000001","email":"host@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.admin_update_package('free', '{conference,band_contest}', '{}', 2, false, false, null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t change a package';
+  ok := false;
+  begin
+    perform public.admin_set_pass_price('pass_fair', 1, null);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t change a pass price';
+  ok := false;
+  begin
+    perform public.admin_package_impact('free', 'band_contest', 'yes');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a host can''t see package impact';
+end $$;
+reset role;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006') on conflict do nothing;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false; before public.plan_tiers;
+begin
+  select * into before from public.plan_tiers where code = 'schedule';
+  perform public.admin_update_package('schedule', '{conference,meeting,volunteer,band_contest}', '{volunteer}', 3, false, false, 'test');
+  assert (select 'band_contest' = any (event_types) and max_team = 3 from public.plan_tiers where code = 'schedule'), 'an admin changes a package';
+  assert exists (select 1 from public.admin_log where action = 'package_edited' and details ->> 'code' = 'schedule'), 'and it''s logged';
+  assert (public.admin_package_impact('schedule', 'band_contest', 'no') ->> 'accounts') is not null, 'an admin sees the impact';
+  begin
+    perform public.admin_update_package('schedule', '{conference}', '{volunteer}', 2, false, false, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'one at a time must be an included type';
+  ok := false;
+  begin
+    perform public.admin_update_package('schedule', '{conference,rocket_launch}', '{}', 2, false, false, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'only real event types';
+  ok := false;
+  perform public.admin_update_package('schedule', before.event_types, before.one_at_a_time, before.max_team, before.event_staff, before.volunteer_history, 'put back');
+  perform public.admin_set_pass_price('pass_fair', 12000, 'test');
+  assert (select price_cents from public.plan_tiers where code = 'pass_fair') = 12000, 'an admin changes a pass price';
+  perform public.admin_set_pass_price('pass_fair', 10000, 'put back');
+  -- Rename and price a package; teacher prices only stick where the package has a teacher rate.
+  perform public.admin_update_package_details('volunteer', 'Volunteer Plus', 2500, 25000, 1000, 10000, 'test');
+  assert (select name = 'Volunteer Plus' and price_year_cents = 25000 and teacher_year_cents is null from public.plan_tiers where code = 'volunteer'),
+         'an admin renames and prices a package (one rate, no teacher price)';
+  perform public.admin_update_package_details('schedule', 'Schedule Command', 900, 9000, 500, 5000, 'test');
+  assert (select teacher_year_cents = 5000 from public.plan_tiers where code = 'schedule'), 'Schedule Command has a teacher rate';
+  begin
+    perform public.admin_update_package_details('volunteer', 'Event Command', null, null, null, null, null);
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'two packages can''t share a name';
+  perform public.admin_update_package_details('volunteer', 'Volunteer Command', null, null, null, null, 'put back');
+  perform public.admin_update_package_details('schedule', 'Schedule Command', null, null, null, null, 'put back');
+end $$;
+reset role;
+delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
 
 \echo 'All database security tests passed.'

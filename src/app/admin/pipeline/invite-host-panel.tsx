@@ -31,6 +31,7 @@ export function InviteHostPanel({
   waiting = false,
   label,
   buttonClassName,
+  names,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   templates: { id: string; name: string }[];
@@ -39,6 +40,8 @@ export function InviteHostPanel({
   waiting?: boolean;
   label: ReactNode;
   buttonClassName: string;
+  /** Package names as stored (Packages page); the invite list's own names otherwise. */
+  names?: Record<string, string>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const close = () => dialog.current?.close();
@@ -74,7 +77,7 @@ export function InviteHostPanel({
             </button>
           </div>
           <ActionForm action={action} resetOnSuccess={false} onSuccess={close} className="flex min-h-0 flex-1 flex-col">
-            <InviteFields templates={templates} defaults={defaults} />
+            <InviteFields templates={templates} defaults={defaults} names={names} />
             <div className="space-y-2 border-t border-border px-5 py-4">
               <SubmitButton name="intent" value="send" className="w-full" pendingText="Sending…">
                 {waiting ? "Send the invitation again" : "Send invitation"}
@@ -96,7 +99,15 @@ export function InviteHostPanel({
   );
 }
 
-function InviteFields({ templates, defaults }: { templates: { id: string; name: string }[]; defaults: InviteDefaults }) {
+function InviteFields({
+  templates,
+  defaults,
+  names,
+}: {
+  templates: { id: string; name: string }[];
+  defaults: InviteDefaults;
+  names?: Record<string, string>;
+}) {
   const errors = useFieldErrors();
   return (
     <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -116,7 +127,7 @@ function InviteFields({ templates, defaults }: { templates: { id: string; name: 
         <Select name="package" defaultValue={defaults.package}>
           {INVITE_PACKAGES.map((p) => (
             <option key={p.value} value={p.value}>
-              {p.label}
+              {names?.[p.value] ?? p.label}
             </option>
           ))}
         </Select>

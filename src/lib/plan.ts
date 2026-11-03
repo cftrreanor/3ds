@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 
 export const PACKAGES = [
+  { value: "free_teacher", label: "Free Teacher" },
   { value: "free", label: "Free" },
   { value: "schedule", label: "Schedule Command" },
   { value: "volunteer", label: "Volunteer Command" },
@@ -14,7 +15,10 @@ export const PACKAGES = [
 ] as const;
 export type PackageCode = (typeof PACKAGES)[number]["value"];
 export const isPackage = (v: unknown): v is PackageCode => PACKAGES.some((p) => p.value === v);
-export const packageLabel = (code: string) => PACKAGES.find((p) => p.value === code)?.label ?? code;
+/** The package's name: as stored (names from tierNames(), when given), else its original name. */
+export const packageLabel = (code: string, names?: Record<string, string>) => names?.[code] ?? PACKAGES.find((p) => p.value === code)?.label ?? code;
+/** Free and Free Teacher: no plan needed, and not a package to upgrade to. */
+export const isFreePackage = (code: string) => code === "free" || code === "free_teacher";
 
 /** What the account pays at. It changes no features. */
 export const RATES = [
@@ -104,7 +108,7 @@ export function endedSentence(
   free: { ended: boolean; day: string } | null,
   status: string,
 ): string | null {
-  if (plan?.package === "free") return null;
+  if (plan && isFreePackage(plan.package)) return null;
   if (free?.ended) return `Your free ${status === "trialing" ? "trial" : "pilot"} ended ${free.day}`;
   if (!free && plan && planEnded(plan)) return `Your ${plan.package_name} plan has ended`;
   return null;
