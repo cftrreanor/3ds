@@ -12,13 +12,52 @@ import { CONFERENCES_PAGE, type Audience } from "@/lib/audiences";
 import { brand } from "@/lib/brand";
 import { PILOT_END_LABEL } from "@/lib/pilot";
 import { LineIcon } from "@/components/line-icon";
+import { connection } from "next/server";
+import { loadTiers, type Tier } from "@/lib/package-names";
 
-export const metadata: Metadata = {
-  title: "Parent-Teacher Conference Scheduling, Free During the Pilot",
-  description:
-    "Free for teachers during the pilot: set aside a day and families book their own conference time, in person, on video, or by phone, with calendar invites, reminders, and a link to change or cancel. Weekly hours for calls with premium.",
-  alternates: { canonical: CONFERENCES_PAGE.path },
-};
+/** The Free Teacher package as set on the admin Packages page, or null if it can't be read. */
+async function freeTeacher(): Promise<Tier | null> {
+  await connection(); // Read on each visit, so Packages page changes show here.
+  try {
+    return (await loadTiers()).find((t) => t.code === "free_teacher") ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** What a free teacher account includes, in words, from the Free Teacher package. */
+function freeOffer(t: Tier | null) {
+  const level = (type: string) =>
+    !t ? (type === "conference" ? "one" : "none") : !t.event_types.includes(type) ? "none" : t.one_at_a_time.includes(type) ? "one" : "all";
+  const conf = level("conference");
+  const meet = level("meeting");
+  const weekly = t?.weekly_hours ?? false;
+  const part = (what: string, l: string) => (l === "one" ? `${what}, one published at a time` : what);
+  const runs = [conf !== "none" && part("parent-teacher conference days", conf), meet !== "none" && part("meetings like office hours", meet)].filter(Boolean);
+  const runsText = runs.join(conf === "one" ? ", and " : " and ");
+  return {
+    included: conf !== "none",
+    weekly,
+    faq:
+      conf === "none"
+        ? "During the pilot, conference scheduling comes with a paid package. Join the pilot, and we'll find the right fit for your class."
+        : `Yes, during the pilot. Join the pilot, and we set up your free teacher account. It runs ${runsText}, and there's no credit card. ${weekly ? "Weekly hours are included." : "Weekly hours are a premium feature."}`,
+    whatsFree:
+      conf === "none"
+        ? "During the pilot, conference scheduling comes with a paid package."
+        : `A free teacher account runs ${runsText} while we're in the pilot.`,
+    description: weekly ? "Weekly hours for calls included." : "Weekly hours for calls with premium.",
+  };
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const offer = freeOffer(await freeTeacher());
+  return {
+    title: "Parent-Teacher Conference Scheduling, Free During the Pilot",
+    description: `Free for teachers during the pilot: set aside a day and families book their own conference time, in person, on video, or by phone, with calendar invites, reminders, and a link to change or cancel. ${offer.description}`,
+    alternates: { canonical: CONFERENCES_PAGE.path },
+  };
+}
 
 /** "Free during the pilot": the pilot form at the bottom of this page (we set up each account). */
 const START = "#join" as const;
@@ -106,10 +145,10 @@ const privacy = [
 ];
 
 // Plain answers to what teachers ask before signing up.
-const faqs = [
+const faqs = (freeAnswer: string) => [
   {
     q: "Is it free for teachers?",
-    a: "Yes, during the pilot. Join the pilot, and we set up your free teacher account. It runs parent-teacher conference days, one published at a time, and there's no credit card. Weekly hours are a premium feature.",
+    a: freeAnswer,
   },
   {
     q: "Can families meet on video or by phone?",
@@ -150,7 +189,8 @@ const faqs = [
 ];
 
 /** Parent-teacher conferences: what they do, and a free teacher account to run them. */
-export default function ConferencesPage() {
+export default async function ConferencesPage() {
+  const offer = freeOffer(await freeTeacher());
   return (
     <div className="flex flex-1 flex-col">
       <HeaderBar maxWidth="max-w-6xl">
@@ -213,7 +253,7 @@ export default function ConferencesPage() {
         <section id="faq" className="scroll-mt-20 border-t border-border">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-3xl font-normal leading-[1.02] tracking-tight sm:text-5xl">Common questions</h2>
-            <FaqList faqs={faqs} />
+            <FaqList faqs={faqs(offer.faq)} />
           </div>
         </section>
 
@@ -221,7 +261,7 @@ export default function ConferencesPage() {
           <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
             <h2 className="text-2xl font-semibold">What&apos;s free</h2>
             <p className="mt-3 leading-7 text-muted">
-              A free teacher account runs parent-teacher conferences, one published at a time while we&apos;re in the pilot. Planning a band contest,
+              {offer.whatsFree} Planning a band contest,
               school fair, volunteer event, or family visitor day too? Pick those on the form, and we&apos;ll set up {brand.name} for your school.
             </p>
           </div>

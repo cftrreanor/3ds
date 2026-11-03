@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ADMIN_LOG_COLUMNS, describeAdminLog, requirePlatformAdmin, type AdminLogRow } from "@/lib/admin";
 import { ADMIN_TZ, ago, HEALTH_ORDER, STAGES } from "@/lib/admin-crm";
 import { eventTypeLabel } from "@/lib/event-types";
+import { tierNames } from "@/lib/package-names";
 import { createAdminClient } from "@/lib/supabase/server";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 import { loadAccounts } from "./data";
@@ -15,6 +16,7 @@ export const metadata: Metadata = { title: "Home" };
 
 /** The admin's day: what's due, who needs attention, what's coming up. */
 export default async function AdminHomePage() {
+  const names = await tierNames();
   await requirePlatformAdmin();
   const admin = createAdminClient();
   const now = new Date().getTime();
@@ -207,7 +209,7 @@ export default async function AdminHomePage() {
             <ul className="divide-y divide-border">
               {log.map((r) => (
                 <li key={r.id} className="px-3 py-2 text-sm">
-                  <p>{describeAdminLog(r)}</p>
+                  <p>{describeAdminLog(r, names)}</p>
                   <p className="text-xs text-muted">
                     {r.organization ? `${r.organization.name} · ` : ""}
                     {r.admin?.full_name || r.admin?.email || "Unknown admin"} · {ago(r.created_at)}

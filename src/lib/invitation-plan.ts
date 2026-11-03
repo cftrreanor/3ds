@@ -4,7 +4,8 @@
 import { packageLabel } from "@/lib/plan";
 
 export const INVITE_PACKAGES = [
-  { value: "free", label: "Free teacher plan" },
+  { value: "free_teacher", label: "Free Teacher" },
+  { value: "free", label: "Free" },
   { value: "schedule", label: "Schedule Command" },
   { value: "volunteer", label: "Volunteer Command" },
   { value: "event", label: "Event Command" },
@@ -18,5 +19,5 @@ export const INVITE_STATUSES = [
 export const isInvitePackage = (v: unknown): v is (typeof INVITE_PACKAGES)[number]["value"] => INVITE_PACKAGES.some((p) => p.value === v);
 export const isInviteStatus = (v: unknown): v is (typeof INVITE_STATUSES)[number]["value"] => INVITE_STATUSES.some((s) => s.value === v);
 
-export const invitePackageLabel = (code: string) => INVITE_PACKAGES.find((p) => p.value === code)?.label ?? packageLabel(code);
+export const invitePackageLabel = (code: string, names?: Record<string, string>) => names?.[code] ?? INVITE_PACKAGES.find((p) => p.value === code)?.label ?? packageLabel(code);
 export const inviteStatusLabel = (code: string) => INVITE_STATUSES.find((s) => s.value === code)?.label ?? code;

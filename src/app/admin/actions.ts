@@ -5,7 +5,8 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { isFreePlan, PLANS, planLabel, requirePlatformAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/time";
-import { dollars, isPackage, isRate, packageLabel, passFor, rateLabel } from "@/lib/plan";
+import { tierNames } from "@/lib/package-names";
+import { dollars, isFreePackage, isPackage, isRate, packageLabel, passFor, rateLabel } from "@/lib/plan";
 
 /** Change an organization's plan. The database checks it's an admin and logs it. */
 export async function setPlan(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -56,14 +57,14 @@ export async function reopenAccount(orgId: string, _prev: ActionState, formData:
 export async function upgradeTeacher(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requirePlatformAdmin();
   const pkg = String(formData.get("package") ?? "");
-  if (!isPackage(pkg) || pkg === "free") return { error: "Pick a package." };
+  if (!isPackage(pkg) || isFreePackage(pkg)) return { error: "Pick a package." };
   const note = String(formData.get("note") ?? "").trim().slice(0, 500);
   const supabase = await createClient();
   const { error } = await supabase.rpc("admin_upgrade_teacher", { p_org: orgId, p_package: pkg, p_note: note || null });
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/admin", "layout");
   revalidatePath("/dashboard", "layout");
-  return { ok: true, message: `Upgraded to a full account on ${packageLabel(pkg)}. Set their plan under Details if it should change.` };
+  return { ok: true, message: `Upgraded to a full account on ${packageLabel(pkg, await tierNames())}. Set their plan under Details if it should change.` };
 }
 
 /** The account's package and rate: the only way either changes (set_account_package logs it). */
@@ -79,7 +80,7 @@ export async function setPackage(orgId: string, _prev: ActionState, formData: Fo
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/admin", "layout");
   revalidatePath("/dashboard", "layout");
-  return { ok: true, message: `Saved: ${packageLabel(pkg)}, ${rateLabel(rate).toLowerCase()}.` };
+  return { ok: true, message: `Saved: ${packageLabel(pkg, await tierNames())}, ${rateLabel(rate).toLowerCase()}.` };
 }
 
 /** A one-time event pass, at the price paid (add_event_pass logs it and adds it to the account's total). */

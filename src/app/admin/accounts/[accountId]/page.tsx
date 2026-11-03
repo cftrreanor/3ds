@@ -16,12 +16,17 @@ import { emailItems, noteItems, Timeline } from "../../timeline";
 import { ClosureForm, NoteActionForm } from "../closure-form";
 import { PlanForm } from "../plan-form";
 import { PackageForm, PassForm, TeacherUpgradeForm } from "../package-form";
+import { loadTiers } from "@/lib/package-names";
 import { dollars, loadAccountPlan, packageLabel, passFor, rateLabel, usageLines } from "@/lib/plan";
 
 export const metadata: Metadata = { title: "Account" };
 
 /** One host organization: its health, hosts, events, plan and everything that's happened. */
 export default async function AccountPage({ params }: PageProps<"/admin/accounts/[accountId]">) {
+  const tiers = await loadTiers();
+  const names = Object.fromEntries(tiers.map((t) => [t.code, t.name]));
+  const packageOptions = tiers.filter((t) => t.kind === "package").map((t) => ({ value: t.code, label: t.name }));
+  const passPrices = Object.fromEntries(tiers.filter((t) => t.kind === "pass").map((t) => [t.event_types[0], t.price_cents ?? 0]));
   const user = await requirePlatformAdmin();
   const { accountId } = await params;
   const account = await loadAccount(accountId);
@@ -121,7 +126,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
     ...log.map((r) => ({
       at: r.created_at,
       kind: "admin" as const,
-      title: describeAdminLog(r),
+      title: describeAdminLog(r, names),
       detail: [r.details.note ? `“${r.details.note}”` : null, r.admin ? `by ${r.admin.full_name || r.admin.email}` : null].filter(Boolean).join(" · ") || null,
     })),
     ...noteItems(notes),
@@ -277,7 +282,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
                 ["Free through", account.free_until ? formatDate(account.free_until, { weekday: undefined }) : "—"],
                 ...(hasPackages
                   ? ([
-                      ["Package", `${packageLabel(account.package ?? "")}${plan && plan.active !== plan.package ? ` (publishing as ${plan.active_name} while the plan isn't active)` : ""}`],
+                      ["Package", `${packageLabel(account.package ?? "", names)}${plan && plan.active !== plan.package ? ` (publishing as ${plan.active_name} while the plan isn't active)` : ""}`],
                       ["Rate", rateLabel(account.rate ?? "")],
                       ["Event passes", `${dollars(account.pass_total_cents ?? 0)} in all`],
                     ] as [string, string][])
@@ -302,7 +307,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
               <details className="mt-3 border-t border-border pt-3">
                 <summary className="cursor-pointer text-sm font-semibold">Change package</summary>
                 <div className="mt-3">
-                  <PackageForm action={setPackage.bind(null, account.id)} pkg={account.package ?? "event"} rate={account.rate ?? "standard"} />
+                  <PackageForm action={setPackage.bind(null, account.id)} pkg={account.package ?? "event"} rate={account.rate ?? "standard"} packages={packageOptions} />
                 </div>
               </details>
             )}
@@ -350,7 +355,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
               <details className="border-t border-border pt-3">
                 <summary className="cursor-pointer text-sm font-semibold">Add event pass</summary>
                 <div className="mt-3">
-                  <PassForm action={addPass.bind(null, account.id)} />
+                  <PassForm action={addPass.bind(null, account.id)} prices={passPrices} />
                 </div>
               </details>
             </Panel>
@@ -363,7 +368,7 @@ export default async function AccountPage({ params }: PageProps<"/admin/accounts
                 package you pick; set their plan under Details afterwards.
               </p>
 {hasPackages ? (
-                <TeacherUpgradeForm action={upgradeTeacher.bind(null, account.id)} />
+                <TeacherUpgradeForm action={upgradeTeacher.bind(null, account.id)} packages={packageOptions} />
               ) : (
                 <p className="text-sm text-muted">Run the packages database update to upgrade teacher accounts.</p>
               )}

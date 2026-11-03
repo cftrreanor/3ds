@@ -34,6 +34,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         { href: "/admin/pipeline", label: "Pipeline", count: newRequests ?? 0, alert: true },
         { href: "/admin/people", label: "People" },
         { href: "/admin/accounts", label: "Accounts" },
+        { href: "/admin/packages", label: "Packages" },
       ],
     },
     {

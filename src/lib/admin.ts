@@ -57,8 +57,9 @@ export type AdminLogRow = {
   action: string;
   details: {
     // plan_changed: status and free_until; package_changed: package and rate.
-    from?: { status?: string; free_until?: string | null; package?: string; rate?: string };
-    to?: { status?: string; free_until?: string | null; package?: string; rate?: string };
+    // package_details_changed: name and prices; pass_price_changed: cents.
+    from?: { status?: string; free_until?: string | null; package?: string; rate?: string; name?: string } | number;
+    to?: { status?: string; free_until?: string | null; package?: string; rate?: string; name?: string } | number;
     package?: string;
     event_type?: string;
     price_cents?: number;
@@ -69,6 +70,8 @@ export type AdminLogRow = {
     email?: string;
     unpublished?: number;
     key?: string;
+    /** package_edited, package_details_changed, pass_price_changed: the package or pass. */
+    code?: string;
   };
   created_at: string;
   admin: { full_name: string; email: string } | null;
@@ -82,33 +85,43 @@ const planWithEnd = (p?: { status?: string; free_until?: string | null }) =>
   p ? `${planLabel(p.status ?? "?")}${p.free_until ? ` through ${formatDate(p.free_until, { weekday: undefined })}` : ""}` : "?";
 
 /** ": Schedule Command, free pilot through Feb 1, 2027", or "" when nothing was chosen. */
-function invitationChoices(r: AdminLogRow) {
+function invitationChoices(r: AdminLogRow, names?: Record<string, string>) {
   const { package: pkg, plan_status: status, free_until: until } = r.details;
   const parts = [
-    pkg ? invitePackageLabel(pkg) : null,
+    pkg ? invitePackageLabel(pkg, names) : null,
     status ? `${inviteStatusLabel(status).toLowerCase()}${until ? ` through ${formatDate(until, { weekday: undefined })}` : ""}` : null,
   ].filter(Boolean);
   return parts.length ? `: ${parts.join(", ")}` : "";
 }
 
 /** "Pilot (free) through Jan 1, 2027 → Paid" */
-export function describeAdminLog(r: AdminLogRow) {
-  if (r.action === "plan_changed") return `Plan: ${planWithEnd(r.details.from)} → ${planWithEnd(r.details.to)}`;
-  if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host${invitationChoices(r)}`;
-  if (r.action === "invitation_plan_changed") return `Changed ${r.details.email ?? "someone"}'s host invitation${invitationChoices(r) || ": nothing chosen"}`;
+export function describeAdminLog(r: AdminLogRow, names?: Record<string, string>) {
+  const fromObj = typeof r.details.from === "object" ? r.details.from : undefined;
+  const toObj = typeof r.details.to === "object" ? r.details.to : undefined;
+  if (r.action === "plan_changed") return `Plan: ${planWithEnd(fromObj)} → ${planWithEnd(toObj)}`;
+  if (r.action === "invite_host") return `Invited ${r.details.email ?? "someone"} to host${invitationChoices(r, names)}`;
+  if (r.action === "invitation_plan_changed") return `Changed ${r.details.email ?? "someone"}'s host invitation${invitationChoices(r, names) || ": nothing chosen"}`;
   if (r.action === "account_closed") return "Closed the account (deleted 90 days later)";
   if (r.action === "account_reopened") return "Reopened the account";
   if (r.action === "teacher_upgraded")
-    return `Upgraded from a free teacher account to a full account${r.details.package ? ` on ${packageLabel(r.details.package)}` : ""}`;
+    return `Upgraded from a free teacher account to a full account${r.details.package ? ` on ${packageLabel(r.details.package, names)}` : ""}`;
   if (r.action === "package_changed") {
-    const words = (p?: { package?: string; rate?: string }) => (p ? `${packageLabel(p.package ?? "?")}, ${rateLabel(p.rate ?? "?").toLowerCase()}` : "?");
-    return `Package: ${words(r.details.from)} → ${words(r.details.to)}${r.details.source === "payment" ? " (by payment)" : ""}`;
+    const words = (p?: { package?: string; rate?: string }) => (p ? `${packageLabel(p.package ?? "?", names)}, ${rateLabel(p.rate ?? "?").toLowerCase()}` : "?");
+    return `Package: ${words(fromObj)} → ${words(toObj)}${r.details.source === "payment" ? " (by payment)" : ""}`;
   }
   if (r.action === "pass_added")
     return `Added a ${passFor(r.details.event_type ?? "")?.label.toLowerCase() ?? "event"} pass (${dollars(r.details.price_cents ?? 0)})${r.details.source === "payment" ? " by payment" : ""}`;
   if (r.action === "account_suspended")
     return `Suspended the account${r.details.unpublished ? ` (${r.details.unpublished} event${r.details.unpublished === 1 ? "" : "s"} taken offline)` : ""}`;
   if (r.action === "account_unsuspended") return "Lifted the suspension";
+  if (r.action === "package_edited") return `Changed what ${packageLabel(r.details.code ?? "?", names)} includes`;
+  if (r.action === "package_details_changed") {
+    const from = typeof r.details.from === "object" ? r.details.from : undefined;
+    const to = typeof r.details.to === "object" ? r.details.to : undefined;
+    return from?.name && to?.name && from.name !== to.name ? `Renamed ${from.name} to ${to.name}` : `Changed ${packageLabel(r.details.code ?? "?", names)}'s prices`;
+  }
+  if (r.action === "pass_price_changed")
+    return `${packageLabel(r.details.code ?? "?", names)}: ${dollars(Number(r.details.from ?? 0))} → ${dollars(Number(r.details.to ?? 0))}`;
   if (r.action === "system_email_changed") return `Changed the wording of the “${systemEmail(r.details.key ?? "")?.name ?? r.details.key}” email`;
   if (r.action === "system_email_reset") return `Reset the “${systemEmail(r.details.key ?? "")?.name ?? r.details.key}” email to its original wording`;
   return r.action.replaceAll("_", " ");

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ADMIN_LOG_COLUMNS, describeAdminLog, requirePlatformAdmin, type AdminLogRow } from "@/lib/admin";
 import { stamp } from "@/lib/admin-crm";
+import { tierNames } from "@/lib/package-names";
 import { createAdminClient } from "@/lib/supabase/server";
 import { EmptyRow, PageHeader, RecordLink, Table, Td, Th, Tr } from "../kit";
 
@@ -17,9 +18,10 @@ export default async function AdminActivityPage() {
     .order("created_at", { ascending: false })
     .limit(300);
   const rows = (data ?? []) as unknown as Row[];
+  const names = await tierNames();
   return (
     <div>
-      <PageHeader title="Activity" sub="Every change made from the admin dashboard (plans, host invitations), newest first." />
+      <PageHeader title="Activity" sub="Every change made from the admin dashboard (plans, packages, host invitations), newest first." />
       <Table>
         <thead>
           <tr>
@@ -41,7 +43,7 @@ export default async function AdminActivityPage() {
                   <span className="text-muted">—</span>
                 )}
               </Td>
-              <Td>{describeAdminLog(r)}</Td>
+              <Td>{describeAdminLog(r, names)}</Td>
               <Td className="text-muted">{r.details.note ? `“${r.details.note}”` : ""}</Td>
               <Td className="whitespace-nowrap text-muted">{r.admin?.full_name || r.admin?.email || "Unknown admin"}</Td>
             </Tr>

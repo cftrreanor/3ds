@@ -9,6 +9,7 @@ import { emailLayout, emailLogoUrl, sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-format";
 import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 import { hostWelcomeLink } from "@/lib/host-invite-link";
+import { tierNames } from "@/lib/package-names";
 import { invitePackageLabel, inviteStatusLabel, isInvitePackage, isInviteStatus } from "@/lib/invitation-plan";
 import { fillTemplate, firstName, siteLinks } from "@/lib/merge-fields";
 import { normalizePhone } from "@/lib/phone";
@@ -81,7 +82,7 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
   if (error) return { error: error.code === "P0001" || error.code === "42501" ? error.message : friendlyDbError(error) };
   revalidatePath("/admin", "layout");
 
-  const plan = `${invitePackageLabel(pkg)}, ${inviteStatusLabel(status).toLowerCase()} through ${formatDate(freeUntil, { weekday: undefined })}`;
+  const plan = `${invitePackageLabel(pkg, await tierNames())}, ${inviteStatusLabel(status).toLowerCase()} through ${formatDate(freeUntil, { weekday: undefined })}`;
   if (!sendNow) return { ok: true, message: `Saved: ${plan}. No email was sent.` };
 
   const origin = await getOrigin();
@@ -95,7 +96,7 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
       name,
       first_name: firstName(name),
       organization,
-      plan: `${invitePackageLabel(pkg)} (${inviteStatusLabel(status).toLowerCase()})`,
+      plan: `${invitePackageLabel(pkg, await tierNames())} (${inviteStatusLabel(status).toLowerCase()})`,
       free_until: formatDate(freeUntil, { weekday: undefined }),
       my_name: await myName(user.id),
       ...siteLinks(origin, email),
@@ -114,7 +115,7 @@ export async function sendHostInvitation(pilotRequestId: string | null, _prev: A
       name,
       email,
       organization,
-      plan: `${invitePackageLabel(pkg)} (${inviteStatusLabel(status).toLowerCase()})`,
+      plan: `${invitePackageLabel(pkg, await tierNames())} (${inviteStatusLabel(status).toLowerCase()})`,
       free_until: formatDate(freeUntil, { weekday: undefined }),
     });
     message = {
