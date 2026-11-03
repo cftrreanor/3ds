@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { freeStatus, isFreePlan, PLANS, planLabel, requirePlatformAdmin } from "@/lib/admin";
+import { tierNames } from "@/lib/package-names";
+import { PACKAGES, packageLabel } from "@/lib/plan";
 import { ADMIN_TZ, ago, HEALTH_LABEL, HEALTH_ORDER, sortBy, type HealthLevel } from "@/lib/admin-crm";
 import { formatDate, utcToZonedDate } from "@/lib/time";
 import Link from "next/link";
@@ -9,6 +11,8 @@ import { EmptyRow, FilterBar, HealthPill, PageHeader, RecordLink, smallInput, So
 export const metadata: Metadata = { title: "Accounts" };
 
 const str = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
+/** Every value of a param that can repeat (checkboxes) or be comma-joined (sort links). */
+const list = (v: string | string[] | undefined) => (Array.isArray(v) ? v : v ? [v] : []).flatMap((x) => x.split(",")).filter(Boolean);
 
 /** Every host organization in one sortable table. */
 export default async function AccountsPage({ searchParams }: PageProps<"/admin/accounts">) {
@@ -16,6 +20,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
   const sp = await searchParams;
   const q = str(sp.q).trim().toLowerCase();
   const plan = str(sp.plan);
+  const packages = list(sp.package).filter((p) => PACKAGES.some((k) => k.value === p));
   const health = str(sp.health);
   const kind = str(sp.kind);
   const teachers = kind === "teacher";
@@ -23,11 +28,12 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
   const dir = str(sp.dir) || "asc";
   const today = utcToZonedDate(new Date().toISOString(), ADMIN_TZ);
 
-  const all = await loadAccounts();
+  const [all, names] = await Promise.all([loadAccounts(), tierNames()]);
   const isTeacher = (a: { account_kind?: string }) => a.account_kind === "teacher";
   const rows = all
     .filter((a) => !kind || (kind === "teacher") === isTeacher(a))
     .filter((a) => !plan || a.subscription_status === plan)
+    .filter((a) => !packages.length || packages.includes(a.package ?? ""))
     .filter((a) => !health || a.health.level === health)
     .filter(
       (a) =>
@@ -47,6 +53,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
   const sorted = sortBy(rows, sort, dir, {
     name: (a) => a.name.toLowerCase(),
     plan: (a) => planLabel(a.subscription_status),
+    package: (a) => (a.package ? PACKAGES.findIndex((p) => p.value === a.package) : null),
     health: (a) => HEALTH_ORDER[a.health.level],
     events: (a) => a.events.length,
     next: (a) => a.next?.starts_on ?? null,
@@ -56,7 +63,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
     conferences: (a) => a.conferences,
     bookings: (a) => bookings[a.id] ?? 0,
   });
-  const params = Object.fromEntries(Object.entries({ q, plan, health, kind }).filter(([, v]) => v));
+  const params = Object.fromEntries(Object.entries({ q, plan, health, kind, package: packages.join(",") }).filter(([, v]) => v));
   const th = { sort, dir, params };
 
   return (
@@ -85,6 +92,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
             </option>
           ))}
         </select>
+        <PackagePicker selected={packages} names={names} />
         <select name="health" defaultValue={health} aria-label="Health" className={smallInput}>
           <option value="">Any health</option>
           {(Object.keys(HEALTH_LABEL) as HealthLevel[]).map((h) => (
@@ -133,6 +141,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
             <tr>
               <SortTh label="Account" name="name" {...th} />
               <SortTh label="Health" name="health" {...th} />
+              <SortTh label="Package" name="package" {...th} />
               <SortTh label="Plan" name="plan" {...th} />
               <SortTh label="Next event" name="next" {...th} />
               <SortTh label="Last host sign-in" name="signin" {...th} />
@@ -155,6 +164,9 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
                   <Td className="min-w-40">
                     <HealthPill level={a.health.level} />
                     {a.health.level !== "new" && <p className="max-w-48 text-xs text-muted">{a.health.reasons[0]}</p>}
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    {a.package ? <Tag tone="neutral">{packageLabel(a.package, names)}</Tag> : <span className="text-muted">—</span>}
                   </Td>
                   <Td>
                     <Tag tone={a.subscription_status === "active" ? "success" : isFreePlan(a.subscription_status) ? "brand" : a.subscription_status === "past_due" ? "danger" : "neutral"}>
@@ -181,7 +193,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/admin/a
                 </Tr>
               );
             })}
-            {sorted.length === 0 && <EmptyRow cols={5}>No accounts match.</EmptyRow>}
+            {sorted.length === 0 && <EmptyRow cols={6}>No accounts match.</EmptyRow>}
           </tbody>
         </Table>
       )}
@@ -198,5 +210,32 @@ function KindTags({ account, hideTeacher = false }: { account: { account_kind?: 
       {teacher && <Tag tone="brand">Teacher (free)</Tag>}
       {account.suspended_at && <Tag tone="danger">Suspended</Tag>}
     </span>
+  );
+}
+
+/** Packages to show, as checkboxes in a drop-down: none ticked shows every package. */
+function PackagePicker({ selected, names }: { selected: string[]; names: Record<string, string> }) {
+  const label =
+    selected.length === 0 ? "All packages" : selected.length <= 2 ? selected.map((p) => packageLabel(p, names)).join(", ") : `${selected.length} packages`;
+  return (
+    <details className="relative">
+      <summary className={`${smallInput} flex cursor-pointer list-none items-center gap-2 select-none [&::-webkit-details-marker]:hidden`}>
+        <span className="sr-only">Package: </span>
+        {label}
+        <span aria-hidden className="text-[10px] text-muted">
+          ▼
+        </span>
+      </summary>
+      <fieldset className="absolute left-0 z-20 mt-1 w-60 rounded-md border border-border bg-surface p-2 shadow-elevated">
+        <legend className="sr-only">Packages to show</legend>
+        {PACKAGES.map((p) => (
+          <label key={p.value} className="flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-sm hover:bg-background">
+            <input type="checkbox" name="package" value={p.value} defaultChecked={selected.includes(p.value)} className="size-4 accent-[var(--brand)]" />
+            {packageLabel(p.value, names)}
+          </label>
+        ))}
+        <p className="mt-1 px-2 text-xs text-muted">Tick none for every package. Then select Apply.</p>
+      </fieldset>
+    </details>
   );
 }
