@@ -144,7 +144,7 @@ export async function removeCoHost(eventId: string, userId: string): Promise<Act
     .eq("role", "admin")
     .select("user_id");
   if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "Only a host can remove a co-host." };
+  if (!data?.length) return { error: "Only the Account Host can remove a co-host." };
   revalidatePath("/dashboard", "layout");
   // Leaving yourself: this event is no longer yours to see.
   if (userId === user.id) redirect("/dashboard");
@@ -157,7 +157,8 @@ export async function acceptInvitation(token: string): Promise<ActionState> {
   const { data: eventId, error } = await supabase.rpc("accept_invitation", { p_token: token });
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/dashboard");
-  redirect(`/dashboard/events/${eventId}`);
+  // An account (co-host) invitation has no event: go to the dashboard.
+  redirect(eventId ? `/dashboard/events/${eventId}` : "/dashboard");
 }
 
 const joinSchema = z.object({ fullName: z.string().trim().max(200).optional() });
@@ -213,5 +214,5 @@ export async function joinFromEmail(token: string, key: string, _prev: ActionSta
   const { data: eventId, error } = await supabase.rpc("accept_invitation", { p_token: token });
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/dashboard", "layout");
-  redirect(`/dashboard/events/${eventId}`);
+  redirect(eventId ? `/dashboard/events/${eventId}` : "/dashboard");
 }
