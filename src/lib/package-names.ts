@@ -17,6 +17,7 @@ export type Tier = {
   volunteer_history: boolean;
   price_cents: number | null;
   sort: number;
+  weekly_hours: boolean;
   // Added by 20270114000000_package_admin.sql (missing before it runs).
   price_month_cents?: number | null;
   price_year_cents?: number | null;
