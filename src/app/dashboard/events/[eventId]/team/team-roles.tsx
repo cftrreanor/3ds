@@ -69,10 +69,11 @@ export async function TeamRoles({
   const [{ data: staff }, { data: invitationData }, { data: stationData }, { data: leadRows }, { data: hostData }, { data: removalData }] =
     await Promise.all([
       supabase.from("event_staff").select("user_id, role, profiles(full_name, email, phone)").eq("event_id", eventId).order("created_at"),
+      // This event's invitations, and the account's co-host invitations.
       supabase
         .from("invitations")
         .select("id, email, role, as_host, station_id, token, expires_at, sent_at")
-        .eq("event_id", eventId)
+        .or(`event_id.eq.${eventId},and(as_host.eq.true,organization_id.eq.${event.organization_id})`)
         .is("accepted_at", null)
         .order("created_at"),
       supabase.from("stations").select("id, name").eq("event_id", eventId).order("sort_order").order("created_at"),
@@ -94,6 +95,9 @@ export async function TeamRoles({
     ]);
   const staffRows = (staff ?? []) as unknown as StaffRow[];
   const hosts = ((hostData ?? []) as unknown as HostRow[]).sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
+  // Only the Account Host invites and removes co-hosts (a co-host can still leave).
+  const accountHost = hosts.find((h) => h.role === "owner");
+  const isAccountHost = accountHost?.user_id === user.id;
   const directors = staffRows.filter((s) => s.role === "volunteer_director");
   const leads = staffRows.filter((s) => s.role === "section_lead");
   const invitations = (invitationData ?? []) as Invitation[];
@@ -118,7 +122,7 @@ export async function TeamRoles({
       (r) => r.role === tabRole && !current.has(r.user_id) && !pending.some((inv) => inv.email.toLowerCase() === r.email.toLowerCase()),
     );
     // Volunteer Leads manage Coordinators; hosts manage everyone.
-    const canInvite = access.isHost || tab === "section-leads";
+    const canInvite = tab === "hosts" ? isAccountHost : access.isHost || tab === "section-leads";
     const roleName = tab === "hosts" ? "co-host" : tab === "volunteer-leads" ? "Volunteer Lead" : lead.one;
     return { pending, removed, canInvite, roleName };
   };
@@ -161,11 +165,14 @@ export async function TeamRoles({
                     <p className="mt-1 text-sm leading-6 text-muted">
                       Hosts and co-hosts have full access to all of your organization&apos;s events: publishing, bands, the
                       schedule, volunteers, and the team.
+                      {!isAccountHost && accountHost && (
+                        <> Only the Account Host, {accountHost.profiles?.full_name || accountHost.profiles?.email}, can invite or remove co-hosts.</>
+                      )}
                     </p>
                     <ul className="mt-3 space-y-2">
                       {hosts.map((h) => (
                         <PersonRow key={h.user_id} person={h.profiles} isYou={h.user_id === user.id} detail={HOST_LABEL[h.role]}>
-                          {h.role === "admin" && (
+                          {h.role === "admin" && (isAccountHost || h.user_id === user.id) && (
                             <RemoveButton
                               action={removeCoHost.bind(null, eventId, h.user_id)}
                               label={h.user_id === user.id ? "Stop being a co-host" : "Remove co-host"}
@@ -270,7 +277,7 @@ export async function TeamRoles({
                     <ul className="mt-2 space-y-2">
                       {pending.map((inv) => {
                         const expired = new Date(inv.expires_at) < new Date();
-                        const mine = access.isHost || inv.role === "section_lead";
+                        const mine = inv.as_host ? isAccountHost : access.isHost || inv.role === "section_lead";
                         return (
                           <li
                             key={inv.id}

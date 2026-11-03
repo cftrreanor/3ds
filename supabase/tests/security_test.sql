@@ -6106,7 +6106,7 @@ begin
     values ('70000000-0000-0000-0000-0000000000e1', 'pkthird@example.com', 'volunteer_director', '0000000b-0000-0000-0000-000000000001');
   exception when insufficient_privilege then ok := true; msg := sqlerrm;
   end;
-  assert ok and msg like '%doesn''t include Volunteer Leads or Section Leads%', 'Schedule Command has no Volunteer Leads';
+  assert ok and msg like '%doesn''t include Volunteer Leads or Coordinators%', 'Schedule Command has no Volunteer Leads';
 end $$;
 reset role;
 insert into public.organization_members (organization_id, user_id, role)
@@ -6132,7 +6132,7 @@ begin
     values ('70000000-0000-0000-0000-0000000000e1', 'pkthird@example.com', true, '0000000b-0000-0000-0000-000000000001');
   exception when insufficient_privilege then ok := true; msg := sqlerrm;
   end;
-  assert ok and msg like '%includes a team of 2 (a host and a co-host). Upgrade to Volunteer Command%', 'a full team can''t invite more';
+  assert ok and msg like '%Your team is full: your Schedule Command plan includes 2 team spots%', 'a full team can''t invite more';
 end $$;
 reset role;
 do $$
@@ -7523,7 +7523,8 @@ begin
   exception when sqlstate 'P0001' then ok := true; msg := sqlerrm;
   end;
   assert ok and msg like 'Registration has to open on or before its deadline%', 'registration can''t open after its deadline';
-  update public.events set band_registration_opens_on = current_date where id = '10000000-0000-0000-0000-0000000000d2';
+  -- Today in the event's own time zone (the day can differ from UTC's near midnight).
+  update public.events set band_registration_opens_on = (now() at time zone timezone)::date where id = '10000000-0000-0000-0000-0000000000d2';
   assert public.band_registration_is_open('10000000-0000-0000-0000-0000000000d2'), 'registration is open from its opening day';
   update public.events set band_registration_opens_on = null where id = '10000000-0000-0000-0000-0000000000d2';
   assert public.band_registration_is_open('10000000-0000-0000-0000-0000000000d2'), 'with no opening day, it''s open once published';
@@ -7782,5 +7783,176 @@ update public.events set band_registration_deadline = null where id = '10000000-
 select set_config('app.cleaning_up', 'off', false);
 reset role;
 delete from public.organizations where id = '60000000-0000-0000-0000-0000000000c8';
+
+-- ---------------------------------------------------------------------------
+-- My team (20270113000000): the removal ladder, leaving, co-host clean-up,
+-- account-level co-host invitations, team spots (invitations hold one; past
+-- events don't), and handing the account on.
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('0000007e-0000-0000-0000-000000000001', 'tmowner@example.com', '{"full_name":"Tia Owner"}'),
+  ('0000007e-0000-0000-0000-000000000002', 'tmco1@example.com', '{"full_name":"Cal Cohost"}'),
+  ('0000007e-0000-0000-0000-000000000003', 'tmco2@example.com', '{"full_name":"Coy Cohost"}'),
+  ('0000007e-0000-0000-0000-000000000004', 'tmvl@example.com', '{"full_name":"Vi Lead"}'),
+  ('0000007e-0000-0000-0000-000000000005', 'tmcoord@example.com', '{"full_name":"Cy Coord"}'),
+  ('0000007e-0000-0000-0000-000000000006', 'tmpast@example.com', '{"full_name":"Pat Past"}');
+insert into public.organizations (id, name, slug, subscription_status, free_until)
+values ('7d000000-0000-0000-0000-000000000001', 'Team PTA', 'team-pta', 'comped', date '2099-01-01');
+insert into public.organization_members (organization_id, user_id, role) values
+  ('7d000000-0000-0000-0000-000000000001', '0000007e-0000-0000-0000-000000000001', 'owner'),
+  ('7d000000-0000-0000-0000-000000000001', '0000007e-0000-0000-0000-000000000002', 'admin'),
+  ('7d000000-0000-0000-0000-000000000001', '0000007e-0000-0000-0000-000000000003', 'admin');
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address, timezone) values
+  ('7d000000-0000-0000-0000-0000000000e1', '7d000000-0000-0000-0000-000000000001', 'Spring Fair', 'team-spring-fair', 'draft', 'volunteer',
+   current_date + 30, current_date + 30, now() + interval '30 days', now() + interval '30 days 6 hours', '1 Fair Rd', 'America/Chicago'),
+  ('7d000000-0000-0000-0000-0000000000e2', '7d000000-0000-0000-0000-000000000001', 'Last Fall', 'team-last-fall', 'draft', 'volunteer',
+   current_date - 30, current_date - 30, now() - interval '30 days', now() - interval '30 days' + interval '6 hours', '1 Fair Rd', 'America/Chicago');
+insert into public.stations (id, event_id, name) values
+  ('7d000000-0000-0000-0000-0000000000b1', '7d000000-0000-0000-0000-0000000000e1', 'Ring toss');
+insert into public.event_staff (event_id, user_id, role) values
+  ('7d000000-0000-0000-0000-0000000000e1', '0000007e-0000-0000-0000-000000000004', 'volunteer_director'),
+  ('7d000000-0000-0000-0000-0000000000e1', '0000007e-0000-0000-0000-000000000005', 'section_lead'),
+  ('7d000000-0000-0000-0000-0000000000e2', '0000007e-0000-0000-0000-000000000006', 'section_lead');
+-- Co-host 2 leads a job.
+insert into public.station_leads (station_id, user_id, event_id)
+values ('7d000000-0000-0000-0000-0000000000b1', '0000007e-0000-0000-0000-000000000003', '7d000000-0000-0000-0000-0000000000e1');
+
+-- A co-host can't remove another co-host, or invite one.
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000002","email":"tmco1@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  delete from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000003';
+  assert exists (select 1 from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000003'),
+         'a co-host can''t remove another co-host';
+  delete from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000001';
+  assert exists (select 1 from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000001'),
+         'nobody removes the Account Host';
+  begin
+    insert into public.invitations (organization_id, email, as_host, invited_by)
+    values ('7d000000-0000-0000-0000-000000000001', 'tmnew@example.com', true, '0000007e-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a co-host can''t invite a co-host';
+  -- A co-host can remove Volunteer Leads and Coordinators.
+  assert public.is_event_admin('7d000000-0000-0000-0000-0000000000e1'), 'a co-host hosts every event';
+end $$;
+-- A Coordinator leaves on their own; a Volunteer Lead can't remove another Volunteer Lead.
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000005","email":"tmcoord@example.com"}';
+do $$ begin
+  delete from public.event_staff where user_id = '0000007e-0000-0000-0000-000000000005';
+  assert not exists (select 1 from public.event_staff where user_id = '0000007e-0000-0000-0000-000000000005'),
+         'a Coordinator can leave an event';
+end $$;
+reset role;
+
+-- The Account Host invites a co-host to the account (no event), and the invitation holds a spot.
+reset role;
+insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-000000000006') on conflict do nothing;
+set role authenticated;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+select public.set_account_package('7d000000-0000-0000-0000-000000000001', 'volunteer', 'standard', null, 'admin');
+reset role;
+delete from public.platform_admins where user_id = '00000000-0000-0000-0000-000000000006';
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  -- Owner, 2 co-hosts, and the Volunteer Lead: 4. Last Fall's Coordinator doesn't count.
+  assert ((public.team_spots('7d000000-0000-0000-0000-000000000001')) ->> 'used')::int = 4, 'helpers on past events don''t hold a spot';
+  insert into public.invitations (organization_id, email, as_host, invited_by)
+  values ('7d000000-0000-0000-0000-000000000001', 'tmnew@example.com', true, '0000007e-0000-0000-0000-000000000001');
+  assert ((public.team_spots('7d000000-0000-0000-0000-000000000001')) ->> 'used')::int = 5, 'an open invitation holds a spot';
+  assert ((public.team_spots('7d000000-0000-0000-0000-000000000001')) ->> 'invited')::int = 1, 'and is counted as invited';
+  begin
+    insert into public.invitations (event_id, email, role, invited_by)
+    values ('7d000000-0000-0000-0000-0000000000e1', 'tmsixth@example.com', 'section_lead', '0000007e-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Your team is full%', 'a full team (invitations included) can''t invite more';
+  -- Someone already on the team can be invited to another role without a new spot.
+  insert into public.invitations (event_id, email, role, invited_by)
+  values ('7d000000-0000-0000-0000-0000000000e1', 'tmvl@example.com', 'section_lead', '0000007e-0000-0000-0000-000000000001');
+  delete from public.invitations where email = 'tmvl@example.com';
+end $$;
+-- A co-host doesn't see the account's co-host invitation… a Volunteer Lead doesn't either.
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.invitations where email = 'tmnew@example.com'), 'a Volunteer Lead can''t see co-host invitations';
+end $$;
+-- The invited co-host accepts the account invitation.
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000006","email":"tmpast@example.com"}';
+reset role;
+update public.invitations set email = 'tmpast@example.com' where email = 'tmnew@example.com';
+select set_config('tm.invite', (select token from public.invitations where email = 'tmpast@example.com' and as_host)::text, false);
+set role authenticated;
+do $$ begin
+  assert public.accept_invitation(current_setting('tm.invite')::uuid) is null,
+         'an account invitation has no event';
+  assert exists (select 1 from public.organization_members where organization_id = '7d000000-0000-0000-0000-000000000001'
+                   and user_id = '0000007e-0000-0000-0000-000000000006' and role = 'admin'), 'accepting makes them a co-host';
+end $$;
+
+-- Removing a co-host takes away their job leads too.
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
+do $$ begin
+  delete from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000003';
+  assert not exists (select 1 from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000003'),
+         'the Account Host removes a co-host';
+  assert not exists (select 1 from public.station_leads where user_id = '0000007e-0000-0000-0000-000000000003'),
+         'a removed co-host stops leading jobs';
+end $$;
+-- A co-host can leave on their own.
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000006","email":"tmpast@example.com"}';
+do $$ begin
+  delete from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000006' and organization_id = '7d000000-0000-0000-0000-000000000001';
+  assert not exists (select 1 from public.organization_members where user_id = '0000007e-0000-0000-0000-000000000006'
+                       and organization_id = '7d000000-0000-0000-0000-000000000001'), 'a co-host can stop being a co-host';
+end $$;
+
+-- Handing the account on: only the Account Host offers, only to a co-host, and only they accept.
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000002","email":"tmco1@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.offer_account_host('7d000000-0000-0000-0000-000000000001', '0000007e-0000-0000-0000-000000000002');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a co-host can''t take the account';
+end $$;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.offer_account_host('7d000000-0000-0000-0000-000000000001', '0000007e-0000-0000-0000-000000000004');
+  exception when sqlstate 'P0001' then ok := true;
+  end;
+  assert ok, 'the account goes only to a co-host';
+  perform set_config('tm.handoff', public.offer_account_host('7d000000-0000-0000-0000-000000000001', '0000007e-0000-0000-0000-000000000002')::text, false);
+end $$;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.accept_account_host(current_setting('tm.handoff')::uuid);
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'only the co-host it''s for can accept';
+end $$;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000002","email":"tmco1@example.com"}';
+do $$ begin
+  perform public.accept_account_host(current_setting('tm.handoff')::uuid);
+  assert (select role from public.organization_members where organization_id = '7d000000-0000-0000-0000-000000000001'
+            and user_id = '0000007e-0000-0000-0000-000000000002') = 'owner', 'the co-host becomes the Account Host';
+  assert (select role from public.organization_members where organization_id = '7d000000-0000-0000-0000-000000000001'
+            and user_id = '0000007e-0000-0000-0000-000000000001') = 'admin', 'and the old Account Host stays on as a co-host';
+end $$;
+reset role;
+delete from public.organizations where id = '7d000000-0000-0000-0000-000000000001';
 
 \echo 'All database security tests passed.'
