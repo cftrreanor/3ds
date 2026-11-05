@@ -1,4 +1,5 @@
 import "server-only";
+import { loadTiers } from "@/lib/package-names";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { REMOVED_RECENTLY_DAYS } from "@/lib/team-words";
 import { utcToZonedDate } from "@/lib/time";
@@ -44,7 +45,16 @@ export type Removal = {
   removedAt: string;
   left: boolean;
 };
-export type Spots = { used: number; invited: number; max: number | null; plan: string | null; eventStaff: boolean };
+export type Spots = {
+  used: number;
+  invited: number;
+  max: number | null;
+  plan: string | null;
+  eventStaff: boolean;
+  /** The smallest package with more team spots, and the smallest with Volunteer Leads and Coordinators. */
+  bigger: string | null;
+  withStaff: string | null;
+};
 export type Host = { userId: string; role: "owner" | "admin"; profile: Profile };
 /** Your own role on someone else's event (or your own, as a Volunteer Lead or Coordinator). */
 export type MyRole = RoleOn & { accountHost: { name: string; email: string } | null };
@@ -280,6 +290,7 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
     (r.role === "co_host" ? hosts.some((h) => h.userId === r.user_id) : staff.some((s) => s.user_id === r.user_id && s.event_id === r.event_id && s.role === r.role)),
   );
 
+  const packages = (await loadTiers()).filter((t) => t.kind === "package");
   const s = (spotData ?? {}) as { used?: number; invited?: number; max?: number | null; plan?: string | null; event_staff?: boolean };
   return {
     kind: "host",
@@ -293,7 +304,15 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
     past,
     removed,
     upcoming: [...events.values()].filter((e) => !e.ended),
-    spots: { used: s.used ?? hosts.length, invited: s.invited ?? 0, max: s.max ?? null, plan: s.plan ?? null, eventStaff: s.event_staff ?? true },
+    spots: {
+      used: s.used ?? hosts.length,
+      invited: s.invited ?? 0,
+      max: s.max ?? null,
+      plan: s.plan ?? null,
+      eventStaff: s.event_staff ?? true,
+      bigger: packages.find((t) => s.max != null && (t.max_team === null || t.max_team > s.max))?.name ?? null,
+      withStaff: packages.find((t) => t.event_staff)?.name ?? null,
+    },
   };
 }
 

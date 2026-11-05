@@ -23,10 +23,16 @@ const short = (date: string) => formatDate(date.slice(0, 10), { year: undefined 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const first = (name: string) => name.split(/[\s@]/)[0] || name;
 const LINK = "font-medium text-brand underline underline-offset-4";
-const askUs = (subject: string, words: string) => (
-  <a href={`mailto:${brand.supportEmail}?subject=${encodeURIComponent(subject)}`} className={LINK}>
-    {words}
-  </a>
+/** The next step for a plan limit: the plan that has it, where to see your plan, and our address as text. */
+const PLAN_LINK = (
+  <Link href="/dashboard/account#plan" className={LINK}>
+    See your plan on the Account page
+  </Link>
+);
+const writeUs = (
+  <>
+    write to us at <span className="font-medium text-foreground [overflow-wrap:anywhere]">{brand.supportEmail}</span>
+  </>
 );
 
 /** My team, for whoever's looking: hosts and co-hosts, Volunteer Leads, and their own roles. */
@@ -99,7 +105,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
   const { org, spots, isAccountHost } = view;
   const full = spots.max !== null && spots.used >= spots.max;
   const invitations = spots.invited ? `, including ${plural(spots.invited, "invitation", "invitations")}` : "";
-  const fullWords = `Your ${spots.plan ?? ""} plan includes ${spots.max} team spots, and invitations count until they're accepted. Remove someone or cancel an invitation to free a spot, or `;
+  const fullWords = `Your ${spots.plan ?? ""} plan includes ${spots.max} team spots, and invitations count until they're accepted. Remove someone or cancel an invitation to free a spot`;
   const justYou = view.hosts.length === 1 && !view.coHostInvites.length && !view.people.length && !view.eventInvites.length;
   const canAddStaff = spots.eventStaff && !full;
   const accountHostName = view.accountHost ? personName(view.accountHost.profile) : "the Account Host";
@@ -126,7 +132,13 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
         {full && (
           <p role="status" className="mt-4 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm leading-6">
             <strong className="font-semibold">Your team is full.</strong> {fullWords}
-            {askUs("A bigger team", "ask us about a bigger team")}.
+            {spots.bigger ? (
+              <>
+                , or move to {spots.bigger} for more spots. {PLAN_LINK}, or {writeUs} to change plans.
+              </>
+            ) : (
+              <>, or {writeUs} about a bigger team.</>
+            )}
           </p>
         )}
       </header>
@@ -212,10 +224,12 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
           <h2 id="event-teams-heading" className="text-xl font-semibold">
             Event teams
           </h2>
-          <p className="text-sm leading-6 text-muted">
-            Volunteer Leads run volunteers for one event. Coordinators lead one job on the day, like parking or the gate. Each holds a team spot until
-            their event is over.
-          </p>
+          {spots.eventStaff && (
+            <p className="text-sm leading-6 text-muted">
+              Volunteer Leads run volunteers for one event. Coordinators lead one job on the day, like parking or the gate. Each holds a team spot
+              until their event is over.
+            </p>
+          )}
           {view.people.length || view.eventInvites.length ? (
             <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
               {view.people.map((p) => (
@@ -226,7 +240,9 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
               ))}
             </ul>
           ) : (
-            <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted">No Volunteer Leads or Coordinators on upcoming events.</p>
+            spots.eventStaff && (
+              <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted">No Volunteer Leads or Coordinators on upcoming events.</p>
+            )
           )}
           <AddStaffLinks view={view} canAdd={canAddStaff} />
         </section>
@@ -292,7 +308,15 @@ function AddStaffLinks({ view, canAdd }: { view: HostView; canAdd: boolean }) {
   if (!view.spots.eventStaff) {
     return (
       <p className="text-sm leading-6">
-        Your {view.spots.plan} plan doesn&apos;t include Volunteer Leads or Coordinators. {askUs("Volunteer Leads and Coordinators", "Ask us about a plan that does")}.
+        Your {view.spots.plan} plan doesn&apos;t include Volunteer Leads, who run volunteers for one event, or Coordinators, who lead one job on
+        the day.{" "}
+        {view.spots.withStaff ? (
+          <>
+            {view.spots.withStaff} includes them. {PLAN_LINK}, or {writeUs} to change plans.
+          </>
+        ) : (
+          <>To add them, {writeUs}.</>
+        )}
       </p>
     );
   }

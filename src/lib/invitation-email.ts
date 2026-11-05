@@ -66,15 +66,20 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
               : "You'll see who's on your sign-up's shifts, and their phone numbers unlock on the day of the event.",
           ],
         };
-  const custom = customWords(invitationEmailKey(inv), saved, {
+  // An account co-host invitation has no event: saved wording that names one would read
+  // "starting with … ()", so it falls back to the built-in email.
+  const usable = inv.event_name || !saved || !/\{\{\s*event_(name|when)\s*\}\}/.test(`${saved.subject} ${saved.heading} ${saved.body}`);
+  const custom = customWords(invitationEmailKey(inv), usable ? saved : null, {
     inviter: who,
     organization: inv.organization,
     event_name: eventName,
     event_when: when,
     event_day: bands ? "contest day" : "the event day",
-    access: bands
-      ? "bands, the schedule, volunteers, the team, and contest day"
-      : "sign-ups, shifts, volunteers, the team, and the event day",
+    access: !inv.event_name
+      ? "setting up and publishing events, sign-ups, volunteers, the team, and the event day"
+      : bands
+        ? "bands, the schedule, volunteers, the team, and contest day"
+        : "sign-ups, shifts, volunteers, the team, and the event day",
     station,
     lead_title: leadTitle,
   });
