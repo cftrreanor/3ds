@@ -154,7 +154,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
             );
           })}
           {view.coHostInvites.map((inv) => (
-            <InviteRow key={inv.id} invite={inv} manage={isAccountHost} what="Co-host" />
+            <InviteRow key={inv.id} invite={inv} manage={isAccountHost} what="Co-host" full={full} />
           ))}
         </ul>
       </section>
@@ -183,7 +183,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                 <PersonRow key={p.userId} person={p} orgId={org.id} />
               ))}
               {view.eventInvites.map((inv) => (
-                <InviteRow key={inv.id} invite={inv} manage what={ROLE[inv.role ?? "section_lead"]} />
+                <InviteRow key={inv.id} invite={inv} manage what={ROLE[inv.role ?? "section_lead"]} full={full} />
               ))}
             </ul>
           ) : (
@@ -333,33 +333,43 @@ function RoleLines({ roles, link }: { roles: RoleOn[]; link?: (e: TeamEvent) => 
   );
 }
 
-function InviteRow({ invite: inv, manage, what }: { invite: Invite; manage: boolean; what: string }) {
+function InviteRow({ invite: inv, manage, what, full = false }: { invite: Invite; manage: boolean; what: string; full?: boolean }) {
+  // An expired link says so first, and offers a new link instead of copying the dead one.
   return (
     <Row
       title={
         <>
-          <span className="break-all">{inv.email}</span> <Badge tone="warning">Invited</Badge>
+          <span className="break-all">{inv.email}</span>{" "}
+          {inv.expired ? <Badge tone="neutral">Link expired</Badge> : <Badge tone="warning">Invited</Badge>}
         </>
       }
       detail={[
+        inv.expired ? `Link expired ${short(inv.expiresAt)}` : null,
         inv.event ? `${what} · ${inv.event.name} ${short(inv.event.starts_on)}` : what,
         inv.job ? `to lead ${inv.job}` : null,
         `Invited ${short(inv.createdAt)}`,
-        inv.expired ? `Link expired ${short(inv.expiresAt)}` : `Link works until ${short(inv.expiresAt)}`,
+        inv.expired ? null : `Link works until ${short(inv.expiresAt)}`,
       ]}
       actions={
         <>
-          {manage && (
-            <RowButton action={resendTeamInvitation.bind(null, inv.id)} pendingText="Sending…" label={`Resend the invitation to ${inv.email}`}>
-              Resend
+          {manage && inv.expired && full ? (
+            // A new link would take a team spot back (the database checks the same).
+            <p className="text-sm text-muted">Free a team spot to send a new link</p>
+          ) : manage && (
+            <RowButton
+              action={resendTeamInvitation.bind(null, inv.id)}
+              pendingText="Sending…"
+              label={inv.expired ? `Send a new link to ${inv.email}` : `Resend the invitation to ${inv.email}`}
+            >
+              {inv.expired ? "Send a new link" : "Resend"}
             </RowButton>
           )}
-          <CopyInviteLink url={inv.link} />
+          {!inv.expired && <CopyInviteLink url={inv.link} />}
           {manage && (
             <RowButton
               action={cancelTeamInvitation.bind(null, inv.id)}
               pendingText="Cancelling…"
-              label={`Cancel the invitation for ${inv.email}`}
+              label={`Cancel invitation for ${inv.email}`}
               confirm={`Cancel the invitation for ${inv.email}? Their link stops working, and the team spot it holds is free.`}
               confirmLabel="Cancel invitation"
             >

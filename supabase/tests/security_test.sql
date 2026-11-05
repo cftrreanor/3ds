@@ -7895,6 +7895,41 @@ do $$ begin
                    and user_id = '0000007e-0000-0000-0000-000000000006' and role = 'admin'), 'accepting makes them a co-host';
 end $$;
 
+-- Resending an expired invitation needs a free team spot, like a new one (20270115000000).
+-- The team is full here (5 of 5 on Volunteer Command).
+reset role;
+set session_replication_role = replica;  -- add an old, expired invitation without today's checks
+insert into public.invitations (organization_id, email, as_host, invited_by, expires_at)
+values ('7d000000-0000-0000-0000-000000000001', 'tmexpired@example.com', true, '0000007e-0000-0000-0000-000000000001',
+        now() - interval '1 day');
+set session_replication_role = origin;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
+do $$
+declare ok boolean := false; msg text;
+begin
+  assert ((public.team_spots('7d000000-0000-0000-0000-000000000001')) ->> 'used')::int
+       = ((public.team_spots('7d000000-0000-0000-0000-000000000001')) ->> 'max')::int, 'the team is full';
+  begin
+    perform public.prepare_invitation_email((select id from public.invitations where email = 'tmexpired@example.com'));
+  exception when insufficient_privilege then ok := true; msg := sqlerrm;
+  end;
+  assert ok and msg like 'Your team is full%', 'resending an expired invitation on a full team is refused';
+  assert (select expires_at < now() from public.invitations where email = 'tmexpired@example.com'), 'and the link stays expired';
+end $$;
+-- Someone who already holds a spot can have their expired invitation sent again.
+reset role;
+update public.invitations set email = 'tmvl@example.com' where email = 'tmexpired@example.com';
+set role authenticated;
+do $$ begin
+  perform public.prepare_invitation_email((select id from public.invitations where email = 'tmvl@example.com' and as_host));
+  assert (select expires_at > now() from public.invitations where email = 'tmvl@example.com' and as_host),
+         'resending renews the link when it needs no new spot';
+end $$;
+reset role;
+delete from public.invitations where email = 'tmvl@example.com' and as_host;
+set role authenticated;
+
 -- Removing a co-host takes away their job leads too.
 set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
 do $$ begin
