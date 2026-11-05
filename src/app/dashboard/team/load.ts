@@ -67,6 +67,8 @@ export type EventJobs = Record<string, Job[]>;
 export type HostView = {
   /** Each upcoming event's jobs. */
   jobs: EventJobs;
+  /** Jobs left with no Coordinator after one left or was removed in the last 30 days. */
+  gaps: { event: TeamEvent; gone: Removal; open: string[] }[];
   kind: "host";
   org: { id: string; name: string };
   isAccountHost: boolean;
@@ -342,6 +344,9 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
     (r.role === "co_host" ? hosts.some((h) => h.userId === r.user_id) : staff.some((s) => s.user_id === r.user_id && s.event_id === r.event_id && s.role === r.role)),
   );
 
+  const upcoming = [...events.values()].filter((e) => !e.ended);
+  const jobs = await loadJobs(upcoming.map((e) => e.id));
+  const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const packages = (await loadTiers()).filter((t) => t.kind === "package");
   const s = (spotData ?? {}) as { used?: number; invited?: number; max?: number | null; plan?: string | null; event_staff?: boolean };
   return {
@@ -355,8 +360,15 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
     eventInvites,
     past,
     removed,
-    upcoming: [...events.values()].filter((e) => !e.ended),
-    jobs: await loadJobs([...events.values()].filter((e) => !e.ended).map((e) => e.id)),
+    upcoming,
+    jobs,
+    gaps: upcoming
+      .map((event) => {
+        const gone = removed.find((r) => r.role === "section_lead" && r.event?.id === event.id && r.removedAt >= monthAgo);
+        const open = (jobs[event.id] ?? []).filter((j) => !j.led).map((j) => j.name);
+        return gone && open.length ? { event, gone, open } : null;
+      })
+      .filter((g) => g !== null),
     spots: {
       used: s.used ?? hosts.length,
       invited: s.invited ?? 0,

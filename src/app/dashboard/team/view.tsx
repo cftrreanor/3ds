@@ -358,18 +358,10 @@ function PrivacyNote({ children }: { children: ReactNode }) {
  * nobody leading them, so a gap doesn't go unnoticed. Calm, not a warning: jobs can run without one.
  */
 function NeedsCoordinator({ view }: { view: HostView }) {
-  const since = Date.now() - 30 * 86_400_000;
-  const gaps = view.upcoming
-    .map((event) => {
-      const gone = view.removed.find((r) => r.role === "section_lead" && r.event?.id === event.id && new Date(r.removedAt).getTime() >= since);
-      const open = (view.jobs[event.id] ?? []).filter((j) => !j.led).map((j) => j.name);
-      return gone && open.length ? { event, gone, open } : null;
-    })
-    .filter((g) => g !== null);
-  if (!gaps.length) return null;
+  if (!view.gaps.length) return null;
   return (
     <ul className="space-y-2">
-      {gaps.map(({ event, gone, open }) => (
+      {view.gaps.map(({ event, gone, open }) => (
         <li key={event.id} className="rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6">
           <strong className="font-semibold">{open.join(", ")}</strong> at {event.name} {open.length === 1 ? "has" : "have"} no Coordinator. {gone.name}{" "}
           {gone.left ? "left" : "was removed"} {short(gone.removedAt)}.{" "}
