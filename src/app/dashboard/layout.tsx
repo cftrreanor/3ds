@@ -10,6 +10,7 @@ import { requireUser } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { hasUpcomingVolunteering } from "@/lib/my-volunteering";
 import { trackingAccounts } from "@/lib/volunteer-tracking";
+import { hasTeamPage } from "./team/load";
 
 const MENU_ITEM = "flex min-h-11 w-full items-center rounded-md px-3 text-left text-white/90 hover:bg-white/10 hover:text-white";
 
@@ -23,10 +24,12 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   }
   const user = await requireUser();
   // "My volunteering" only for people with volunteering still to come (see hasUpcomingVolunteering).
-  const [volunteers, tracking] = await Promise.all([
+  const [volunteers, tracking, team] = await Promise.all([
     hasUpcomingVolunteering(true),
     // Hosts, Co-hosts, and Volunteer Leads.
     trackingAccounts(user.id),
+    // Hosts, co-hosts, and anyone on an event's team.
+    hasTeamPage(user.id),
   ]);
 
   return (
@@ -37,6 +40,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <Link href="/dashboard" className={headerLinkClass}>
             My events
           </Link>
+          {team && (
+            <Link href="/dashboard/team" className={`${headerLinkClass} hidden sm:block`}>
+              My team
+            </Link>
+          )}
           {volunteers && (
             <Link href="/my" className={`${headerLinkClass} hidden sm:block`}>
               My volunteering
@@ -57,6 +65,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           {/* Phones: Account and Sign out tuck into a menu. */}
           <div className="sm:hidden">
             <HeaderMenu>
+              {team && (
+                <Link href="/dashboard/team" className={MENU_ITEM}>
+                  My team
+                </Link>
+              )}
               {volunteers && (
                 <Link href="/my" className={MENU_ITEM}>
                   My volunteering

@@ -15,6 +15,7 @@ import { OVERLAPS, clockLabel, durationLabel, planShifts, toMinutes } from "@/li
 import { onRetry, setPending, useUnadded } from "@/components/pending-edits";
 import { StepNotice, useStepEdits } from "./volunteering/station-steps";
 import { copyDialog } from "@/components/confirm-dialog";
+import { CO_HOST_POWERS } from "@/lib/team-words";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -1074,8 +1075,7 @@ export function InviteForm({
       )}
       {role === "host" && (
         <p className="text-sm leading-6 text-muted sm:col-span-2">
-          A co-host has the same access you do, on all of your organization&apos;s events: publishing, bands, the
-          schedule, volunteers, and the team.
+          {CO_HOST_POWERS}
         </p>
       )}
       {role === "section_lead" && stations.length > 0 && (

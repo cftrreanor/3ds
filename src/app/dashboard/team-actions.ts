@@ -55,13 +55,21 @@ async function invite(
 
   const supabase = await createClient();
   const asHost = role === "host";
+  // A co-host joins the whole account, not one event.
+  if (asHost) {
+    const { data: event } = await supabase.from("events").select("organization_id").eq("id", eventId).maybeSingle();
+    if (!event) return { error: "Event not found." };
+    const result = await inviteToAccount(event.organization_id, email);
+    revalidatePath(`/dashboard/events/${eventId}`, "layout");
+    return result;
+  }
   const { data, error } = await supabase
     .from("invitations")
     .insert({
       event_id: eventId,
       email,
-      role: asHost ? null : role,
-      as_host: asHost,
+      role,
+      as_host: false,
       station_id: role === "section_lead" ? stationId : null,
       invited_by: user.id,
     })
@@ -74,6 +82,7 @@ async function invite(
 
   const sent = await sendInvitation(data.id);
   revalidatePath(`/dashboard/events/${eventId}`, "layout");
+  revalidatePath("/dashboard/team");
   return sent === true
     ? { ok: true, message: `Invitation sent to ${email}.` }
     : { ok: true, message: `Invitation saved, but the email didn't go out. Copy the link under Pending and send it to ${email} yourself.` };
@@ -215,4 +224,135 @@ export async function joinFromEmail(token: string, key: string, _prev: ActionSta
   if (error) return { error: friendlyDbError(error) };
   revalidatePath("/dashboard", "layout");
   redirect(eventId ? `/dashboard/events/${eventId}` : "/dashboard");
+}
+
+// -----------------------------------------------------------------------------
+// My team (/dashboard/team). The database enforces who may do each of these
+// (20270113000000_my_team.sql); a refused change comes back as nothing changed.
+// -----------------------------------------------------------------------------
+
+const STAFF_ROLES = ["volunteer_director", "section_lead"] as const;
+type StaffRole = (typeof STAFF_ROLES)[number];
+const UUID = /^[0-9a-f-]{36}$/i;
+
+/** Invite a co-host to the whole account (the Account Host only). */
+export async function inviteCoHost(orgId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const email = inviteSchema.shape.email.safeParse(formData.get("email"));
+  if (!email.success) return { error: email.error.issues[0].message, fieldErrors: { email: email.error.issues[0].message } };
+  return inviteToAccount(orgId, email.data);
+}
+
+async function inviteToAccount(orgId: string, email: string): Promise<ActionState> {
+  const user = await requireUser();
+  if (email === user.email.toLowerCase()) return { error: "That's your own email. You're already on the team." };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("invitations")
+    .insert({ organization_id: orgId, event_id: null, email, role: null, as_host: true, invited_by: user.id })
+    .select("id")
+    .single();
+  if (error) {
+    if (error.code === "23505") return { error: `${email} already has an invitation waiting. Use Resend on their row.` };
+    return { error: friendlyDbError(error) };
+  }
+  const sent = await sendInvitation(data.id);
+  revalidatePath("/dashboard", "layout");
+  return sent === true
+    ? { ok: true, message: `Invitation sent to ${email}.` }
+    : { ok: true, message: `Invitation saved, but the email didn't go out. Use Copy link on their row and send it to ${email} yourself.` };
+}
+
+/**
+ * Invite someone back: a co-host to the account, or a Volunteer Lead or Coordinator to the
+ * event picked in the window (`eventId`).
+ */
+export async function inviteAgain(orgId: string, email: string, role: "co_host" | StaffRole, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  if (role === "co_host") return inviteToAccount(orgId, email.toLowerCase());
+  const eventId = String(formData.get("eventId") ?? "");
+  if (!UUID.test(eventId)) return { error: "Choose the event to invite them to.", fieldErrors: { eventId: "Choose the event to invite them to." } };
+  const result = await invite(eventId, email, role, null);
+  revalidatePath("/dashboard/team");
+  return result;
+}
+
+export async function resendTeamInvitation(invitationId: string): Promise<ActionState> {
+  await requireUser();
+  const sent = await sendInvitation(invitationId);
+  revalidatePath("/dashboard", "layout");
+  if (typeof sent === "string") return { error: sent };
+  return sent ? { ok: true, message: "Sent again." } : { error: "The email didn't go out. Use Copy link and send it yourself." };
+}
+
+export async function cancelTeamInvitation(invitationId: string): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("invitations").delete().eq("id", invitationId).select("email");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "That invitation was already accepted or cancelled, or isn't yours to cancel." };
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: `Invitation for ${data[0].email} cancelled. Their team spot is free.` };
+}
+
+/**
+ * Remove a Volunteer Lead or Coordinator: from the roles picked in the window ("eventId:role"),
+ * or from every event on the account ("all").
+ */
+export async function removeFromEvents(orgId: string, userId: string, name: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireUser();
+  const supabase = await createClient();
+  const picked = formData.getAll("pick").map(String);
+  let query = supabase.from("event_staff").delete().eq("user_id", userId);
+  if (picked.includes("all")) {
+    const { data: events } = await supabase.from("events").select("id").eq("organization_id", orgId);
+    query = query.in("event_id", (events ?? []).map((e) => e.id));
+  } else {
+    const pairs = picked
+      .map((p) => p.split(":"))
+      .filter(([eventId, role]) => UUID.test(eventId ?? "") && STAFF_ROLES.includes(role as StaffRole));
+    if (!pairs.length) return { error: "Choose what to remove them from." };
+    query = query.or(pairs.map(([eventId, role]) => `and(event_id.eq.${eventId},role.eq.${role})`).join(","));
+  }
+  const { data, error } = await query.select("event_id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: `${name} wasn't removed. They may have been removed already, or it isn't yours to do.` };
+  revalidatePath("/dashboard", "layout");
+  const events = new Set(data.map((d) => d.event_id)).size;
+  return { ok: true, message: `Removed ${name} from ${events === 1 ? "1 event" : `${events} events`}.` };
+}
+
+/** Remove a co-host from the account (the Account Host), or stop being one (the co-host). */
+export async function removeAccountCoHost(orgId: string, userId: string, name: string): Promise<ActionState> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("organization_members")
+    .delete()
+    .eq("organization_id", orgId)
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .select("user_id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "Only the Account Host can remove a co-host." };
+  revalidatePath("/dashboard", "layout");
+  // Leaving yourself: the account's events are no longer yours to see.
+  if (userId === user.id) redirect("/dashboard");
+  return { ok: true, message: `Removed ${name} as co-host.` };
+}
+
+/** A Volunteer Lead or Coordinator leaves one event. */
+export async function leaveEvent(eventId: string, role: StaffRole, eventName: string): Promise<ActionState> {
+  const user = await requireUser();
+  if (!STAFF_ROLES.includes(role)) return { error: "You don't have permission to do that." };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("event_staff")
+    .delete()
+    .eq("event_id", eventId)
+    .eq("user_id", user.id)
+    .eq("role", role)
+    .select("event_id");
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: "You've already left that event." };
+  revalidatePath("/dashboard", "layout");
+  return { ok: true, message: `You've left ${eventName}.` };
 }

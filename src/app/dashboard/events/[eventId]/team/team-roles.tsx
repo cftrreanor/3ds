@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/time";
 import { cancelInvitation, inviteMember, reinviteMember, removeCoHost, removeMember, resendInvitation } from "../../../team-actions";
 import { CopyLinkButton, DeleteButton, InviteForm, RemoveButton, SmallActionButton } from "../forms";
 import { leadWords } from "@/lib/event-types";
+import { CO_HOST_POWERS } from "@/lib/team-words";
 
 type Person = { full_name: string; email: string; phone: string | null } | null;
 type StaffRow = { user_id: string; role: "volunteer_director" | "section_lead"; profiles: Person };
@@ -163,11 +164,11 @@ export async function TeamRoles({
                   <div>
                     <h2 className="text-sm font-semibold">Current members</h2>
                     <p className="mt-1 text-sm leading-6 text-muted">
-                      Hosts and co-hosts have full access to all of your organization&apos;s events: publishing, bands, the
-                      schedule, volunteers, and the team.
-                      {!isAccountHost && accountHost && (
-                        <> Only the Account Host, {accountHost.profiles?.full_name || accountHost.profiles?.email}, can invite or remove co-hosts.</>
-                      )}
+                      {CO_HOST_POWERS}
+                      {!isAccountHost && accountHost && <> Your Account Host is {accountHost.profiles?.full_name || accountHost.profiles?.email}.</>}{" "}
+                      <Link href="/dashboard/team" className="font-medium text-brand underline-offset-4 hover:underline">
+                        See everyone on My team
+                      </Link>
                     </p>
                     <ul className="mt-3 space-y-2">
                       {hosts.map((h) => (
