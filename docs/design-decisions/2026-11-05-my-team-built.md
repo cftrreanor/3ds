@@ -33,3 +33,15 @@ Review: docs/design-reviews/2026-11-05-my-team-built.md
 | Windows blend into the page in dark mode | _Not yet decided_ | |
 | Co-host sentence vague; invitation sells rules | Take the advice | Covered by the 11 above |
 | Polish (severity 1) | _Not yet decided_ | |
+
+## Light check (docs/design-reviews/2026-11-05-my-team-light-check.md)
+
+| Finding | Severity | Decision | Notes |
+|---|---|---|---|
+| Full team: Invite a co-host asks for an email instead of picking someone | 3 | _Waiting for the owner_ | The contradicting hint is already fixed |
+| Removal email says "off the team" when they keep a role | 3 | Fixed (bug) | Names what was actually removed and what they still are |
+| Rows crushed on tablets with the accounts menu | 3 | Fixed (bug) | Rows lay out by the card's width |
+| Past Volunteer Leads still saw volunteer history | 3 | Fixed (part of decision 6) | Same 10-day cut-off, with tests; past roles can't be left |
+| Full team: blocked actions still offered to Volunteer Leads and in the no-Coordinator note | 2 | Fixed (bug) | |
+| Unlimited plans mention team spots | 2 | Fixed (bug) | |
+| Lead and event-team loads fail as empty pages | 2 | Fixed (project rule) | |
