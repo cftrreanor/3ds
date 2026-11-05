@@ -219,8 +219,9 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                       points={[
                         `${first(name)} loses access to every event right away, and stops leading any jobs`,
                         "A team spot opens up",
-                        `We don't email ${first(name)}. You can invite them again from Removed recently`,
+                        "You can invite them again from Removed recently",
                       ]}
+                      notifyLabel={`Let ${first(name)} know by email`}
                       keepLabel={`Keep ${first(name)}`}
                       confirmLabel="Remove co-host"
                       pendingText="Removing…"
@@ -272,6 +273,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
               <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted">No Volunteer Leads or Coordinators on upcoming events.</p>
             )
           )}
+          <NeedsCoordinator view={view} />
           <AddStaffLinks view={view} canAdd={canAddStaff} />
         </section>
       )}
@@ -348,6 +350,35 @@ function PrivacyNote({ children }: { children: ReactNode }) {
       <LineIcon name="lock" className="mt-1 size-4" />
       <span>{children}</span>
     </p>
+  );
+}
+
+/**
+ * After a Coordinator leaves or is removed (in the last 30 days), the jobs on that event with
+ * nobody leading them, so a gap doesn't go unnoticed. Calm, not a warning: jobs can run without one.
+ */
+function NeedsCoordinator({ view }: { view: HostView }) {
+  const since = Date.now() - 30 * 86_400_000;
+  const gaps = view.upcoming
+    .map((event) => {
+      const gone = view.removed.find((r) => r.role === "section_lead" && r.event?.id === event.id && new Date(r.removedAt).getTime() >= since);
+      const open = (view.jobs[event.id] ?? []).filter((j) => !j.led).map((j) => j.name);
+      return gone && open.length ? { event, gone, open } : null;
+    })
+    .filter((g) => g !== null);
+  if (!gaps.length) return null;
+  return (
+    <ul className="space-y-2">
+      {gaps.map(({ event, gone, open }) => (
+        <li key={event.id} className="rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6">
+          <strong className="font-semibold">{open.join(", ")}</strong> at {event.name} {open.length === 1 ? "has" : "have"} no Coordinator. {gone.name}{" "}
+          {gone.left ? "left" : "was removed"} {short(gone.removedAt)}.{" "}
+          <Link href={`/dashboard/events/${event.id}/edit?section=team`} className={LINK}>
+            Invite a Coordinator
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -677,14 +708,16 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
                 </Link>
               </>
             }
-            detail={[short(r.event.starts_on), r.accountHost ? `Account Host: ${r.accountHost.name}` : null]}
+            detail={[short(r.event.starts_on), r.jobs.length ? `leads ${r.jobs.join(", ")}` : null, r.accountHost ? `Account Host: ${r.accountHost.name}` : null]}
             actions={
               <ConfirmButton
                 action={leaveEvent.bind(null, r.event.id, r.role, r.event.name)}
                 label={`Leave this event: ${r.event.name}`}
                 title={`Leave ${r.event.name}?`}
                 points={[
-                  `You lose access to this event right away${r.role === "section_lead" ? ", and stop leading your jobs" : ""}`,
+                  "You lose access to this event right away",
+                  ...(r.jobs.length ? [`You stop leading ${r.jobs.join(" and ")}, so ${r.jobs.length === 1 ? "it needs" : "they need"} a new Coordinator`] : []),
+                  `We'll let ${r.accountHost?.name ?? "the Account Host"} and the event's Volunteer Leads know by email`,
                   `To come back, ask ${r.accountHost?.name ?? "the Account Host"} to invite you again`,
                 ]}
                 keepLabel="Stay on this event"

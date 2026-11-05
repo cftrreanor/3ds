@@ -11,7 +11,7 @@ export const CO_HOST_INVITE =
 export const ONE_EVENT_HINT = "Need help with just one event? Add a Volunteer Lead or Coordinator from that event's team setup instead.";
 
 /** What removing someone does, under every list of people who can be removed. */
-export const REMOVAL_NOTE = "Removing someone takes away their access right away. We don't email them.";
+export const REMOVAL_NOTE = "Removing someone takes away their access right away. You choose whether we email them.";
 
 /** How long a removed person stays in "Removed recently". */
 export const REMOVED_RECENTLY_DAYS = 90;

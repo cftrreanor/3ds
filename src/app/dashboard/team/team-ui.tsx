@@ -170,6 +170,7 @@ export function ConfirmButton({
   confirmLabel,
   pendingText,
   danger = true,
+  notifyLabel,
 }: {
   action: Action;
   /** The row button's words. */
@@ -183,6 +184,8 @@ export function ConfirmButton({
   pendingText: string;
   /** Red for anything that takes access away (the default). */
   danger?: boolean;
+  /** "Let Priya know by email": a box, ticked, that emails the person removed. */
+  notifyLabel?: string;
 }) {
   const { ref, key, open, close } = useWindow();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -202,6 +205,7 @@ export function ConfirmButton({
           className="mt-3 space-y-4"
         >
           <Points items={points} />
+          {notifyLabel && <NotifyBox label={notifyLabel} />}
           <WindowButtons keep={keepLabel} close={close}>
             <SubmitButton variant={danger ? "warn" : "primary"} pendingText={pendingText} data-solid>
               {confirmLabel}
@@ -210,6 +214,16 @@ export function ConfirmButton({
         </ActionForm>
       </Window>
     </>
+  );
+}
+
+/** "Let Marcus know by email": ticked to start; the email says who removed them and who to ask. */
+function NotifyBox({ label }: { label: string }) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+      <input type="checkbox" name="notify" defaultChecked className="size-4 shrink-0 accent-[var(--brand)]" />
+      {label}
+    </label>
   );
 }
 
@@ -324,9 +338,10 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
               </>,
               ...leaves,
               kept.length > 0 ? `${firstName} keeps their team spot` : "A team spot opens up",
-              `We don't email ${firstName}. You can invite them again from Removed recently`,
+              "You can invite them again from Removed recently",
             ]}
           />
+          <NotifyBox label={`Let ${firstName} know by email`} />
           <WindowButtons keep={`Keep ${firstName}`} close={close}>
             <SubmitButton variant="warn" pendingText="Removing…" data-solid>
               {events === 1 ? "Remove from this event" : `Remove from ${events} events`}

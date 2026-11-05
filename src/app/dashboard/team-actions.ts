@@ -8,6 +8,7 @@ import { friendlyDbError, type ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
 import { getOrigin } from "@/lib/data";
 import { sendEmail } from "@/lib/email";
+import { leftEventEmail, removedEmail } from "@/lib/team-emails";
 import { invitationEmail, invitationEmailKey, type InvitationDetails } from "@/lib/invitation-email";
 import { loadSystemEmail } from "@/lib/system-email-overrides";
 import { hasBands, leadWords } from "@/lib/event-types";
@@ -312,7 +313,7 @@ export async function removeFromEvents(userId: string, name: string, _prev: Acti
   if (!pairs.length) return { error: "Choose what to remove them from." };
   const { data: events } = await supabase
     .from("events")
-    .select("id, ends_on, timezone")
+    .select("id, name, ends_on, timezone, organization_id")
     .in("id", [...new Set(pairs.map(([eventId]) => eventId))]);
   const upcoming = new Set(
     (events ?? []).filter((e) => e.ends_on >= utcToZonedDate(new Date().toISOString(), e.timezone || "America/Chicago")).map((e) => e.id),
@@ -327,13 +328,16 @@ export async function removeFromEvents(userId: string, name: string, _prev: Acti
     .select("event_id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: `${name} wasn't removed. They may have been removed already, or it isn't yours to do.` };
+  const label = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator" } as const;
+  const roleNames = current.map(([eventId, role]) => `${label[role as StaffRole]} of ${(events ?? []).find((e) => e.id === eventId)?.name ?? "an event"}`);
+  await tellRemoved(formData, userId, (events ?? [])[0]?.organization_id ?? null, roleNames);
   revalidatePath("/dashboard", "layout");
   const removed = new Set(data.map((d) => d.event_id)).size;
   return { ok: true, message: `Removed ${name} from ${removed === 1 ? "1 event" : `${removed} events`}.` };
 }
 
 /** Remove a co-host from the account (the Account Host), or stop being one (the co-host). */
-export async function removeAccountCoHost(orgId: string, userId: string, name: string): Promise<ActionState> {
+export async function removeAccountCoHost(orgId: string, userId: string, name: string, _prev?: ActionState, formData?: FormData): Promise<ActionState> {
   const user = await requireUser();
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -348,17 +352,26 @@ export async function removeAccountCoHost(orgId: string, userId: string, name: s
     revalidatePath("/dashboard", "layout");
     return { error: userId === user.id ? "You're no longer a co-host here. The page has been refreshed." : `${name} isn't a co-host anymore. The page has been refreshed.` };
   }
+  if (userId !== user.id && formData) await tellRemoved(formData, userId, orgId, ["co-host"]);
   revalidatePath("/dashboard", "layout");
   // Leaving yourself: the account's events are no longer yours to see.
   if (userId === user.id) redirect("/dashboard");
   return { ok: true, message: `Removed ${name} as co-host.` };
 }
 
-/** A Volunteer Lead or Coordinator leaves one event. */
+/**
+ * A Volunteer Lead or Coordinator leaves one event. The Account Host and the event's other
+ * Volunteer Leads are emailed, naming the jobs and roles left without anyone.
+ */
 export async function leaveEvent(eventId: string, role: StaffRole, eventName: string): Promise<ActionState> {
   const user = await requireUser();
   if (!STAFF_ROLES.includes(role)) return { error: "You don't have permission to do that." };
   const supabase = await createClient();
+  // Before leaving: the jobs they lead (leaving takes them off those).
+  const [{ data: led }, { data: me }] = await Promise.all([
+    supabase.from("station_leads").select("stations(name)").eq("event_id", eventId).eq("user_id", user.id),
+    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+  ]);
   const { data, error } = await supabase
     .from("event_staff")
     .delete()
@@ -368,6 +381,54 @@ export async function leaveEvent(eventId: string, role: StaffRole, eventName: st
     .select("event_id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "You've already left that event." };
+  const jobs = role === "section_lead" ? ((led ?? []) as unknown as { stations: { name: string } | null }[]).map((l) => l.stations?.name).filter((n): n is string => !!n) : [];
+  await tellHostsSomeoneLeft(eventId, user.id, me?.full_name || user.email, role, jobs);
   revalidatePath("/dashboard", "layout");
-  return { ok: true, message: `You've left ${eventName}.` };
+  return { ok: true, message: `You've left ${eventName}. We've let the Account Host and the event's Volunteer Leads know.` };
+}
+
+/** Email the event's Account Host and Volunteer Leads that someone left (server side: the leaver can't read them). */
+async function tellHostsSomeoneLeft(eventId: string, leaverId: string, who: string, role: StaffRole, jobs: string[]) {
+  const admin = createAdminClient();
+  const { data: event } = await admin.from("events").select("id, name, starts_on, ends_on, organization_id").eq("id", eventId).maybeSingle();
+  if (!event) return;
+  const [{ data: owner }, { data: leads }] = await Promise.all([
+    admin.from("organization_members").select("profiles(email)").eq("organization_id", event.organization_id).eq("role", "owner").maybeSingle(),
+    admin.from("event_staff").select("user_id, profiles(email)").eq("event_id", eventId).eq("role", "volunteer_director"),
+  ]);
+  const leadRows = (leads ?? []) as unknown as { user_id: string; profiles: { email: string } | null }[];
+  const to = new Set(
+    [(owner as unknown as { profiles: { email: string } | null } | null)?.profiles?.email, ...leadRows.filter((l) => l.user_id !== leaverId).map((l) => l.profiles?.email)]
+      .filter((e): e is string => !!e)
+      .map((e) => e.toLowerCase()),
+  );
+  const { subject, html, text } = leftEventEmail({
+    who,
+    role,
+    event,
+    jobs,
+    noLead: role === "volunteer_director" && leadRows.filter((l) => l.user_id !== leaverId).length === 0,
+    setupUrl: `${await getOrigin()}/dashboard/events/${eventId}/edit?section=team`,
+  });
+  await Promise.all([...to].map((addr) => sendEmail({ to: addr, subject, html, text })));
+}
+
+/** Email someone that they were removed, when the remover ticked "Let them know by email". */
+async function tellRemoved(formData: FormData, removedId: string, orgId: string | null, roles: string[]) {
+  if (formData.get("notify") !== "on") return;
+  const user = await requireUser();
+  const admin = createAdminClient();
+  const [{ data: person }, { data: me }, { data: org }] = await Promise.all([
+    admin.from("profiles").select("email").eq("id", removedId).maybeSingle(),
+    admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    orgId ? admin.from("organizations").select("name").eq("id", orgId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  if (!person?.email) return;
+  const { subject, html, text } = removedEmail({
+    remover: me?.full_name || user.email,
+    organization: org?.name ?? "the account",
+    roles,
+    contact: user.email,
+  });
+  await sendEmail({ to: person.email, subject, html, text, replyTo: user.email });
 }

@@ -250,8 +250,20 @@ export async function loadMyTeam(userId: string, origin: string, accountId?: str
   const here = myStaff.filter((s) => s.events!.organization_id === current.id);
   const ledEvents = here.filter((s) => s.role === "volunteer_director").map((s) => toEvent(s.events!));
   const lead = ledEvents.length ? await loadLeadView(ledEvents, origin, current.id, owners.get(current.id)?.name ?? null) : null;
+  // The jobs you lead there, so leaving can name them.
+  const { data: myLeads } = here.length
+    ? await supabase.from("station_leads").select("event_id, stations(name)").eq("user_id", userId).in("event_id", here.map((s) => s.event_id))
+    : { data: [] };
+  const myJobs = (myLeads ?? []) as unknown as { event_id: string; stations: { name: string } | null }[];
   const myRoles: MyRole[] = here
-    .map((s) => ({ event: toEvent(s.events!), role: s.role, jobs: [], soleJobs: [], soleLead: false, accountHost: owners.get(current.id) ?? null }))
+    .map((s) => ({
+      event: toEvent(s.events!),
+      role: s.role,
+      jobs: s.role === "section_lead" ? myJobs.filter((j) => j.event_id === s.event_id).map((j) => j.stations?.name ?? "").filter(Boolean) : [],
+      soleJobs: [],
+      soleLead: false,
+      accountHost: owners.get(current.id) ?? null,
+    }))
     .sort(byStart);
   return { me: userId, accounts, current, host: null, lead, myRoles };
 }
