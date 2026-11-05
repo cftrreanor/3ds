@@ -18,6 +18,16 @@ import {
 import { personName, type HostView, type Invite, type LeadView, type MyRole, type MyTeam, type TeamAccount, type Person, type Removal, type RoleOn, type StaffRole, type TeamEvent } from "./load";
 import { ConfirmButton, CopyInviteLink, InviteAgainButton, InviteCoHostButton, RemovePersonButton, RowButton, type RemoveChoice } from "./team-ui";
 
+/** Events offered in Invite again, with their dates. */
+const againEvents = (events: TeamEvent[]) => events.map((e) => ({ id: e.id, label: `${e.name} · ${short(e.starts_on)}` }));
+/** The team-spot line in Invite again windows. */
+const spotLine = (spots: { max: number | null; used: number } | null) =>
+  !spots
+    ? "It takes one of the account's team spots as soon as it's sent"
+    : spots.max === null
+      ? "Your plan has no limit on team spots"
+      : `It takes 1 of your ${spots.max} team spots as soon as it's sent (${spots.used} in use now)`;
+
 const ROLE: Record<StaffRole | "co_host", string> = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator", co_host: "Co-host" };
 const short = (date: string) => formatDate(date.slice(0, 10), { year: undefined });
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -277,9 +287,14 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                   actions={
                     canAddStaff ? (
                       <InviteAgainButton
+                        name={personName(p.profile)}
                         email={p.profile.email}
-                        roleLabel={ROLE[last.role]}
-                        events={view.upcoming}
+                        lastTime={[ROLE[last.role], last.event.name, last.jobs.length ? `led ${last.jobs.join(", ")}` : null].filter(Boolean).join(" · ")}
+                        events={againEvents(view.upcoming)}
+                        jobs={view.jobs}
+                        lastRole={last.role}
+                        lastJob={last.jobs[0] ?? null}
+                        spotNote={spotLine(spots)}
                         action={inviteAgain.bind(null, org.id, p.profile.email, last.role)}
                       />
                     ) : (
@@ -299,6 +314,8 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
         removed={view.removed}
         orgId={org.id}
         events={view.upcoming}
+        jobs={view.jobs}
+        spotNote={spotLine(spots)}
         blocked={(r) =>
           r.role === "co_host" && !isAccountHost
             ? "Only the Account Host invites co-hosts"
@@ -473,11 +490,18 @@ function RemovedRecently({
   removed,
   orgId,
   events,
+  jobs,
+  roles,
+  spotNote,
   blocked,
 }: {
   removed: Removal[];
   orgId: string;
   events: TeamEvent[];
+  jobs: Record<string, { id: string; name: string; led: boolean }[]>;
+  /** The roles they may be invited back to. */
+  roles?: StaffRole[];
+  spotNote: string;
   /** Why they can't be invited again from here (shown in the button's place), or null. */
   blocked: (r: Removal) => string | null;
 }) {
@@ -507,10 +531,14 @@ function RemovedRecently({
                 <p className="text-sm text-muted">{blocked(r)}</p>
               ) : (
                 <InviteAgainButton
+                  name={r.name}
                   email={r.email}
-                  roleLabel={ROLE[r.role]}
-                  events={r.role === "co_host" ? null : events}
-                  defaultEventId={r.event?.id}
+                  lastTime={r.event ? `${ROLE[r.role]} · ${r.event.name}` : null}
+                  events={r.role === "co_host" ? null : againEvents(events)}
+                  jobs={jobs}
+                  roles={roles}
+                  lastRole={r.role === "co_host" ? undefined : r.role}
+                  spotNote={spotNote}
                   action={inviteAgain.bind(null, orgId, r.email, r.role)}
                 />
               )
@@ -593,6 +621,9 @@ function LeadSections({ view }: { view: LeadView }) {
         removed={view.removed}
         orgId=""
         events={upcoming}
+        jobs={view.jobs}
+        roles={["section_lead"]}
+        spotNote={spotLine(null)}
         blocked={() => (view.full ? `The team is full. Ask ${view.accountHost ?? "the Account Host"} to free a spot` : null)}
       />
       <PrivacyNote>Coordinators&apos; emails and phone numbers are seen by the event&apos;s hosts and Volunteer Leads. {REMOVAL_NOTE}</PrivacyNote>

@@ -291,29 +291,53 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
   );
 }
 
-/** "Invite again": a co-host straight away, or a Volunteer Lead or Coordinator to an event picked here. */
+export type AgainEvent = { id: string; label: string };
+export type AgainJob = { id: string; name: string; led: boolean };
+type StaffRole = "volunteer_director" | "section_lead";
+const STAFF_LABEL: Record<StaffRole, string> = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator" };
+
+/**
+ * "Invite again": bring someone back in one step. A co-host is asked once and invited to the
+ * account. A Volunteer Lead or Coordinator gets a window: a reminder of last time, the event
+ * (picked on purpose, never for you), the role, the job for a Coordinator, and the team spot it takes.
+ */
 export function InviteAgainButton({
+  name,
   email,
-  roleLabel,
+  lastTime,
   events,
-  defaultEventId,
+  jobs = {},
+  roles = ["volunteer_director", "section_lead"],
+  lastRole,
+  lastJob,
+  spotNote,
   action,
 }: {
+  name: string;
   email: string;
-  roleLabel: string;
-  /** Events that aren't over; none for a co-host (they join the whole account). */
-  events: { id: string; name: string }[] | null;
-  defaultEventId?: string | null;
+  /** "Coordinator · Summer Band Camp · led Snack bar" */
+  lastTime?: string | null;
+  /** Upcoming events with their dates; null for a co-host (they join the whole account). */
+  events: AgainEvent[] | null;
+  jobs?: Record<string, AgainJob[]>;
+  /** The roles this person may be invited to (a Volunteer Lead invites Coordinators only). */
+  roles?: StaffRole[];
+  lastRole?: StaffRole;
+  /** The job they led last time: picked again when the event has one by that name. */
+  lastJob?: string | null;
+  spotNote: string;
   action: Action;
 }) {
   const { ref, key, open, close } = useWindow();
+  const [eventId, setEventId] = useState("");
+  const [role, setRole] = useState<StaffRole>(lastRole && roles.includes(lastRole) ? lastRole : roles[0]);
   if (!events) {
     return (
       <ConfirmButton
         action={action}
-        label={`Invite again: ${email}`}
-        title={`Invite ${email} to be a co-host again?`}
-        points={["We'll email them a new invitation", "It takes a team spot as soon as it's sent"]}
+        label={`Invite again: ${name}`}
+        title={`Invite ${name} to be a co-host again?`}
+        points={[`We'll email ${email} a new invitation`, spotNote]}
         keepLabel="Not now"
         confirmLabel="Send invitation"
         pendingText="Sending…"
@@ -324,23 +348,64 @@ export function InviteAgainButton({
     );
   }
   if (!events.length) return <p className="text-sm text-muted">Add an event to invite them again</p>;
+  const eventJobs = jobs[eventId] ?? [];
+  const sameJob = eventJobs.find((j) => lastJob && j.name.toLowerCase() === lastJob.toLowerCase());
   return (
     <>
-      <Button type="button" variant="secondary" className={ROW_BUTTON} onClick={open} aria-label={`Invite again: ${email}`}>
+      <Button
+        type="button"
+        variant="secondary"
+        className={ROW_BUTTON}
+        aria-label={`Invite again: ${name}`}
+        onClick={() => {
+          setEventId("");
+          setRole(lastRole && roles.includes(lastRole) ? lastRole : roles[0]);
+          open();
+        }}
+      >
         Invite again
       </Button>
-      <Window dialogRef={ref} formKey={key} close={close} title={`Invite ${email} again`}>
+      <Window dialogRef={ref} formKey={key} close={close} title={`Invite ${name} again`}>
         <ActionForm action={action} onSuccess={close} className="mt-3 space-y-4">
-          <p className="text-sm leading-6">We&apos;ll email them an invitation to be a {roleLabel}.</p>
+          {lastTime && <p className="text-sm leading-6 text-muted">Last time: {lastTime}</p>}
           <Field label="Event">
-            <Select name="eventId" required defaultValue={events.some((e) => e.id === defaultEventId) ? (defaultEventId ?? "") : (events[0]?.id ?? "")}>
+            <Select name="eventId" required value={eventId} onChange={(e) => setEventId(e.target.value)}>
+              <option value="" disabled>
+                Choose an event
+              </option>
               {events.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.name}
+                  {e.label}
                 </option>
               ))}
             </Select>
           </Field>
+          {roles.length > 1 ? (
+            <Field label="Role">
+              <Select name="role" value={role} onChange={(e) => setRole(e.target.value as StaffRole)}>
+                {roles.map((r) => (
+                  <option key={r} value={r}>
+                    {STAFF_LABEL[r]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <input type="hidden" name="role" value={roles[0]} />
+          )}
+          {role === "section_lead" && eventId && (
+            <Field label="Job to lead" hint={eventJobs.length ? "Optional. You can also give them a job after they accept." : "This event has no jobs yet. Give them one after they accept."}>
+              <Select key={eventId} name="stationId" defaultValue={sameJob?.id ?? ""}>
+                <option value="">Choose later</option>
+                {eventJobs.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.name} · {j.led ? "has a Coordinator" : "needs a Coordinator"}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <Points items={[`We'll email ${email} an invitation to be a ${STAFF_LABEL[role]}`, spotNote]} />
           <WindowButtons keep="Not now" close={close}>
             <SubmitButton pendingText="Sending…" data-solid>
               Send invitation

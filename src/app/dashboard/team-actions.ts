@@ -264,14 +264,18 @@ async function inviteToAccount(orgId: string, email: string): Promise<ActionStat
 }
 
 /**
- * Invite someone back: a co-host to the account, or a Volunteer Lead or Coordinator to the
- * event picked in the window (`eventId`).
+ * Invite someone back: a co-host to the account, or a Volunteer Lead or Coordinator to the event,
+ * role, and (for a Coordinator) job picked in the window. `role` is their last role, used when the
+ * window offers no choice.
  */
 export async function inviteAgain(orgId: string, email: string, role: "co_host" | StaffRole, _prev: ActionState, formData: FormData): Promise<ActionState> {
   if (role === "co_host") return inviteToAccount(orgId, email.toLowerCase());
   const eventId = String(formData.get("eventId") ?? "");
   if (!UUID.test(eventId)) return { error: "Choose the event to invite them to.", fieldErrors: { eventId: "Choose the event to invite them to." } };
-  const result = await invite(eventId, email, role, null);
+  const picked = String(formData.get("role") ?? role);
+  const newRole: StaffRole = STAFF_ROLES.includes(picked as StaffRole) ? (picked as StaffRole) : role;
+  const job = String(formData.get("stationId") ?? "");
+  const result = await invite(eventId, email, newRole, newRole === "section_lead" && UUID.test(job) ? job : null);
   revalidatePath("/dashboard/team");
   return result;
 }
