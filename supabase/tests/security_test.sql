@@ -7917,6 +7917,22 @@ begin
   assert ok and msg like 'Your team is full%', 'resending an expired invitation on a full team is refused';
   assert (select expires_at < now() from public.invitations where email = 'tmexpired@example.com'), 'and the link stays expired';
 end $$;
+-- A Volunteer Lead can see that the team is full (20270116000000); someone outside the account can't.
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
+do $$ begin
+  assert public.team_is_full('7d000000-0000-0000-0000-000000000001'), 'a Volunteer Lead sees the team is full';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.team_is_full('7d000000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'someone outside the account can''t ask whether its team is full';
+end $$;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
 -- Someone who already holds a spot can have their expired invitation sent again.
 reset role;
 update public.invitations set email = 'tmvl@example.com' where email = 'tmexpired@example.com';

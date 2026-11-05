@@ -25,7 +25,8 @@ export function RequiredFields() {
       if (!checkable(form)) return;
       // Not form.checkValidity(): that reports every empty box as if they'd tried to save.
       const ready = [...form.elements].every((el) => !(el as HTMLInputElement).willValidate || (el as HTMLInputElement).validity.valid);
-      for (const button of form.querySelectorAll<HTMLButtonElement>("button[type=submit], button:not([type])")) {
+      // data-solid: a short window's one main button stays filled; tapping it early says what's missing.
+      for (const button of form.querySelectorAll<HTMLButtonElement>("button[type=submit]:not([data-solid]), button:not([type]):not([data-solid])")) {
         button.toggleAttribute("data-not-ready", !ready);
       }
       if (ready) form.removeAttribute("data-missing");

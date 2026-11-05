@@ -94,7 +94,9 @@ export function InviteCoHostButton({ action, spotNote, blockedBy, powers }: { ac
             <Button type="button" variant="secondary" onClick={close}>
               Not now
             </Button>
-            <SubmitButton pendingText="Sending…">Send invitation</SubmitButton>
+            <SubmitButton pendingText="Sending…" data-solid>
+              Send invitation
+            </SubmitButton>
           </div>
         </ActionForm>
       </Window>
@@ -129,11 +131,12 @@ export function RowButton({
 }
 
 /** Copy link, on every invitation: for sending it yourself when the email didn't arrive. */
-export function CopyInviteLink({ url }: { url: string }) {
+export function CopyInviteLink({ url, email }: { url: string; email: string }) {
   return (
     <CopyLink
       url={url}
       label="Copy link"
+      ariaLabel={`Copy link for ${email}`}
       className={`inline-flex items-center justify-center rounded-md border border-border bg-surface font-semibold hover:border-brand/40 hover:bg-background ${ROW_BUTTON}`}
     />
   );
@@ -162,10 +165,16 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
   const events = new Set(chosen.map((c) => c.value.split(":")[0])).size;
   return (
     <>
-      <Button type="button" variant="secondary" className={ROW_BUTTON} onClick={() => {
+      <Button
+        type="button"
+        variant="secondary"
+        className={ROW_BUTTON}
+        aria-label={`Remove… ${name}`}
+        onClick={() => {
           setPick(one ? choices[0].value : "all");
           open();
-        }}>
+        }}
+      >
         Remove…
       </Button>
       <Window dialogRef={ref} formKey={key} close={close} title={one ? `Remove ${name} as ${choices[0].label}?` : `Remove ${name}?`}>
@@ -238,7 +247,13 @@ export function InviteAgainButton({
   const { ref, key, open, close } = useWindow();
   if (!events) {
     return (
-      <RowButton action={action} pendingText="Sending…" confirm={`Invite ${email} to be a co-host again? We'll email them a new invitation.`} confirmLabel="Send invitation">
+      <RowButton
+        action={action}
+        pendingText="Sending…"
+        label={`Invite again: ${email}`}
+        confirm={`Invite ${email} to be a co-host again? We'll email them a new invitation.`}
+        confirmLabel="Send invitation"
+      >
         Invite again
       </RowButton>
     );
@@ -246,7 +261,7 @@ export function InviteAgainButton({
   if (!events.length) return <p className="text-sm text-muted">Add an event to invite them again</p>;
   return (
     <>
-      <Button type="button" variant="secondary" className={ROW_BUTTON} onClick={open}>
+      <Button type="button" variant="secondary" className={ROW_BUTTON} onClick={open} aria-label={`Invite again: ${email}`}>
         Invite again
       </Button>
       <Window dialogRef={ref} formKey={key} close={close} title={`Invite ${email} again`}>
@@ -265,7 +280,9 @@ export function InviteAgainButton({
             <Button type="button" variant="secondary" onClick={close}>
               Not now
             </Button>
-            <SubmitButton pendingText="Sending…">Send invitation</SubmitButton>
+            <SubmitButton pendingText="Sending…" data-solid>
+              Send invitation
+            </SubmitButton>
           </div>
         </ActionForm>
       </Window>

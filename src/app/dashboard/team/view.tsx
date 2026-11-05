@@ -104,8 +104,8 @@ function AccountMenu({ accounts, current }: { accounts: TeamAccount[]; current: 
 function HostSections({ view, me }: { view: HostView; me: string }) {
   const { org, spots, isAccountHost } = view;
   const full = spots.max !== null && spots.used >= spots.max;
-  const invitations = spots.invited ? `, including ${plural(spots.invited, "invitation", "invitations")}` : "";
-  const fullWords = `Your ${spots.plan ?? ""} plan includes ${spots.max} team spots, and invitations count until they're accepted. Remove someone or cancel an invitation to free a spot`;
+  const invitations = spots.invited ? ` and ${plural(spots.invited, "open invitation", "open invitations")}` : "";
+  const fullWords = `Your ${spots.plan ?? ""} plan includes ${spots.max} team spots, and an invitation takes one as soon as it's sent. Remove someone or cancel an invitation to free a spot`;
   const justYou = view.hosts.length === 1 && !view.coHostInvites.length && !view.people.length && !view.eventInvites.length;
   const canAddStaff = spots.eventStaff && !full;
   const accountHostName = view.accountHost ? personName(view.accountHost.profile) : "the Account Host";
@@ -121,11 +121,11 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
               <strong className="font-semibold text-foreground">
                 {spots.used} of {spots.max}
               </strong>{" "}
-              team spots on the {spots.plan} plan{invitations}.
+              team spots used on the {spots.plan} plan, counting you{invitations}.
             </>
           ) : (
             <>
-              {plural(spots.used, "person", "people")} on the team{invitations}.
+              {plural(spots.used, "person", "people")} on the team, counting you{invitations}.
             </>
           )}
         </p>
@@ -155,7 +155,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
               blockedBy={full ? "Your team is full" : null}
               spotNote={
                 spots.max !== null
-                  ? `We'll email them a link that works for 30 days. The invitation holds 1 of your ${spots.max} team spots until it's accepted (${spots.used} in use now).`
+                  ? `We'll email them a link that works for 30 days. The invitation takes 1 of your ${spots.max} team spots as soon as it's sent (${spots.used} in use now).`
                   : "We'll email them a link that works for 30 days."
               }
             />
@@ -193,7 +193,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                     <RowButton
                       action={removeAccountCoHost.bind(null, org.id, h.userId, name)}
                       pendingText="Removing…"
-                      label={`Remove ${name}`}
+                      label={`Remove… ${name}`}
                       confirm={`Remove ${name} as co-host? ${first(name)} loses access to every event right away, and stops leading any jobs. A team spot opens up. We don't email ${first(name)}. You can invite them again from Removed recently.`}
                       confirmLabel="Remove co-host"
                     >
@@ -270,7 +270,9 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                         events={view.upcoming}
                         action={inviteAgain.bind(null, org.id, p.profile.email, last.role)}
                       />
-                    ) : null
+                    ) : (
+                      <p className="text-sm text-muted">{spots.eventStaff ? "Free a team spot to invite again" : "Not on your plan"}</p>
+                    )
                   }
                 >
                   <RoleLines roles={p.roles} />
@@ -285,7 +287,15 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
         removed={view.removed}
         orgId={org.id}
         events={view.upcoming}
-        canInvite={(r) => !full && (r.role === "co_host" ? isAccountHost : spots.eventStaff)}
+        blocked={(r) =>
+          r.role === "co_host" && !isAccountHost
+            ? "Only the Account Host invites co-hosts"
+            : r.role !== "co_host" && !spots.eventStaff
+              ? "Not on your plan"
+              : full
+                ? "Free a team spot to invite again"
+                : null
+        }
       />
 
       <PrivacyNote>Only {org.name}&apos;s hosts and co-hosts see this page&apos;s emails and phone numbers. {REMOVAL_NOTE}</PrivacyNote>
@@ -422,12 +432,12 @@ function InviteRow({ invite: inv, manage, what, full = false }: { invite: Invite
             <RowButton
               action={resendTeamInvitation.bind(null, inv.id)}
               pendingText="Sending…"
-              label={inv.expired ? `Send a new link to ${inv.email}` : `Resend the invitation to ${inv.email}`}
+              label={inv.expired ? `Send a new link to ${inv.email}` : `Resend to ${inv.email}`}
             >
               {inv.expired ? "Send a new link" : "Resend"}
             </RowButton>
           )}
-          {!inv.expired && <CopyInviteLink url={inv.link} />}
+          {!inv.expired && <CopyInviteLink url={inv.link} email={inv.email} />}
           {manage && (
             <RowButton
               action={cancelTeamInvitation.bind(null, inv.id)}
@@ -449,12 +459,13 @@ function RemovedRecently({
   removed,
   orgId,
   events,
-  canInvite,
+  blocked,
 }: {
   removed: Removal[];
   orgId: string;
   events: TeamEvent[];
-  canInvite: (r: Removal) => boolean;
+  /** Why they can't be invited again from here (shown in the button's place), or null. */
+  blocked: (r: Removal) => string | null;
 }) {
   if (!removed.length) return null;
   return (
@@ -478,7 +489,9 @@ function RemovedRecently({
               `${r.left ? "Left" : "Removed"} ${short(r.removedAt)}`,
             ]}
             actions={
-              canInvite(r) ? (
+              blocked(r) ? (
+                <p className="text-sm text-muted">{blocked(r)}</p>
+              ) : (
                 <InviteAgainButton
                   email={r.email}
                   roleLabel={ROLE[r.role]}
@@ -486,7 +499,7 @@ function RemovedRecently({
                   defaultEventId={r.event?.id}
                   action={inviteAgain.bind(null, orgId, r.email, r.role)}
                 />
-              ) : null
+              )
             }
           />
         ))}
@@ -549,14 +562,25 @@ function LeadSections({ view }: { view: LeadView }) {
           ) : (
             <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted">No Coordinators yet.</p>
           )}
-          <p className="text-sm">
-            <Link href={`/dashboard/events/${event.id}/volunteering`} className={LINK}>
-              Add a Coordinator to a job in Volunteer setup
-            </Link>
-          </p>
+          {view.full ? (
+            <p className="text-sm text-muted">
+              The team is full, so you can&apos;t add a Coordinator right now. Ask {view.accountHost ?? "the Account Host"} to free a spot.
+            </p>
+          ) : (
+            <p className="text-sm">
+              <Link href={`/dashboard/events/${event.id}/volunteering`} className={LINK}>
+                Add a Coordinator to a job in Volunteer setup
+              </Link>
+            </p>
+          )}
         </section>
       ))}
-      <RemovedRecently removed={view.removed} orgId="" events={upcoming} canInvite={() => true} />
+      <RemovedRecently
+        removed={view.removed}
+        orgId=""
+        events={upcoming}
+        blocked={() => (view.full ? `The team is full. Ask ${view.accountHost ?? "the Account Host"} to free a spot` : null)}
+      />
       <PrivacyNote>Coordinators&apos; emails and phone numbers are seen by the event&apos;s hosts and Volunteer Leads. {REMOVAL_NOTE}</PrivacyNote>
     </>
   );
@@ -590,6 +614,7 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
               <RowButton
                 action={leaveEvent.bind(null, r.event.id, r.role, r.event.name)}
                 pendingText="Leaving…"
+                label={`Leave this event: ${r.event.name}`}
                 confirm={`Leave ${r.event.name}? You lose access to its volunteer pages right away${r.role === "section_lead" ? ", and stop leading your jobs" : ""}. To come back, ask ${r.accountHost?.name ?? "the Account Host"} to invite you again.`}
                 confirmLabel="Leave this event"
               >

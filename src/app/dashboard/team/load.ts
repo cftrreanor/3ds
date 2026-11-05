@@ -82,6 +82,10 @@ export type LeadView = {
   /** Events where you're a Volunteer Lead, with their Coordinators. */
   events: { event: TeamEvent; coordinators: Person[]; invites: Invite[] }[];
   removed: Removal[];
+  /** The account's team is full: inviting needs a spot freed first. */
+  full: boolean;
+  /** Who frees one: the Account Host. */
+  accountHost: string | null;
 };
 /** An account you're on: as its Account Host, a co-host, or on one of its event teams. */
 export type TeamAccount = { id: string; name: string; role: "owner" | "admin" | "team" };
@@ -225,7 +229,7 @@ export async function loadMyTeam(userId: string, origin: string, accountId?: str
   // An account where you're on event teams: Coordinators on the events you lead, and your own roles.
   const here = myStaff.filter((s) => s.events!.organization_id === current.id);
   const ledEvents = here.filter((s) => s.role === "volunteer_director").map((s) => toEvent(s.events!));
-  const lead = ledEvents.length ? await loadLeadView(ledEvents, origin) : null;
+  const lead = ledEvents.length ? await loadLeadView(ledEvents, origin, current.id, owners.get(current.id)?.name ?? null) : null;
   const myRoles: MyRole[] = here
     .map((s) => ({ event: toEvent(s.events!), role: s.role, jobs: [], soleJobs: [], soleLead: false, accountHost: owners.get(current.id) ?? null }))
     .sort(byStart);
@@ -316,11 +320,11 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
   };
 }
 
-async function loadLeadView(ledEvents: TeamEvent[], origin: string): Promise<LeadView> {
+async function loadLeadView(ledEvents: TeamEvent[], origin: string, orgId: string, accountHost: string | null): Promise<LeadView> {
   const supabase = await createClient();
   const ids = ledEvents.map((e) => e.id);
   const events = new Map(ledEvents.map((e) => [e.id, e]));
-  const [{ data: staffData }, { data: leadData }, { data: inviteData }, { data: removalData }] = await Promise.all([
+  const [{ data: staffData }, { data: leadData }, { data: inviteData }, { data: removalData }, { data: fullData }] = await Promise.all([
     supabase.from("event_staff").select("user_id, role, event_id, profiles(full_name, email, phone)").in("event_id", ids).eq("role", "section_lead").order("created_at"),
     supabase.from("station_leads").select("user_id, event_id, stations(name)").in("event_id", ids),
     supabase
@@ -337,6 +341,7 @@ async function loadLeadView(ledEvents: TeamEvent[], origin: string): Promise<Lea
       .in("event_id", ids)
       .gte("removed_at", removedSince())
       .order("removed_at", { ascending: false }),
+    supabase.rpc("team_is_full", { p_org: orgId }),
   ]);
   const staff = (staffData ?? []) as unknown as StaffRow[];
   const leads = (leadData ?? []) as unknown as LeadRow[];
@@ -344,6 +349,8 @@ async function loadLeadView(ledEvents: TeamEvent[], origin: string): Promise<Lea
   const invited = new Set(invites.map((i) => i.email.toLowerCase()));
   return {
     kind: "lead",
+    full: fullData === true,
+    accountHost,
     events: ledEvents
       .sort((a, b) => a.starts_on.localeCompare(b.starts_on))
       .map((event) => ({
