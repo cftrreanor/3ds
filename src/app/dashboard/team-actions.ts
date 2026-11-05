@@ -294,9 +294,9 @@ export async function cancelTeamInvitation(invitationId: string): Promise<Action
   const supabase = await createClient();
   const { data, error } = await supabase.from("invitations").delete().eq("id", invitationId).select("email");
   if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "That invitation was already accepted or cancelled, or isn't yours to cancel." };
+  if (!data?.length) return { error: "That invitation was already accepted or canceled, or isn't yours to cancel." };
   revalidatePath("/dashboard", "layout");
-  return { ok: true, message: `Invitation for ${data[0].email} cancelled. Their team spot is free.` };
+  return { ok: true, message: `Invitation for ${data[0].email} canceled.` };
 }
 
 /**

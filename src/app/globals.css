@@ -348,3 +348,48 @@ form[data-missing="fix"]::after {
     padding-bottom: 5.5rem;
   }
 }
+
+/* My team's windows: in dark mode a raised color with a visible edge, over a darker page, so a
+   waiting decision stands out (design review 2026-11-05). */
+.team-window {
+  background: var(--surface);
+}
+.team-window::backdrop {
+  background: rgb(7 26 49 / 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  .team-window {
+    background: var(--raised);
+    border-color: var(--field-border);
+  }
+  .team-window::backdrop {
+    background: rgb(0 0 0 / 0.7);
+  }
+}
+
+/* Radio buttons drawn the same in both themes: a 2 px edge at 3:1 or more, a brand dot when picked. */
+.team-radio {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--field-border);
+  border-radius: 9999px;
+  background: var(--surface);
+}
+.team-radio:checked {
+  border-color: var(--brand);
+}
+.team-radio:checked::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--brand);
+}
+.team-radio:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

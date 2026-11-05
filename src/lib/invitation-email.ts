@@ -76,7 +76,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
     event_when: when,
     event_day: bands ? "contest day" : "the event day",
     access: !inv.event_name
-      ? "setting up and publishing events, sign-ups, volunteers, the team, and the event day"
+      ? "setting up and publishing events, sign-ups, volunteers, and the event day"
       : bands
         ? "bands, the schedule, volunteers, the team, and contest day"
         : "sign-ups, shifts, volunteers, the team, and the event day",

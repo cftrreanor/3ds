@@ -58,7 +58,7 @@ function Window({
       ref={dialogRef}
       aria-labelledby={id}
       onClick={(e) => e.target === e.currentTarget && close()}
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-border bg-surface p-0 text-left text-foreground shadow-elevated backdrop:bg-[#071a31]/50"
+      className="team-window m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-border p-0 text-left text-foreground shadow-elevated"
     >
       <div key={formKey} className="p-6">
         <h2 id={id} className="text-lg font-semibold leading-7 [overflow-wrap:anywhere]">
@@ -77,7 +77,7 @@ export function InviteCoHostButton({
   blockedBy,
   powers,
   hint,
-  fullNote,
+  candidates,
 }: {
   action: Action;
   spotNote: string;
@@ -85,10 +85,11 @@ export function InviteCoHostButton({
   powers: string;
   /** Pointing to one-event roles, for someone who only needs help with one event. */
   hint?: string;
-  /** When the team is full: who can still be made a co-host. */
-  fullNote?: string | null;
+  /** When the team is full: the people already on it who can be made a co-host (they take no new spot). */
+  candidates?: { email: string; name: string; role: string }[] | null;
 }) {
   const { ref, key, open, close } = useWindow();
+  const full = !!candidates;
   if (blockedBy) {
     return (
       <div className="flex flex-col items-start gap-1 sm:items-end">
@@ -109,19 +110,36 @@ export function InviteCoHostButton({
   return (
     <>
       <Button type="button" onClick={open}>
-        Invite a co-host
+        {full ? "Make someone a co-host" : "Invite a co-host"}
       </Button>
-      <Window dialogRef={ref} formKey={key} close={close} title="Invite a co-host">
+      <Window dialogRef={ref} formKey={key} close={close} title={full ? "Make someone a co-host" : "Invite a co-host"}>
         <p className="mt-2 text-sm leading-6">{powers}</p>
         {hint && <p className="mt-2 text-sm leading-6 text-muted">{hint}</p>}
-        {fullNote && <p className="mt-3 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm leading-6">{fullNote}</p>}
         <ActionForm action={action} onSuccess={close} className="mt-4 space-y-4">
-          <Field label="Their email" hint={spotNote}>
-            <Input name="email" type="email" required autoComplete="off" inputMode="email" />
-          </Field>
+          {full ? (
+            // A full team: pick someone already on it (no typing, and no new spot).
+            <fieldset className="space-y-1">
+              <legend className="mb-1 text-sm leading-6">
+                <span className="font-medium">Your team is full.</span> Choose someone already on it. It doesn&apos;t take another team spot.
+              </legend>
+              {candidates.map((c) => (
+                <label key={c.email} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 text-sm hover:bg-background">
+                  <input type="radio" name="email" value={c.email} required className="team-radio" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">
+                    <span className="font-medium">{c.name}</span> <span className="text-muted">· {c.role}</span>
+                  </span>
+                </label>
+              ))}
+              <p className="px-2 pt-1 text-sm leading-6 text-muted">We&apos;ll email them a link. They become a co-host when they accept.</p>
+            </fieldset>
+          ) : (
+            <Field label="Their email" hint={spotNote}>
+              <Input name="email" type="email" required autoComplete="off" inputMode="email" />
+            </Field>
+          )}
           <WindowButtons keep="Not now" close={close}>
             <SubmitButton pendingText="Sending…" data-solid>
-              Send invitation
+              {full ? "Invite as co-host" : "Send invitation"}
             </SubmitButton>
           </WindowButtons>
         </ActionForm>
@@ -292,7 +310,8 @@ export function RemovePersonButton({
   const { ref, key, open, close } = useWindow();
   const trigger = useRef<HTMLButtonElement>(null);
   const one = choices.length === 1;
-  const [pick, setPick] = useState<string>(one ? choices[0].value : "all");
+  // With more than one role, nothing is picked to start: the biggest choice is never the default.
+  const [pick, setPick] = useState<string>(one ? choices[0].value : "");
   const chosen = pick === "all" ? choices : choices.filter((c) => c.value === pick);
   const kept = pick === "all" ? [] : choices.filter((c) => c.value !== pick);
   const leaves = chosen.flatMap((c) => c.leaves);
@@ -306,7 +325,7 @@ export function RemovePersonButton({
         className={ROW_BUTTON}
         aria-label={`Remove… ${name}`}
         onClick={() => {
-          setPick(one ? choices[0].value : "all");
+          setPick(one ? choices[0].value : "");
           open();
         }}
       >
@@ -336,13 +355,16 @@ export function RemovePersonButton({
                     value={c.value}
                     checked={pick === c.value}
                     onChange={() => setPick(c.value)}
-                    className="size-4 shrink-0 accent-[var(--brand)]"
+                    className="team-radio"
                   />
                   {c.label}
                 </label>
               ))}
             </fieldset>
           )}
+          {!pick ? (
+            <p className="text-sm leading-6 text-muted">Choose what to remove {firstName} from, and this says what happens.</p>
+          ) : (
           <Points
             items={[
               <>
@@ -351,13 +373,14 @@ export function RemovePersonButton({
               </>,
               ...leaves,
               ...(limited ? [kept.length > 0 ? `${firstName} keeps their team spot` : "A team spot opens up"] : []),
-              "You can invite them again from Removed recently",
+              "You can invite them again from Removed or left recently",
             ]}
           />
+          )}
           <NotifyBox label={`Let ${firstName} know by email`} />
           <WindowButtons keep={`Keep ${firstName}`} close={close}>
-            <SubmitButton variant="warn" pendingText="Removing…" data-solid>
-              {events === 1 ? "Remove from this event" : `Remove from ${events} events`}
+            <SubmitButton variant="warn" pendingText="Removing…" data-solid disabled={!pick}>
+              {!pick ? "Choose what to remove" : events === 1 ? "Remove from this event" : `Remove from ${events} events`}
             </SubmitButton>
           </WindowButtons>
         </ActionForm>

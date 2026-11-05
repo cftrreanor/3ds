@@ -98,7 +98,13 @@ export type LeadView = {
   jobs: EventJobs;
 };
 /** An account you're on: as its Account Host, a co-host, or on one of its event teams. */
-export type TeamAccount = { id: string; name: string; role: "owner" | "admin" | "team" };
+export type TeamAccount = {
+  id: string;
+  name: string;
+  role: "owner" | "admin" | "team";
+  /** For an event-team account: your roles there ("Volunteer Lead", "Coordinator"). */
+  label?: string;
+};
 export type MyTeam = {
   me: string;
   /** Every account you're on, the ones you own first. */
@@ -249,7 +255,12 @@ export async function loadMyTeam(userId: string, origin: string, accountId?: str
   const rank = { owner: 0, admin: 1, team: 2 } as const;
   const accounts: TeamAccount[] = [
     ...memberships.map((m) => ({ id: m.organization_id, name: m.organizations?.name ?? "Your account", role: m.role })),
-    ...teamIds.map((id) => ({ id, name: teamNames.get(id) ?? "Another account", role: "team" as const })),
+    ...teamIds.map((id) => ({
+      id,
+      name: teamNames.get(id) ?? "Another account",
+      role: "team" as const,
+      label: [...new Set(myStaff.filter((st) => st.events!.organization_id === id).map((st) => (st.role === "volunteer_director" ? "Volunteer Lead" : "Coordinator")))].join(" and "),
+    })),
   ].sort((x, y) => rank[x.role] - rank[y.role] || x.name.localeCompare(y.name));
   const current = accounts.find((a) => a.id === accountId) ?? accounts[0] ?? null;
   if (!current) return { me: userId, accounts, current, host: null, lead: null, myRoles: [] };

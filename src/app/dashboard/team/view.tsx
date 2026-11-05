@@ -70,7 +70,7 @@ export function MyTeamView({ team }: { team: MyTeam }) {
   if (team.accounts.length < 2) return body;
   // On more than one account: pick which one's team to see, from a menu on the left (above, on phones).
   return (
-    <div className="grid gap-8 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-10">
+    <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-10">
       <AccountMenu accounts={team.accounts} current={team.current} />
       {body}
     </div>
@@ -80,31 +80,51 @@ export function MyTeamView({ team }: { team: MyTeam }) {
 const ACCOUNT_ROLE = { owner: "Account Host", admin: "Co-host", team: "Event team" } as const;
 
 function AccountMenu({ accounts, current }: { accounts: TeamAccount[]; current: TeamAccount | null }) {
+  const role = (a: TeamAccount) => (a.role === "team" ? (a.label ?? "Event team") : ACCOUNT_ROLE[a.role]);
+  const list = (
+    <ul className="flex flex-col gap-1">
+      {accounts.map((a) => {
+        const here = a.id === current?.id;
+        return (
+          <li key={a.id}>
+            <Link
+              href={`/dashboard/team?account=${a.id}`}
+              aria-current={here ? "page" : undefined}
+              className={`flex min-h-11 flex-col justify-center rounded-md border px-3 py-2 text-sm ${
+                here ? "border-brand/40 bg-brand-soft font-semibold" : "border-transparent hover:border-border hover:bg-surface"
+              }`}
+            >
+              <span className="[overflow-wrap:anywhere]">{a.name}</span>
+              <span className="text-xs font-normal text-muted">{role(a)}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
   return (
-    <nav aria-labelledby="accounts-heading" className="md:sticky md:top-6 md:self-start">
-      <h2 id="accounts-heading" className="mb-2 text-sm font-semibold text-muted">
-        Your accounts
-      </h2>
-      <ul className="flex flex-col gap-1">
-        {accounts.map((a) => {
-          const here = a.id === current?.id;
-          return (
-            <li key={a.id}>
-              <Link
-                href={`/dashboard/team?account=${a.id}`}
-                aria-current={here ? "page" : undefined}
-                className={`flex min-h-11 flex-col justify-center rounded-md border px-3 py-2 text-sm ${
-                  here ? "border-brand/40 bg-brand-soft font-semibold" : "border-transparent hover:border-border hover:bg-surface"
-                }`}
-              >
-                <span className="[overflow-wrap:anywhere]">{a.name}</span>
-                <span className="text-xs font-normal text-muted">{ACCOUNT_ROLE[a.role]}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <>
+      {/* Phones: one line above the page, opened to switch. */}
+      <details className="group rounded-lg border border-border bg-surface md:hidden">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-sm [&::-webkit-details-marker]:hidden">
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            Account: <span className="font-semibold">{current?.name}</span>
+          </span>
+          <span className="font-medium text-brand">
+            <span className="group-open:hidden">Switch</span>
+            <span className="hidden group-open:inline">Close</span>
+          </span>
+        </summary>
+        <nav aria-label="Your accounts" className="border-t border-border p-2">
+          {list}
+        </nav>
+      </details>
+      {/* Wider screens: a menu on the left. A label, not a heading, so the page's title comes first. */}
+      <nav aria-label="Your accounts" className="hidden md:sticky md:top-6 md:block md:self-start">
+        <p className="mb-2 text-sm font-semibold text-muted">Your accounts</p>
+        {list}
+      </nav>
+    </>
   );
 }
 
@@ -166,8 +186,17 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
               hint={ONE_EVENT_HINT}
               // A full team can still make someone already on it a co-host (it takes no new spot).
               blockedBy={full && !view.people.length && !view.eventInvites.length ? "Your team is full" : null}
-              fullNote={
-                full ? "Your team is full, so you can make someone already on it a co-host: a Volunteer Lead, a Coordinator, or someone invited." : null
+              candidates={
+                full
+                  ? [
+                      ...view.people.map((p) => ({
+                        email: p.profile.email,
+                        name: personName(p.profile),
+                        role: [...new Set(p.roles.map((r) => ROLE[r.role]))].join(" and "),
+                      })),
+                      ...view.eventInvites.filter((inv) => !inv.expired).map((inv) => ({ email: inv.email, name: inv.email, role: `Invited as ${ROLE[inv.role ?? "section_lead"]}` })),
+                    ].filter((c, i, all) => c.email && all.findIndex((o) => o.email.toLowerCase() === c.email.toLowerCase()) === i)
+                  : null
               }
               spotNote={
                 spots.max !== null
@@ -222,7 +251,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                         `${first(name)} loses co-host access to every event right away`,
                         "Jobs they lead on events they aren't on the team for will need a new Coordinator",
                         ...(spots.max !== null ? ["A team spot opens up"] : []),
-                        "You can invite them again from Removed recently",
+                        "You can invite them again from Removed or left recently",
                       ]}
                       notifyLabel={`Let ${first(name)} know by email`}
                       keepLabel={`Keep ${first(name)}`}
@@ -453,8 +482,8 @@ function PersonRow({ person, limited }: { person: Person; limited: boolean }) {
 
 /** What removing this role leaves without anyone. */
 function leftEmpty(r: RoleOn) {
-  if (r.role === "volunteer_director") return r.soleLead ? [`${r.event.name} will have no Volunteer Lead. Its hosts run volunteers.`] : [];
-  return r.soleJobs.map((job) => `${job} at ${r.event.name} will need a new Coordinator.`);
+  if (r.role === "volunteer_director") return r.soleLead ? [`${r.event.name} will have no Volunteer Lead, so the Account Host and co-hosts run its volunteers`] : [];
+  return r.soleJobs.map((job) => `${job} at ${r.event.name} will need a new Coordinator`);
 }
 
 function RoleLines({ roles, link }: { roles: RoleOn[]; link?: (e: TeamEvent) => string }) {
@@ -501,7 +530,7 @@ function InviteRow({
       title={
         <>
           <span className="break-all">{inv.email}</span>{" "}
-          {inv.expired ? <Badge tone="neutral">Link expired</Badge> : <Badge tone="warning">Invited</Badge>}
+          {inv.expired ? <Badge tone="warning">Link expired</Badge> : <Badge tone="info">Invited</Badge>}
         </>
       }
       detail={[
@@ -533,7 +562,7 @@ function InviteRow({
               points={["Their link stops working right away", ...(limited ? ["A team spot opens up"] : []), "You can invite them again any time"]}
               keepLabel="Keep invitation"
               confirmLabel="Cancel invitation"
-              pendingText="Cancelling…"
+              pendingText="Canceling…"
             >
               Cancel invitation
             </ConfirmButton>
@@ -577,7 +606,7 @@ function RemovedRecently({
   return (
     <details className="group rounded-lg border border-border bg-surface">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 [&::-webkit-details-marker]:hidden">
-        <span className="font-semibold">Removed recently · {removed.length}</span>
+        <span className="font-semibold">Removed or left recently · {removed.length}</span>
         <span className="text-sm font-medium text-muted">
           <span className="group-open:hidden">Show</span>
           <span className="hidden group-open:inline">Hide</span>

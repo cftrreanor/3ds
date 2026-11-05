@@ -23,7 +23,7 @@ export function leftEventEmail(o: {
   const when = formatDateRange(o.event.starts_on, o.event.ends_on);
   const gaps = [
     ...o.jobs.map((job) => `${job} needs a new Coordinator.`),
-    ...(o.noLead ? [`${o.event.name} has no Volunteer Lead now, so its hosts run volunteers.`] : []),
+    ...(o.noLead ? [`${o.event.name} has no Volunteer Lead now, so the Account Host and co-hosts run its volunteers.`] : []),
   ];
   return {
     subject: `${o.who} left ${o.event.name}`,
