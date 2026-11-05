@@ -1,5 +1,4 @@
 import "server-only";
-import { getMyOrganization } from "@/lib/data";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { REMOVED_RECENTLY_DAYS } from "@/lib/team-words";
 import { utcToZonedDate } from "@/lib/time";
@@ -74,7 +73,18 @@ export type LeadView = {
   events: { event: TeamEvent; coordinators: Person[]; invites: Invite[] }[];
   removed: Removal[];
 };
-export type MyTeam = { me: string; host: HostView | null; lead: LeadView | null; myRoles: MyRole[] };
+/** An account you're on: as its Account Host, a co-host, or on one of its event teams. */
+export type TeamAccount = { id: string; name: string; role: "owner" | "admin" | "team" };
+export type MyTeam = {
+  me: string;
+  /** Every account you're on, the ones you own first. */
+  accounts: TeamAccount[];
+  /** The account shown (picked from the menu, or the first). */
+  current: TeamAccount | null;
+  host: HostView | null;
+  lead: LeadView | null;
+  myRoles: MyRole[];
+};
 
 type EventRow = { id: string; name: string; starts_on: string; ends_on: string; timezone: string };
 type StaffRow = { user_id: string; role: StaffRole; event_id: string; profiles: Profile | null };
@@ -172,41 +182,53 @@ function recentRemovals(rows: RemovalRow[], events: Map<string, TeamEvent>, back
 
 const removedSince = () => new Date(Date.now() - REMOVED_RECENTLY_DAYS * 86_400_000).toISOString();
 
-export async function loadMyTeam(userId: string, origin: string): Promise<MyTeam> {
+export async function loadMyTeam(userId: string, origin: string, accountId?: string | null): Promise<MyTeam> {
   const supabase = await createClient();
-  const [org, { data: mine }] = await Promise.all([
-    getMyOrganization(),
+  const [{ data: memberData }, { data: mine }] = await Promise.all([
+    supabase.from("organization_members").select("organization_id, role, organizations(name)").eq("user_id", userId),
     supabase
       .from("event_staff")
       .select("role, event_id, events(id, name, starts_on, ends_on, timezone, organization_id)")
       .eq("user_id", userId),
   ]);
-  const myStaff = (mine ?? []) as unknown as { role: StaffRole; event_id: string; events: (EventRow & { organization_id: string }) | null }[];
+  const memberships = (memberData ?? []) as unknown as { organization_id: string; role: "owner" | "admin"; organizations: { name: string } | null }[];
+  const myStaff = ((mine ?? []) as unknown as { role: StaffRole; event_id: string; events: (EventRow & { organization_id: string }) | null }[]).filter(
+    (s) => s.events && !toEvent(s.events).ended,
+  );
 
-  const { data: membership } = org
-    ? await supabase.from("organization_members").select("role").eq("organization_id", org.id).eq("user_id", userId).maybeSingle()
-    : { data: null };
-  const host = org && membership ? await loadHostView(org, userId, origin) : null;
+  // Accounts where you're only on an event team: their names and Account Hosts (which you can't read yourself).
+  const hostIds = new Set(memberships.map((m) => m.organization_id));
+  const teamIds = [...new Set(myStaff.map((s) => s.events!.organization_id))].filter((id) => !hostIds.has(id));
+  const [owners, teamNames] = await Promise.all([accountHosts(teamIds), accountNames(teamIds)]);
+  const rank = { owner: 0, admin: 1, team: 2 } as const;
+  const accounts: TeamAccount[] = [
+    ...memberships.map((m) => ({ id: m.organization_id, name: m.organizations?.name ?? "Your account", role: m.role })),
+    ...teamIds.map((id) => ({ id, name: teamNames.get(id) ?? "Another account", role: "team" as const })),
+  ].sort((x, y) => rank[x.role] - rank[y.role] || x.name.localeCompare(y.name));
+  const current = accounts.find((a) => a.id === accountId) ?? accounts[0] ?? null;
+  if (!current) return { me: userId, accounts, current, host: null, lead: null, myRoles: [] };
 
-  // Events where you're the Volunteer Lead (and not already a host of them).
-  const ledEvents = myStaff
-    .filter((s) => s.role === "volunteer_director" && s.events && s.events.organization_id !== host?.org.id)
-    .map((s) => toEvent(s.events!))
-    .filter((e) => !e.ended);
+  if (current.role !== "team") {
+    return { me: userId, accounts, current, host: await loadHostView(current, userId, origin), lead: null, myRoles: [] };
+  }
+
+  // An account where you're on event teams: Coordinators on the events you lead, and your own roles.
+  const here = myStaff.filter((s) => s.events!.organization_id === current.id);
+  const ledEvents = here.filter((s) => s.role === "volunteer_director").map((s) => toEvent(s.events!));
   const lead = ledEvents.length ? await loadLeadView(ledEvents, origin) : null;
-
-  // Your own roles on events outside your account: you can leave them here.
-  const outside = myStaff.filter((s) => s.events && s.events.organization_id !== host?.org.id);
-  const owners = await accountHosts([...new Set(outside.map((s) => s.events!.organization_id))]);
-  const myRoles: MyRole[] = outside
-    .map((s) => {
-      const event = toEvent(s.events!);
-      return { event, role: s.role, jobs: [], soleJobs: [], soleLead: false, accountHost: owners.get(s.events!.organization_id) ?? null };
-    })
-    .filter((r) => !r.event.ended)
+  const myRoles: MyRole[] = here
+    .map((s) => ({ event: toEvent(s.events!), role: s.role, jobs: [], soleJobs: [], soleLead: false, accountHost: owners.get(current.id) ?? null }))
     .sort(byStart);
+  return { me: userId, accounts, current, host: null, lead, myRoles };
+}
 
-  return { me: userId, host, lead, myRoles };
+/** Account names for people on their event teams (who can't read the account itself). */
+async function accountNames(orgIds: string[]) {
+  const map = new Map<string, string>();
+  if (!orgIds.length) return map;
+  const { data } = await createAdminClient().from("organizations").select("id, name").in("id", orgIds);
+  for (const row of data ?? []) map.set(row.id, row.name);
+  return map;
 }
 
 async function loadHostView(org: { id: string; name: string }, userId: string, origin: string): Promise<HostView> {

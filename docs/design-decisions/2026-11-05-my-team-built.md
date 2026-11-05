@@ -8,7 +8,7 @@ Review: docs/design-reviews/2026-11-05-my-team-built.md
 | 2 | Resend on an expired invitation gets around the team limit | 3 | Take the advice | Owner said yes on the report page. Resending an expired invitation now needs a free spot (20270115000000_resend_checks_team.sql, with security tests); on a full team the row says "Free a team spot to send a new link" |
 | 3 | Nobody is told when a helper leaves | 3 | Take the advice (both) | Owner chose the fuller fix on top of the smallest: the leave window names the job and says who's told; Event teams flags jobs with no Coordinator; leaving emails the Account Host and the event's Volunteer Lead; removing offers "Let them know by email". To build next |
 | 4 | "Every role" deletes past-event history | 3 | Take the advice | Owner: "keep the historical". The window sends exactly the roles it lists, and the server never removes roles on events that are over |
-| 5 | Someone on two accounts only sees the older one | 3 | _Waiting for the owner_ | |
+| 5 | Someone on two accounts only sees the older one | 3 | Fix it differently | Owner chose option A (fix on My team now) with the accounts as a menu on the left to choose from (above the page on phones). Each account shows its own team; accounts you own come first, then co-host, then event-team accounts. The rest of the app (an account picker everywhere) is a separate project |
 | 6 | "Can't see those events anymore" isn't true | 3 | _Waiting for the owner_ | |
 | 7 | An edited co-host email can break | 3 | _Waiting for the owner_ | |
 | 8 | "Ask us about a bigger team" is a bare email link | 3 | _Waiting for the owner_ | |

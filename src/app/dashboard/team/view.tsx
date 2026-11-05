@@ -15,7 +15,7 @@ import {
   removeFromEvents,
   resendTeamInvitation,
 } from "../team-actions";
-import { personName, type HostView, type Invite, type LeadView, type MyRole, type MyTeam, type Person, type Removal, type RoleOn, type StaffRole, type TeamEvent } from "./load";
+import { personName, type HostView, type Invite, type LeadView, type MyRole, type MyTeam, type TeamAccount, type Person, type Removal, type RoleOn, type StaffRole, type TeamEvent } from "./load";
 import { CopyInviteLink, InviteAgainButton, InviteCoHostButton, RemovePersonButton, RowButton, type RemoveChoice } from "./team-ui";
 
 const ROLE: Record<StaffRole | "co_host", string> = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator", co_host: "Co-host" };
@@ -31,8 +31,8 @@ const askUs = (subject: string, words: string) => (
 
 /** My team, for whoever's looking: hosts and co-hosts, Volunteer Leads, and their own roles. */
 export function MyTeamView({ team }: { team: MyTeam }) {
-  return (
-    <div className="space-y-10">
+  const body = (
+    <div className="min-w-0 space-y-10">
       {team.host ? (
         <HostSections view={team.host} me={team.me} />
       ) : team.lead ? (
@@ -49,6 +49,45 @@ export function MyTeamView({ team }: { team: MyTeam }) {
       )}
       {team.myRoles.length > 0 && <MyRoles roles={team.myRoles} other={!!team.host} />}
     </div>
+  );
+  if (team.accounts.length < 2) return body;
+  // On more than one account: pick which one's team to see, from a menu on the left (above, on phones).
+  return (
+    <div className="grid gap-8 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-10">
+      <AccountMenu accounts={team.accounts} current={team.current} />
+      {body}
+    </div>
+  );
+}
+
+const ACCOUNT_ROLE = { owner: "Account Host", admin: "Co-host", team: "Event team" } as const;
+
+function AccountMenu({ accounts, current }: { accounts: TeamAccount[]; current: TeamAccount | null }) {
+  return (
+    <nav aria-labelledby="accounts-heading" className="md:sticky md:top-6 md:self-start">
+      <h2 id="accounts-heading" className="mb-2 text-sm font-semibold text-muted">
+        Your accounts
+      </h2>
+      <ul className="flex flex-col gap-1">
+        {accounts.map((a) => {
+          const here = a.id === current?.id;
+          return (
+            <li key={a.id}>
+              <Link
+                href={`/dashboard/team?account=${a.id}`}
+                aria-current={here ? "page" : undefined}
+                className={`flex min-h-11 flex-col justify-center rounded-md border px-3 py-2 text-sm ${
+                  here ? "border-brand/40 bg-brand-soft font-semibold" : "border-transparent hover:border-border hover:bg-surface"
+                }`}
+              >
+                <span className="[overflow-wrap:anywhere]">{a.name}</span>
+                <span className="text-xs font-normal text-muted">{ACCOUNT_ROLE[a.role]}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 
@@ -180,7 +219,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
           {view.people.length || view.eventInvites.length ? (
             <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
               {view.people.map((p) => (
-                <PersonRow key={p.userId} person={p} orgId={org.id} />
+                <PersonRow key={p.userId} person={p} />
               ))}
               {view.eventInvites.map((inv) => (
                 <InviteRow key={inv.id} invite={inv} manage what={ROLE[inv.role ?? "section_lead"]} full={full} />
@@ -285,7 +324,7 @@ function AddStaffLinks({ view, canAdd }: { view: HostView; canAdd: boolean }) {
 }
 
 /** One Volunteer Lead or Coordinator, every role they have, and one "Remove…". */
-function PersonRow({ person, orgId }: { person: Person; orgId: string }) {
+function PersonRow({ person }: { person: Person }) {
   const name = personName(person.profile);
   const choices: RemoveChoice[] = person.roles.map((r) => ({
     value: `${r.event.id}:${r.role}`,
