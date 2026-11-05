@@ -67,13 +67,13 @@ sign-ups", "can't remove a classification with bands") is refused by the databas
 - **Seen in:** event setup (drafts went live), setup redesign v3 (hidden jobs), volunteer jobs v1,
   band contest v1 and v2 (publish rule, classifications, reopen), band PR 1 built (any deadline
   date accepted; clearing a number box saved 0).
-- **Every date and number has limits:**- **Again in:** My team built (resending an expired invitation skipped the team limit; the page
+- **Every date and number has limits:** a date picker gets `min`/`max` and the database agrees
+  (a deadline before the event); an empty number box is not 0; a limit can't drop below what
+  people already signed up for.
+- **Again in:** My team built (resending an expired invitation skipped the team limit; the page
   said past helpers "can't see those events" while the database still let them in).
   **Sharper rule:** every path that gives something back (resend, re-invite, undo) runs the same
   check as the first time, with its own test.
- a date picker gets `min`/`max` and the database agrees
-  (a deadline before the event); an empty number box is not 0; a limit can't drop below what
-  people already signed up for.
 
 ## L5. One word per thing, one thing per word
 Pick one name and use it everywhere: in buttons, headings, emails, and the website. Never reuse
