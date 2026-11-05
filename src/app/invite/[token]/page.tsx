@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { emailLinkCutoff } from "@/lib/email-link-age";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
-import { CO_HOST_POWERS } from "@/lib/team-words";
+import { CO_HOST_INVITE } from "@/lib/team-words";
 import { acceptInvitation, joinFromEmail } from "@/app/dashboard/team-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
@@ -68,7 +68,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
     invite && (invite.as_host || !invite.role)
       ? {
           label: "a co-host",
-          blurb: CO_HOST_POWERS,
+          blurb: CO_HOST_INVITE,
         }
       : invite && ROLE[invite.role!];
 

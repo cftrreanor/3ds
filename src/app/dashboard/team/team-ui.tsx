@@ -12,6 +12,17 @@ type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 /** The secondary look for a row's buttons: 44 px tall, 14 px words (L12). */
 const ROW_BUTTON = "min-h-11 px-3 text-sm";
 
+/**
+ * After a row is removed, keep keyboard and screen-reader users in place: focus moves to the
+ * heading of the section the row was in (the row itself is gone), not the top of the page.
+ */
+function focusSection(from: HTMLElement | null) {
+  const heading = from?.closest("section")?.querySelector<HTMLElement>("h2") ?? document.querySelector<HTMLElement>("main h1");
+  if (!heading) return;
+  heading.tabIndex = -1;
+  requestAnimationFrame(() => heading.focus());
+}
+
 /** A window opened by a button, closed by Escape, a click outside, or its way-out button. */
 function useWindow() {
   const ref = useRef<HTMLDialogElement>(null);
@@ -50,7 +61,7 @@ function Window({
       className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-border bg-surface p-0 text-left text-foreground shadow-elevated backdrop:bg-[#071a31]/50"
     >
       <div key={formKey} className="p-6">
-        <h2 id={id} className="text-lg font-semibold leading-7">
+        <h2 id={id} className="text-lg font-semibold leading-7 [overflow-wrap:anywhere]">
           {title}
         </h2>
         {children}
@@ -60,7 +71,23 @@ function Window({
 }
 
 /** "Invite a co-host": the one filled button on the page, or a greyed-out one saying why not. */
-export function InviteCoHostButton({ action, spotNote, blockedBy, powers }: { action: Action; spotNote: string; blockedBy: string | null; powers: string }) {
+export function InviteCoHostButton({
+  action,
+  spotNote,
+  blockedBy,
+  powers,
+  hint,
+  fullNote,
+}: {
+  action: Action;
+  spotNote: string;
+  blockedBy: string | null;
+  powers: string;
+  /** Pointing to one-event roles, for someone who only needs help with one event. */
+  hint?: string;
+  /** When the team is full: who can still be made a co-host. */
+  fullNote?: string | null;
+}) {
   const { ref, key, open, close } = useWindow();
   if (blockedBy) {
     return (
@@ -86,6 +113,8 @@ export function InviteCoHostButton({ action, spotNote, blockedBy, powers }: { ac
       </Button>
       <Window dialogRef={ref} formKey={key} close={close} title="Invite a co-host">
         <p className="mt-2 text-sm leading-6">{powers}</p>
+        {hint && <p className="mt-2 text-sm leading-6 text-muted">{hint}</p>}
+        {fullNote && <p className="mt-3 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm leading-6">{fullNote}</p>}
         <ActionForm action={action} onSuccess={close} className="mt-4 space-y-4">
           <Field label="Their email" hint={spotNote}>
             <Input name="email" type="email" required autoComplete="off" inputMode="email" />
@@ -156,13 +185,22 @@ export function ConfirmButton({
   danger?: boolean;
 }) {
   const { ref, key, open, close } = useWindow();
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <>
-      <Button type="button" variant="secondary" className={ROW_BUTTON} onClick={open} aria-label={label}>
+      <Button ref={trigger} type="button" variant="secondary" className={ROW_BUTTON} onClick={open} aria-label={label}>
         {children}
       </Button>
       <Window dialogRef={ref} formKey={key} close={close} title={title}>
-        <ActionForm action={action} onSuccess={close} resetOnSuccess={false} className="mt-3 space-y-4">
+        <ActionForm
+          action={action}
+          onSuccess={() => {
+            close();
+            if (danger) focusSection(trigger.current);
+          }}
+          resetOnSuccess={false}
+          className="mt-3 space-y-4"
+        >
           <Points items={points} />
           <WindowButtons keep={keepLabel} close={close}>
             <SubmitButton variant={danger ? "warn" : "primary"} pendingText={pendingText} data-solid>
@@ -225,6 +263,7 @@ export type RemoveChoice = {
  */
 export function RemovePersonButton({ name, firstName, choices, action }: { name: string; firstName: string; choices: RemoveChoice[]; action: Action }) {
   const { ref, key, open, close } = useWindow();
+  const trigger = useRef<HTMLButtonElement>(null);
   const one = choices.length === 1;
   const [pick, setPick] = useState<string>(one ? choices[0].value : "all");
   const chosen = pick === "all" ? choices : choices.filter((c) => c.value === pick);
@@ -234,6 +273,7 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
   return (
     <>
       <Button
+        ref={trigger}
         type="button"
         variant="secondary"
         className={ROW_BUTTON}
@@ -246,7 +286,14 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
         Remove…
       </Button>
       <Window dialogRef={ref} formKey={key} close={close} title={one ? `Remove ${name} as ${choices[0].label}?` : `Remove ${name}?`}>
-        <ActionForm action={action} onSuccess={close} className="mt-3 space-y-4">
+        <ActionForm
+          action={action}
+          onSuccess={() => {
+            close();
+            focusSection(trigger.current);
+          }}
+          className="mt-3 space-y-4"
+        >
           {/* Exactly the roles listed here: "every role" never reaches past events or roles added since. */}
           {chosen.map((c) => (
             <input key={c.value} type="hidden" name="pick" value={c.value} />

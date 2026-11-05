@@ -148,15 +148,27 @@ const byName = (a: Person, b: Person) => personName(a.profile).localeCompare(per
 
 /** Each person once, with every role they have, and what removing them would leave empty. */
 function groupPeople(staff: StaffRow[], leads: LeadRow[], events: Map<string, TeamEvent>): Person[] {
+  // Counted once, then looked up: who leads what, and how many lead each job and event.
+  const key = (...parts: string[]) => parts.join(":");
+  const ledBy = new Map<string, string[]>();
+  const leadersOfJob = new Map<string, number>();
+  for (const l of leads) {
+    const job = l.stations?.name ?? "";
+    ledBy.set(key(l.user_id, l.event_id), [...(ledBy.get(key(l.user_id, l.event_id)) ?? []), job]);
+    leadersOfJob.set(key(l.event_id, job), (leadersOfJob.get(key(l.event_id, job)) ?? 0) + 1);
+  }
+  const directorsOf = new Map<string, number>();
+  for (const s of staff) if (s.role === "volunteer_director") directorsOf.set(s.event_id, (directorsOf.get(s.event_id) ?? 0) + 1);
+
   const people = new Map<string, Person>();
   for (const s of staff) {
     const event = events.get(s.event_id);
     if (!event) continue;
-    const jobs = s.role === "section_lead" ? leads.filter((l) => l.user_id === s.user_id && l.event_id === s.event_id).map((l) => l.stations?.name ?? "") : [];
-    const soleJobs = jobs.filter((job) => leads.filter((l) => l.event_id === s.event_id && l.stations?.name === job).length === 1);
-    const soleLead = s.role === "volunteer_director" && staff.filter((o) => o.event_id === s.event_id && o.role === "volunteer_director").length === 1;
+    const jobs = s.role === "section_lead" ? (ledBy.get(key(s.user_id, s.event_id)) ?? []).filter(Boolean) : [];
+    const soleJobs = jobs.filter((job) => leadersOfJob.get(key(s.event_id, job)) === 1);
+    const soleLead = s.role === "volunteer_director" && directorsOf.get(s.event_id) === 1;
     const person = people.get(s.user_id) ?? { userId: s.user_id, profile: s.profiles ?? NO_PROFILE, roles: [] };
-    person.roles.push({ event, role: s.role, jobs: jobs.filter(Boolean), soleJobs: soleJobs.filter(Boolean), soleLead });
+    person.roles.push({ event, role: s.role, jobs, soleJobs, soleLead });
     people.set(s.user_id, person);
   }
   for (const p of people.values()) p.roles.sort(byStart);
@@ -286,7 +298,10 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
   }
   const [memberData, eventData, inviteData, removalData, spotData] = [members.data, eventsRes.data, invitesRes.data, removalsRes.data, spotsRes.data];
   const events = new Map(((eventData ?? []) as EventRow[]).map((e) => [e.id, toEvent(e)]));
-  const ids = [...events.keys()];
+  // Helpers on events that ended over a year ago aren't listed (and aren't loaded): it keeps
+  // the page quick for accounts with years of events.
+  const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+  const ids = [...events.values()].filter((e) => !e.ended || e.ends_on >= yearAgo).map((e) => e.id);
   const [{ data: staffData }, { data: leadData }] = ids.length
     ? await Promise.all([
         supabase.from("event_staff").select("user_id, role, event_id, profiles(full_name, email, phone)").in("event_id", ids).order("created_at"),

@@ -7877,11 +7877,46 @@ begin
   values ('7d000000-0000-0000-0000-0000000000e1', 'tmvl@example.com', 'section_lead', '0000007e-0000-0000-0000-000000000001');
   delete from public.invitations where email = 'tmvl@example.com';
 end $$;
--- A co-host doesn't see the account's co-host invitation… a Volunteer Lead doesn't either.
+-- A Volunteer Lead doesn't see the account's co-host invitations (co-hosts and the Account Host do).
 set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
 do $$ begin
   assert not exists (select 1 from public.invitations where email = 'tmnew@example.com'), 'a Volunteer Lead can''t see co-host invitations';
 end $$;
+-- What a Volunteer Lead can't do (design review 2026-11-05): read the hosts' team count, remove
+-- another Volunteer Lead, or see removed Volunteer Leads (they see removed Coordinators).
+reset role;
+set session_replication_role = replica;
+insert into public.event_staff (event_id, user_id, role)
+values ('7d000000-0000-0000-0000-0000000000e1', '0000007e-0000-0000-0000-000000000006', 'volunteer_director');
+set session_replication_role = origin;
+insert into public.team_removals (organization_id, event_id, role, user_id, email, full_name)
+values ('7d000000-0000-0000-0000-000000000001', '7d000000-0000-0000-0000-0000000000e1', 'volunteer_director',
+        '0000007e-0000-0000-0000-000000000006', 'tmgonevl@example.com', 'Gone Lead'),
+       ('7d000000-0000-0000-0000-000000000001', '7d000000-0000-0000-0000-0000000000e1', 'section_lead',
+        '0000007e-0000-0000-0000-000000000006', 'tmgonecoord@example.com', 'Gone Coordinator');
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
+do $$
+declare ok boolean := false;
+begin
+  begin
+    perform public.team_spots('7d000000-0000-0000-0000-000000000001');
+  exception when insufficient_privilege then ok := true;
+  end;
+  assert ok, 'a Volunteer Lead can''t read the hosts'' team count';
+  delete from public.event_staff where user_id = '0000007e-0000-0000-0000-000000000006' and role = 'volunteer_director';
+  assert exists (select 1 from public.event_staff where user_id = '0000007e-0000-0000-0000-000000000006' and role = 'volunteer_director'),
+         'a Volunteer Lead can''t remove another Volunteer Lead';
+  assert exists (select 1 from public.team_removals where email = 'tmgonecoord@example.com'), 'a Volunteer Lead sees removed Coordinators';
+  assert not exists (select 1 from public.team_removals where email = 'tmgonevl@example.com'), 'but not removed Volunteer Leads';
+end $$;
+reset role;
+set session_replication_role = replica;
+delete from public.event_staff where user_id = '0000007e-0000-0000-0000-000000000006' and role = 'volunteer_director';
+set session_replication_role = origin;
+delete from public.team_removals where email in ('tmgonevl@example.com', 'tmgonecoord@example.com');
+set role authenticated;
+
 -- The invited co-host accepts the account invitation.
 set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000006","email":"tmpast@example.com"}';
 reset role;

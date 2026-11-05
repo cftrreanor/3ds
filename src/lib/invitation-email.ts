@@ -2,7 +2,7 @@ import "server-only";
 import { EMAIL_LINK_DAYS } from "@/lib/email-link-age";
 import { brand } from "@/lib/brand";
 import { emailLayout } from "@/lib/email";
-import { CO_HOST_POWERS } from "@/lib/team-words";
+import { CO_HOST_INVITE } from "@/lib/team-words";
 import { customWords } from "@/lib/system-email-overrides";
 import type { SystemEmailText } from "@/lib/system-emails";
 import { formatDate, formatDateRange } from "@/lib/time";
@@ -44,7 +44,7 @@ export function invitationEmail(inv: InvitationDetails, acceptUrl: string, bands
           inv.event_name
             ? `${who} invited you to co-host their events on ${brand.name}, starting with ${inv.event_name} (${when}).`
             : `${who} invited you to co-host their events on ${brand.name}.`,
-          CO_HOST_POWERS,
+          CO_HOST_INVITE,
         ],
       }
     : inv.role === "volunteer_director"

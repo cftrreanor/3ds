@@ -4,7 +4,7 @@ import { LineIcon } from "@/components/line-icon";
 import { Badge, Card } from "@/components/ui";
 import { brand } from "@/lib/brand";
 import { formatPhone } from "@/lib/phone";
-import { CO_HOST_POWERS, REMOVAL_NOTE } from "@/lib/team-words";
+import { CO_HOST_POWERS, ONE_EVENT_HINT, REMOVAL_NOTE } from "@/lib/team-words";
 import { formatDate } from "@/lib/time";
 import {
   cancelTeamInvitation,
@@ -29,7 +29,8 @@ const spotLine = (spots: { max: number | null; used: number } | null) =>
       : `It takes 1 of your ${spots.max} team spots as soon as it's sent (${spots.used} in use now)`;
 
 const ROLE: Record<StaffRole | "co_host", string> = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator", co_host: "Co-host" };
-const short = (date: string) => formatDate(date.slice(0, 10), { year: undefined });
+/** "Sat, Nov 14", kept on one line. */
+const short = (date: string) => formatDate(date.slice(0, 10), { year: undefined }).replace(/ /g, "\u00a0");
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const first = (name: string) => name.split(/[\s@]/)[0] || name;
 const LINK = "font-medium text-brand underline underline-offset-4";
@@ -162,7 +163,12 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
             <InviteCoHostButton
               action={inviteCoHost.bind(null, org.id)}
               powers={CO_HOST_POWERS}
-              blockedBy={full ? "Your team is full" : null}
+              hint={ONE_EVENT_HINT}
+              // A full team can still make someone already on it a co-host (it takes no new spot).
+              blockedBy={full && !view.people.length && !view.eventInvites.length ? "Your team is full" : null}
+              fullNote={
+                full ? "Your team is full, so you can make someone already on it a co-host: a Volunteer Lead, a Coordinator, or someone invited." : null
+              }
               spotNote={
                 spots.max !== null
                   ? `We'll email them a link that works for 30 days. The invitation takes 1 of your ${spots.max} team spots as soon as it's sent (${spots.used} in use now).`
@@ -375,17 +381,22 @@ function AddStaffLinks({ view, canAdd }: { view: HostView; canAdd: boolean }) {
     );
   }
   return (
-    <p className="text-sm leading-7">
-      Add a Volunteer Lead or Coordinator from an event&apos;s team setup:{" "}
-      {view.upcoming.map((e, i) => (
-        <span key={e.id}>
-          {i > 0 && " · "}
-          <Link href={`/dashboard/events/${e.id}/edit?section=team`} className={LINK}>
-            {e.name}
-          </Link>
-        </span>
-      ))}
-    </p>
+    <div className="space-y-2">
+      <p className="text-sm font-medium">To add a Volunteer Lead or Coordinator, open the event&apos;s team setup</p>
+      <ul className="flex flex-wrap gap-2">
+        {view.upcoming.map((e) => (
+          <li key={e.id} className="min-w-0">
+            <Link
+              href={`/dashboard/events/${e.id}/edit?section=team`}
+              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-md border border-field-border bg-surface px-3 text-sm font-semibold hover:border-brand hover:bg-background"
+            >
+              <span className="[overflow-wrap:anywhere]">{e.name}</span>
+              <span className="whitespace-nowrap font-normal text-muted">{short(e.starts_on)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -450,8 +461,7 @@ function InviteRow({ invite: inv, manage, what, full = false }: { invite: Invite
       }
       detail={[
         inv.expired ? `Link expired ${short(inv.expiresAt)}` : null,
-        inv.event ? `${what} · ${inv.event.name} ${short(inv.event.starts_on)}` : what,
-        inv.job ? `to lead ${inv.job}` : null,
+        inv.event ? null : what,
         `Invited ${short(inv.createdAt)}`,
         inv.expired ? null : `Link works until ${short(inv.expiresAt)}`,
       ]}
@@ -485,7 +495,17 @@ function InviteRow({ invite: inv, manage, what, full = false }: { invite: Invite
           )}
         </>
       }
-    />
+    >
+      {inv.event && (
+        <p className="mt-1 text-sm leading-6">
+          <strong className="font-semibold">{what}</strong> · {inv.event.name}{" "}
+          <span className="text-muted">
+            {short(inv.event.starts_on)}
+            {inv.job && ` · to lead ${inv.job}`}
+          </span>
+        </p>
+      )}
+    </Row>
   );
 }
 
@@ -614,7 +634,7 @@ function LeadSections({ view }: { view: LeadView }) {
           ) : (
             <p className="text-sm">
               <Link href={`/dashboard/events/${event.id}/volunteering`} className={LINK}>
-                Add a Coordinator to a job in Volunteer setup
+                Add a Coordinator in this event&apos;s volunteer setup
               </Link>
             </p>
           )}
@@ -629,7 +649,7 @@ function LeadSections({ view }: { view: LeadView }) {
         spotNote={spotLine(null)}
         blocked={() => (view.full ? `The team is full. Ask ${view.accountHost ?? "the Account Host"} to free a spot` : null)}
       />
-      <PrivacyNote>Only the event&apos;s hosts and Volunteer Leads see Coordinators&apos; emails and phone numbers. {REMOVAL_NOTE}</PrivacyNote>
+      <PrivacyNote>Only the Account Host, co-hosts, and the event&apos;s Volunteer Leads see Coordinators&apos; emails and phone numbers. {REMOVAL_NOTE}</PrivacyNote>
     </>
   );
 }
@@ -695,7 +715,7 @@ function Row({ title, detail, actions, children }: { title: ReactNode; detail: (
   return (
     <li className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        <p className="font-semibold leading-7">{title}</p>
+        <p className="font-semibold leading-7 [overflow-wrap:anywhere]">{title}</p>
         <p className="text-sm leading-6 text-muted">{detail.filter(Boolean).join(" · ")}</p>
         {children}
       </div>
