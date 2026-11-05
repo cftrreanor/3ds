@@ -19,6 +19,8 @@ export function leftEventEmail(o: {
   /** The event was left with no Volunteer Lead. */
   noLead: boolean;
   setupUrl: string;
+  /** Who removed them, when they didn't leave on their own. */
+  removedBy?: string | null;
 }) {
   const when = formatDateRange(o.event.starts_on, o.event.ends_on);
   const gaps = [
@@ -26,9 +28,9 @@ export function leftEventEmail(o: {
     ...(o.noLead ? [`${o.event.name} has no Volunteer Lead now, so the Account Host and co-hosts run its volunteers.`] : []),
   ];
   return {
-    subject: `${o.who} left ${o.event.name}`,
+    subject: o.removedBy ? `${o.removedBy} removed ${o.who} from ${o.event.name}` : `${o.who} left ${o.event.name}`,
     ...emailLayout({
-      heading: `${o.who} left ${o.event.name}`,
+      heading: o.removedBy ? `${o.removedBy} removed ${o.who} from ${o.event.name}` : `${o.who} left ${o.event.name}`,
       paragraphs: [
         `${o.who} is no longer the ${ROLE[o.role]}${o.jobs.length ? ` for ${o.jobs.join(", ")}` : ""} at ${o.event.name} (${when}).`,
         ...gaps,

@@ -320,6 +320,12 @@ export async function removeFromEvents(userId: string, name: string, _prev: Acti
   );
   const current = pairs.filter(([eventId]) => upcoming.has(eventId));
   if (!current.length) return { error: `Those events are over, so ${name}'s roles stay in their history.` };
+  // Before removing: the jobs they lead on those events (removing takes them off those).
+  const { data: ledRows } = await supabase
+    .from("station_leads")
+    .select("event_id, stations(name)")
+    .eq("user_id", userId)
+    .in("event_id", [...new Set(current.map(([eventId]) => eventId))]);
   const { data, error } = await supabase
     .from("event_staff")
     .delete()
@@ -332,6 +338,22 @@ export async function removeFromEvents(userId: string, name: string, _prev: Acti
   // The email names what was actually removed (not what was asked for).
   const roleNames = data.map((d) => `${label[d.role as StaffRole]} of ${(events ?? []).find((e) => e.id === d.event_id)?.name ?? "an event"}`);
   await tellRemoved(formData, userId, (events ?? [])[0]?.organization_id ?? null, roleNames);
+  // The event's Volunteer Leads (and the Account Host, if someone else did it) hear about the gap.
+  const remover = await requireUser();
+  const { data: removerProfile } = await supabase.from("profiles").select("full_name").eq("id", remover.id).maybeSingle();
+  const led = (ledRows ?? []) as unknown as { event_id: string; stations: { name: string } | null }[];
+  await Promise.all(
+    data.map((d) =>
+      tellHostsSomeoneLeft(
+        d.event_id,
+        userId,
+        name,
+        d.role as StaffRole,
+        d.role === "section_lead" ? led.filter((l) => l.event_id === d.event_id).map((l) => l.stations?.name ?? "").filter(Boolean) : [],
+        { id: remover.id, name: removerProfile?.full_name || remover.email },
+      ),
+    ),
+  );
   revalidatePath("/dashboard", "layout");
   const removed = new Set(data.map((d) => d.event_id)).size;
   return { ok: true, message: `Removed ${name} from ${removed === 1 ? "1 event" : `${removed} events`}.` };
@@ -396,35 +418,48 @@ export async function leaveEvent(eventId: string, role: StaffRole, eventName: st
 }
 
 /**
- * Email the event's Account Host and Volunteer Leads that someone left (server side: the leaver
- * can't read them). Returns who was told, in words, or null when no email went out.
+ * Email the event's Account Host and Volunteer Leads that someone left or was removed, naming the
+ * jobs now without anyone (server side: the people involved may not be able to read them). Never
+ * the person themselves, or whoever removed them. Returns who was told, in words, or null when no
+ * email went out.
  */
-async function tellHostsSomeoneLeft(eventId: string, leaverId: string, who: string, role: StaffRole, jobs: string[]): Promise<string | null> {
+async function tellHostsSomeoneLeft(
+  eventId: string,
+  personId: string,
+  who: string,
+  role: StaffRole,
+  jobs: string[],
+  removedBy: { id: string; name: string } | null = null,
+): Promise<string | null> {
   const admin = createAdminClient();
   const { data: event } = await admin.from("events").select("id, name, starts_on, ends_on, organization_id").eq("id", eventId).maybeSingle();
   if (!event) return null;
-  const [{ data: owner }, { data: leads }] = await Promise.all([
-    admin.from("organization_members").select("profiles(email)").eq("organization_id", event.organization_id).eq("role", "owner").maybeSingle(),
+  const [{ data: ownerRow }, { data: leads }] = await Promise.all([
+    admin.from("organization_members").select("user_id, profiles(email)").eq("organization_id", event.organization_id).eq("role", "owner").maybeSingle(),
     admin.from("event_staff").select("user_id, profiles(email)").eq("event_id", eventId).eq("role", "volunteer_director"),
   ]);
-  const leadRows = (leads ?? []) as unknown as { user_id: string; profiles: { email: string } | null }[];
+  const owner = ownerRow as unknown as { user_id: string; profiles: { email: string } | null } | null;
+  const skip = new Set([personId, removedBy?.id].filter(Boolean));
+  const otherLeads = ((leads ?? []) as unknown as { user_id: string; profiles: { email: string } | null }[]).filter((l) => l.user_id !== personId);
+  const leadsToTell = otherLeads.filter((l) => !skip.has(l.user_id));
+  const tellOwner = owner && !skip.has(owner.user_id);
   const to = new Set(
-    [(owner as unknown as { profiles: { email: string } | null } | null)?.profiles?.email, ...leadRows.filter((l) => l.user_id !== leaverId).map((l) => l.profiles?.email)]
-      .filter((e): e is string => !!e)
-      .map((e) => e.toLowerCase()),
+    [tellOwner ? owner?.profiles?.email : null, ...leadsToTell.map((l) => l.profiles?.email)].filter((e): e is string => !!e).map((e) => e.toLowerCase()),
   );
+  if (!to.size) return null;
   const { subject, html, text } = leftEventEmail({
     who,
     role,
     event,
     jobs,
-    noLead: role === "volunteer_director" && leadRows.filter((l) => l.user_id !== leaverId).length === 0,
+    noLead: role === "volunteer_director" && otherLeads.length === 0,
     setupUrl: `${await getOrigin()}/dashboard/events/${eventId}/edit?section=team`,
+    removedBy: removedBy?.name ?? null,
   });
   const sent = await Promise.all([...to].map((addr) => sendEmail({ to: addr, subject, html, text })));
   if (!sent.some(Boolean)) return null;
-  const others = leadRows.filter((l) => l.user_id !== leaverId).length;
-  return others ? "the Account Host and the event's Volunteer Lead" + (others > 1 ? "s" : "") : "the Account Host";
+  const lead = leadsToTell.length ? `the event's Volunteer Lead${leadsToTell.length > 1 ? "s" : ""}` : null;
+  return [tellOwner ? "the Account Host" : null, lead].filter(Boolean).join(" and ") || null;
 }
 
 /** Email someone that they were removed, when the remover ticked "Let them know by email". */

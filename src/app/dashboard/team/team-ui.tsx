@@ -373,6 +373,7 @@ export function RemovePersonButton({
               </>,
               ...leaves,
               ...(limited ? [kept.length > 0 ? `${firstName} keeps their team spot` : "A team spot opens up"] : []),
+              "We'll email the event's other Volunteer Leads and the Account Host about the change (not you)",
               "You can invite them again from Removed or left recently",
             ]}
           />

@@ -58,7 +58,11 @@ export type Spots = {
 };
 export type Host = { userId: string; role: "owner" | "admin"; profile: Profile };
 /** Your own role on someone else's event (or your own, as a Volunteer Lead or Coordinator). */
-export type MyRole = RoleOn & { accountHost: { name: string; email: string } | null };
+export type MyRole = RoleOn & {
+  accountHost: { name: string; email: string } | null;
+  /** The event's Volunteer Leads (other than you): who a Coordinator asks on the day. */
+  leads: { name: string; email: string }[];
+};
 
 /** A job on an upcoming event, for giving a Coordinator one when inviting them. */
 export type Job = { id: string; name: string; led: boolean };
@@ -278,6 +282,10 @@ export async function loadMyTeam(userId: string, origin: string, accountId?: str
     ? await supabase.from("station_leads").select("event_id, stations(name)").eq("user_id", userId).in("event_id", here.map((s) => s.event_id))
     : { data: [] };
   const myJobs = (myLeads ?? []) as unknown as { event_id: string; stations: { name: string } | null }[];
+  // Each event's Volunteer Leads, by name and email (event_volunteer_leads(): only for its team).
+  const leadsRes = here.length ? await supabase.rpc("event_volunteer_leads", { p_events: here.map((st) => st.event_id) }) : { data: [], error: null };
+  check([leadsRes]);
+  const eventLeads = (leadsRes.data ?? []) as { event_id: string; user_id: string; full_name: string; email: string }[];
   const myRoles: MyRole[] = here
     .map((s) => ({
       event: toEvent(s.events!),
@@ -286,6 +294,7 @@ export async function loadMyTeam(userId: string, origin: string, accountId?: str
       soleJobs: [],
       soleLead: false,
       accountHost: owners.get(current.id) ?? null,
+      leads: eventLeads.filter((l) => l.event_id === s.event_id && l.user_id !== userId).map((l) => ({ name: l.full_name, email: l.email })),
     }))
     .sort(byStart);
   return { me: userId, accounts, current, host: null, lead, myRoles };

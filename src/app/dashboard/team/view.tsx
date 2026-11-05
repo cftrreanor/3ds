@@ -369,7 +369,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
 
       <PrivacyNote>
         Who sees these details: the Account Host and co-hosts see everyone&apos;s email and phone number. Volunteer Leads see their own
-        event&apos;s team. People on an event&apos;s team see the Account Host&apos;s name and email, so they can ask questions. {REMOVAL_NOTE}
+        event&apos;s team. People on an event&apos;s team see the names and emails of the Account Host and that event&apos;s Volunteer Lead, so they can ask questions. {REMOVAL_NOTE}
       </PrivacyNote>
     </>
   );
@@ -752,6 +752,22 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
               </>
             }
             detail={[short(r.event.starts_on), r.jobs.length ? `leads ${r.jobs.join(", ")}` : null, r.accountHost ? `Account Host: ${r.accountHost.name}` : null]}
+            after={
+              r.leads.length > 0 && (
+                <p className="mt-1 text-sm leading-6">
+                  Volunteer Lead:{" "}
+                  {r.leads.map((l, i) => (
+                    <span key={l.email}>
+                      {i > 0 && ", "}
+                      <a href={`mailto:${l.email}`} className={LINK}>
+                        {l.name}
+                      </a>{" "}
+                      <span className="text-muted [overflow-wrap:anywhere]">{l.email}</span>
+                    </span>
+                  ))}
+                </p>
+              )
+            }
             actions={
               <ConfirmButton
                 action={leaveEvent.bind(null, r.event.id, r.role, r.event.name)}
@@ -760,7 +776,9 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
                 points={[
                   "You lose access to this event right away",
                   ...(r.jobs.length ? [`You stop leading ${r.jobs.join(" and ")}, so ${r.jobs.length === 1 ? "it needs" : "they need"} a new Coordinator`] : []),
-                  `We'll let ${r.accountHost?.name ?? "the Account Host"} and the event's Volunteer Leads know by email`,
+                  r.leads.length
+                    ? `We'll let ${r.accountHost?.name ?? "the Account Host"} and ${r.leads.map((l) => l.name).join(" and ")} know by email`
+                    : `We'll let ${r.accountHost?.name ?? "the Account Host"} know by email`,
                   `To come back, ask ${r.accountHost?.name ?? "the Account Host"} to invite you again`,
                 ]}
                 keepLabel="Stay on this event"
@@ -775,7 +793,7 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
       </ul>
       {hosts.map((h) => (
         <p key={h.email} className="text-sm text-muted">
-          Questions? Contact{" "}
+          {roles.some((r) => r.leads.length) ? "For anything else, contact " : "Questions? Contact "}
           <a href={`mailto:${h.email}`} className={LINK}>
             {h.name}
           </a>
@@ -787,7 +805,20 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
 }
 
 /** One person or invitation: who, details, and buttons on the right (below on phones). */
-function Row({ title, detail, actions, children }: { title: ReactNode; detail: (string | null | undefined)[]; actions?: ReactNode; children?: ReactNode }) {
+function Row({
+  title,
+  detail,
+  actions,
+  children,
+  after,
+}: {
+  title: ReactNode;
+  detail: (string | null | undefined)[];
+  actions?: ReactNode;
+  children?: ReactNode;
+  /** More lines under the details (same as children, for rows built with props). */
+  after?: ReactNode;
+}) {
   return (
     // Side by side only when the card itself is wide enough (not the screen: the accounts menu narrows it).
     <li className="@container">
@@ -796,6 +827,7 @@ function Row({ title, detail, actions, children }: { title: ReactNode; detail: (
           <p className="font-semibold leading-7 [overflow-wrap:anywhere]">{title}</p>
           <p className="text-sm leading-6 text-muted">{detail.filter(Boolean).join(" · ")}</p>
           {children}
+          {after}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>

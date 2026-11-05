@@ -8048,6 +8048,30 @@ set session_replication_role = origin;
 delete from public.events where id in ('7d000000-0000-0000-0000-0000000000e3', '7d000000-0000-0000-0000-0000000000e4');
 set role authenticated;
 
+-- A Coordinator sees their event's Volunteer Lead (20270118000000); someone else doesn't.
+reset role;
+set session_replication_role = replica;
+insert into public.event_staff (event_id, user_id, role)
+values ('7d000000-0000-0000-0000-0000000000e1', '0000007e-0000-0000-0000-000000000006', 'section_lead');
+set session_replication_role = origin;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000006","email":"tmpast@example.com"}';
+do $$ begin
+  assert exists (select 1 from public.event_volunteer_leads(array['7d000000-0000-0000-0000-0000000000e1'::uuid]) where email = 'tmvl@example.com'),
+         'a Coordinator sees their event''s Volunteer Lead';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.event_volunteer_leads(array['7d000000-0000-0000-0000-0000000000e1'::uuid])),
+         'someone not on the event sees no Volunteer Lead';
+end $$;
+reset role;
+set session_replication_role = replica;
+delete from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e1'
+   and user_id = '0000007e-0000-0000-0000-000000000006' and role = 'section_lead';
+set session_replication_role = origin;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
 -- Someone who already holds a spot can have their expired invitation sent again.
 reset role;
 update public.invitations set email = 'tmvl@example.com' where email = 'tmexpired@example.com';
