@@ -90,14 +90,11 @@ export function InviteCoHostButton({ action, spotNote, blockedBy, powers }: { ac
           <Field label="Their email" hint={spotNote}>
             <Input name="email" type="email" required autoComplete="off" inputMode="email" />
           </Field>
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={close}>
-              Not now
-            </Button>
+          <WindowButtons keep="Not now" close={close}>
             <SubmitButton pendingText="Sending…" data-solid>
               Send invitation
             </SubmitButton>
-          </div>
+          </WindowButtons>
         </ActionForm>
       </Window>
     </>
@@ -127,6 +124,77 @@ export function RowButton({
         {children}
       </SubmitButton>
     </ActionForm>
+  );
+}
+
+/**
+ * A row button that asks first, in the same window as Remove…: the question as the title, what
+ * happens as bullets, a way out that names what you keep, and a red button for taking access away.
+ */
+export function ConfirmButton({
+  action,
+  children,
+  label,
+  title,
+  points,
+  keepLabel,
+  confirmLabel,
+  pendingText,
+  danger = true,
+}: {
+  action: Action;
+  /** The row button's words. */
+  children: ReactNode;
+  /** Its spoken name, starting with the same words. */
+  label?: string;
+  title: string;
+  points: ReactNode[];
+  keepLabel: string;
+  confirmLabel: string;
+  pendingText: string;
+  /** Red for anything that takes access away (the default). */
+  danger?: boolean;
+}) {
+  const { ref, key, open, close } = useWindow();
+  return (
+    <>
+      <Button type="button" variant="secondary" className={ROW_BUTTON} onClick={open} aria-label={label}>
+        {children}
+      </Button>
+      <Window dialogRef={ref} formKey={key} close={close} title={title}>
+        <ActionForm action={action} onSuccess={close} resetOnSuccess={false} className="mt-3 space-y-4">
+          <Points items={points} />
+          <WindowButtons keep={keepLabel} close={close}>
+            <SubmitButton variant={danger ? "warn" : "primary"} pendingText={pendingText} data-solid>
+              {confirmLabel}
+            </SubmitButton>
+          </WindowButtons>
+        </ActionForm>
+      </Window>
+    </>
+  );
+}
+
+/** What happens, as short bullets in body text. */
+function Points({ items }: { items: ReactNode[] }) {
+  return (
+    <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
+      {items.map((item, i) => (
+        <li key={i}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** The way out (outlined, naming what you keep), then the action. */
+function WindowButtons({ keep, close, children }: { keep: string; close: () => void; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button type="button" variant="secondary" onClick={close}>
+        {keep}
+      </Button>
+      {children}
+    </div>
   );
 }
 
@@ -185,7 +253,7 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
           ))}
           {!one && (
             <fieldset className="space-y-1">
-              <legend className="mb-1 text-sm font-medium">Remove them from</legend>
+              <legend className="mb-1 text-sm font-medium">Remove {firstName} from</legend>
               {[{ value: "all", label: `Every role below (${choices.length})`, leaves: [] }, ...choices].map((c) => (
                 <label key={c.value} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 text-sm hover:bg-background">
                   <input
@@ -201,28 +269,22 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
               ))}
             </fieldset>
           )}
-          <div className="space-y-2 text-sm leading-6">
-            <p>
-              {firstName} loses access {events === 1 ? "to that event" : `to those ${events} events`} right away
-              {kept.length > 0 ? <>, and stays on as {kept.map((k) => k.label).join(" and ")}.</> : "."}
-            </p>
-            {leaves.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5">
-                {leaves.map((l) => (
-                  <li key={l}>{l}</li>
-                ))}
-              </ul>
-            )}
-            <p className="text-muted">We don&apos;t email {firstName}. You can invite them again from Removed recently.</p>
-          </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={close}>
-              Keep {firstName}
-            </Button>
-            <SubmitButton variant="warn" pendingText="Removing…">
+          <Points
+            items={[
+              <>
+                {firstName} loses access {events === 1 ? "to that event" : `to those ${events} events`} right away
+                {kept.length > 0 ? <>, and stays on as {kept.map((k) => k.label).join(" and ")}</> : null}
+              </>,
+              ...leaves,
+              kept.length > 0 ? `${firstName} keeps their team spot` : "A team spot opens up",
+              `We don't email ${firstName}. You can invite them again from Removed recently`,
+            ]}
+          />
+          <WindowButtons keep={`Keep ${firstName}`} close={close}>
+            <SubmitButton variant="warn" pendingText="Removing…" data-solid>
               {events === 1 ? "Remove from this event" : `Remove from ${events} events`}
             </SubmitButton>
-          </div>
+          </WindowButtons>
         </ActionForm>
       </Window>
     </>
@@ -247,15 +309,18 @@ export function InviteAgainButton({
   const { ref, key, open, close } = useWindow();
   if (!events) {
     return (
-      <RowButton
+      <ConfirmButton
         action={action}
-        pendingText="Sending…"
         label={`Invite again: ${email}`}
-        confirm={`Invite ${email} to be a co-host again? We'll email them a new invitation.`}
+        title={`Invite ${email} to be a co-host again?`}
+        points={["We'll email them a new invitation", "It takes a team spot as soon as it's sent"]}
+        keepLabel="Not now"
         confirmLabel="Send invitation"
+        pendingText="Sending…"
+        danger={false}
       >
         Invite again
-      </RowButton>
+      </ConfirmButton>
     );
   }
   if (!events.length) return <p className="text-sm text-muted">Add an event to invite them again</p>;
@@ -276,14 +341,11 @@ export function InviteAgainButton({
               ))}
             </Select>
           </Field>
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={close}>
-              Not now
-            </Button>
+          <WindowButtons keep="Not now" close={close}>
             <SubmitButton pendingText="Sending…" data-solid>
               Send invitation
             </SubmitButton>
-          </div>
+          </WindowButtons>
         </ActionForm>
       </Window>
     </>

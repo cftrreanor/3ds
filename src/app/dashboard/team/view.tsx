@@ -16,7 +16,7 @@ import {
   resendTeamInvitation,
 } from "../team-actions";
 import { personName, type HostView, type Invite, type LeadView, type MyRole, type MyTeam, type TeamAccount, type Person, type Removal, type RoleOn, type StaffRole, type TeamEvent } from "./load";
-import { CopyInviteLink, InviteAgainButton, InviteCoHostButton, RemovePersonButton, RowButton, type RemoveChoice } from "./team-ui";
+import { ConfirmButton, CopyInviteLink, InviteAgainButton, InviteCoHostButton, RemovePersonButton, RowButton, type RemoveChoice } from "./team-ui";
 
 const ROLE: Record<StaffRole | "co_host", string> = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator", co_host: "Co-host" };
 const short = (date: string) => formatDate(date.slice(0, 10), { year: undefined });
@@ -181,24 +181,36 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                 detail={[h.profile.email, formatPhone(h.profile.phone), h.role === "admin" ? "Every event" : null]}
                 actions={
                   h.role === "admin" && you ? (
-                    <RowButton
+                    <ConfirmButton
                       action={removeAccountCoHost.bind(null, org.id, h.userId, name)}
-                      pendingText="Leaving…"
-                      confirm={`Stop being a co-host? You lose access to every ${org.name} event right away. To come back, ask ${accountHostName} to invite you again.`}
+                      title="Stop being a co-host?"
+                      points={[
+                        `You lose access to every ${org.name} event right away`,
+                        "A team spot opens up",
+                        `To come back, ask ${accountHostName} to invite you again`,
+                      ]}
+                      keepLabel="Stay a co-host"
                       confirmLabel="Stop being a co-host"
+                      pendingText="Leaving…"
                     >
                       Stop being a co-host
-                    </RowButton>
+                    </ConfirmButton>
                   ) : h.role === "admin" && isAccountHost ? (
-                    <RowButton
+                    <ConfirmButton
                       action={removeAccountCoHost.bind(null, org.id, h.userId, name)}
-                      pendingText="Removing…"
                       label={`Remove… ${name}`}
-                      confirm={`Remove ${name} as co-host? ${first(name)} loses access to every event right away, and stops leading any jobs. A team spot opens up. We don't email ${first(name)}. You can invite them again from Removed recently.`}
+                      title={`Remove ${name} as co-host?`}
+                      points={[
+                        `${first(name)} loses access to every event right away, and stops leading any jobs`,
+                        "A team spot opens up",
+                        `We don't email ${first(name)}. You can invite them again from Removed recently`,
+                      ]}
+                      keepLabel={`Keep ${first(name)}`}
                       confirmLabel="Remove co-host"
+                      pendingText="Removing…"
                     >
                       Remove…
-                    </RowButton>
+                    </ConfirmButton>
                   ) : null
                 }
               />
@@ -439,15 +451,17 @@ function InviteRow({ invite: inv, manage, what, full = false }: { invite: Invite
           )}
           {!inv.expired && <CopyInviteLink url={inv.link} email={inv.email} />}
           {manage && (
-            <RowButton
+            <ConfirmButton
               action={cancelTeamInvitation.bind(null, inv.id)}
-              pendingText="Cancelling…"
               label={`Cancel invitation for ${inv.email}`}
-              confirm={`Cancel the invitation for ${inv.email}? Their link stops working, and the team spot it holds is free.`}
+              title={`Cancel the invitation for ${inv.email}?`}
+              points={["Their link stops working right away", "A team spot opens up", "You can invite them again any time"]}
+              keepLabel="Keep invitation"
               confirmLabel="Cancel invitation"
+              pendingText="Cancelling…"
             >
               Cancel invitation
-            </RowButton>
+            </ConfirmButton>
           )}
         </>
       }
@@ -611,15 +625,20 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
             }
             detail={[short(r.event.starts_on), r.accountHost ? `Account Host: ${r.accountHost.name}` : null]}
             actions={
-              <RowButton
+              <ConfirmButton
                 action={leaveEvent.bind(null, r.event.id, r.role, r.event.name)}
-                pendingText="Leaving…"
                 label={`Leave this event: ${r.event.name}`}
-                confirm={`Leave ${r.event.name}? You lose access to its volunteer pages right away${r.role === "section_lead" ? ", and stop leading your jobs" : ""}. To come back, ask ${r.accountHost?.name ?? "the Account Host"} to invite you again.`}
+                title={`Leave ${r.event.name}?`}
+                points={[
+                  `You lose access to this event right away${r.role === "section_lead" ? ", and stop leading your jobs" : ""}`,
+                  `To come back, ask ${r.accountHost?.name ?? "the Account Host"} to invite you again`,
+                ]}
+                keepLabel="Stay on this event"
                 confirmLabel="Leave this event"
+                pendingText="Leaving…"
               >
                 Leave this event
-              </RowButton>
+              </ConfirmButton>
             }
           />
         ))}
