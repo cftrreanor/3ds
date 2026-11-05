@@ -7980,6 +7980,40 @@ do $$ begin
          'someone outside the account sees no contact';
 end $$;
 set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
+-- Past helpers stop seeing an event 10 days after it ends (20270117000000); hosts keep it.
+reset role;
+insert into public.events (id, organization_id, name, slug, status, event_type, starts_on, ends_on, window_start, window_end, venue_address, timezone) values
+  ('7d000000-0000-0000-0000-0000000000e3', '7d000000-0000-0000-0000-000000000001', 'Long Over', 'team-long-over', 'draft', 'volunteer',
+   current_date - 20, current_date - 20, now() - interval '20 days', now() - interval '20 days' + interval '6 hours', '1 Fair Rd', 'America/Chicago'),
+  ('7d000000-0000-0000-0000-0000000000e4', '7d000000-0000-0000-0000-000000000001', 'Just Over', 'team-just-over', 'draft', 'volunteer',
+   current_date - 5, current_date - 5, now() - interval '5 days', now() - interval '5 days' + interval '6 hours', '1 Fair Rd', 'America/Chicago');
+set session_replication_role = replica;
+insert into public.event_staff (event_id, user_id, role) values
+  ('7d000000-0000-0000-0000-0000000000e3', '0000007e-0000-0000-0000-000000000004', 'volunteer_director'),
+  ('7d000000-0000-0000-0000-0000000000e4', '0000007e-0000-0000-0000-000000000004', 'volunteer_director');
+set session_replication_role = origin;
+set role authenticated;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.events where id = '7d000000-0000-0000-0000-0000000000e3'),
+         'a past Volunteer Lead can''t see an event 10 days after it ends';
+  assert not public.can_manage_volunteers('7d000000-0000-0000-0000-0000000000e3'), 'or manage its volunteers';
+  assert not exists (select 1 from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e3'), 'or see its team';
+  assert exists (select 1 from public.events where id = '7d000000-0000-0000-0000-0000000000e4'), 'within 10 days they still can';
+  assert public.can_manage_volunteers('7d000000-0000-0000-0000-0000000000e4'), 'and still manage it';
+end $$;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
+do $$ begin
+  assert exists (select 1 from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e3'),
+         'the Account Host still sees past teams (their history)';
+end $$;
+reset role;
+set session_replication_role = replica;
+delete from public.event_staff where event_id in ('7d000000-0000-0000-0000-0000000000e3', '7d000000-0000-0000-0000-0000000000e4');
+set session_replication_role = origin;
+delete from public.events where id in ('7d000000-0000-0000-0000-0000000000e3', '7d000000-0000-0000-0000-0000000000e4');
+set role authenticated;
+
 -- Someone who already holds a spot can have their expired invitation sent again.
 reset role;
 update public.invitations set email = 'tmvl@example.com' where email = 'tmexpired@example.com';

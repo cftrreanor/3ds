@@ -283,7 +283,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
           <h2 id="past-heading" className="text-xl font-semibold">
             Past events
           </h2>
-          <p className="text-sm leading-6 text-muted">Helpers whose events are over. They don&apos;t hold a team spot, and can&apos;t see those events anymore.</p>
+          <p className="text-sm leading-6 text-muted">Their events are over, so they don&apos;t hold a team spot. 10 days after an event, they can&apos;t see it or its team anymore.</p>
           <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
             {view.past.map((p) => {
               const last = p.roles[p.roles.length - 1];
