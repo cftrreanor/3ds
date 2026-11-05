@@ -12,6 +12,7 @@ import { invitationEmail, invitationEmailKey, type InvitationDetails } from "@/l
 import { loadSystemEmail } from "@/lib/system-email-overrides";
 import { hasBands, leadWords } from "@/lib/event-types";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { utcToZonedDate } from "@/lib/time";
 
 const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email("Please enter a valid email address."),
@@ -294,30 +295,37 @@ export async function cancelTeamInvitation(invitationId: string): Promise<Action
 }
 
 /**
- * Remove a Volunteer Lead or Coordinator: from the roles picked in the window ("eventId:role"),
- * or from every event on the account ("all").
+ * Remove a Volunteer Lead or Coordinator from the roles picked in the window ("eventId:role" each).
+ * Roles on events that are over are kept: they're the person's history (Past events, Invite again).
  */
-export async function removeFromEvents(orgId: string, userId: string, name: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+export async function removeFromEvents(userId: string, name: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const supabase = await createClient();
-  const picked = formData.getAll("pick").map(String);
-  let query = supabase.from("event_staff").delete().eq("user_id", userId);
-  if (picked.includes("all")) {
-    const { data: events } = await supabase.from("events").select("id").eq("organization_id", orgId);
-    query = query.in("event_id", (events ?? []).map((e) => e.id));
-  } else {
-    const pairs = picked
-      .map((p) => p.split(":"))
-      .filter(([eventId, role]) => UUID.test(eventId ?? "") && STAFF_ROLES.includes(role as StaffRole));
-    if (!pairs.length) return { error: "Choose what to remove them from." };
-    query = query.or(pairs.map(([eventId, role]) => `and(event_id.eq.${eventId},role.eq.${role})`).join(","));
-  }
-  const { data, error } = await query.select("event_id");
+  const pairs = formData
+    .getAll("pick")
+    .map((p) => String(p).split(":"))
+    .filter(([eventId, role]) => UUID.test(eventId ?? "") && STAFF_ROLES.includes(role as StaffRole));
+  if (!pairs.length) return { error: "Choose what to remove them from." };
+  const { data: events } = await supabase
+    .from("events")
+    .select("id, ends_on, timezone")
+    .in("id", [...new Set(pairs.map(([eventId]) => eventId))]);
+  const upcoming = new Set(
+    (events ?? []).filter((e) => e.ends_on >= utcToZonedDate(new Date().toISOString(), e.timezone || "America/Chicago")).map((e) => e.id),
+  );
+  const current = pairs.filter(([eventId]) => upcoming.has(eventId));
+  if (!current.length) return { error: `Those events are over, so ${name}'s roles stay in their history.` };
+  const { data, error } = await supabase
+    .from("event_staff")
+    .delete()
+    .eq("user_id", userId)
+    .or(current.map(([eventId, role]) => `and(event_id.eq.${eventId},role.eq.${role})`).join(","))
+    .select("event_id");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: `${name} wasn't removed. They may have been removed already, or it isn't yours to do.` };
   revalidatePath("/dashboard", "layout");
-  const events = new Set(data.map((d) => d.event_id)).size;
-  return { ok: true, message: `Removed ${name} from ${events === 1 ? "1 event" : `${events} events`}.` };
+  const removed = new Set(data.map((d) => d.event_id)).size;
+  return { ok: true, message: `Removed ${name} from ${removed === 1 ? "1 event" : `${removed} events`}.` };
 }
 
 /** Remove a co-host from the account (the Account Host), or stop being one (the co-host). */

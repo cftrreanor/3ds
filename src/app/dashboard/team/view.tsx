@@ -296,7 +296,7 @@ function PersonRow({ person, orgId }: { person: Person; orgId: string }) {
     <Row
       title={name}
       detail={[person.profile.email, formatPhone(person.profile.phone)]}
-      actions={<RemovePersonButton name={name} firstName={first(name)} choices={choices} action={removeFromEvents.bind(null, orgId, person.userId, name)} />}
+      actions={<RemovePersonButton name={name} firstName={first(name)} choices={choices} action={removeFromEvents.bind(null, person.userId, name)} />}
     >
       <RoleLines roles={person.roles} link={(e) => `/dashboard/events/${e.id}/edit?section=team`} />
     </Row>
@@ -472,7 +472,7 @@ function LeadSections({ view }: { view: LeadView }) {
                           name={name}
                           firstName={first(name)}
                           choices={[{ value: `${event.id}:section_lead`, label: `Coordinator of ${event.name}`, leaves: leftEmpty(role) }]}
-                          action={removeFromEvents.bind(null, "", p.userId, name)}
+                          action={removeFromEvents.bind(null, p.userId, name)}
                         />
                       )
                     }

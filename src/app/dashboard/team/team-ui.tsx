@@ -170,16 +170,18 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
       </Button>
       <Window dialogRef={ref} formKey={key} close={close} title={one ? `Remove ${name} as ${choices[0].label}?` : `Remove ${name}?`}>
         <ActionForm action={action} onSuccess={close} className="mt-3 space-y-4">
-          {one ? (
-            <input type="hidden" name="pick" value={choices[0].value} />
-          ) : (
+          {/* Exactly the roles listed here: "every role" never reaches past events or roles added since. */}
+          {chosen.map((c) => (
+            <input key={c.value} type="hidden" name="pick" value={c.value} />
+          ))}
+          {!one && (
             <fieldset className="space-y-1">
               <legend className="mb-1 text-sm font-medium">Remove them from</legend>
               {[{ value: "all", label: `Every role below (${choices.length})`, leaves: [] }, ...choices].map((c) => (
                 <label key={c.value} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 text-sm hover:bg-background">
                   <input
                     type="radio"
-                    name="pick"
+                    name="choice"
                     value={c.value}
                     checked={pick === c.value}
                     onChange={() => setPick(c.value)}
