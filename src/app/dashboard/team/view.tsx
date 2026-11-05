@@ -233,11 +233,18 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
         canInvite={(r) => !full && (r.role === "co_host" ? isAccountHost : spots.eventStaff)}
       />
 
-      <p className="flex items-center gap-2 text-sm text-muted">
-        <LineIcon name="lock" className="size-4" />
-        {REMOVAL_NOTE}
-      </p>
+      <PrivacyNote>Only {org.name}&apos;s hosts and co-hosts see this page&apos;s emails and phone numbers. {REMOVAL_NOTE}</PrivacyNote>
     </>
+  );
+}
+
+/** Who sees the people's details on this page, and what removing does. */
+function PrivacyNote({ children }: { children: ReactNode }) {
+  return (
+    <p className="flex items-start gap-2 text-sm leading-6 text-muted">
+      <LineIcon name="lock" className="mt-1 size-4" />
+      <span>{children}</span>
+    </p>
   );
 }
 
@@ -477,10 +484,7 @@ function LeadSections({ view }: { view: LeadView }) {
         </section>
       ))}
       <RemovedRecently removed={view.removed} orgId="" events={upcoming} canInvite={() => true} />
-      <p className="flex items-center gap-2 text-sm text-muted">
-        <LineIcon name="lock" className="size-4" />
-        {REMOVAL_NOTE}
-      </p>
+      <PrivacyNote>Coordinators&apos; emails and phone numbers are seen by the event&apos;s hosts and Volunteer Leads. {REMOVAL_NOTE}</PrivacyNote>
     </>
   );
 }

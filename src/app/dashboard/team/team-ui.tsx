@@ -92,7 +92,7 @@ export function InviteCoHostButton({ action, spotNote, blockedBy, powers }: { ac
           </Field>
           <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={close}>
-              Cancel
+              Not now
             </Button>
             <SubmitButton pendingText="Sending…">Send invitation</SubmitButton>
           </div>
@@ -261,7 +261,7 @@ export function InviteAgainButton({
           </Field>
           <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={close}>
-              Cancel
+              Not now
             </Button>
             <SubmitButton pendingText="Sending…">Send invitation</SubmitButton>
           </div>
