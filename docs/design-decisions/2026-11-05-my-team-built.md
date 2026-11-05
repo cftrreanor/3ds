@@ -38,10 +38,16 @@ Review: docs/design-reviews/2026-11-05-my-team-built.md
 
 | Finding | Severity | Decision | Notes |
 |---|---|---|---|
-| Full team: Invite a co-host asks for an email instead of picking someone | 3 | _Waiting for the owner_ | The contradicting hint is already fixed |
+| Full team: Invite a co-host asks for an email instead of picking someone | 3 | Take the advice | Owner: pick from a list. On a full team the button becomes "Make someone a co-host", listing Volunteer Leads, Coordinators, and open invitations by name and role |
 | Removal email says "off the team" when they keep a role | 3 | Fixed (bug) | Names what was actually removed and what they still are |
 | Rows crushed on tablets with the accounts menu | 3 | Fixed (bug) | Rows lay out by the card's width |
 | Past Volunteer Leads still saw volunteer history | 3 | Fixed (part of decision 6) | Same 10-day cut-off, with tests; past roles can't be left |
 | Full team: blocked actions still offered to Volunteer Leads and in the no-Coordinator note | 2 | Fixed (bug) | |
 | Unlimited plans mention team spots | 2 | Fixed (bug) | |
 | Lead and event-team loads fail as empty pages | 2 | Fixed (project rule) | |
+| Removing someone doesn't tell the event's Volunteer Lead | 2 | Take the advice | Removal emails the event's other Volunteer Leads, and the Account Host when someone else removed them |
+| Coordinators can't see their Volunteer Lead | 2 | Take the advice | Name and email (no phone) via event_volunteer_leads(), with tests; the Account Host second; the privacy note says so |
+| Dark-mode windows, faint radios, remove window defaults to "every role", calm "Link expired" | 2 | Take the advice | Raised window color and darker backdrop in dark mode; drawn radios; nothing picked to start; warning badge for expired |
+| Wording leftovers and the accounts menu | 1-2 | Take the advice | "Removed or left recently"; co-host email editor text; "canceled"; bullet periods; real role in the menu; a label, not a heading; one-line Switch on phones |
+| Full team shows blocked actions three ways | 2 | Partly done | Blocked actions now say why in place; making someone on a full team a co-host still works as a button, on purpose |
+| Leave window's "Volunteer Leads" when there's only one, and other polish (Feedback tab overlap, "led" and "leads") | 1 | Later | Logged, not in this PR |
