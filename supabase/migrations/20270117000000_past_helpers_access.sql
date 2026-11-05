@@ -29,3 +29,23 @@ as $$
        and (now() at time zone e.timezone)::date <= e.ends_on + 10
   );
 $$;
+
+-- Volunteer tracking (the account's volunteer history) follows the same cut-off: a Volunteer
+-- Lead sees it while one of their events there isn't more than 10 days over.
+create or replace function public.can_see_volunteer_history(p_org uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select public.is_org_admin(p_org)
+      or exists (select 1 from event_staff s join events e on e.id = s.event_id
+                  where e.organization_id = p_org and s.user_id = auth.uid() and s.role = 'volunteer_director'
+                    and (now() at time zone e.timezone)::date <= e.ends_on + 10);
+$$;
+
+-- Leaving is for events that aren't over: a past role is history (My team's Past events).
+drop policy "staff: leave" on public.event_staff;
+create policy "staff: leave" on public.event_staff
+  for delete to authenticated
+  using (user_id = auth.uid()
+         and exists (select 1 from events e where e.id = event_id
+                      and e.ends_on >= (now() at time zone e.timezone)::date));

@@ -136,7 +136,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
             </>
           ) : (
             <>
-              {plural(spots.used, "person", "people")} on the team, counting you{invitations}.
+              {plural(spots.used, "team spot", "team spots")} in use, counting you{invitations}. Your {spots.plan} plan has no limit on team spots.
             </>
           )}
         </p>
@@ -171,7 +171,9 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
               }
               spotNote={
                 spots.max !== null
-                  ? `We'll email them a link that works for 30 days. The invitation takes 1 of your ${spots.max} team spots as soon as it's sent (${spots.used} in use now).`
+                  ? full
+                    ? "We'll email them a link that works for 30 days. Someone already on your team doesn't take another spot."
+                    : `We'll email them a link that works for 30 days. The invitation takes 1 of your ${spots.max} team spots as soon as it's sent (${spots.used} in use now).`
                   : "We'll email them a link that works for 30 days."
               }
             />
@@ -202,7 +204,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                       title="Stop being a co-host?"
                       points={[
                         `You lose access to every ${org.name} event right away`,
-                        "A team spot opens up",
+                        ...(spots.max !== null ? ["A team spot opens up"] : []),
                         `To come back, ask ${accountHostName} to invite you again`,
                       ]}
                       keepLabel="Stay a co-host"
@@ -217,8 +219,9 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
                       label={`Remove… ${name}`}
                       title={`Remove ${name} as co-host?`}
                       points={[
-                        `${first(name)} loses access to every event right away, and stops leading any jobs`,
-                        "A team spot opens up",
+                        `${first(name)} loses co-host access to every event right away`,
+                        "Jobs they lead on events they aren't on the team for will need a new Coordinator",
+                        ...(spots.max !== null ? ["A team spot opens up"] : []),
                         "You can invite them again from Removed recently",
                       ]}
                       notifyLabel={`Let ${first(name)} know by email`}
@@ -234,7 +237,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
             );
           })}
           {view.coHostInvites.map((inv) => (
-            <InviteRow key={inv.id} invite={inv} manage={isAccountHost} what="Co-host" full={full} />
+            <InviteRow key={inv.id} invite={inv} manage={isAccountHost} what="Co-host" full={full} limited={spots.max !== null} />
           ))}
         </ul>
       </section>
@@ -255,17 +258,17 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
           </h2>
           {spots.eventStaff && (
             <p className="text-sm leading-6 text-muted">
-              Volunteer Leads run volunteers for one event. Coordinators lead one job on the day, like parking or the gate. Each holds a team spot
-              until their event is over.
+              Volunteer Leads run volunteers for one event. Coordinators lead one job on the day, like parking or the gate.
+              {spots.max !== null && " Each holds a team spot until their event is over."}
             </p>
           )}
           {view.people.length || view.eventInvites.length ? (
             <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
               {view.people.map((p) => (
-                <PersonRow key={p.userId} person={p} />
+                <PersonRow key={p.userId} person={p} limited={spots.max !== null} />
               ))}
               {view.eventInvites.map((inv) => (
-                <InviteRow key={inv.id} invite={inv} manage what={ROLE[inv.role ?? "section_lead"]} full={full} />
+                <InviteRow key={inv.id} invite={inv} manage what={ROLE[inv.role ?? "section_lead"]} full={full} limited={spots.max !== null} />
               ))}
             </ul>
           ) : (
@@ -273,7 +276,7 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
               <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted">No Volunteer Leads or Coordinators on upcoming events.</p>
             )
           )}
-          <NeedsCoordinator view={view} />
+          <NeedsCoordinator view={view} full={full} />
           <AddStaffLinks view={view} canAdd={canAddStaff} />
         </section>
       )}
@@ -357,7 +360,7 @@ function PrivacyNote({ children }: { children: ReactNode }) {
  * After a Coordinator leaves or is removed (in the last 30 days), the jobs on that event with
  * nobody leading them, so a gap doesn't go unnoticed. Calm, not a warning: jobs can run without one.
  */
-function NeedsCoordinator({ view }: { view: HostView }) {
+function NeedsCoordinator({ view, full }: { view: HostView; full: boolean }) {
   if (!view.gaps.length) return null;
   return (
     <ul className="space-y-2">
@@ -365,9 +368,13 @@ function NeedsCoordinator({ view }: { view: HostView }) {
         <li key={event.id} className="rounded-lg border border-border bg-surface px-4 py-3 text-sm leading-6">
           <strong className="font-semibold">{open.join(", ")}</strong> at {event.name} {open.length === 1 ? "has" : "have"} no Coordinator. {gone.name}{" "}
           {gone.left ? "left" : "was removed"} {short(gone.removedAt)}.{" "}
-          <Link href={`/dashboard/events/${event.id}/edit?section=team`} className={LINK}>
-            Invite a Coordinator
-          </Link>
+          {full ? (
+            <span className="text-muted">Free a team spot to invite one.</span>
+          ) : (
+            <Link href={`/dashboard/events/${event.id}/edit?section=team`} className={LINK}>
+              Invite a Coordinator
+            </Link>
+          )}
         </li>
       ))}
     </ul>
@@ -424,7 +431,7 @@ function AddStaffLinks({ view, canAdd }: { view: HostView; canAdd: boolean }) {
 }
 
 /** One Volunteer Lead or Coordinator, every role they have, and one "Remove…". */
-function PersonRow({ person }: { person: Person }) {
+function PersonRow({ person, limited }: { person: Person; limited: boolean }) {
   const name = personName(person.profile);
   const choices: RemoveChoice[] = person.roles.map((r) => ({
     value: `${r.event.id}:${r.role}`,
@@ -435,7 +442,9 @@ function PersonRow({ person }: { person: Person }) {
     <Row
       title={name}
       detail={[person.profile.email, formatPhone(person.profile.phone)]}
-      actions={<RemovePersonButton name={name} firstName={first(name)} choices={choices} action={removeFromEvents.bind(null, person.userId, name)} />}
+      actions={
+        <RemovePersonButton name={name} firstName={first(name)} choices={choices} limited={limited} action={removeFromEvents.bind(null, person.userId, name)} />
+      }
     >
       <RoleLines roles={person.roles} link={(e) => `/dashboard/events/${e.id}/edit?section=team`} />
     </Row>
@@ -472,7 +481,20 @@ function RoleLines({ roles, link }: { roles: RoleOn[]; link?: (e: TeamEvent) => 
   );
 }
 
-function InviteRow({ invite: inv, manage, what, full = false }: { invite: Invite; manage: boolean; what: string; full?: boolean }) {
+function InviteRow({
+  invite: inv,
+  manage,
+  what,
+  full = false,
+  limited = true,
+}: {
+  invite: Invite;
+  manage: boolean;
+  what: string;
+  full?: boolean;
+  /** The plan limits team spots (so cancelling frees one). */
+  limited?: boolean;
+}) {
   // An expired link says so first, and offers a new link instead of copying the dead one.
   return (
     <Row
@@ -508,7 +530,7 @@ function InviteRow({ invite: inv, manage, what, full = false }: { invite: Invite
               action={cancelTeamInvitation.bind(null, inv.id)}
               label={`Cancel invitation for ${inv.email}`}
               title={`Cancel the invitation for ${inv.email}?`}
-              points={["Their link stops working right away", "A team spot opens up", "You can invite them again any time"]}
+              points={["Their link stops working right away", ...(limited ? ["A team spot opens up"] : []), "You can invite them again any time"]}
               keepLabel="Keep invitation"
               confirmLabel="Cancel invitation"
               pendingText="Cancelling…"
@@ -644,7 +666,7 @@ function LeadSections({ view }: { view: LeadView }) {
                 );
               })}
               {invites.map((inv) => (
-                <InviteRow key={inv.id} invite={{ ...inv, event: null }} manage what="Coordinator" />
+                <InviteRow key={inv.id} invite={{ ...inv, event: null }} manage what="Coordinator" full={view.full} />
               ))}
             </ul>
           ) : (
@@ -738,13 +760,16 @@ function MyRoles({ roles, other }: { roles: MyRole[]; other: boolean }) {
 /** One person or invitation: who, details, and buttons on the right (below on phones). */
 function Row({ title, detail, actions, children }: { title: ReactNode; detail: (string | null | undefined)[]; actions?: ReactNode; children?: ReactNode }) {
   return (
-    <li className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold leading-7 [overflow-wrap:anywhere]">{title}</p>
-        <p className="text-sm leading-6 text-muted">{detail.filter(Boolean).join(" · ")}</p>
-        {children}
+    // Side by side only when the card itself is wide enough (not the screen: the accounts menu narrows it).
+    <li className="@container">
+      <div className="flex flex-col gap-3 px-4 py-3 @xl:flex-row @xl:items-start @xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold leading-7 [overflow-wrap:anywhere]">{title}</p>
+          <p className="text-sm leading-6 text-muted">{detail.filter(Boolean).join(" · ")}</p>
+          {children}
+        </div>
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </li>
   );
 }

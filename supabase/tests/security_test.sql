@@ -8001,7 +8001,41 @@ do $$ begin
   assert not exists (select 1 from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e3'), 'or see its team';
   assert exists (select 1 from public.events where id = '7d000000-0000-0000-0000-0000000000e4'), 'within 10 days they still can';
   assert public.can_manage_volunteers('7d000000-0000-0000-0000-0000000000e4'), 'and still manage it';
+  -- Leaving an event that's over doesn't erase it from their history.
+  delete from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e4' and user_id = '0000007e-0000-0000-0000-000000000004';
 end $$;
+reset role;
+do $$ begin
+  assert exists (select 1 from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e4'
+                   and user_id = '0000007e-0000-0000-0000-000000000004'), 'a past role can''t be left (it''s history)';
+end $$;
+-- Volunteer history, with only past events left: refused once they're more than 10 days over.
+set session_replication_role = replica;
+create temp table tm_lead_rows as
+  select * from public.event_staff where user_id = '0000007e-0000-0000-0000-000000000004'
+     and event_id not in ('7d000000-0000-0000-0000-0000000000e3', '7d000000-0000-0000-0000-0000000000e4');
+delete from public.event_staff where user_id = '0000007e-0000-0000-0000-000000000004'
+   and event_id not in ('7d000000-0000-0000-0000-0000000000e3', '7d000000-0000-0000-0000-0000000000e4');
+set session_replication_role = origin;
+set role authenticated;
+do $$ begin
+  assert public.can_see_volunteer_history('7d000000-0000-0000-0000-000000000001'), 'within 10 days of their event, a Volunteer Lead sees volunteer history';
+end $$;
+reset role;
+set session_replication_role = replica;
+delete from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e4' and user_id = '0000007e-0000-0000-0000-000000000004';
+set session_replication_role = origin;
+set role authenticated;
+do $$ begin
+  assert not public.can_see_volunteer_history('7d000000-0000-0000-0000-000000000001'),
+         'with only an event over 10 days ago, a past Volunteer Lead can''t see volunteer history';
+end $$;
+reset role;
+set session_replication_role = replica;
+insert into public.event_staff select * from tm_lead_rows;
+set session_replication_role = origin;
+drop table tm_lead_rows;
+set role authenticated;
 set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
 do $$ begin
   assert exists (select 1 from public.event_staff where event_id = '7d000000-0000-0000-0000-0000000000e3'),

@@ -325,11 +325,12 @@ export async function removeFromEvents(userId: string, name: string, _prev: Acti
     .delete()
     .eq("user_id", userId)
     .or(current.map(([eventId, role]) => `and(event_id.eq.${eventId},role.eq.${role})`).join(","))
-    .select("event_id");
+    .select("event_id, role");
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: `${name} wasn't removed. They may have been removed already, or it isn't yours to do.` };
   const label = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator" } as const;
-  const roleNames = current.map(([eventId, role]) => `${label[role as StaffRole]} of ${(events ?? []).find((e) => e.id === eventId)?.name ?? "an event"}`);
+  // The email names what was actually removed (not what was asked for).
+  const roleNames = data.map((d) => `${label[d.role as StaffRole]} of ${(events ?? []).find((e) => e.id === d.event_id)?.name ?? "an event"}`);
   await tellRemoved(formData, userId, (events ?? [])[0]?.organization_id ?? null, roleNames);
   revalidatePath("/dashboard", "layout");
   const removed = new Set(data.map((d) => d.event_id)).size;
@@ -367,6 +368,10 @@ export async function leaveEvent(eventId: string, role: StaffRole, eventName: st
   const user = await requireUser();
   if (!STAFF_ROLES.includes(role)) return { error: "You don't have permission to do that." };
   const supabase = await createClient();
+  const { data: ev } = await supabase.from("events").select("ends_on, timezone").eq("id", eventId).maybeSingle();
+  if (ev && ev.ends_on < utcToZonedDate(new Date().toISOString(), ev.timezone || "America/Chicago")) {
+    return { error: "That event is over, so there's nothing to leave. It stays in your history." };
+  }
   // Before leaving: the jobs they lead (leaving takes them off those).
   const [{ data: led }, { data: me }] = await Promise.all([
     supabase.from("station_leads").select("stations(name)").eq("event_id", eventId).eq("user_id", user.id),
@@ -382,16 +387,22 @@ export async function leaveEvent(eventId: string, role: StaffRole, eventName: st
   if (error) return { error: friendlyDbError(error) };
   if (!data?.length) return { error: "You've already left that event." };
   const jobs = role === "section_lead" ? ((led ?? []) as unknown as { stations: { name: string } | null }[]).map((l) => l.stations?.name).filter((n): n is string => !!n) : [];
-  await tellHostsSomeoneLeft(eventId, user.id, me?.full_name || user.email, role, jobs);
+  const told = await tellHostsSomeoneLeft(eventId, user.id, me?.full_name || user.email, role, jobs);
   revalidatePath("/dashboard", "layout");
-  return { ok: true, message: `You've left ${eventName}. We've let the Account Host and the event's Volunteer Leads know.` };
+  return {
+    ok: true,
+    message: told ? `You've left ${eventName}. We've let ${told} know.` : `You've left ${eventName}. Let the Account Host know yourself: our email didn't go out.`,
+  };
 }
 
-/** Email the event's Account Host and Volunteer Leads that someone left (server side: the leaver can't read them). */
-async function tellHostsSomeoneLeft(eventId: string, leaverId: string, who: string, role: StaffRole, jobs: string[]) {
+/**
+ * Email the event's Account Host and Volunteer Leads that someone left (server side: the leaver
+ * can't read them). Returns who was told, in words, or null when no email went out.
+ */
+async function tellHostsSomeoneLeft(eventId: string, leaverId: string, who: string, role: StaffRole, jobs: string[]): Promise<string | null> {
   const admin = createAdminClient();
   const { data: event } = await admin.from("events").select("id, name, starts_on, ends_on, organization_id").eq("id", eventId).maybeSingle();
-  if (!event) return;
+  if (!event) return null;
   const [{ data: owner }, { data: leads }] = await Promise.all([
     admin.from("organization_members").select("profiles(email)").eq("organization_id", event.organization_id).eq("role", "owner").maybeSingle(),
     admin.from("event_staff").select("user_id, profiles(email)").eq("event_id", eventId).eq("role", "volunteer_director"),
@@ -410,7 +421,10 @@ async function tellHostsSomeoneLeft(eventId: string, leaverId: string, who: stri
     noLead: role === "volunteer_director" && leadRows.filter((l) => l.user_id !== leaverId).length === 0,
     setupUrl: `${await getOrigin()}/dashboard/events/${eventId}/edit?section=team`,
   });
-  await Promise.all([...to].map((addr) => sendEmail({ to: addr, subject, html, text })));
+  const sent = await Promise.all([...to].map((addr) => sendEmail({ to: addr, subject, html, text })));
+  if (!sent.some(Boolean)) return null;
+  const others = leadRows.filter((l) => l.user_id !== leaverId).length;
+  return others ? "the Account Host and the event's Volunteer Lead" + (others > 1 ? "s" : "") : "the Account Host";
 }
 
 /** Email someone that they were removed, when the remover ticked "Let them know by email". */
@@ -424,10 +438,23 @@ async function tellRemoved(formData: FormData, removedId: string, orgId: string 
     orgId ? admin.from("organizations").select("name").eq("id", orgId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   if (!person?.email) return;
+  // The roles they keep on this account's events that aren't over, so the email doesn't say they're off the team.
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: kept } = orgId
+    ? await admin
+        .from("event_staff")
+        .select("role, events!inner(name, organization_id, ends_on)")
+        .eq("user_id", removedId)
+        .eq("events.organization_id", orgId)
+        .gte("events.ends_on", today)
+    : { data: [] };
+  const label = { volunteer_director: "Volunteer Lead", section_lead: "Coordinator" } as const;
+  const keeps = ((kept ?? []) as unknown as { role: StaffRole; events: { name: string } }[]).map((k) => `${label[k.role]} of ${k.events.name}`);
   const { subject, html, text } = removedEmail({
     remover: me?.full_name || user.email,
-    organization: org?.name ?? "the account",
+    organization: org?.name ?? null,
     roles,
+    keeps,
     contact: user.email,
   });
   await sendEmail({ to: person.email, subject, html, text, replyTo: user.email });

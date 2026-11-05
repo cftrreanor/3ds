@@ -275,7 +275,20 @@ export type RemoveChoice = {
  * "Remove…": one quiet button per person. The window names each role, what removing it leaves
  * empty, and what stays; the red button says exactly what it removes.
  */
-export function RemovePersonButton({ name, firstName, choices, action }: { name: string; firstName: string; choices: RemoveChoice[]; action: Action }) {
+export function RemovePersonButton({
+  name,
+  firstName,
+  choices,
+  action,
+  limited = true,
+}: {
+  name: string;
+  firstName: string;
+  choices: RemoveChoice[];
+  action: Action;
+  /** The plan limits team spots, so the window says whether one opens up. */
+  limited?: boolean;
+}) {
   const { ref, key, open, close } = useWindow();
   const trigger = useRef<HTMLButtonElement>(null);
   const one = choices.length === 1;
@@ -337,7 +350,7 @@ export function RemovePersonButton({ name, firstName, choices, action }: { name:
                 {kept.length > 0 ? <>, and stays on as {kept.map((k) => k.label).join(" and ")}</> : null}
               </>,
               ...leaves,
-              kept.length > 0 ? `${firstName} keeps their team spot` : "A team spot opens up",
+              ...(limited ? [kept.length > 0 ? `${firstName} keeps their team spot` : "A team spot opens up"] : []),
               "You can invite them again from Removed recently",
             ]}
           />

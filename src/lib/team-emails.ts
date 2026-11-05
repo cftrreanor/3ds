@@ -40,25 +40,34 @@ export function leftEventEmail(o: {
   };
 }
 
-/** To someone who was removed, when the person removing them chose to let them know. */
+/**
+ * To someone who was removed, when the person removing them chose to let them know. Says what
+ * they're no longer, and what they still are, so a partial removal never reads as "off the team".
+ */
 export function removedEmail(o: {
   remover: string;
-  organization: string;
-  /** "Coordinator of Lone Star Marching Invitational", or "co-host" for the whole account. */
+  /** The account's name, if known. */
+  organization: string | null;
+  /** "Coordinator of Lone Star Marching Invitational", or "co-host". */
   roles: string[];
+  /** Roles they still have on the account's events. */
+  keeps: string[];
   /** Who to ask about it. */
   contact: string;
 }) {
-  const what = o.roles.join(" and ");
+  const coHost = o.roles.length === 1 && o.roles[0] === "co-host";
+  const what = coHost ? `a co-host${o.organization ? ` for ${o.organization}` : ""}` : o.roles.join(" and ");
+  const title = `You're no longer ${what}`;
   return {
-    subject: `You've been removed from ${o.organization}'s team`,
+    subject: title,
     ...emailLayout({
-      heading: `You're no longer on ${o.organization}'s team`,
+      heading: title,
       paragraphs: [
-        `${o.remover} removed you as ${what}. You can't see ${o.roles.length > 1 || o.roles[0] === ROLE.co_host ? "those events" : "that event"} in your account anymore.`,
+        `${o.remover} removed you as ${what}.`,
+        ...(o.keeps.length ? [`You're still ${o.keeps.join(" and ")}.`] : []),
         `Questions? Contact ${o.remover} at ${o.contact}.`,
       ],
-      footer: "If you weren't expecting this, you can ignore this email. Your account and any volunteer sign-ups of your own stay as they are.",
+      footer: "Your own account and any volunteer sign-ups you made stay as they are.",
     }),
   };
 }

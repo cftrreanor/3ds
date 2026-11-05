@@ -216,17 +216,27 @@ function recentRemovals(rows: RemovalRow[], events: Map<string, TeamEvent>, back
     }));
 }
 
+/** A failed load never shows as an empty team: say a database update is needed, or show the error page. */
+function check(results: { error: { code?: string; message: string } | null }[]) {
+  const failed = results.find((r) => r.error)?.error;
+  if (!failed) return;
+  if (isSchemaError(failed)) missing();
+  throw new Error(`My team couldn't load: ${failed.message}`);
+}
+
 const removedSince = () => new Date(Date.now() - REMOVED_RECENTLY_DAYS * 86_400_000).toISOString();
 
 export async function loadMyTeam(userId: string, origin: string, accountId?: string | null): Promise<MyTeam> {
   const supabase = await createClient();
-  const [{ data: memberData }, { data: mine }] = await Promise.all([
+  const [membersRes, mineRes] = await Promise.all([
     supabase.from("organization_members").select("organization_id, role, organizations(name)").eq("user_id", userId),
     supabase
       .from("event_staff")
       .select("role, event_id, events(id, name, starts_on, ends_on, timezone, organization_id)")
       .eq("user_id", userId),
   ]);
+  check([membersRes, mineRes]);
+  const [memberData, mine] = [membersRes.data, mineRes.data];
   const memberships = (memberData ?? []) as unknown as { organization_id: string; role: "owner" | "admin"; organizations: { name: string } | null }[];
   const myStaff = ((mine ?? []) as unknown as { role: StaffRole; event_id: string; events: (EventRow & { organization_id: string }) | null }[]).filter(
     (s) => s.events && !toEvent(s.events).ended,
@@ -385,7 +395,7 @@ async function loadLeadView(ledEvents: TeamEvent[], origin: string, orgId: strin
   const supabase = await createClient();
   const ids = ledEvents.map((e) => e.id);
   const events = new Map(ledEvents.map((e) => [e.id, e]));
-  const [{ data: staffData }, { data: leadData }, { data: inviteData }, { data: removalData }, { data: fullData }] = await Promise.all([
+  const leadResults = await Promise.all([
     supabase.from("event_staff").select("user_id, role, event_id, profiles(full_name, email, phone)").in("event_id", ids).eq("role", "section_lead").order("created_at"),
     supabase.from("station_leads").select("user_id, event_id, stations(name)").in("event_id", ids),
     supabase
@@ -404,6 +414,8 @@ async function loadLeadView(ledEvents: TeamEvent[], origin: string, orgId: strin
       .order("removed_at", { ascending: false }),
     supabase.rpc("team_is_full", { p_org: orgId }),
   ]);
+  check(leadResults);
+  const [{ data: staffData }, { data: leadData }, { data: inviteData }, { data: removalData }, { data: fullData }] = leadResults;
   const staff = (staffData ?? []) as unknown as StaffRow[];
   const leads = (leadData ?? []) as unknown as LeadRow[];
   const invites = ((inviteData ?? []) as unknown as InviteRow[]).map((i) => toInvite(i, events, origin));
@@ -439,7 +451,9 @@ async function accountContacts(orgIds: string[]) {
   const hosts = new Map<string, { name: string; email: string }>();
   const names = new Map<string, string>();
   if (!orgIds.length) return { hosts, names };
-  const { data } = await (await createClient()).rpc("account_contacts", { p_orgs: orgIds });
+  const res = await (await createClient()).rpc("account_contacts", { p_orgs: orgIds });
+  check([res]);
+  const data = res.data;
   for (const row of (data ?? []) as { organization_id: string; organization: string; host_name: string | null; host_email: string | null }[]) {
     names.set(row.organization_id, row.organization);
     if (row.host_email) hosts.set(row.organization_id, { name: row.host_name ?? row.host_email, email: row.host_email });
