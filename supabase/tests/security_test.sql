@@ -7933,6 +7933,18 @@ begin
   assert ok, 'someone outside the account can''t ask whether its team is full';
 end $$;
 set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
+-- People on an account's event team see who to ask; others see nothing (20270116000000).
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
+do $$ begin
+  assert (select host_email from public.account_contacts(array['7d000000-0000-0000-0000-000000000001'::uuid])) = 'tmowner@example.com',
+         'a Volunteer Lead sees the Account Host''s contact';
+end $$;
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000006","email":"stranger@example.com"}';
+do $$ begin
+  assert not exists (select 1 from public.account_contacts(array['7d000000-0000-0000-0000-000000000001'::uuid])),
+         'someone outside the account sees no contact';
+end $$;
+set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000001","email":"tmowner@example.com"}';
 -- Someone who already holds a spot can have their expired invitation sent again.
 reset role;
 update public.invitations set email = 'tmvl@example.com' where email = 'tmexpired@example.com';

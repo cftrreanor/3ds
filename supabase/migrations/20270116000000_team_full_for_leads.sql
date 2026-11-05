@@ -57,3 +57,22 @@ begin
   return null;
 end;
 $$;
+
+-- Who to ask: an account's name and its Account Host's name and email, for people on that
+-- account's event teams (who can't read the account's members). Only while one of their
+-- events there isn't over; hosts and co-hosts read their own account directly.
+create function public.account_contacts(p_orgs uuid[])
+returns table (organization_id uuid, organization text, host_name text, host_email text)
+language sql stable security definer set search_path = public
+as $$
+  select o.id, o.name, coalesce(nullif(p.full_name, ''), p.email::text), p.email::text
+    from organizations o
+    left join organization_members m on m.organization_id = o.id and m.role = 'owner'
+    left join profiles p on p.id = m.user_id
+   where o.id = any (p_orgs)
+     and exists (select 1 from event_staff s join events e on e.id = s.event_id
+                  where s.user_id = auth.uid() and e.organization_id = o.id
+                    and e.ends_on >= (now() at time zone e.timezone)::date);
+$$;
+revoke execute on function public.account_contacts(uuid[]) from public, anon;
+grant execute on function public.account_contacts(uuid[]) to authenticated;

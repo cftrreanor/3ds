@@ -327,7 +327,10 @@ function HostSections({ view, me }: { view: HostView; me: string }) {
         }
       />
 
-      <PrivacyNote>Only {org.name}&apos;s hosts and co-hosts see this page&apos;s emails and phone numbers. {REMOVAL_NOTE}</PrivacyNote>
+      <PrivacyNote>
+        Who sees these details: the Account Host and co-hosts see everyone&apos;s email and phone number. Volunteer Leads see their own
+        event&apos;s team. People on an event&apos;s team see the Account Host&apos;s name and email, so they can ask questions. {REMOVAL_NOTE}
+      </PrivacyNote>
     </>
   );
 }
@@ -626,7 +629,7 @@ function LeadSections({ view }: { view: LeadView }) {
         spotNote={spotLine(null)}
         blocked={() => (view.full ? `The team is full. Ask ${view.accountHost ?? "the Account Host"} to free a spot` : null)}
       />
-      <PrivacyNote>Coordinators&apos; emails and phone numbers are seen by the event&apos;s hosts and Volunteer Leads. {REMOVAL_NOTE}</PrivacyNote>
+      <PrivacyNote>Only the event&apos;s hosts and Volunteer Leads see Coordinators&apos; emails and phone numbers. {REMOVAL_NOTE}</PrivacyNote>
     </>
   );
 }

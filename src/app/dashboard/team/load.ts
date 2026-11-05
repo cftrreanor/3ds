@@ -1,7 +1,7 @@
 import "server-only";
 import { loadTiers } from "@/lib/package-names";
 import { isSchemaError, missing } from "@/lib/schema-check";
-import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { REMOVED_RECENTLY_DAYS } from "@/lib/team-words";
 import { utcToZonedDate } from "@/lib/time";
 
@@ -221,7 +221,7 @@ export async function loadMyTeam(userId: string, origin: string, accountId?: str
   // Accounts where you're only on an event team: their names and Account Hosts (which you can't read yourself).
   const hostIds = new Set(memberships.map((m) => m.organization_id));
   const teamIds = [...new Set(myStaff.map((s) => s.events!.organization_id))].filter((id) => !hostIds.has(id));
-  const [owners, teamNames] = await Promise.all([accountHosts(teamIds), accountNames(teamIds)]);
+  const { hosts: owners, names: teamNames } = await accountContacts(teamIds);
   const rank = { owner: 0, admin: 1, team: 2 } as const;
   const accounts: TeamAccount[] = [
     ...memberships.map((m) => ({ id: m.organization_id, name: m.organizations?.name ?? "Your account", role: m.role })),
@@ -256,15 +256,6 @@ async function loadJobs(eventIds: string[]): Promise<EventJobs> {
   const jobs: EventJobs = {};
   for (const st of stations ?? []) (jobs[st.event_id] ??= []).push({ id: st.id, name: st.name, led: led.has(st.id) });
   return jobs;
-}
-
-/** Account names for people on their event teams (who can't read the account itself). */
-async function accountNames(orgIds: string[]) {
-  const map = new Map<string, string>();
-  if (!orgIds.length) return map;
-  const { data } = await createAdminClient().from("organizations").select("id, name").in("id", orgIds);
-  for (const row of data ?? []) map.set(row.id, row.name);
-  return map;
 }
 
 async function loadHostView(org: { id: string; name: string }, userId: string, origin: string): Promise<HostView> {
@@ -401,21 +392,20 @@ async function loadLeadView(ledEvents: TeamEvent[], origin: string, orgId: strin
 }
 
 /**
- * Who to ask about an account: its Account Host's name and email, for the people on its
- * event teams (who can't read the account's members themselves).
+ * Who to ask about an account, for the people on its event teams (who can't read the account
+ * itself): its name, and its Account Host's name and email. The database limits this to accounts
+ * where one of your events isn't over (account_contacts()).
  */
-async function accountHosts(orgIds: string[]) {
-  const map = new Map<string, { name: string; email: string }>();
-  if (!orgIds.length) return map;
-  const { data } = await createAdminClient()
-    .from("organization_members")
-    .select("organization_id, profiles(full_name, email)")
-    .in("organization_id", orgIds)
-    .eq("role", "owner");
-  for (const row of (data ?? []) as unknown as { organization_id: string; profiles: { full_name: string; email: string } | null }[]) {
-    if (row.profiles) map.set(row.organization_id, { name: row.profiles.full_name || row.profiles.email, email: row.profiles.email });
+async function accountContacts(orgIds: string[]) {
+  const hosts = new Map<string, { name: string; email: string }>();
+  const names = new Map<string, string>();
+  if (!orgIds.length) return { hosts, names };
+  const { data } = await (await createClient()).rpc("account_contacts", { p_orgs: orgIds });
+  for (const row of (data ?? []) as { organization_id: string; organization: string; host_name: string | null; host_email: string | null }[]) {
+    names.set(row.organization_id, row.organization);
+    if (row.host_email) hosts.set(row.organization_id, { name: row.host_name ?? row.host_email, email: row.host_email });
   }
-  return map;
+  return { hosts, names };
 }
 
 /** Whether to show My team in the menu: hosts, co-hosts, and anyone on an event's team. */
