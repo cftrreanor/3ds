@@ -205,7 +205,7 @@ export function CopyInviteLink({ url, email }: { url: string; email: string }) {
       url={url}
       label="Copy link"
       ariaLabel={`Copy link for ${email}`}
-      className={`inline-flex items-center justify-center rounded-md border border-border bg-surface font-semibold hover:border-brand/40 hover:bg-background ${ROW_BUTTON}`}
+      className={`inline-flex items-center justify-center rounded-md border border-field-border bg-surface font-semibold hover:border-brand hover:bg-background ${ROW_BUTTON}`}
     />
   );
 }

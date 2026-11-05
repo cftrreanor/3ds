@@ -1,5 +1,6 @@
 import "server-only";
 import { loadTiers } from "@/lib/package-names";
+import { isSchemaError, missing } from "@/lib/schema-check";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { REMOVED_RECENTLY_DAYS } from "@/lib/team-words";
 import { utcToZonedDate } from "@/lib/time";
@@ -59,7 +60,13 @@ export type Host = { userId: string; role: "owner" | "admin"; profile: Profile }
 /** Your own role on someone else's event (or your own, as a Volunteer Lead or Coordinator). */
 export type MyRole = RoleOn & { accountHost: { name: string; email: string } | null };
 
+/** A job on an upcoming event, for giving a Coordinator one when inviting them. */
+export type Job = { id: string; name: string; led: boolean };
+export type EventJobs = Record<string, Job[]>;
+
 export type HostView = {
+  /** Each upcoming event's jobs. */
+  jobs: EventJobs;
   kind: "host";
   org: { id: string; name: string };
   isAccountHost: boolean;
@@ -86,6 +93,7 @@ export type LeadView = {
   full: boolean;
   /** Who frees one: the Account Host. */
   accountHost: string | null;
+  jobs: EventJobs;
 };
 /** An account you're on: as its Account Host, a co-host, or on one of its event teams. */
 export type TeamAccount = { id: string; name: string; role: "owner" | "admin" | "team" };
@@ -236,6 +244,20 @@ export async function loadMyTeam(userId: string, origin: string, accountId?: str
   return { me: userId, accounts, current, host: null, lead, myRoles };
 }
 
+/** Each event's jobs, in setup order, and whether someone leads each one. */
+async function loadJobs(eventIds: string[]): Promise<EventJobs> {
+  if (!eventIds.length) return {};
+  const supabase = await createClient();
+  const [{ data: stations }, { data: leads }] = await Promise.all([
+    supabase.from("stations").select("id, name, event_id").in("event_id", eventIds).order("sort_order").order("created_at"),
+    supabase.from("station_leads").select("station_id").in("event_id", eventIds),
+  ]);
+  const led = new Set((leads ?? []).map((l) => l.station_id));
+  const jobs: EventJobs = {};
+  for (const st of stations ?? []) (jobs[st.event_id] ??= []).push({ id: st.id, name: st.name, led: led.has(st.id) });
+  return jobs;
+}
+
 /** Account names for people on their event teams (who can't read the account itself). */
 async function accountNames(orgIds: string[]) {
   const map = new Map<string, string>();
@@ -247,7 +269,7 @@ async function accountNames(orgIds: string[]) {
 
 async function loadHostView(org: { id: string; name: string }, userId: string, origin: string): Promise<HostView> {
   const supabase = await createClient();
-  const [{ data: memberData }, { data: eventData }, { data: inviteData }, { data: removalData }, { data: spotData }] = await Promise.all([
+  const [members, eventsRes, invitesRes, removalsRes, spotsRes] = await Promise.all([
     supabase.from("organization_members").select("user_id, role, profiles(full_name, email, phone)").eq("organization_id", org.id).order("created_at"),
     supabase.from("events").select("id, name, starts_on, ends_on, timezone").eq("organization_id", org.id).order("starts_on"),
     supabase
@@ -264,6 +286,14 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
       .order("removed_at", { ascending: false }),
     supabase.rpc("team_spots", { p_org: org.id }),
   ]);
+  // A failed load never shows as an empty team or a team with no limit.
+  const failed = [members, eventsRes, invitesRes, removalsRes, spotsRes].find((r) => r.error)?.error;
+  if (failed) {
+    // Before the My team database update has been run: say so.
+    if (isSchemaError(failed)) missing();
+    throw new Error(`My team couldn't load: ${failed.message}`);
+  }
+  const [memberData, eventData, inviteData, removalData, spotData] = [members.data, eventsRes.data, invitesRes.data, removalsRes.data, spotsRes.data];
   const events = new Map(((eventData ?? []) as EventRow[]).map((e) => [e.id, toEvent(e)]));
   const ids = [...events.keys()];
   const [{ data: staffData }, { data: leadData }] = ids.length
@@ -308,6 +338,7 @@ async function loadHostView(org: { id: string; name: string }, userId: string, o
     past,
     removed,
     upcoming: [...events.values()].filter((e) => !e.ended),
+    jobs: await loadJobs([...events.values()].filter((e) => !e.ended).map((e) => e.id)),
     spots: {
       used: s.used ?? hosts.length,
       invited: s.invited ?? 0,
@@ -351,6 +382,7 @@ async function loadLeadView(ledEvents: TeamEvent[], origin: string, orgId: strin
     kind: "lead",
     full: fullData === true,
     accountHost,
+    jobs: await loadJobs(ids),
     events: ledEvents
       .sort((a, b) => a.starts_on.localeCompare(b.starts_on))
       .map((event) => ({

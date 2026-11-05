@@ -51,7 +51,7 @@ async function invite(
   const user = await requireUser();
   email = email.trim().toLowerCase();
   if (email === user.email.toLowerCase()) {
-    return { error: "That's your own email. As the host you already have full access." };
+    return { error: "That's your own email. You're already on the team." };
   }
 
   const supabase = await createClient();
@@ -77,7 +77,7 @@ async function invite(
     .select("id")
     .single();
   if (error) {
-    if (error.code === "23505") return { error: `${email} already has an invitation waiting. Use Resend under Pending.` };
+    if (error.code === "23505") return { error: `${email} already has an invitation waiting. Use Resend on their invitation.` };
     return { error: friendlyDbError(error) };
   }
 
@@ -86,7 +86,7 @@ async function invite(
   revalidatePath("/dashboard/team");
   return sent === true
     ? { ok: true, message: `Invitation sent to ${email}.` }
-    : { ok: true, message: `Invitation saved, but the email didn't go out. Copy the link under Pending and send it to ${email} yourself.` };
+    : { ok: true, message: `Invitation saved, but the email didn't go out. Use Copy link on their invitation and send it to ${email} yourself.` };
 }
 
 export async function resendInvitation(eventId: string, invitationId: string): Promise<ActionState> {
@@ -253,14 +253,14 @@ async function inviteToAccount(orgId: string, email: string): Promise<ActionStat
     .select("id")
     .single();
   if (error) {
-    if (error.code === "23505") return { error: `${email} already has an invitation waiting. Use Resend on their row.` };
+    if (error.code === "23505") return { error: `${email} already has an invitation waiting. Use Resend on their invitation.` };
     return { error: friendlyDbError(error) };
   }
   const sent = await sendInvitation(data.id);
   revalidatePath("/dashboard", "layout");
   return sent === true
     ? { ok: true, message: `Invitation sent to ${email}.` }
-    : { ok: true, message: `Invitation saved, but the email didn't go out. Use Copy link on their row and send it to ${email} yourself.` };
+    : { ok: true, message: `Invitation saved, but the email didn't go out. Use Copy link on their invitation and send it to ${email} yourself.` };
 }
 
 /**
@@ -340,7 +340,10 @@ export async function removeAccountCoHost(orgId: string, userId: string, name: s
     .eq("role", "admin")
     .select("user_id");
   if (error) return { error: friendlyDbError(error) };
-  if (!data?.length) return { error: "Only the Account Host can remove a co-host." };
+  if (!data?.length) {
+    revalidatePath("/dashboard", "layout");
+    return { error: userId === user.id ? "You're no longer a co-host here. The page has been refreshed." : `${name} isn't a co-host anymore. The page has been refreshed.` };
+  }
   revalidatePath("/dashboard", "layout");
   // Leaving yourself: the account's events are no longer yours to see.
   if (userId === user.id) redirect("/dashboard");
