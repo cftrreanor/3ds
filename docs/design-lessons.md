@@ -27,6 +27,10 @@ per page and shown from that one result. Don't repeat the same fact in three pla
 - **Same word, same count:** if two cards say "invited", they count the same people. Define the
   count once, in one helper, and say what it is ("invited who haven't registered").
 - **Mock-ups too:** sample data follows one timeline. Check every number against every other screen.
+- **Again in:** My team mock-ups and built pages (team spots: "invitations count until they're
+  accepted" next to a rule where accepting keeps the spot; the built "8 of 8" sample showed 6 rows).
+  **Sharper rule:** a limit's rule is written once (in `src/lib/team-words.ts` or the database
+  message) and every screen, window, and email quotes it. Sample data adds up row by row.
 
 ## L2. Design every state, not just the happy one
 For each screen, show: empty, first time (no history), in progress, saved, **failed**, already
@@ -34,6 +38,9 @@ done (invited, registered), full, closed and reopened, ended or past, and the bl
 - **Why:** the missing state is where people get stuck, and builders guess it differently.
 - **Seen in:** setup redesign (live with sign-up closed missing), volunteer jobs (failed save,
   name-only), band contest v1 (no first-time host, no close/reopen, no already-invited).
+- **Again in:** My team built (an expired invitation looked like a live one and offered Copy link
+  for a dead link, 7 of 8 reviewers). Anything with an end date (a link, an invitation, a pass)
+  has its own expired look: its own badge word, and only the actions that still work.
 
 ## L3. Saving never loses work
 Automatic saving shows **Saving…, Saved, Couldn't save (Retry)**, and **typed but not added**.
@@ -63,6 +70,10 @@ sign-ups", "can't remove a classification with bands") is refused by the databas
 - **Every date and number has limits:** a date picker gets `min`/`max` and the database agrees
   (a deadline before the event); an empty number box is not 0; a limit can't drop below what
   people already signed up for.
+- **Again in:** My team built (resending an expired invitation skipped the team limit; the page
+  said past helpers "can't see those events" while the database still let them in).
+  **Sharper rule:** every path that gives something back (resend, re-invite, undo) runs the same
+  check as the first time, with its own test.
 
 ## L5. One word per thing, one thing per word
 Pick one name and use it everywhere: in buttons, headings, emails, and the website. Never reuse
@@ -77,6 +88,10 @@ a word for two things on one screen.
 - **Also seen in:** band PR 1 built ("Publish and open registration" next to a checklist step
   "Open band registration"; "emailed when you publish" meaning the *schedule*). When one button
   does two things, no other step may offer either one again, and "publish" always names its object.
+- **Again in:** My team mock-ups ("Cancel" for a window and for an invitation) and built ("hosts"
+  meaning both the Account Host plus co-hosts and something separate; messages pointing to a
+  "Pending" list that only another page has; two names for where Coordinators are added).
+  Messages shared between pages name what's on every page that shows them ("on their invitation").
 
 ## L6. Dark mode: muted text is white
 In dark mode `--muted` is pure white, so anything that relies on grey looks live or filled in.
@@ -88,6 +103,9 @@ In dark mode `--muted` is pure white, so anything that relies on grey looks live
 - Checkboxes and radios follow `color-scheme` and the brand accent.
 - **Seen in:** setup redesign v1 and v3, volunteer jobs v3 and v4, band contest v1 and v2.
 - **Always:** look at the dark screenshot of every screen before a review.
+- **Again in:** My team built (windows the same navy as the page behind them; outlined buttons at
+  1.25:1 in light and 1.43:1 in dark). Outlined buttons use `border-field-border` (3:1 or more),
+  not `border-border`.
 
 ## L7. Don't fade things people can still use
 Fading means "you can't". If it still works (an ended shift, a ready card), keep it full strength
@@ -102,6 +120,9 @@ tap", "directions", "in one step", "the order is filled in", "add a plan", "last
 - **Why:** a broken promise costs more trust than a modest one earns.
 - **Seen in:** setup redesign v1 (plan words), My events ("free" claim), band contest v1 and v2.
 - **Check:** for each promise, find the code that keeps it.
+- **Again in:** My team built ("can't see those events anymore" and "only hosts see these details"
+  were both untrue in the database). A privacy sentence gets the same check as a feature claim:
+  find the policy that keeps it.
 
 ## L9. Warnings are earned
 Amber and warning icons only for things that are due soon or block the current step. Anything
@@ -118,6 +139,10 @@ the one missing thing and gives one button to fix it.
   band contest v1 ("open later") and v2 (volunteer link before jobs).
 - **Good model:** "Not ready to publish yet. Publishing needs a registration deadline. Everything
   else can wait. [Add a deadline]"
+- **Again in:** My team built (Invite again disappeared on a full team with no reason; "Ask us
+  about a bigger team" was a bare email link that does nothing without a mail app).
+  **Sharper rule:** a button that can't be offered leaves its reason in its place ("Free a team
+  spot to invite again"). An email link always shows the address as text beside it.
 
 ## L11. Show who gets emailed before anything is sent
 Before an email goes out, the sender can see and untick every recipient. Mark people already
@@ -140,6 +165,11 @@ One filled button per view. Delete and close sit away from it, in red, with a co
 says what happens to the people involved (and offers the way back, like "You can reopen it").
 - **Seen in:** volunteer jobs (Delete job next to Add another job), check-in desk, band contest
   v1 and v2 (Close registration).
+- **Again in:** My team mock-ups (too many red buttons) and built (two window styles; "Leave this
+  event" blue while "Cancel invitation" was red; three different ways out). **Sharper rule:** one
+  confirm window per page (question as title, bullets, an outlined way out that names what you
+  keep, red for anything that takes access away), passed `danger` explicitly, never guessed from
+  the words.
 
 ## L14. Line icons, not emoji
 Use `LineIcon` and `IconTile` (src/components/line-icon.tsx). **Checked automatically** (emoji).

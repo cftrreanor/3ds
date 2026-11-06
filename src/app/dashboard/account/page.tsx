@@ -35,7 +35,7 @@ export default async function AccountPage() {
       </div>
 
       {plan && (
-        <Card>
+        <Card id="plan">
           <h2 className="text-lg font-semibold">Your plan: {plan.package_name}</h2>
           {plan.active !== plan.package && (
             <p className="mt-2 text-sm leading-6 text-danger">

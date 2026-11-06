@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { emailLinkCutoff } from "@/lib/email-link-age";
 import { HeaderBar } from "@/components/logo";
 import Link from "next/link";
+import { CO_HOST_INVITE } from "@/lib/team-words";
 import { acceptInvitation, joinFromEmail } from "@/app/dashboard/team-actions";
 import { Card } from "@/components/ui";
 import { getUser } from "@/lib/auth";
@@ -32,9 +33,10 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
     email: string;
     role: keyof typeof ROLE | null;
     as_host: boolean | null;
-    event_name: string;
-    starts_on: string;
-    ends_on: string;
+    /** Empty for a co-host invitation to the whole account. */
+    event_name: string | null;
+    starts_on: string | null;
+    ends_on: string | null;
     organization: string;
     station_name: string | null;
     expired: boolean;
@@ -66,7 +68,7 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
     invite && (invite.as_host || !invite.role)
       ? {
           label: "a co-host",
-          blurb: `You'll have the same access as the host on all of their events, starting with this one.`,
+          blurb: CO_HOST_INVITE,
         }
       : invite && ROLE[invite.role!];
 
@@ -87,12 +89,14 @@ export default async function InvitePage({ params, searchParams }: PageProps<"/i
             <>
               <p className="text-sm font-medium text-muted">{invite.organization} invited you</p>
               <h1 className="mt-1 text-2xl font-medium">
-                Join {invite.event_name} as {role?.label}
+                Join {invite.event_name ?? invite.organization} as {role?.label}
               </h1>
-              <p className="mt-1 text-sm text-muted">
-                {formatDateRange(invite.starts_on, invite.ends_on)}
-                {invite.station_name && ` · ${invite.station_name}`}
-              </p>
+              {invite.starts_on && invite.ends_on && (
+                <p className="mt-1 text-sm text-muted">
+                  {formatDateRange(invite.starts_on, invite.ends_on)}
+                  {invite.station_name && ` · ${invite.station_name}`}
+                </p>
+              )}
               <p className="mt-4 leading-7 text-muted">{role?.blurb}</p>
 
               <div className="mt-6">

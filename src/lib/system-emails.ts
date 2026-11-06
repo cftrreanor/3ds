@@ -127,13 +127,13 @@ export const SYSTEM_EMAILS: SystemEmail[] = [
     description: "Goes to someone a host invites to co-host their events.",
     fields: [
       ...inviteFields,
-      { key: "access", label: "What co-hosts can do", sample: "bands, the schedule, volunteers, the team, and contest day" },
+      { key: "access", label: "What co-hosts can do", sample: "setting up and publishing events, sign-ups, volunteers, and the event day" },
     ],
     required: [],
     starting: {
       subject: "You're invited to co-host {{organization}} on {{brand}}",
       heading: "Co-host events for {{organization}}",
-      body: "{{inviter}} invited you to co-host their events on {{brand}}, starting with {{event_name}} ({{event_when}}).\n\nCo-hosts have the same access as the host on every event: {{access}}.",
+      body: "{{inviter}} invited you to co-host their events on {{brand}}.\n\nAs a co-host, you'll help run every event on the account: {{access}}. You'll have the same access as the Account Host, except inviting or removing co-hosts.",
       button_label: "Accept invitation",
     },
     locked: inviteLocked,
