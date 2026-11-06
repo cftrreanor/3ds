@@ -7877,6 +7877,12 @@ begin
   values ('7d000000-0000-0000-0000-0000000000e1', 'tmvl@example.com', 'section_lead', '0000007e-0000-0000-0000-000000000001');
   delete from public.invitations where email = 'tmvl@example.com';
 end $$;
+-- Invitations can be looked up by account, as My team and team setup do (20270119000000).
+do $$ begin
+  assert exists (select 1 from public.invitations
+                  where organization_id = '7d000000-0000-0000-0000-000000000001' and email = 'tmnew@example.com'),
+         'the Account Host can find the account''s invitations by account';
+end $$;
 -- A Volunteer Lead doesn't see the account's co-host invitations (co-hosts and the Account Host do).
 set request.jwt.claims = '{"sub":"0000007e-0000-0000-0000-000000000004","email":"tmvl@example.com"}';
 do $$ begin
